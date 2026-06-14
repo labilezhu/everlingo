@@ -7,6 +7,7 @@
 ### 编码技术栈
 
 - 后端基于 LLM 和 langchain python 开发
+- 使用 python venv 作为环境
 
 ### LLM Provider
 

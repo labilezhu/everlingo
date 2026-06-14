@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "everlingo"
+version = "0.1.0"
+description = "EverLingo - AI 外语学习助手"
+requires-python = ">=3.11"
+dependencies = [
+    "langchain>=0.3.0",
+    "langchain-openai>=0.3.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+everlingo = "everlingo.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/everlingo"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/everlingo"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

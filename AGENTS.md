@@ -17,3 +17,6 @@ Output:
 
 - Explain design
 - Then generate code
+
+## Boundaries
+- 🚫 **Never do:** commit secrets
