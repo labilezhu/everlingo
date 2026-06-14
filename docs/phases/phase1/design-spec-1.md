@@ -1,4 +1,4 @@
-# 设计说明 - phase 0.1
+# 技术规范 - phase 1
 
 ## 技术选型
 
@@ -14,26 +14,12 @@
 测试时用 OpenRouter 的 Open AI Chat Completions endpoint base url: `https://openrouter.ai/api/v1` 。 api key 由环境变量注入。
 
 
+### Domain model
+[domain-model-1.md](domain-model-1.md)
+
 ## 实现设计
 
-LLM tools:
+- [LLM tools](tools-1.md)
 
-### 管理用户个性初始化
-
-tool name: user_profile
-
-#### tool description
-管理用户个性初始化
-
-`必须设置项`：
-- 界面语言
-- 目标学习语言。约束规则：不能和 对话语言 相同
-
-##### functions
-
-###### 保存设置
-tool name: user_profile
-parameters: 
-    entitys : list[(key, value)]  , 如 []
 
 
