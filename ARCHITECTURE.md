@@ -1,4 +1,6 @@
-# 技术规范 - phase 1
+# 架构设计
+
+暂时是一个单体 python 程序的架构。
 
 ## 技术选型
 
@@ -15,12 +17,12 @@
 测试时用 OpenRouter 的 Open AI Chat Completions endpoint base url: `https://openrouter.ai/api/v1` 。 api key 由环境变量注入。
 
 
-### Domain model
-[domain-model-1.md](domain-model-1.md)
-
 ## 实现设计
 
-- [LLM tools](tools-1.md)
+- [LLM tools](/docs/impl-spec/tools.md)
 
+## 配置
+
+- [配置](/docs/impl-spec/configuration.md)
 
 

@@ -1,15 +1,14 @@
-# Active Phase
-
-Phase 1 - DEMO
-
-相关文档见： [ROADMAP.md](ROADMAP.md) 中的 [Phase 1 - DEMO] 一节
-
 # Current Sprint
 
-- [x] 建立一个 langchain python 开发环境的 code base
+## 等待执行的任务
 
-## 完成内容
+## 处理中的任务
 
+## 执行失败的任务
+
+## 完成的任务
+
+- 建立一个 langchain python 开发环境的 code base
 - 项目结构: `pyproject.toml`, `src/everlingo/`, `tests/`
 - Domain models: `UserProfile`, `WordQuery`, `TranslationRecord`
 - LLM 集成: LangChain + ChatOpenAI (兼容 OpenAI Chat Completions endpoint)
