@@ -18,8 +18,7 @@
 
 
 ## 实现设计
-
-- [LLM tools](/docs/impl-spec/tools.md)
+- [基于 Agent 的 LLM 交互设计](/docs/impl-spec/agents-spec.md)
 
 ## 配置
 

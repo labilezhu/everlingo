@@ -11,7 +11,7 @@ from .models import (
 PROFILE_PATH = Path.home() / ".everlingo" / "everlingo.yaml"
 
 
-def _dict_to_setting(data: dict) -> EverLingoSetting:
+def dict_to_setting(data: dict) -> EverLingoSetting:
     ss = data.get("sys_setting", {})
     up = data.get("user_profile", {})
     lang = up.get("language", {})
@@ -33,7 +33,7 @@ def _dict_to_setting(data: dict) -> EverLingoSetting:
     )
 
 
-def _setting_to_dict(setting: EverLingoSetting) -> dict:
+def setting_to_dict(setting: EverLingoSetting) -> dict:
     return {
         "sys_setting": {
             "openai_api_key": setting.sys_setting.openai_api_key,
@@ -70,11 +70,11 @@ def _dump_raw(data: dict) -> None:
 
 
 def load_setting() -> EverLingoSetting:
-    return _dict_to_setting(_load_raw())
+    return dict_to_setting(_load_raw())
 
 
 def save_setting(setting: EverLingoSetting) -> None:
-    _dump_raw(_setting_to_dict(setting))
+    _dump_raw(setting_to_dict(setting))
 
 
 def load_profile() -> UserProfile:
