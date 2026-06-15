@@ -4,9 +4,20 @@ from typing import Optional
 
 
 @dataclass
+class SysSetting:
+    openai_api_key: str = ""
+    openai_base_url: str = ""
+    openai_model: str = ""
+
+
+@dataclass
 class UserProfile:
     interface_language: str = ""
     target_language: str = ""
+    hobbies: str = ""
+    residence: str = ""
+    gender: str = ""
+    dictionary_definition_style: str = ""
 
     def is_complete(self) -> bool:
         return bool(self.interface_language) and bool(self.target_language)
@@ -20,6 +31,12 @@ class UserProfile:
         if self.interface_language and self.target_language and self.interface_language == self.target_language:
             errors.append("界面语言和目标学习语言不能相同")
         return errors
+
+
+@dataclass
+class EverLingoSetting:
+    sys_setting: SysSetting = field(default_factory=SysSetting)
+    user_profile: UserProfile = field(default_factory=UserProfile)
 
 
 @dataclass

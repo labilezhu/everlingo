@@ -13,7 +13,7 @@
 
 
 
-## 配置文件
+## 配置文件 - EverLingoSetting
 以下列出配置文件的信息。
 
 配置文件位置： `~/.everlingo/everlingo.yaml` 。 配置文件使用 yaml 格式。
@@ -27,7 +27,10 @@ sys_setting:
 user_profile:
 ```
 
-### 系统设定 - sys_setting
+在代码中， class 名称叫 `EverLingoSetting`. 
+
+
+### 系统设定 - SysSetting
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
@@ -37,8 +40,12 @@ user_profile:
 
 配置文件的配置项目的优先级高于 Environment Variables 。 即如果一个语义相同的配置项，在配置文件和 Environment Variables 中均配置了，优先使用 配置文件的配置项 。
 
-### 用户 Profile - user_profile
+在代码中， class 名称叫 `SysSetting`. 
+
+### 用户 Profile - UserProfile
 
 首次运行时交互生成，之后自动加载。
 
 配置项参考 [DOMAIN.md](/DOMAIN.md) 中 `用户 Profile` 一节。
+
+在代码中， class 名称叫 `UserProfile`. 

@@ -3,7 +3,9 @@
 
 ## 用户模型
 
-### 用户 Profile - user_profile
+### 用户 Profile - UserProfile
+
+在代码中， class 名称叫 `UserProfile`. 
 
 结构示例：
 ```yaml

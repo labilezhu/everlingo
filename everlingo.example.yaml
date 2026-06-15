@@ -1,0 +1,35 @@
+# EverLingo 配置文件
+# 存放于 ~/.everlingo/everlingo.yaml
+# 优先级高于同名的环境变量
+
+sys_setting:
+  # LLM Provider API Key（必需）
+  openai_api_key:
+  # 兼容 OpenAI Chat Completions 的 API Base URL
+  openai_base_url:
+  # 使用的模型名称
+  openai_model:
+
+user_profile:
+  # 用户语言设置（必填项，首次运行时交互生成）
+  language:
+    # 界面语言。可选值: "zh-CN", "en"
+    interface_language: zh-CN
+    # 目标学习语言。可选值: "zh-CN", "en" 。不能与 interface_language 相同
+    target_language: en
+
+  # 用户背景（可选）
+  background:
+    # 爱好描述
+    hobbies: 历史与文艺
+    # 主要居住地区
+    residence:
+    # 性别。可选值: male, female, other
+    gender:
+
+  # 词典解释风格（可选）
+  # 自定义词典老师返回单词解释时包含的内容
+  dictionary_definition_style: |
+    - 词意
+    - 词源解释和历史
+    - 词性（动词，名词……）如果是动词提供过去式，过去分词
