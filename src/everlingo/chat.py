@@ -3,7 +3,7 @@ from .models import LANGUAGES, UserProfile
 from .profile import load_profile, save_profile
 from .dict_teacher import DictionaryTeacher
 from .trans_teacher import TranslationTeacher
-from .tools import get_tools
+from .tools.tools import get_tools
 
 
 def _prompt_language_selection(prompt: str, exclude: str = "") -> str:
@@ -80,7 +80,7 @@ def _build_trans_system_prompt(profile: UserProfile) -> str:
 
 def run_chat(profile: UserProfile) -> None:
     llm = create_llm()
-    tools = get_tools("configuration_manager")
+    tools = get_tools("conf_manager")
 
     dict_agent = create_agent(
         llm, tools=tools, system_prompt=_build_dict_system_prompt(profile)
