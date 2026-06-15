@@ -6,39 +6,39 @@
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `OPENAI_API_KEY` | — | LLM Provider API Key（必需） |
-| `OPENAI_BASE_URL` | `https://openrouter.ai/api/v1` | 兼容 OpenAI Chat Completions 的 API Base URL |
-| `OPENAI_MODEL` | `gpt-3.5-turbo` | 使用的模型名称 |
+| `OPENAI_API_KEY` | 无默认 | LLM Provider API Key（必需） |
+| `OPENAI_BASE_URL` | 无默认 | 兼容 OpenAI Chat Completions 的 API Base URL |
+| `OPENAI_MODEL` | 无默认 | 使用的模型名称 |
+
+
 
 
 ## 配置文件
 以下列出配置文件的信息。
 
-### 用户个性初始化
+配置文件位置： `~/.everlingo/everlingo.yaml` 。 配置文件使用 yaml 格式。
 
-**配置文件位置：** `~/.everlingo/profile.json`
+配置文件包括以下子小节的内容。 yaml 结构示例如下 :
+```yaml
+sys_setting:
+  openai_api_key:
+  openai_base_url: 
+  openai_model: 
+user_profile:
+```
+
+### 系统设定 - sys_setting
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `openai_api_key` | 无默认 | LLM Provider API Key（必需） |
+| `openai_base_url` | 无默认 | 兼容 OpenAI Chat Completions 的 API Base URL |
+| `openai_model` | 无默认 | 使用的模型名称 |
+
+配置文件的配置项目的优先级高于 Environment Variables 。 即如果一个语义相同的配置项，在配置文件和 Environment Variables 中均配置了，优先使用 配置文件的配置项 。
+
+### 用户 Profile - user_profile
 
 首次运行时交互生成，之后自动加载。
 
-#### 配置项
-
-| 字段 | 类型 | 可选值 | 说明 |
-|------|------|--------|------|
-| `interface_language` | string | `"zh-CN"`, `"en"` | 界面语言。不能与 `target_language` 相同 |
-| `target_language` | string | `"zh-CN"`, `"en"` | 目标学习语言。不能与 `interface_language` 相同 |
-
-#### 示例
-
-```json
-{
-  "interface_language": "zh-CN",
-  "target_language": "en"
-}
-```
-
-
-#### 约束规则
-- `interface_language` 和 `target_language` 均必须设置
-- 两者不能相同
-
-
+配置项参考 [DOMAIN.md](/DOMAIN.md) 中 `用户 Profile` 一节。
