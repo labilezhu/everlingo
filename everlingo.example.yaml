@@ -10,6 +10,12 @@ sys_setting:
   # 使用的模型名称
   openai_model:
 
+logging_setting:
+  # 日志文件路径。默认: ~/.everlingo/logs/everlingo.log
+  log_file:
+  # 日志级别。可选: debug/info/warn/error。默认: debug
+  log_level: debug
+
 user_profile:
   # 用户语言设置（必填项，首次运行时交互生成）
   language:

@@ -1,3 +1,5 @@
+from langchain_core.messages import HumanMessage
+
 from .llm import create_agent, create_llm
 from .models import LANGUAGES, UserProfile
 from .profile import load_profile, save_profile
@@ -190,6 +192,8 @@ def run_chat(profile: UserProfile) -> None:
     print("输入你想查的单词或需要翻译的文本。")
     print("输入 /quit 退出。")
 
+    messages: list = []
+
     while True:
         try:
             user_input = input("\n> ").strip()
@@ -203,17 +207,16 @@ def run_chat(profile: UserProfile) -> None:
             print("再见！")
             break
 
-        # 使用统一的 Agent 处理用户输入
-        # Agent 会自动分析意图并调用相应的工具或直接回复
+        # 累积消息历史，支持多轮会话
+        messages.append(HumanMessage(content=user_input))
+
         try:
-            response = agent.invoke({"messages": [{"role": "user", "content": user_input}]})
-            # 提取 Agent 的回复
-            if "messages" in response and len(response["messages"]) > 0:
-                last_message = response["messages"][-1]
-                if hasattr(last_message, "content"):
-                    print(f"\n{last_message.content}")
-                else:
-                    print(f"\n{last_message}")
+            response = agent.invoke({"messages": messages})
+            messages = response["messages"]
+
+            last_message = messages[-1]
+            if hasattr(last_message, "content") and last_message.content:
+                print(f"\n{last_message.content}")
             else:
                 print("\n抱歉，我无法处理你的请求。")
         except Exception as e:

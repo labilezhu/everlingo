@@ -1,4 +1,5 @@
-from everlingo.models import EverLingoSetting, SysSetting, UserProfile
+from everlingo.models import EverLingoSetting, LoggingSetting, SysSetting, UserProfile
+from everlingo.profile import dict_to_setting, setting_to_dict
 
 
 def test_empty_profile_is_incomplete():
@@ -75,3 +76,56 @@ def test_everlingo_setting_full():
     assert setting.sys_setting.openai_model == "gpt-4"
     assert setting.user_profile.interface_language == "zh-CN"
     assert setting.user_profile.target_language == "en"
+
+
+def test_logging_setting_defaults():
+    ls = LoggingSetting()
+    assert ls.log_file == ""
+    assert ls.log_level == "debug"
+
+
+def test_everlingo_setting_with_logging():
+    setting = EverLingoSetting(
+        logging_setting=LoggingSetting(
+            log_file="/tmp/everlingo.log",
+            log_level="info",
+        ),
+    )
+    assert setting.logging_setting.log_file == "/tmp/everlingo.log"
+    assert setting.logging_setting.log_level == "info"
+
+
+def test_dict_to_setting_includes_logging():
+    data = {
+        "logging_setting": {
+            "log_file": "/custom/path.log",
+            "log_level": "warn",
+        },
+    }
+    setting = dict_to_setting(data)
+    assert setting.logging_setting.log_file == "/custom/path.log"
+    assert setting.logging_setting.log_level == "warn"
+
+
+def test_setting_to_dict_includes_logging():
+    setting = EverLingoSetting(
+        logging_setting=LoggingSetting(
+            log_file="/custom/path.log",
+            log_level="error",
+        ),
+    )
+    d = setting_to_dict(setting)
+    assert d["logging_setting"]["log_file"] == "/custom/path.log"
+    assert d["logging_setting"]["log_level"] == "error"
+
+
+def test_logging_roundtrip():
+    original = EverLingoSetting(
+        sys_setting=SysSetting(openai_api_key="sk-test"),
+        logging_setting=LoggingSetting(log_file="/log/test.log", log_level="info"),
+        user_profile=UserProfile(interface_language="zh-CN", target_language="en"),
+    )
+    d = setting_to_dict(original)
+    restored = dict_to_setting(d)
+    assert restored.logging_setting.log_file == "/log/test.log"
+    assert restored.logging_setting.log_level == "info"

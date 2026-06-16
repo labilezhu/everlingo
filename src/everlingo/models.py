@@ -34,8 +34,15 @@ class UserProfile:
 
 
 @dataclass
+class LoggingSetting:
+    log_file: str = ""
+    log_level: str = "debug"
+
+
+@dataclass
 class EverLingoSetting:
     sys_setting: SysSetting = field(default_factory=SysSetting)
+    logging_setting: LoggingSetting = field(default_factory=LoggingSetting)
     user_profile: UserProfile = field(default_factory=UserProfile)
 
 

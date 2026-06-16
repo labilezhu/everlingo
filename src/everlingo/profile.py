@@ -4,6 +4,7 @@ import yaml
 
 from .models import (
     EverLingoSetting,
+    LoggingSetting,
     SysSetting,
     UserProfile,
 )
@@ -13,6 +14,7 @@ PROFILE_PATH = Path.home() / ".everlingo" / "everlingo.yaml"
 
 def dict_to_setting(data: dict) -> EverLingoSetting:
     ss = data.get("sys_setting", {})
+    ls = data.get("logging_setting", {})
     up = data.get("user_profile", {})
     lang = up.get("language", {})
     bg = up.get("background", {})
@@ -21,6 +23,10 @@ def dict_to_setting(data: dict) -> EverLingoSetting:
             openai_api_key=ss.get("openai_api_key", ""),
             openai_base_url=ss.get("openai_base_url", ""),
             openai_model=ss.get("openai_model", ""),
+        ),
+        logging_setting=LoggingSetting(
+            log_file=ls.get("log_file", ""),
+            log_level=ls.get("log_level", "debug"),
         ),
         user_profile=UserProfile(
             interface_language=lang.get("interface_language", ""),
@@ -39,6 +45,10 @@ def setting_to_dict(setting: EverLingoSetting) -> dict:
             "openai_api_key": setting.sys_setting.openai_api_key,
             "openai_base_url": setting.sys_setting.openai_base_url,
             "openai_model": setting.sys_setting.openai_model,
+        },
+        "logging_setting": {
+            "log_file": setting.logging_setting.log_file,
+            "log_level": setting.logging_setting.log_level,
         },
         "user_profile": {
             "language": {

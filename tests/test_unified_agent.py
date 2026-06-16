@@ -171,3 +171,27 @@ def test_custom_dictionary_style(agent_zh_en, zh_en_profile):
     assert "词意" in prompt
     assert "词源解释和历史" in prompt
     assert "词性" in prompt
+
+
+@pytest.mark.integration
+def test_multi_turn_conversation(agent_zh_en):
+    """测试多轮会话：第二轮引用第一轮的上下文"""
+    # 第一轮：查词
+    response1 = agent_zh_en.invoke({
+        "messages": [{"role": "user", "content": "cat"}]
+    })
+    content1 = response1["messages"][-1].content
+    assert content1
+    messages = response1["messages"]
+
+    # 第二轮：代词指代上一轮查的词
+    response2 = agent_zh_en.invoke({
+        "messages": list(messages) + [{"role": "user", "content": "它的相关词有哪些？"}]
+    })
+    content2 = response2["messages"][-1].content
+    assert content2
+
+    # 第二轮回复应该提到与 cat 相关的词
+    related_words = ["dog", "feline", "pet", "kitten", "animal"]
+    assert any(word.lower() in (content2 or "").lower() for word in related_words), \
+        f"多轮会话未识别代词指代。第二轮回复: {content2}"

@@ -1,5 +1,8 @@
 def main() -> None:
     from .chat import _ensure_profile, run_chat
+    from .logging import setup_logging
+
+    setup_logging()
 
     try:
         profile = _ensure_profile()

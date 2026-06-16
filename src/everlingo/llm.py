@@ -5,6 +5,7 @@ from langchain_core.tools import BaseTool
 from langchain_openai import ChatOpenAI
 
 from .config import get_llm_config
+from .logging import LLMLoggingHandler
 
 
 def create_llm() -> ChatOpenAI:
@@ -14,6 +15,7 @@ def create_llm() -> ChatOpenAI:
         base_url=cfg["base_url"],
         model=cfg["model"],
         temperature=0.7,
+        callbacks=[LLMLoggingHandler()],
     )
 
 
