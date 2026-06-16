@@ -24,6 +24,7 @@ sys_setting:
   openai_api_key:
   openai_base_url: 
   openai_model: 
+  logging_setting:
 user_profile:
 ```
 
@@ -40,7 +41,16 @@ user_profile:
 
 配置文件的配置项目的优先级高于 Environment Variables 。 即如果一个语义相同的配置项，在配置文件和 Environment Variables 中均配置了，优先使用 配置文件的配置项 。
 
-在代码中， class 名称叫 `SysSetting`. 
+在代码中， class 名称叫 `SysSetting`.
+
+#### 日志设定 - LoggingSetting
+
+| 变量        | 默认值                          | 说明                                                  |
+| ----------- | ------------------------------- | ----------------------------------------------------- |
+| `log_file`  | ~/.everlingo/logs/everlingo.log | 日志文件路径                                          |
+| `log_level` | debug                           | 日志文件中的日志输出级别。可选：debug/info/warn/error |
+
+
 
 ### 用户 Profile - UserProfile
 
