@@ -43,7 +43,7 @@
 
 
 ## 产品设计
-见 [产品设计](/docs/product/use-cases.md)
+见 [产品设计](/docs/product/product-spec.md)
 
 
 

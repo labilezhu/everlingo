@@ -1,5 +1,10 @@
 # 领域模型
 
+## 语言
+
+语言的支持，可选项：
+- `英语`，代码：`en`
+- `简体中文`，代码：`zh-CN`
 
 ## 用户模型
 
@@ -26,6 +31,7 @@ dictionary_definition_style: |
 |------|------|--------|------|------|
 | `interface_language` | string | `"zh-CN"`, `"en"` | 界面语言 | 必选。不能与 `target_language` 相同 |
 | `target_language` | string | `"zh-CN"`, `"en"` | 目标学习语言 | 必选。不能与 `interface_language` 相同 |
+
 
 ##### 示例
 

@@ -26,3 +26,6 @@ include = ["src/everlingo"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+    "integration: marks tests as integration tests (requiring actual LLM API calls)",
+]
