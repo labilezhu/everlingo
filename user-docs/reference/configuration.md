@@ -6,9 +6,9 @@
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `OPENAI_API_KEY` | 无默认 | LLM Provider API Key（必需） |
-| `OPENAI_BASE_URL` | 无默认 | 兼容 OpenAI Chat Completions 的 API Base URL |
-| `OPENAI_MODEL` | 无默认 | 使用的模型名称 |
+| `OPENAI_API_KEY` |  | LLM Provider API Key（必需） |
+| `OPENAI_BASE_URL` |  | 兼容 OpenAI Chat Completions 的 API Base URL |
+| `OPENAI_MODEL` |  | 使用的模型名称 |
 
 
 
@@ -25,6 +25,7 @@ sys_setting:
   openai_base_url: 
   openai_model: 
   logging_setting:
+  tracing:
 user_profile:
 ```
 
@@ -35,9 +36,9 @@ user_profile:
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `openai_api_key` | 无默认 | LLM Provider API Key（必需） |
-| `openai_base_url` | 无默认 | 兼容 OpenAI Chat Completions 的 API Base URL |
-| `openai_model` | 无默认 | 使用的模型名称 |
+| `openai_api_key` |  | LLM Provider API Key（必需） |
+| `openai_base_url` |  | 兼容 OpenAI Chat Completions 的 API Base URL |
+| `openai_model` |  | 使用的模型名称 |
 
 配置文件的配置项目的优先级高于 Environment Variables 。 即如果一个语义相同的配置项，在配置文件和 Environment Variables 中均配置了，优先使用 配置文件的配置项 。
 
@@ -49,6 +50,17 @@ user_profile:
 | ----------- | ------------------------------- | ----------------------------------------------------- |
 | `log_file`  | ~/.everlingo/logs/everlingo.log | 日志文件路径                                          |
 | `log_level` | debug                           | 日志文件中的日志输出级别。可选：debug/info/warn/error |
+
+
+
+#### 跟踪设定 - Tracing
+
+| 变量                  | 默认值 | 说明                                              |
+| --------------------- | ------ | ------------------------------------------------- |
+| `tracing_service`     |        | 可选： langfuse  。空值时不启动任何 tracing       |
+| `langfuse_secret_key` |        | langfuse secret key。如 sk-lf-xxxx                |
+| `langfuse_public_key` |        | langfuse public key。如 pk-lf-ce-xxxx             |
+| `langfuse_base_url`   |        | langfuse base url 。如 http://192.168.16.130:3300 |
 
 
 
