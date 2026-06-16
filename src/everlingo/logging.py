@@ -11,7 +11,7 @@ logger = logging.getLogger("everlingo")
 
 def _get_setting() -> LoggingSetting:
     try:
-        return load_setting().logging_setting
+        return load_setting().sys_setting.logging_setting
     except Exception:
         return LoggingSetting()
 

@@ -90,51 +90,72 @@ def test_logging_setting_defaults():
     assert ls.log_level == "debug"
 
 
-def test_everlingo_setting_with_logging():
-    setting = EverLingoSetting(
+def test_sys_setting_contains_logging():
+    # logging_setting 是 sys_setting 的子字段，ref: configuration.md
+    ss = SysSetting(
         logging_setting=LoggingSetting(
             log_file="/tmp/everlingo.log",
             log_level="info",
         ),
     )
-    assert setting.logging_setting.log_file == "/tmp/everlingo.log"
-    assert setting.logging_setting.log_level == "info"
+    assert ss.logging_setting.log_file == "/tmp/everlingo.log"
+    assert ss.logging_setting.log_level == "info"
+
+
+def test_everlingo_setting_with_logging():
+    setting = EverLingoSetting(
+        sys_setting=SysSetting(
+            logging_setting=LoggingSetting(
+                log_file="/tmp/everlingo.log",
+                log_level="info",
+            ),
+        ),
+    )
+    assert setting.sys_setting.logging_setting.log_file == "/tmp/everlingo.log"
+    assert setting.sys_setting.logging_setting.log_level == "info"
 
 
 def test_dict_to_setting_includes_logging():
+    # logging_setting 嵌套在 sys_setting 下，ref: configuration.md yaml 结构
     data = {
-        "logging_setting": {
-            "log_file": "/custom/path.log",
-            "log_level": "warn",
+        "sys_setting": {
+            "logging_setting": {
+                "log_file": "/custom/path.log",
+                "log_level": "warn",
+            },
         },
     }
     setting = dict_to_setting(data)
-    assert setting.logging_setting.log_file == "/custom/path.log"
-    assert setting.logging_setting.log_level == "warn"
+    assert setting.sys_setting.logging_setting.log_file == "/custom/path.log"
+    assert setting.sys_setting.logging_setting.log_level == "warn"
 
 
 def test_setting_to_dict_includes_logging():
     setting = EverLingoSetting(
-        logging_setting=LoggingSetting(
-            log_file="/custom/path.log",
-            log_level="error",
+        sys_setting=SysSetting(
+            logging_setting=LoggingSetting(
+                log_file="/custom/path.log",
+                log_level="error",
+            ),
         ),
     )
     d = setting_to_dict(setting)
-    assert d["logging_setting"]["log_file"] == "/custom/path.log"
-    assert d["logging_setting"]["log_level"] == "error"
+    assert d["sys_setting"]["logging_setting"]["log_file"] == "/custom/path.log"
+    assert d["sys_setting"]["logging_setting"]["log_level"] == "error"
 
 
 def test_logging_roundtrip():
     original = EverLingoSetting(
-        sys_setting=SysSetting(openai_api_key="sk-test"),
-        logging_setting=LoggingSetting(log_file="/log/test.log", log_level="info"),
+        sys_setting=SysSetting(
+            openai_api_key="sk-test",
+            logging_setting=LoggingSetting(log_file="/log/test.log", log_level="info"),
+        ),
         user_profile=UserProfile(interface_language="zh-CN", target_language="en"),
     )
     d = setting_to_dict(original)
     restored = dict_to_setting(d)
-    assert restored.logging_setting.log_file == "/log/test.log"
-    assert restored.logging_setting.log_level == "info"
+    assert restored.sys_setting.logging_setting.log_file == "/log/test.log"
+    assert restored.sys_setting.logging_setting.log_level == "info"
 
 
 def test_tracing_setting_defaults():
@@ -145,8 +166,9 @@ def test_tracing_setting_defaults():
     assert ts.langfuse_base_url == ""
 
 
-def test_everlingo_setting_with_tracing():
-    setting = EverLingoSetting(
+def test_sys_setting_contains_tracing():
+    # tracing_setting 是 sys_setting 的子字段，ref: configuration.md
+    ss = SysSetting(
         tracing_setting=TracingSetting(
             tracing_service="langfuse",
             langfuse_secret_key="sk-lf-test",
@@ -154,56 +176,77 @@ def test_everlingo_setting_with_tracing():
             langfuse_base_url="http://localhost:3300",
         ),
     )
-    assert setting.tracing_setting.tracing_service == "langfuse"
-    assert setting.tracing_setting.langfuse_secret_key == "sk-lf-test"
-    assert setting.tracing_setting.langfuse_public_key == "pk-lf-test"
-    assert setting.tracing_setting.langfuse_base_url == "http://localhost:3300"
+    assert ss.tracing_setting.tracing_service == "langfuse"
+
+
+def test_everlingo_setting_with_tracing():
+    setting = EverLingoSetting(
+        sys_setting=SysSetting(
+            tracing_setting=TracingSetting(
+                tracing_service="langfuse",
+                langfuse_secret_key="sk-lf-test",
+                langfuse_public_key="pk-lf-test",
+                langfuse_base_url="http://localhost:3300",
+            ),
+        ),
+    )
+    assert setting.sys_setting.tracing_setting.tracing_service == "langfuse"
+    assert setting.sys_setting.tracing_setting.langfuse_secret_key == "sk-lf-test"
+    assert setting.sys_setting.tracing_setting.langfuse_public_key == "pk-lf-test"
+    assert setting.sys_setting.tracing_setting.langfuse_base_url == "http://localhost:3300"
 
 
 def test_dict_to_setting_includes_tracing():
+    # tracing_setting 嵌套在 sys_setting 下，ref: configuration.md yaml 结构
     data = {
-        "tracing_setting": {
-            "tracing_service": "langfuse",
-            "langfuse_secret_key": "sk-lf-test",
-            "langfuse_public_key": "pk-lf-test",
-            "langfuse_base_url": "http://localhost:3300",
+        "sys_setting": {
+            "tracing_setting": {
+                "tracing_service": "langfuse",
+                "langfuse_secret_key": "sk-lf-test",
+                "langfuse_public_key": "pk-lf-test",
+                "langfuse_base_url": "http://localhost:3300",
+            },
         },
     }
     setting = dict_to_setting(data)
-    assert setting.tracing_setting.tracing_service == "langfuse"
-    assert setting.tracing_setting.langfuse_secret_key == "sk-lf-test"
-    assert setting.tracing_setting.langfuse_public_key == "pk-lf-test"
-    assert setting.tracing_setting.langfuse_base_url == "http://localhost:3300"
+    assert setting.sys_setting.tracing_setting.tracing_service == "langfuse"
+    assert setting.sys_setting.tracing_setting.langfuse_secret_key == "sk-lf-test"
+    assert setting.sys_setting.tracing_setting.langfuse_public_key == "pk-lf-test"
+    assert setting.sys_setting.tracing_setting.langfuse_base_url == "http://localhost:3300"
 
 
 def test_setting_to_dict_includes_tracing():
     setting = EverLingoSetting(
-        tracing_setting=TracingSetting(
-            tracing_service="langfuse",
-            langfuse_secret_key="sk-lf-test",
-            langfuse_public_key="pk-lf-test",
-            langfuse_base_url="http://localhost:3300",
+        sys_setting=SysSetting(
+            tracing_setting=TracingSetting(
+                tracing_service="langfuse",
+                langfuse_secret_key="sk-lf-test",
+                langfuse_public_key="pk-lf-test",
+                langfuse_base_url="http://localhost:3300",
+            ),
         ),
     )
     d = setting_to_dict(setting)
-    assert d["tracing_setting"]["tracing_service"] == "langfuse"
-    assert d["tracing_setting"]["langfuse_secret_key"] == "sk-lf-test"
-    assert d["tracing_setting"]["langfuse_public_key"] == "pk-lf-test"
-    assert d["tracing_setting"]["langfuse_base_url"] == "http://localhost:3300"
+    assert d["sys_setting"]["tracing_setting"]["tracing_service"] == "langfuse"
+    assert d["sys_setting"]["tracing_setting"]["langfuse_secret_key"] == "sk-lf-test"
+    assert d["sys_setting"]["tracing_setting"]["langfuse_public_key"] == "pk-lf-test"
+    assert d["sys_setting"]["tracing_setting"]["langfuse_base_url"] == "http://localhost:3300"
 
 
 def test_tracing_roundtrip():
     original = EverLingoSetting(
-        tracing_setting=TracingSetting(
-            tracing_service="langfuse",
-            langfuse_secret_key="sk-lf-test",
-            langfuse_public_key="pk-lf-test",
-            langfuse_base_url="http://localhost:3300",
+        sys_setting=SysSetting(
+            tracing_setting=TracingSetting(
+                tracing_service="langfuse",
+                langfuse_secret_key="sk-lf-test",
+                langfuse_public_key="pk-lf-test",
+                langfuse_base_url="http://localhost:3300",
+            ),
         ),
     )
     d = setting_to_dict(original)
     restored = dict_to_setting(d)
-    assert restored.tracing_setting.tracing_service == "langfuse"
-    assert restored.tracing_setting.langfuse_secret_key == "sk-lf-test"
-    assert restored.tracing_setting.langfuse_public_key == "pk-lf-test"
-    assert restored.tracing_setting.langfuse_base_url == "http://localhost:3300"
+    assert restored.sys_setting.tracing_setting.tracing_service == "langfuse"
+    assert restored.sys_setting.tracing_setting.langfuse_secret_key == "sk-lf-test"
+    assert restored.sys_setting.tracing_setting.langfuse_public_key == "pk-lf-test"
+    assert restored.sys_setting.tracing_setting.langfuse_base_url == "http://localhost:3300"

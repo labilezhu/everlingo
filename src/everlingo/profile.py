@@ -14,6 +14,7 @@ PROFILE_PATH = Path.home() / ".everlingo" / "everlingo.yaml"
 
 
 def dict_to_setting(data: dict) -> EverLingoSetting:
+    # ref: configuration.md yaml 结构
     ss = data.get("sys_setting", {})
     ls = ss.get("logging_setting", {})
     tr = ss.get("tracing_setting", {})
@@ -25,16 +26,16 @@ def dict_to_setting(data: dict) -> EverLingoSetting:
             openai_api_key=ss.get("openai_api_key", ""),
             openai_base_url=ss.get("openai_base_url", ""),
             openai_model=ss.get("openai_model", ""),
-        ),
-        logging_setting=LoggingSetting(
-            log_file=ls.get("log_file", ""),
-            log_level=ls.get("log_level", "debug"),
-        ),
-        tracing_setting=TracingSetting(
-            tracing_service=tr.get("tracing_service", ""),
-            langfuse_secret_key=tr.get("langfuse_secret_key", ""),
-            langfuse_public_key=tr.get("langfuse_public_key", ""),
-            langfuse_base_url=tr.get("langfuse_base_url", ""),
+            logging_setting=LoggingSetting(
+                log_file=ls.get("log_file", ""),
+                log_level=ls.get("log_level", "debug"),
+            ),
+            tracing_setting=TracingSetting(
+                tracing_service=tr.get("tracing_service", ""),
+                langfuse_secret_key=tr.get("langfuse_secret_key", ""),
+                langfuse_public_key=tr.get("langfuse_public_key", ""),
+                langfuse_base_url=tr.get("langfuse_base_url", ""),
+            ),
         ),
         user_profile=UserProfile(
             interface_language=lang.get("interface_language", ""),
@@ -48,21 +49,22 @@ def dict_to_setting(data: dict) -> EverLingoSetting:
 
 
 def setting_to_dict(setting: EverLingoSetting) -> dict:
+    # ref: configuration.md yaml 结构
     return {
         "sys_setting": {
             "openai_api_key": setting.sys_setting.openai_api_key,
             "openai_base_url": setting.sys_setting.openai_base_url,
             "openai_model": setting.sys_setting.openai_model,
-        },
-        "logging_setting": {
-            "log_file": setting.logging_setting.log_file,
-            "log_level": setting.logging_setting.log_level,
-        },
-        "tracing_setting": {
-            "tracing_service": setting.tracing_setting.tracing_service,
-            "langfuse_secret_key": setting.tracing_setting.langfuse_secret_key,
-            "langfuse_public_key": setting.tracing_setting.langfuse_public_key,
-            "langfuse_base_url": setting.tracing_setting.langfuse_base_url,
+            "logging_setting": {
+                "log_file": setting.sys_setting.logging_setting.log_file,
+                "log_level": setting.sys_setting.logging_setting.log_level,
+            },
+            "tracing_setting": {
+                "tracing_service": setting.sys_setting.tracing_setting.tracing_service,
+                "langfuse_secret_key": setting.sys_setting.tracing_setting.langfuse_secret_key,
+                "langfuse_public_key": setting.sys_setting.tracing_setting.langfuse_public_key,
+                "langfuse_base_url": setting.sys_setting.tracing_setting.langfuse_base_url,
+            },
         },
         "user_profile": {
             "language": {

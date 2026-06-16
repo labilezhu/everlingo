@@ -7,6 +7,8 @@
 
 ## 完成的任务
 格式：完成日期与时间(GMT+8 timezone) | 任务描述 。 示例： " - 2026-06-20 19:28 | 生成主入口代码"
+- 2026-06-16 19:45 | 修复 Langfuse 4.x 兼容性：CallbackHandler 不再接受凭证参数，改为先初始化 langfuse.Langfuse(secret_key/public_key/host) 配置 OTEL exporter，再创建无参 CallbackHandler()
+- 2026-06-16 19:30 | 配置文件结构修正：logging_setting/tracing_setting 移入 sys_setting 下，修正 models.py、profile.py、everlingo.example.yaml、tracing.py、logging.py 及相关测试文件
 - 2026-06-16 18:00 | 添加 __main__.py 使 python -m everlingo 可用，支持 VSCode debug 的模块模式
 - 2026-06-16 18:00 | 创建 .vscode/launch.json debug 配置（module 模式 + PYTHONPATH）
 - 2026-06-16 15:20 | 实现 Tracing 配置：TracingSetting dataclass 及序列化/反序列化、更新 everlingo.example.yaml 示例配置
