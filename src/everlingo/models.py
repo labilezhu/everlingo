@@ -40,9 +40,18 @@ class LoggingSetting:
 
 
 @dataclass
+class TracingSetting:
+    tracing_service: str = ""
+    langfuse_secret_key: str = ""
+    langfuse_public_key: str = ""
+    langfuse_base_url: str = ""
+
+
+@dataclass
 class EverLingoSetting:
     sys_setting: SysSetting = field(default_factory=SysSetting)
     logging_setting: LoggingSetting = field(default_factory=LoggingSetting)
+    tracing_setting: TracingSetting = field(default_factory=TracingSetting)
     user_profile: UserProfile = field(default_factory=UserProfile)
 
 

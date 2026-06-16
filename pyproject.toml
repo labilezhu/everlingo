@@ -12,6 +12,7 @@ dependencies = [
     "langchain-openai>=0.3.0",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0",
+    "langfuse>=2.0.0",
 ]
 
 [project.scripts]

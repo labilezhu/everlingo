@@ -1,0 +1,17 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "everlingo",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "everlingo",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}

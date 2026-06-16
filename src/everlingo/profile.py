@@ -6,6 +6,7 @@ from .models import (
     EverLingoSetting,
     LoggingSetting,
     SysSetting,
+    TracingSetting,
     UserProfile,
 )
 
@@ -14,7 +15,8 @@ PROFILE_PATH = Path.home() / ".everlingo" / "everlingo.yaml"
 
 def dict_to_setting(data: dict) -> EverLingoSetting:
     ss = data.get("sys_setting", {})
-    ls = data.get("logging_setting", {})
+    ls = ss.get("logging_setting", {})
+    tr = ss.get("tracing_setting", {})
     up = data.get("user_profile", {})
     lang = up.get("language", {})
     bg = up.get("background", {})
@@ -27,6 +29,12 @@ def dict_to_setting(data: dict) -> EverLingoSetting:
         logging_setting=LoggingSetting(
             log_file=ls.get("log_file", ""),
             log_level=ls.get("log_level", "debug"),
+        ),
+        tracing_setting=TracingSetting(
+            tracing_service=tr.get("tracing_service", ""),
+            langfuse_secret_key=tr.get("langfuse_secret_key", ""),
+            langfuse_public_key=tr.get("langfuse_public_key", ""),
+            langfuse_base_url=tr.get("langfuse_base_url", ""),
         ),
         user_profile=UserProfile(
             interface_language=lang.get("interface_language", ""),
@@ -49,6 +57,12 @@ def setting_to_dict(setting: EverLingoSetting) -> dict:
         "logging_setting": {
             "log_file": setting.logging_setting.log_file,
             "log_level": setting.logging_setting.log_level,
+        },
+        "tracing_setting": {
+            "tracing_service": setting.tracing_setting.tracing_service,
+            "langfuse_secret_key": setting.tracing_setting.langfuse_secret_key,
+            "langfuse_public_key": setting.tracing_setting.langfuse_public_key,
+            "langfuse_base_url": setting.tracing_setting.langfuse_base_url,
         },
         "user_profile": {
             "language": {

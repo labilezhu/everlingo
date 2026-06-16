@@ -18,14 +18,14 @@
 
 配置文件位置： `~/.everlingo/everlingo.yaml` 。 配置文件使用 yaml 格式。
 
-配置文件包括以下子小节的内容。 yaml 结构示例如下 :
+配置文件包括以下子小节的内容。 yaml 结构如下。必须按照这个结构去实现 :
 ```yaml
 sys_setting:
   openai_api_key:
   openai_base_url: 
   openai_model: 
   logging_setting:
-  tracing:
+  tracing_setting:
 user_profile:
 ```
 

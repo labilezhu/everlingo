@@ -1,4 +1,10 @@
-from everlingo.models import EverLingoSetting, LoggingSetting, SysSetting, UserProfile
+from everlingo.models import (
+    EverLingoSetting,
+    LoggingSetting,
+    SysSetting,
+    TracingSetting,
+    UserProfile,
+)
 from everlingo.profile import dict_to_setting, setting_to_dict
 
 
@@ -129,3 +135,75 @@ def test_logging_roundtrip():
     restored = dict_to_setting(d)
     assert restored.logging_setting.log_file == "/log/test.log"
     assert restored.logging_setting.log_level == "info"
+
+
+def test_tracing_setting_defaults():
+    ts = TracingSetting()
+    assert ts.tracing_service == ""
+    assert ts.langfuse_secret_key == ""
+    assert ts.langfuse_public_key == ""
+    assert ts.langfuse_base_url == ""
+
+
+def test_everlingo_setting_with_tracing():
+    setting = EverLingoSetting(
+        tracing_setting=TracingSetting(
+            tracing_service="langfuse",
+            langfuse_secret_key="sk-lf-test",
+            langfuse_public_key="pk-lf-test",
+            langfuse_base_url="http://localhost:3300",
+        ),
+    )
+    assert setting.tracing_setting.tracing_service == "langfuse"
+    assert setting.tracing_setting.langfuse_secret_key == "sk-lf-test"
+    assert setting.tracing_setting.langfuse_public_key == "pk-lf-test"
+    assert setting.tracing_setting.langfuse_base_url == "http://localhost:3300"
+
+
+def test_dict_to_setting_includes_tracing():
+    data = {
+        "tracing_setting": {
+            "tracing_service": "langfuse",
+            "langfuse_secret_key": "sk-lf-test",
+            "langfuse_public_key": "pk-lf-test",
+            "langfuse_base_url": "http://localhost:3300",
+        },
+    }
+    setting = dict_to_setting(data)
+    assert setting.tracing_setting.tracing_service == "langfuse"
+    assert setting.tracing_setting.langfuse_secret_key == "sk-lf-test"
+    assert setting.tracing_setting.langfuse_public_key == "pk-lf-test"
+    assert setting.tracing_setting.langfuse_base_url == "http://localhost:3300"
+
+
+def test_setting_to_dict_includes_tracing():
+    setting = EverLingoSetting(
+        tracing_setting=TracingSetting(
+            tracing_service="langfuse",
+            langfuse_secret_key="sk-lf-test",
+            langfuse_public_key="pk-lf-test",
+            langfuse_base_url="http://localhost:3300",
+        ),
+    )
+    d = setting_to_dict(setting)
+    assert d["tracing_setting"]["tracing_service"] == "langfuse"
+    assert d["tracing_setting"]["langfuse_secret_key"] == "sk-lf-test"
+    assert d["tracing_setting"]["langfuse_public_key"] == "pk-lf-test"
+    assert d["tracing_setting"]["langfuse_base_url"] == "http://localhost:3300"
+
+
+def test_tracing_roundtrip():
+    original = EverLingoSetting(
+        tracing_setting=TracingSetting(
+            tracing_service="langfuse",
+            langfuse_secret_key="sk-lf-test",
+            langfuse_public_key="pk-lf-test",
+            langfuse_base_url="http://localhost:3300",
+        ),
+    )
+    d = setting_to_dict(original)
+    restored = dict_to_setting(d)
+    assert restored.tracing_setting.tracing_service == "langfuse"
+    assert restored.tracing_setting.langfuse_secret_key == "sk-lf-test"
+    assert restored.tracing_setting.langfuse_public_key == "pk-lf-test"
+    assert restored.tracing_setting.langfuse_base_url == "http://localhost:3300"

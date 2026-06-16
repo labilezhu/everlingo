@@ -6,16 +6,21 @@ from langchain_openai import ChatOpenAI
 
 from .config import get_llm_config
 from .logging import LLMLoggingHandler
+from .tracing import setup_tracing
 
 
 def create_llm() -> ChatOpenAI:
     cfg = get_llm_config()
+    callbacks = [LLMLoggingHandler()]
+    langfuse_handler = setup_tracing()
+    if langfuse_handler:
+        callbacks.append(langfuse_handler)
     return ChatOpenAI(
         api_key=cfg["api_key"],
         base_url=cfg["base_url"],
         model=cfg["model"],
         temperature=0.7,
-        callbacks=[LLMLoggingHandler()],
+        callbacks=callbacks,
     )
 
 
