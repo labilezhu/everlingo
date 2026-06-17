@@ -1,6 +1,7 @@
 # Tools
 
-以下包括多个 toolset(工具集)。 
+
+## langchain tool 实现
 
 langchain tools 的写法：
 
@@ -19,6 +20,17 @@ def search(query: str) -> str:
         return [x,y,z]
     return []
  ```
+
+### tools 调用日志
+每个 tool 的调用，均需要记录日志。logging level 为 debug。内容和格式如下：
+```log
+tool_name: xyz , parameters: argName1=argValue1,... , return: xyz
+```
+
+
+# Toolsets(工具集)
+
+以下包括多个 toolset(工具集)。 
 
 ## 管理配置 - conf_manager
 

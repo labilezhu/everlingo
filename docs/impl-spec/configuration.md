@@ -25,5 +25,10 @@ Environment Variables 说明，参考[配置参考](/user-docs/reference/configu
 根据 `配置项说明` 内容。生成一个带注释和示例取值的 yaml 文件，保存在本 codebase 的 `/everlingo.example.yaml` 中。
 
 
-### 代码实现
-`src/everlingo/profile.py` -> `load_profile()`, `save_profile()`
+### 配置实现的基础选型
+
+#### 数据对象定义
+选用 `pydantic` 而不是 `dataclass` 来定义数据对象。它需要支持
+- 生成 JSON Schema。
+- 完成校验
+- 使用 Pydantic 的 `Field()` 为数据对象字段元信息，包括字段描述与可选的示例

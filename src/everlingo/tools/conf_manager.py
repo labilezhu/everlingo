@@ -4,9 +4,11 @@ import yaml
 from langchain_core.tools import tool
 
 from ..profile import dict_to_setting, load_setting, save_setting, setting_to_dict
+from . import log_tool_call
 
 
 @tool("conf_manager_get_schema")
+@log_tool_call("conf_manager_get_schema")
 def get_schema() -> str:
     """获取配置元信息描述与schema，返回 everlingo.example.yaml 内容"""
     example_path = Path(__file__).parent.parent.parent.parent / "everlingo.example.yaml"
@@ -16,6 +18,7 @@ def get_schema() -> str:
 
 
 @tool("conf_manager_get_config")
+@log_tool_call("conf_manager_get_config")
 def get_config() -> str:
     """查询当前生效的配置文件内容，返回 YAML 格式"""
     setting = load_setting()
@@ -25,6 +28,7 @@ def get_config() -> str:
 
 
 @tool("conf_manager_set_config")
+@log_tool_call("conf_manager_set_config")
 def set_config(config_to_be_merged: str) -> str:
     """修改多个配置项目。参数 configToBeMerged 是 YAML 格式的配置片段，merged 到当前配置后返回完整配置。"""
     current = setting_to_dict(load_setting())
