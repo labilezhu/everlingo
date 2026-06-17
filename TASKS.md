@@ -6,6 +6,7 @@
 
 
 ## 完成的任务
+- 2026-06-17 23:58 | logging.py → log_utils.py（避免 shadow stdlib logging 导致 ImportError）；更新 main.py/llm.py/test_logging.py 的 import；launch.json wechat 配置改用 module 模式
 - 2026-06-17 23:55 | 文件重命名：profile.py → setting.py（内容已不限于 UserProfile），同步更新所有 import 引用，PROFILE_PATH → SETTING_PATH，test_profile.py → test_setting.py
 - 2026-06-17 23:50 | UserProfile 结构对齐 everlingo.example.yaml：新增 UserLanguage/UserBackground 子模型，interface_language/target_language 移入 language 下，hobbies/residence/gender 移入 background 下；更新 setting.py（简化为 model_validate/model_dump）、chat.py、test_setting.py、test_unified_agent.py
 - 2026-06-17 23:30 | 配置实现由 dataclass 重构成 pydantic

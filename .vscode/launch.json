@@ -12,6 +12,18 @@
             "python": "${workspaceFolder}/.venv/bin/python",
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "wechat",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "everlingo.test_wechat",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
 }

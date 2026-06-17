@@ -6,3 +6,13 @@
 - [ROADMAP](ROADMAP.md)
 - [项目状态](./STATE.md)
 - [当前开发任务](./TASKS.md)
+
+
+## Quick Start
+
+### 源码运行
+
+```bash
+uv run python -m everlingo.main
+```
+

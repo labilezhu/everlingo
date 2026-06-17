@@ -2,7 +2,7 @@ import logging
 import tempfile
 from pathlib import Path
 
-from everlingo.logging import LLMLoggingHandler, _LOG_LEVEL_MAP, setup_logging
+from everlingo.log_utils import LLMLoggingHandler, _LOG_LEVEL_MAP, setup_logging
 from everlingo.models import EverLingoSetting, LoggingSetting, SysSetting, UserProfile
 
 
@@ -20,7 +20,7 @@ def test_setup_logging_creates_log_file(monkeypatch):
     with tempfile.TemporaryDirectory() as tmpdir:
         log_file = Path(tmpdir) / "test.log"
         monkeypatch.setattr(
-            "everlingo.logging._get_setting",
+            "everlingo.log_utils._get_setting",
             lambda: LoggingSetting(log_file=str(log_file), log_level="debug"),
         )
         setup_logging()
@@ -30,7 +30,7 @@ def test_setup_logging_creates_log_file(monkeypatch):
 def test_setup_logging_custom_loglevel(monkeypatch):
     with tempfile.TemporaryDirectory() as tmpdir:
         monkeypatch.setattr(
-            "everlingo.logging._get_setting",
+            "everlingo.log_utils._get_setting",
             lambda: LoggingSetting(log_file=str(Path(tmpdir) / "test.log"), log_level="error"),
         )
         setup_logging()

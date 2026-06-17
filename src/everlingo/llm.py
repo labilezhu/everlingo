@@ -5,7 +5,7 @@ from langchain_core.tools import BaseTool
 from langchain_openai import ChatOpenAI
 
 from .config import get_llm_config
-from .logging import LLMLoggingHandler
+from .log_utils import LLMLoggingHandler
 from .tracing import setup_tracing
 
 
