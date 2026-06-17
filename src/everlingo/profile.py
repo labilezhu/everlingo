@@ -4,9 +4,6 @@ import yaml
 
 from .models import (
     EverLingoSetting,
-    LoggingSetting,
-    SysSetting,
-    TracingSetting,
     UserProfile,
 )
 
@@ -15,70 +12,13 @@ PROFILE_PATH = Path.home() / ".everlingo" / "everlingo.yaml"
 
 def dict_to_setting(data: dict) -> EverLingoSetting:
     # ref: configuration.md yaml 结构
-    ss = data.get("sys_setting", {})
-    ls = ss.get("logging_setting", {})
-    tr = ss.get("tracing_setting", {})
-    up = data.get("user_profile", {})
-    lang = up.get("language", {})
-    bg = up.get("background", {})
-    return EverLingoSetting(
-        sys_setting=SysSetting(
-            openai_api_key=ss.get("openai_api_key", ""),
-            openai_base_url=ss.get("openai_base_url", ""),
-            openai_model=ss.get("openai_model", ""),
-            logging_setting=LoggingSetting(
-                log_file=ls.get("log_file", ""),
-                log_level=ls.get("log_level", "debug"),
-            ),
-            tracing_setting=TracingSetting(
-                tracing_service=tr.get("tracing_service", ""),
-                langfuse_secret_key=tr.get("langfuse_secret_key", ""),
-                langfuse_public_key=tr.get("langfuse_public_key", ""),
-                langfuse_base_url=tr.get("langfuse_base_url", ""),
-            ),
-        ),
-        user_profile=UserProfile(
-            interface_language=lang.get("interface_language", ""),
-            target_language=lang.get("target_language", ""),
-            hobbies=bg.get("hobbies", ""),
-            residence=bg.get("residence", ""),
-            gender=bg.get("gender", ""),
-            dictionary_definition_style=up.get("dictionary_definition_style", ""),
-        ),
-    )
+    # YAML 结构与模型结构对齐，直接用 model_validate 解析
+    return EverLingoSetting.model_validate(data)
 
 
 def setting_to_dict(setting: EverLingoSetting) -> dict:
     # ref: configuration.md yaml 结构
-    return {
-        "sys_setting": {
-            "openai_api_key": setting.sys_setting.openai_api_key,
-            "openai_base_url": setting.sys_setting.openai_base_url,
-            "openai_model": setting.sys_setting.openai_model,
-            "logging_setting": {
-                "log_file": setting.sys_setting.logging_setting.log_file,
-                "log_level": setting.sys_setting.logging_setting.log_level,
-            },
-            "tracing_setting": {
-                "tracing_service": setting.sys_setting.tracing_setting.tracing_service,
-                "langfuse_secret_key": setting.sys_setting.tracing_setting.langfuse_secret_key,
-                "langfuse_public_key": setting.sys_setting.tracing_setting.langfuse_public_key,
-                "langfuse_base_url": setting.sys_setting.tracing_setting.langfuse_base_url,
-            },
-        },
-        "user_profile": {
-            "language": {
-                "interface_language": setting.user_profile.interface_language,
-                "target_language": setting.user_profile.target_language,
-            },
-            "background": {
-                "hobbies": setting.user_profile.hobbies,
-                "residence": setting.user_profile.residence,
-                "gender": setting.user_profile.gender,
-            },
-            "dictionary_definition_style": setting.user_profile.dictionary_definition_style,
-        },
-    }
+    return setting.model_dump()
 
 
 def _load_raw() -> dict:
@@ -109,5 +49,5 @@ def load_profile() -> UserProfile:
 
 def save_profile(profile: UserProfile) -> None:
     setting = load_setting()
-    setting.user_profile = profile
+    setting = setting.model_copy(update={"user_profile": profile})
     save_setting(setting)

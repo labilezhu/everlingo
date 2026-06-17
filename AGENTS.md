@@ -19,7 +19,7 @@ Rules:
 - Never add dependencies without approval
 - 如发现文档说明十分模糊或矛盾的，询问确认后再执行
 - Explain your design of implmentation and let user comfirm the design before take action.
-- Update [TASKS.md](TASKS.md) to record what you have done
+- If you change any source code, ALWAYS update [TASKS.md](/TASKS.md) to record what you have done
 
 Output:
 - Explain your design

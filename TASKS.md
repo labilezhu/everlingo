@@ -3,15 +3,12 @@
 ## 计划中的任务
 
 ## 可执行的任务
-- 配置实现的 由 dataclass 重构成 pydantic 。项目现在的配置管理实现是基于 python dataclass 的。需要重构成基于 pydantic 的。具体实现说明见 /docs/impl-spec/configuration.md 中的 “/docs/impl-spec/configuration.md”：
-  - 需要有 field schema 定义
-  - 需要 schema 校验
-  - 可以生成 JSON Schema
 
 
 ## 完成的任务
+- 2026-06-17 23:50 | UserProfile 结构对齐 everlingo.example.yaml：新增 UserLanguage/UserBackground 子模型，interface_language/target_language 移入 language 下，hobbies/residence/gender 移入 background 下；更新 profile.py（简化为 model_validate/model_dump）、chat.py、test_profile.py、test_unified_agent.py
+- 2026-06-17 23:30 | 配置实现由 dataclass 重构成 pydantic
 - 2026-06-17 23:00 | 实现 LLM tool 调用日志：添加 log_tool_call 装饰器并应用到所有 tool 函数，日志格式为 tool_name + parameters + return，debug 级别
-格式：完成日期与时间(GMT+8 timezone) | 任务描述 。 示例： " - 2026-06-20 19:28 | 生成主入口代码"
 - 2026-06-16 19:45 | 修复 Langfuse 4.x 兼容性：CallbackHandler 不再接受凭证参数，改为先初始化 langfuse.Langfuse(secret_key/public_key/host) 配置 OTEL exporter，再创建无参 CallbackHandler()
 - 2026-06-16 19:30 | 配置文件结构修正：logging_setting/tracing_setting 移入 sys_setting 下，修正 models.py、profile.py、everlingo.example.yaml、tracing.py、logging.py 及相关测试文件
 - 2026-06-16 18:00 | 添加 __main__.py 使 python -m everlingo 可用，支持 VSCode debug 的模块模式

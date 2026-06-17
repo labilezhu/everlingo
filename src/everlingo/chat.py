@@ -25,8 +25,7 @@ def _run_profile_setup() -> UserProfile:
         "请选择目标学习语言：", exclude=interface_lang
     )
     profile = UserProfile(
-        interface_language=interface_lang,
-        target_language=target_lang,
+        language={"interface_language": interface_lang, "target_language": target_lang},
     )
     save_profile(profile)
     print(f"\n已保存！界面语言: {LANGUAGES[interface_lang]}, "
@@ -39,8 +38,8 @@ def _ensure_profile() -> UserProfile:
     if profile.is_complete():
         errors = profile.validate()
         if not errors:
-            print(f"\n当前配置 — 界面语言: {LANGUAGES.get(profile.interface_language, profile.interface_language)}, "
-                  f"目标学习语言: {LANGUAGES.get(profile.target_language, profile.target_language)}")
+            print(f"\n当前配置 — 界面语言: {LANGUAGES.get(profile.language.interface_language, profile.language.interface_language)}, "
+                  f"目标学习语言: {LANGUAGES.get(profile.language.target_language, profile.language.target_language)}")
             return profile
     return _run_profile_setup()
 
@@ -52,8 +51,8 @@ def _lang_display_name(code: str) -> str:
 
 def _build_system_prompt(profile: UserProfile) -> str:
     """构建统一的 Agent system prompt，整合词典老师和翻译老师的功能"""
-    interface_lang = _lang_display_name(profile.interface_language)
-    target_lang = _lang_display_name(profile.target_language)
+    interface_lang = _lang_display_name(profile.language.interface_language)
+    target_lang = _lang_display_name(profile.language.target_language)
     
     prompt = f"""你是 EverLingo 语言学习助手，可以解答用户在 {target_lang} 语言方面的问题。
 处理每次用户消息的主要的流程是： 分析当前会话消息和历史消息 -> 识别用户意图 -> [可选:必要时调用提供的 tools] -> 作出友好与实用的回答。
@@ -75,12 +74,12 @@ def _build_system_prompt(profile: UserProfile) -> str:
 """
     
     # 添加用户背景信息
-    if profile.hobbies:
-        prompt += f"\n- 用户爱好(hobbies): {profile.hobbies}"
-    if profile.residence:
-        prompt += f"\n- 居住地区(residence): {profile.residence}"
-    if profile.gender:
-        prompt += f"\n- 性别(gender): {profile.gender}"
+    if profile.background.hobbies:
+        prompt += f"\n- 用户爱好(hobbies): {profile.background.hobbies}"
+    if profile.background.residence:
+        prompt += f"\n- 居住地区(residence): {profile.background.residence}"
+    if profile.background.gender:
+        prompt += f"\n- 性别(gender): {profile.background.gender}"
     if profile.dictionary_definition_style:
         prompt += f"\n- 词典解释风格(dictionary_definition_style): {profile.dictionary_definition_style}"
     

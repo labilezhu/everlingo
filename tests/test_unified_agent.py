@@ -3,7 +3,7 @@
 这些测试需要实际的 LLM API 调用，因此标记为集成测试
 """
 import pytest
-from everlingo.models import UserProfile
+from everlingo.models import UserBackground, UserLanguage, UserProfile
 from everlingo.llm import create_llm, create_agent
 from everlingo.chat import _build_system_prompt
 from everlingo.tools.tools import get_all_tools
@@ -13,9 +13,8 @@ from everlingo.tools.tools import get_all_tools
 def zh_en_profile():
     """中文界面，学习英语的用户配置"""
     return UserProfile(
-        interface_language="zh-CN",
-        target_language="en",
-        hobbies="历史与文艺",
+        language=UserLanguage(interface_language="zh-CN", target_language="en"),
+        background=UserBackground(hobbies="历史与文艺"),
     )
 
 
@@ -23,8 +22,7 @@ def zh_en_profile():
 def en_zh_profile():
     """英文界面，学习中文的用户配置"""
     return UserProfile(
-        interface_language="en",
-        target_language="zh-CN",
+        language=UserLanguage(interface_language="en", target_language="zh-CN"),
     )
 
 
@@ -159,13 +157,10 @@ def test_system_prompt_includes_user_profile(zh_en_profile):
 @pytest.mark.integration
 def test_custom_dictionary_style(agent_zh_en, zh_en_profile):
     """测试自定义词典风格"""
-    zh_en_profile.dictionary_definition_style = """
-- 词意
-- 词源解释和历史
-- 词性
-"""
-    
-    prompt = _build_system_prompt(zh_en_profile)
+    custom_profile = zh_en_profile.model_copy(
+        update={"dictionary_definition_style": "- 词意\n- 词源解释和历史\n- 词性\n"}
+    )
+    prompt = _build_system_prompt(custom_profile)
     
     # 验证自定义风格被包含
     assert "词意" in prompt
