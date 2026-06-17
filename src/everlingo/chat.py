@@ -2,7 +2,7 @@ from langchain_core.messages import HumanMessage
 
 from .llm import create_agent, create_llm
 from .models import LANGUAGES, UserProfile
-from .profile import load_profile, save_profile
+from .setting import load_profile, save_profile
 from .tools.tools import get_all_tools
 
 

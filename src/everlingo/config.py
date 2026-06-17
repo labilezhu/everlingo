@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 
-from .profile import load_setting
+from .setting import load_setting
 
 load_dotenv()
 

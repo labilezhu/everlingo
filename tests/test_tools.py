@@ -5,7 +5,7 @@ from pathlib import Path
 import yaml
 
 from everlingo.models import EverLingoSetting, LoggingSetting, SysSetting, UserProfile
-from everlingo.profile import save_setting
+from everlingo.setting import save_setting
 from everlingo.tools.clock import get_datetime
 from everlingo.tools.conf_manager import get_config, get_schema, set_config
 from everlingo.tools.tools import get_all_tools

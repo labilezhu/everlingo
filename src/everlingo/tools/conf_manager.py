@@ -3,7 +3,7 @@ from pathlib import Path
 import yaml
 from langchain_core.tools import tool
 
-from ..profile import dict_to_setting, load_setting, save_setting, setting_to_dict
+from ..setting import dict_to_setting, load_setting, save_setting, setting_to_dict
 from . import log_tool_call
 
 

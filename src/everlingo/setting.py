@@ -7,7 +7,7 @@ from .models import (
     UserProfile,
 )
 
-PROFILE_PATH = Path.home() / ".everlingo" / "everlingo.yaml"
+SETTING_PATH = Path.home() / ".everlingo" / "everlingo.yaml"
 
 
 def dict_to_setting(data: dict) -> EverLingoSetting:
@@ -22,16 +22,16 @@ def setting_to_dict(setting: EverLingoSetting) -> dict:
 
 
 def _load_raw() -> dict:
-    if PROFILE_PATH.exists():
-        with open(PROFILE_PATH, encoding="utf-8") as f:
+    if SETTING_PATH.exists():
+        with open(SETTING_PATH, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         return data if isinstance(data, dict) else {}
     return {}
 
 
 def _dump_raw(data: dict) -> None:
-    PROFILE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(PROFILE_PATH, "w", encoding="utf-8") as f:
+    SETTING_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(SETTING_PATH, "w", encoding="utf-8") as f:
         yaml.dump(data, f, allow_unicode=True, indent=2, sort_keys=False)
 
 

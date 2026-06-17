@@ -6,7 +6,8 @@
 
 
 ## 完成的任务
-- 2026-06-17 23:50 | UserProfile 结构对齐 everlingo.example.yaml：新增 UserLanguage/UserBackground 子模型，interface_language/target_language 移入 language 下，hobbies/residence/gender 移入 background 下；更新 profile.py（简化为 model_validate/model_dump）、chat.py、test_profile.py、test_unified_agent.py
+- 2026-06-17 23:55 | 文件重命名：profile.py → setting.py（内容已不限于 UserProfile），同步更新所有 import 引用，PROFILE_PATH → SETTING_PATH，test_profile.py → test_setting.py
+- 2026-06-17 23:50 | UserProfile 结构对齐 everlingo.example.yaml：新增 UserLanguage/UserBackground 子模型，interface_language/target_language 移入 language 下，hobbies/residence/gender 移入 background 下；更新 setting.py（简化为 model_validate/model_dump）、chat.py、test_setting.py、test_unified_agent.py
 - 2026-06-17 23:30 | 配置实现由 dataclass 重构成 pydantic
 - 2026-06-17 23:00 | 实现 LLM tool 调用日志：添加 log_tool_call 装饰器并应用到所有 tool 函数，日志格式为 tool_name + parameters + return，debug 级别
 - 2026-06-16 19:45 | 修复 Langfuse 4.x 兼容性：CallbackHandler 不再接受凭证参数，改为先初始化 langfuse.Langfuse(secret_key/public_key/host) 配置 OTEL exporter，再创建无参 CallbackHandler()

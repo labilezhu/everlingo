@@ -10,7 +10,7 @@ from everlingo.models import (
     UserLanguage,
     UserProfile,
 )
-from everlingo.profile import dict_to_setting, setting_to_dict
+from everlingo.setting import dict_to_setting, setting_to_dict
 
 
 def test_empty_profile_is_incomplete():

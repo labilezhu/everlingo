@@ -1,6 +1,6 @@
 import logging
 
-from .profile import load_setting
+from .setting import load_setting
 
 logger = logging.getLogger("everlingo")
 

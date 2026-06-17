@@ -4,7 +4,7 @@ from pathlib import Path
 from langchain_core.callbacks import BaseCallbackHandler
 
 from .models import LoggingSetting
-from .profile import load_setting
+from .setting import load_setting
 
 logger = logging.getLogger("everlingo")
 
