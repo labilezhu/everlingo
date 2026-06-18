@@ -24,6 +24,19 @@
             "python": "${workspaceFolder}/.venv/bin/python",
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "gateway --channel_wechat",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "everlingo.gateway.gateway",
+            "args": ["--channel_wechat"],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
 }

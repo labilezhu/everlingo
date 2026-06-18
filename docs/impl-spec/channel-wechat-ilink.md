@@ -1,5 +1,9 @@
 # Wechat(微信) 消息 Channel
 
+实现 Wechat 消息收发的 Channel 。 使用 wechatbot-sdk 。
+
+实现主文件： `src/everlingo/gateway/channels/wechat_channel.py`。
+
 ## wechatbot-sdk
 
 wechatbot-sdk 是一个 python 连接 wechat 聊天的 SDK。 通过它，程序可以连接上手机 wechat ，接收和发送 markdown 格式的文本消息。
@@ -33,12 +37,12 @@ bot.run()
 注意事项：
 - WeChatBot 对象是个长生命的单例对象。应用运行生命周期内只创建一次。
 - 主动发送消息必须带上之前消息的 user_id 。 所以 user_id 应该在每收到消息时保存在应用全局内存中
-- 由于  wechatbot-sdk 的运行需要连接网络和 wechat 服务，单元测试时，只能 Mock 或不作单元测试。
+- 由于  wechatbot-sdk 的运行需要连接网络和 wechat 服务，并且需要手工 login 。单元测试时，只能 Mock 或不作单元测试。
 
 
 ### sdk 保存用户 token
 
-用户登录认证后，token 保存于：
+用户登录认证后，token 保存于。由 SDK 自己处理的。应用层不需要关注：
 
 `~/.wechatbot/credentials.json`
 ```json

@@ -8,6 +8,7 @@ from ..log_utils import setup_logging
 from ..models import LANGUAGES, UserProfile
 from ..setting import load_profile, save_profile
 from .channels.stdio_channel import StdioChannel
+from .channels.wechat_channel import WechatChannel
 from .session import Session
 from ..agents.agent import MainAgent
 
@@ -82,13 +83,33 @@ async def _run_stdio() -> None:
     await session.run()
 
 
+async def _run_wechat() -> None:
+    """启动 Wechat Channel 的 Gateway。
+
+    ref: /docs/impl-spec/gateway.md
+    ref: /docs/impl-spec/channel-wechat-ilink.md
+    """
+    setup_logging()
+    try:
+        profile = _ensure_profile()
+    except ValueError as e:
+        print(f"\n配置错误: {e}")
+        return
+
+    channel = WechatChannel()
+    agent = MainAgent(profile)
+    session = Session(channel, agent)
+    await session.run()
+
+
+
 def main() -> None:
     """Gateway 进程入口。
 
     用法：
         gateway --channel_stdio   # 启动 Stdio Channel（默认）
         gateway                   # 同上，默认启动 Stdio Channel
-        gateway --channel_wechat  # 启动 Wechat Channel（暂不实现）
+        gateway --channel_wechat  # 启动 Wechat Channel
 
     ref: /docs/impl-spec/gateway.md
     """
@@ -104,12 +125,12 @@ def main() -> None:
         "--channel_wechat",
         action="store_true",
         default=False,
-        help="启动 Wechat Channel（暂未实现）",
+        help="启动 Wechat Channel",
     )
     args = parser.parse_args()
 
     if args.channel_wechat:
-        print("Wechat Channel 暂未实现。")
+        asyncio.run(_run_wechat())
         return
 
     # 默认或指定 --channel_stdio 均启动 Stdio Channel

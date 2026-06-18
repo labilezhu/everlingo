@@ -14,7 +14,7 @@ gateway --channel_stdio
 # 默认启动 Stdio Channel
 gateway
 
-# 启动 Wechat Channel。 注意，暂时不实现
+# 启动 Wechat Channel。
 gateway --channel_wechat
 ```
 
