@@ -6,6 +6,7 @@ build-backend = "hatchling.build"
 name = "everlingo"
 version = "0.1.0"
 description = "EverLingo - AI 外语学习助手"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "langchain>=0.3.0",

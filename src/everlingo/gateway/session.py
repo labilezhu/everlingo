@@ -31,5 +31,7 @@ class Session:
                 break
 
             input_msg = MessageEvent(text=text)
+            await self.channel.send_typing_hint()
             reply = self.agent.invoke(input_msg)
+            await self.channel.stop_typing_hint()
             await self.channel.send(reply.text)

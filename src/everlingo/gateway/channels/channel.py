@@ -10,6 +10,16 @@ class Channel(Protocol):
         """
         pass
 
+    async def send_typing_hint(self) -> None:
+        """
+        发送 “正在打字提示” 给对方
+        """
+        pass
+    async def stop_typing_hint(self) -> None:
+        """
+        发送 “打字已停止提示” 给对方
+        """
+        pass
     async def send(self, content: str):
         """
         输出消息到 channel 。

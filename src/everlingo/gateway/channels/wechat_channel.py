@@ -58,7 +58,19 @@ class WechatChannel:
         """
         return self._queue.get()
     
-    # async def send(self, content: str) -> None:
+    async def send_typing_hint(self) -> None:
+        if self._bot is None:
+            raise RuntimeError("WechatChannel 尚未初始化，请先调用 init()")
+        if self._last_user_id is None:
+            raise RuntimeError("尚未收到任何消息，无法获取 user_id 进行主动发送")        
+        await self._bot.send_typing(self._last_user_id)
+
+    async def stop_typing_hint(self) -> None:        
+        if self._bot is None:
+            raise RuntimeError("WechatChannel 尚未初始化，请先调用 init()")
+        if self._last_user_id is None:
+            raise RuntimeError("尚未收到任何消息，无法获取 user_id 进行主动发送")        
+        await self._bot.stop_typing(self._last_user_id)
 
     async def send(self, content: str) -> None:
         """主动发送消息给最近一次发消息的用户。

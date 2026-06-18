@@ -17,6 +17,17 @@ class StdioChannel:
         print("输入你想查的单词或需要翻译的文本。")
         print("输入 /quit 退出。")
 
+    async def send_typing_hint(self) -> None:
+        """
+        发送 “正在打字提示” 给对方
+        """
+        pass
+    async def stop_typing_hint(self) -> None:
+        """
+        发送 “打字已停止提示” 给对方
+        """
+        pass
+
     async def send(self, content: str) -> None:
         """输出消息到 stdout。
         
