@@ -36,8 +36,7 @@ class MessageEvent:
 
 
 def _lang_display_name(code: str) -> str:
-    names = {"en": "英语", "zh-CN": "简体中文"}
-    return names.get(code, code)
+    return LANGUAGES.get(code, code)
 
 
 def _build_system_prompt(profile: UserProfile) -> str:
@@ -55,10 +54,11 @@ def _build_system_prompt(profile: UserProfile) -> str:
 ## 术语
 先定义下面将使用的术语：
 - 语言代码：`en` ： `英语`
+- 语言代码：`ja` ： `日本語`
 - 语言代码：`zh-CN` ： `简体中文`
 - `target_lang`: 用户的`目标学习语言`
 - `interface_lang`: 用户的`界面语言`
-- `single_word` : {target_lang} 是 `英语` 时为1个单词，是 `简体中文` 时为一个中文词语
+- `single_word` : {target_lang} 是 `英语` 时为1个单词，是 `简体中文` 时为一个中文词语，是 `日本語` 时为一个日文词语
 
 ## 配置
 - 界面语言(interface_lang): {interface_lang}

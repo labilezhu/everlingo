@@ -45,6 +45,33 @@ def test_same_languages_not_allowed():
     assert "不能相同" in errors[0]
 
 
+def test_japanese_zh_profile():
+    """日本語界面，学习中文的用户配置"""
+    profile = UserProfile(
+        language=UserLanguage(interface_language="ja", target_language="zh-CN")
+    )
+    assert profile.is_complete()
+    assert profile.validate() == []
+
+
+def test_zh_japanese_profile():
+    """中文界面，学习日本語的用户配置"""
+    profile = UserProfile(
+        language=UserLanguage(interface_language="zh-CN", target_language="ja")
+    )
+    assert profile.is_complete()
+    assert profile.validate() == []
+
+
+def test_en_japanese_profile():
+    """英文界面，学习日本語的用户配置"""
+    profile = UserProfile(
+        language=UserLanguage(interface_language="en", target_language="ja")
+    )
+    assert profile.is_complete()
+    assert profile.validate() == []
+
+
 def test_profile_with_background():
     profile = UserProfile(
         language=UserLanguage(interface_language="zh-CN", target_language="en"),
@@ -91,6 +118,16 @@ def test_everlingo_setting_full():
     assert setting.sys_setting.openai_model == "gpt-4"
     assert setting.user_profile.language.interface_language == "zh-CN"
     assert setting.user_profile.language.target_language == "en"
+
+
+def test_everlingo_setting_with_japanese():
+    setting = EverLingoSetting(
+        user_profile=UserProfile(
+            language=UserLanguage(interface_language="zh-CN", target_language="ja"),
+        ),
+    )
+    assert setting.user_profile.language.interface_language == "zh-CN"
+    assert setting.user_profile.language.target_language == "ja"
 
 
 def test_logging_setting_defaults():
@@ -261,6 +298,24 @@ def test_tracing_roundtrip():
     assert restored.sys_setting.tracing_setting.langfuse_secret_key == "sk-lf-test"
     assert restored.sys_setting.tracing_setting.langfuse_public_key == "pk-lf-test"
     assert restored.sys_setting.tracing_setting.langfuse_base_url == "http://localhost:3300"
+
+
+def test_user_profile_japanese_yaml_roundtrip():
+    # 验证日语语言设置在 YAML roundtrip 中的正确性
+    data = {
+        "user_profile": {
+            "language": {
+                "interface_language": "zh-CN",
+                "target_language": "ja",
+            },
+        }
+    }
+    setting = dict_to_setting(data)
+    assert setting.user_profile.language.interface_language == "zh-CN"
+    assert setting.user_profile.language.target_language == "ja"
+    d = setting_to_dict(setting)
+    assert d["user_profile"]["language"]["interface_language"] == "zh-CN"
+    assert d["user_profile"]["language"]["target_language"] == "ja"
 
 
 def test_user_profile_yaml_roundtrip():

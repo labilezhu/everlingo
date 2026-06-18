@@ -57,6 +57,8 @@ class WechatChannel:
         从线程安全的同步 Queue 阻塞读取；返回 None 表示 Channel 结束。
         """
         return self._queue.get()
+    
+    # async def send(self, content: str) -> None:
 
     async def send(self, content: str) -> None:
         """主动发送消息给最近一次发消息的用户。

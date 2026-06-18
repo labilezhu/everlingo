@@ -27,6 +27,23 @@ def en_zh_profile():
 
 
 @pytest.fixture
+def zh_ja_profile():
+    """中文界面，学习日本語的用户配置"""
+    return UserProfile(
+        language=UserLanguage(interface_language="zh-CN", target_language="ja"),
+    )
+
+
+@pytest.fixture
+def ja_zh_profile():
+    """日本語界面，学习中文的用户配置"""
+    return UserProfile(
+        language=UserLanguage(interface_language="ja", target_language="zh-CN"),
+    )
+
+
+
+@pytest.fixture
 def agent_zh_en(zh_en_profile):
     """创建中文界面学英语的 Agent"""
     llm = create_llm()
@@ -137,6 +154,23 @@ def test_mixed_language_input(agent_zh_en):
 
 
 @pytest.mark.integration
+def test_system_prompt_includes_japanese(zh_ja_profile):
+    """测试日语配置的 system prompt"""
+    prompt = _build_system_prompt(zh_ja_profile)
+
+    assert "日本語" in prompt
+    assert "ja" in prompt
+    assert "日文词语" in prompt
+
+
+def test_system_prompt_japanese_interface(ja_zh_profile):
+    """测试日本語界面的 system prompt"""
+    prompt = _build_system_prompt(ja_zh_profile)
+
+    assert "日本語" in prompt
+    assert "ja" in prompt
+
+
 def test_system_prompt_includes_user_profile(zh_en_profile):
     """测试 system prompt 包含用户配置信息"""
     prompt = _build_system_prompt(zh_en_profile)
