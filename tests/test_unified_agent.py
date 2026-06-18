@@ -3,9 +3,10 @@
 这些测试需要实际的 LLM API 调用，因此标记为集成测试
 """
 import pytest
+from unittest.mock import MagicMock, patch
 from everlingo.models import UserBackground, UserLanguage, UserProfile
 from everlingo.llm import create_llm, create_agent
-from everlingo.agents.agent import _build_system_prompt
+from everlingo.agents.agent import _build_system_prompt, MainAgent, MessageEvent
 from everlingo.tools.tools import get_all_tools
 
 
@@ -224,3 +225,105 @@ def test_multi_turn_conversation(agent_zh_en):
     related_words = ["dog", "feline", "pet", "kitten", "animal"]
     assert any(word.lower() in (content2 or "").lower() for word in related_words), \
         f"多轮会话未识别代词指代。第二轮回复: {content2}"
+
+
+# ── 配置版本驱动的 agent 重建单元测试（无需 LLM）─────────────────────────────
+
+@pytest.fixture
+def mock_agent_response():
+    """构造一个假的 agent invoke 返回值。"""
+    msg = MagicMock()
+    msg.content = "mock reply"
+    return {"messages": [msg]}
+
+
+def _make_main_agent(zh_en_profile, mock_inner_agent):
+    """用 mock 替换 create_llm / create_agent / get_all_tools 创建 MainAgent。"""
+    with patch("everlingo.agents.agent.create_llm", return_value=MagicMock()), \
+         patch("everlingo.agents.agent.get_all_tools", return_value=[]), \
+         patch("everlingo.agents.agent.create_agent", return_value=mock_inner_agent):
+        agent = MainAgent(profile=zh_en_profile)
+    return agent
+
+
+def test_agent_no_rebuild_without_config_change(zh_en_profile, mock_agent_response):
+    """无配置变更时，invoke() 不应重建 agent。"""
+    mock_inner = MagicMock()
+    mock_inner.invoke.return_value = mock_agent_response
+    agent = _make_main_agent(zh_en_profile, mock_inner)
+
+    with patch("everlingo.agents.agent.create_agent") as mock_create:
+        agent.invoke(MessageEvent(text="hello"))
+        agent.invoke(MessageEvent(text="world"))
+
+    mock_create.assert_not_called()
+
+
+def test_agent_rebuilds_once_after_config_change(zh_en_profile, mock_agent_response):
+    """set_config 被调用后，下次 invoke() 应重建 agent 一次。"""
+    import everlingo.tools.conf_manager as conf_manager_module
+    from everlingo.models import EverLingoSetting, LoggingSetting, SysSetting
+    from everlingo.tools.conf_manager import set_config
+
+    mock_inner = MagicMock()
+    mock_inner.invoke.return_value = mock_agent_response
+    agent = _make_main_agent(zh_en_profile, mock_inner)
+
+    # 模拟 set_config 工具调用（递增版本号）
+    setting = EverLingoSetting(
+        sys_setting=SysSetting(logging_setting=LoggingSetting()),
+        user_profile=zh_en_profile,
+    )
+    with patch("everlingo.tools.conf_manager.load_setting", return_value=setting), \
+         patch("everlingo.tools.conf_manager.save_setting"):
+        set_config.invoke({"config_to_be_merged": "user_profile:\n  background:\n    hobbies: 科技"})
+
+    mock_inner2 = MagicMock()
+    mock_inner2.invoke.return_value = mock_agent_response
+
+    with patch("everlingo.agents.agent.create_agent", return_value=mock_inner2) as mock_create, \
+         patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile):
+        agent.invoke(MessageEvent(text="hello"))  # 触发重建
+        agent.invoke(MessageEvent(text="world"))  # 版本已同步，不再重建
+
+    # create_agent 只应被调用一次（重建时）
+    mock_create.assert_called_once()
+
+
+def test_agent_rebuilds_on_each_config_change(zh_en_profile, mock_agent_response):
+    """每次 set_config 后的首次 invoke() 都应触发一次重建。"""
+    import everlingo.tools.conf_manager as conf_manager_module
+    from everlingo.models import EverLingoSetting, LoggingSetting, SysSetting
+    from everlingo.tools.conf_manager import set_config
+
+    mock_inner = MagicMock()
+    mock_inner.invoke.return_value = mock_agent_response
+    agent = _make_main_agent(zh_en_profile, mock_inner)
+
+    setting = EverLingoSetting(
+        sys_setting=SysSetting(logging_setting=LoggingSetting()),
+        user_profile=zh_en_profile,
+    )
+
+    rebuilt_agents = []
+
+    def fake_create_agent(*args, **kwargs):
+        m = MagicMock()
+        m.invoke.return_value = mock_agent_response
+        rebuilt_agents.append(m)
+        return m
+
+    with patch("everlingo.tools.conf_manager.load_setting", return_value=setting), \
+         patch("everlingo.tools.conf_manager.save_setting"), \
+         patch("everlingo.agents.agent.create_agent", side_effect=fake_create_agent), \
+         patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile):
+
+        # 第一次配置变更 → invoke 触发重建
+        set_config.invoke({"config_to_be_merged": "user_profile:\n  background:\n    hobbies: 音乐"})
+        agent.invoke(MessageEvent(text="first"))
+
+        # 第二次配置变更 → invoke 再次触发重建
+        set_config.invoke({"config_to_be_merged": "user_profile:\n  background:\n    hobbies: 历史"})
+        agent.invoke(MessageEvent(text="second"))
+
+    assert len(rebuilt_agents) == 2

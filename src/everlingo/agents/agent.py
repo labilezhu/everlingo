@@ -10,8 +10,13 @@ from langchain_core.messages import HumanMessage
 
 from ..llm import create_agent, create_llm
 from ..models import LANGUAGES, UserProfile
+from ..setting import load_profile
+from ..tools.conf_manager import get_config_version
 from ..tools.tools import get_all_tools
 
+import logging
+
+logger = logging.getLogger("everlingo")
 
 @dataclass
 class MessageEvent:
@@ -179,22 +184,42 @@ class MainAgent:
     """
 
     def __init__(self, profile: UserProfile) -> None:
-        llm = create_llm()
-        tools = get_all_tools()
-        # ref: agents-spec.md — langchain agent 创建
+        self._llm = create_llm()
+        self._tools = get_all_tools()
         self._agent = create_agent(
-            llm,
-            tools=tools,
+            self._llm,
+            tools=self._tools,
             system_prompt=_build_system_prompt(profile),
         )
+        # 记录构建时的配置版本，用于检测是否需要重建 agent
+        self._config_version = get_config_version()
         # Agent 的消息历史，支持多轮会话
         self._messages: list = []
+
+    def _refresh_agent_if_needed(self) -> None:
+        """检查配置版本，若 set_config 被调用过则重建 agent。
+
+        ref: /docs/impl-spec/agents-spec.md — _build_system_prompt 依赖配置
+        """
+        current_version = get_config_version()
+        if current_version != self._config_version:
+            logger.info("system prompt refreshed: {current_version} != {self._config_version}")
+            profile = load_profile()
+            self._agent = create_agent(
+                self._llm,
+                tools=self._tools,
+                system_prompt=_build_system_prompt(profile),
+            )
+            self._config_version = current_version
 
     def invoke(self, input_msg: MessageEvent) -> MessageEvent:
         """处理用户消息，返回 Agent 的回复。
 
         ref: /docs/impl-spec/agents-spec.md — 用户意思的执行与回复响应
         """
+        # 若配置被修改过，先重建 agent 以刷新 system prompt
+        self._refresh_agent_if_needed()
+
         # 累积消息历史，支持多轮会话
         self._messages.append(HumanMessage(content=input_msg.text))
 

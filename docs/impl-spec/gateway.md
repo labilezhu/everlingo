@@ -19,5 +19,8 @@ gateway --channel_wechat
 ```
 
 ## Session
+
+在 Chatbot 与用户建立会话时，检查用户个性初始化的`必选设置`，如果未设置，需要先`引导初始配置`。
+
 主要代码示例： `/src/everlingo/gateway/session.py`
 
