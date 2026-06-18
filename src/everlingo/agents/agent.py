@@ -1,47 +1,38 @@
+# ref: agents-spec.md — Agent 实现
+# 主要实现在 MainAgent。产品文档中的"词典老师"、"翻译老师"均由同一个 langchain agent 实现。
+# ref: /docs/impl-spec/agents-spec.md
+
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Optional
+
 from langchain_core.messages import HumanMessage
 
-from .llm import create_agent, create_llm
-from .models import LANGUAGES, UserProfile
-from .setting import load_profile, save_profile
-from .tools.tools import get_all_tools
+from ..llm import create_agent, create_llm
+from ..models import LANGUAGES, UserProfile
+from ..tools.tools import get_all_tools
 
 
-def _prompt_language_selection(prompt: str, exclude: str = "") -> str:
-    while True:
-        print(f"\n{prompt}")
-        options = [code for code in LANGUAGES if code != exclude]
-        for i, code in enumerate(options, 1):
-            print(f"  {i}. {LANGUAGES[code]}")
-        choice = input("请输入编号 (1-{}): ".format(len(options))).strip()
-        if choice.isdigit() and 1 <= int(choice) <= len(options):
-            return options[int(choice) - 1]
-        print(f"无效输入，请输入 1-{len(options)}。")
+@dataclass
+class MessageEvent:
+    """从 Channel 收到的消息的规范化表示。
 
+    ref: /docs/impl-spec/agents-spec.md
+    """
 
-def _run_profile_setup() -> UserProfile:
-    print("\n=== 首次使用，请完成个性初始化 ===")
-    interface_lang = _prompt_language_selection("请选择界面语言：")
-    target_lang = _prompt_language_selection(
-        "请选择目标学习语言：", exclude=interface_lang
-    )
-    profile = UserProfile(
-        language={"interface_language": interface_lang, "target_language": target_lang},
-    )
-    save_profile(profile)
-    print(f"\n已保存！界面语言: {LANGUAGES[interface_lang]}, "
-          f"目标学习语言: {LANGUAGES[target_lang]}")
-    return profile
+    # 消息正文
+    text: str
 
+    # 原始 Channel 数据
+    raw_message: Any = None
+    message_id: Optional[str] = None
 
-def _ensure_profile() -> UserProfile:
-    profile = load_profile()
-    if profile.is_complete():
-        errors = profile.validate()
-        if not errors:
-            print(f"\n当前配置 — 界面语言: {LANGUAGES.get(profile.language.interface_language, profile.language.interface_language)}, "
-                  f"目标学习语言: {LANGUAGES.get(profile.language.target_language, profile.language.target_language)}")
-            return profile
-    return _run_profile_setup()
+    # 回复上下文
+    reply_to_message_id: Optional[str] = None
+    reply_to_text: Optional[str] = None
+
+    # 时间戳
+    timestamp: datetime = field(default_factory=datetime.now)
 
 
 def _lang_display_name(code: str) -> str:
@@ -50,10 +41,14 @@ def _lang_display_name(code: str) -> str:
 
 
 def _build_system_prompt(profile: UserProfile) -> str:
-    """构建统一的 Agent system prompt，整合词典老师和翻译老师的功能"""
+    """构建统一的 Agent system prompt，整合词典老师和翻译老师的功能。
+
+    ref: /docs/impl-spec/agents-spec.md — _build_system_prompt
+    ref: /docs/product/pro-chatbot.md — 用户意图分析 & 用户意图响应
+    """
     interface_lang = _lang_display_name(profile.language.interface_language)
     target_lang = _lang_display_name(profile.language.target_language)
-    
+
     prompt = f"""你是 EverLingo 语言学习助手，可以解答用户在 {target_lang} 语言方面的问题。
 处理每次用户消息的主要的流程是： 分析当前会话消息和历史消息 -> 识别用户意图 -> [可选:必要时调用提供的 tools] -> 作出友好与实用的回答。
 
@@ -72,7 +67,7 @@ def _build_system_prompt(profile: UserProfile) -> str:
 ### 用户个性化(User Profile)配置
 以下列出已经配置的用户个性化(User Profile)选项：
 """
-    
+
     # 添加用户背景信息
     if profile.background.hobbies:
         prompt += f"\n- 用户爱好(hobbies): {profile.background.hobbies}"
@@ -82,7 +77,7 @@ def _build_system_prompt(profile: UserProfile) -> str:
         prompt += f"\n- 性别(gender): {profile.background.gender}"
     if profile.dictionary_definition_style:
         prompt += f"\n- 词典解释风格(dictionary_definition_style): {profile.dictionary_definition_style}"
-    
+
     prompt += f"""
 
 ## 用户意图分类
@@ -126,7 +121,7 @@ OR
 
 ### 4. 其它语言学习问题
 **判定条件**：
-你从用户消息判断是一个语言学习的问题，但不能匹配到已知的 `户意图类型` 。但你有信心解答这个问题。
+你从用户消息判断是一个语言学习的问题，但不能匹配到已知的 `用户意图类型` 。但你有信心解答这个问题。
 
 ### 4. 未识别输入
 **判定条件**：
@@ -172,51 +167,45 @@ OR
 - 配置管理示例：询问或修改配置
 
 """
-    
+
     return prompt
 
 
-def run_chat(profile: UserProfile) -> None:
-    llm = create_llm()
-    tools = get_all_tools()
+class MainAgent:
+    """EverLingo 主 Agent。
 
-    # 使用统一的 Agent 处理所有意图
-    agent = create_agent(
-        llm, 
-        tools=tools, 
-        system_prompt=_build_system_prompt(profile)
-    )
+    产品文档中的"词典老师"、"翻译老师"均由同一个 langchain agent 实现。
+    ref: /docs/impl-spec/agents-spec.md
+    """
 
-    print("\n=== 🌍 EverLingo 依娃外教 👩‍🏫 ===")
-    print("输入你想查的单词或需要翻译的文本。")
-    print("输入 /quit 退出。")
+    def __init__(self, profile: UserProfile) -> None:
+        llm = create_llm()
+        tools = get_all_tools()
+        # ref: agents-spec.md — langchain agent 创建
+        self._agent = create_agent(
+            llm,
+            tools=tools,
+            system_prompt=_build_system_prompt(profile),
+        )
+        # Agent 的消息历史，支持多轮会话
+        self._messages: list = []
 
-    messages: list = []
+    def invoke(self, input_msg: MessageEvent) -> MessageEvent:
+        """处理用户消息，返回 Agent 的回复。
 
-    while True:
-        try:
-            user_input = input("\n> ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print("\n再见！")
-            break
-
-        if not user_input:
-            continue
-        if user_input.lower() == "/quit":
-            print("再见！")
-            break
-
+        ref: /docs/impl-spec/agents-spec.md — 用户意思的执行与回复响应
+        """
         # 累积消息历史，支持多轮会话
-        messages.append(HumanMessage(content=user_input))
+        self._messages.append(HumanMessage(content=input_msg.text))
 
         try:
-            response = agent.invoke({"messages": messages})
-            messages = response["messages"]
+            response = self._agent.invoke({"messages": self._messages})
+            self._messages = response["messages"]
 
-            last_message = messages[-1]
+            last_message = self._messages[-1]
             if hasattr(last_message, "content") and last_message.content:
-                print(f"\n{last_message.content}")
+                return MessageEvent(text=last_message.content)
             else:
-                print("\n抱歉，我无法处理你的请求。")
+                return MessageEvent(text="抱歉，我无法处理你的请求。")
         except Exception as e:
-            print(f"\n处理请求时出错: {e}")
+            return MessageEvent(text=f"处理请求时出错: {e}")

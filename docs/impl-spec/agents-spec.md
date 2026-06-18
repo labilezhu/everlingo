@@ -1,5 +1,8 @@
 # Agent 实现
 
+应实现于： `/src/everlingo/agents/agent.py` ，主要实现在 `class MainAgent` 。
+
+
 Chatbot 中处理用户输入的消息，均应该使用 langchain 的 agent 去处理。
 
 这里的 langchain 的 agent , 可由类似以下的代码来创建：
@@ -17,7 +20,7 @@ agent = create_agent("openai:gpt-5.5", tools=tools)
 
 实现参考 [/docs/product/pro-chatbot.md]
 
-主要的 Agent System Prompt 位于： /src/everlingo/chat.py 中的 `_build_system_prompt`
+主要的 Agent System Prompt 位于： `/src/everlingo/agents/agent.py` 中的 `_build_system_prompt`
 
 
 ## 用户意思的执行与回复响应

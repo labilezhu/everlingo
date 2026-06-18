@@ -5,7 +5,7 @@
 import pytest
 from everlingo.models import UserBackground, UserLanguage, UserProfile
 from everlingo.llm import create_llm, create_agent
-from everlingo.chat import _build_system_prompt
+from everlingo.agents.agent import _build_system_prompt
 from everlingo.tools.tools import get_all_tools
 
 

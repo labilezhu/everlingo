@@ -1,16 +1,13 @@
+# ref: app-entry.md — python module main
+# 与命令入口 `gateway --channel_stdio` 效果相同
+
+import asyncio
+
+
 def main() -> None:
-    from .chat import _ensure_profile, run_chat
-    from .log_utils import setup_logging
+    from .gateway.gateway import _run_stdio
 
-    setup_logging()
-
-    try:
-        profile = _ensure_profile()
-        run_chat(profile)
-    except ValueError as e:
-        print(f"\n配置错误: {e}")
-    except Exception as e:
-        print(f"\n发生错误: {e}")
+    asyncio.run(_run_stdio())
 
 
 if __name__ == "__main__":

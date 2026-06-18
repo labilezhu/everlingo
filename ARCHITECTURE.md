@@ -17,11 +17,15 @@
 测试时用 OpenRouter 的 Open AI Chat Completions endpoint base url: `https://openrouter.ai/api/v1` 。 api key 由环境变量注入。
 
 
-## 实现设计
-- [基于 Agent 的 LLM 交互设计](/docs/impl-spec/agents-spec.md)
-
 ## 配置
 
 - [配置](/docs/impl-spec/configuration.md)
 
+
+## 实现设计
+- [Agent 实现](/docs/impl-spec/agents-spec.md)
+- [Gateway 服务](/docs/impl-spec/gateway.md)
+
+## 应用的主入口
+应用的主入口。指进程启动的入口点。参见： [app-entry.md](/docs/impl-spec/app-entry.md)
 
