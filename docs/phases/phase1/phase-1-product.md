@@ -1,7 +1,7 @@
 
 # 产品说明 - phase 1 - DEMO
 
-这是产品的 Demo 版本。只选择 [PRODUCT.md](/PRODUCT.md) 中的以下部分来实现。目标是一个简单的可运行，可 Demo 版本。
+这是产品的 Demo 版本。只选择 [PRODUCT-FUNC.md](/PRODUCT-FUNC.md) 中的以下部分来实现。目标是一个简单的可运行，可 Demo 版本。
 
 ## 应用特性
 

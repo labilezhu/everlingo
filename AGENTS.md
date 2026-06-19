@@ -4,7 +4,7 @@
 Before making changes, make sure read following documentations:
 
 文档说明：
-- [产品文档](./PRODUCT.md)
+- [产品文档](./PRODUCT-FUNC.md)
 - [领域模型](./DOMAIN.md)
 - [架构设计](./ARCHITECTURE.md)
 - [ROADMAP](ROADMAP.md)
