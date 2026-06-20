@@ -150,7 +150,7 @@ AI 每次都能回答你的问题，却永远不记得你已经问过。
 
 - 浏览器插件。划词、查词、翻译、网页阅读一体化。
 
-- iPhone 实时翻译。在真实场景中随时学习和积累。
+- iPhone 实时翻译。划词、查词、翻译在真实场景中随时学习和积累。
 
 ### 阅读即学习
 
@@ -195,7 +195,13 @@ AI 每次都能回答你的问题，却永远不记得你已经问过。
 
 ### 源码运行
 
+
+TUI:
 ```bash
 uv run python -m everlingo.main
 ```
 
+微信:
+```bash
+uv run python -m everlingo.gateway.gateway --channel_wechat
+```

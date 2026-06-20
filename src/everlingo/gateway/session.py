@@ -26,7 +26,7 @@ class Session:
         await self.channel.init()
 
         while True:
-            text = self.channel.recv()
+            text = await self.channel.recv()
             if text is None:
                 break
 

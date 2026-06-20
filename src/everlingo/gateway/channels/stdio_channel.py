@@ -3,7 +3,12 @@
 # /quit 命令或 EOF/KeyboardInterrupt 时 recv 返回 None，Session 据此退出循环。
 
 
-class StdioChannel:
+import asyncio
+
+from everlingo.gateway.channels.channel import Channel
+
+
+class StdioChannel(Channel):
     """Stdio Channel 实现。
     
     ref: /docs/impl-spec/channel-stdio.md
@@ -36,14 +41,14 @@ class StdioChannel:
         """
         print(f"\n{content}\n")
 
-    def recv(self) -> str | None:
+    async def recv(self) -> str | None:
         """阻塞读取 stdin 一行。
         
         Returns:
             用户输入的文字；若用户输入 /quit、触发 EOF 或 KeyboardInterrupt 则返回 None
         """
         try:
-            line = input("\n> ").strip()
+            line = (await asyncio.to_thread(input, "\n> ")).strip()
         except (EOFError, KeyboardInterrupt):
             print("\n再见！")
             return None
@@ -52,4 +57,4 @@ class StdioChannel:
             print("再见！")
             return None
 
-        return line if line else self.recv()
+        return line if line else await self.recv()

@@ -22,7 +22,7 @@ class TestStdioChannelRecv:
         """正常输入返回用户文字。"""
         channel = StdioChannel()
         with patch("builtins.input", return_value="hello"):
-            result = channel.recv()
+            result = asyncio.run(channel.recv())
         assert result == "hello"
 
     def test_recv_returns_none_on_quit(self):
@@ -30,7 +30,7 @@ class TestStdioChannelRecv:
         channel = StdioChannel()
         with patch("builtins.input", return_value="/quit"), \
              patch("builtins.print"):
-            result = channel.recv()
+            result = asyncio.run(channel.recv())
         assert result is None
 
     def test_recv_returns_none_on_eof(self):
@@ -38,7 +38,7 @@ class TestStdioChannelRecv:
         channel = StdioChannel()
         with patch("builtins.input", side_effect=EOFError), \
              patch("builtins.print"):
-            result = channel.recv()
+            result = asyncio.run(channel.recv())
         assert result is None
 
     def test_recv_returns_none_on_keyboard_interrupt(self):
@@ -46,7 +46,7 @@ class TestStdioChannelRecv:
         channel = StdioChannel()
         with patch("builtins.input", side_effect=KeyboardInterrupt), \
              patch("builtins.print"):
-            result = channel.recv()
+            result = asyncio.run(channel.recv())
         assert result is None
 
     def test_recv_quit_case_insensitive(self):
@@ -54,7 +54,7 @@ class TestStdioChannelRecv:
         channel = StdioChannel()
         with patch("builtins.input", return_value="/QUIT"), \
              patch("builtins.print"):
-            result = channel.recv()
+            result = asyncio.run(channel.recv())
         assert result is None
 
     def test_send_prints_content(self):
@@ -75,7 +75,9 @@ class TestSessionRun:
         channel = MagicMock()
         channel.init = AsyncMock()
         channel.send = AsyncMock()
-        channel.recv = MagicMock(side_effect=recv_side_effects)
+        channel.send_typing_hint = AsyncMock()
+        channel.stop_typing_hint = AsyncMock()
+        channel.recv = AsyncMock(side_effect=recv_side_effects)
 
         agent = MagicMock()
         agent.invoke = MagicMock(return_value=MessageEvent(text=agent_reply_text))

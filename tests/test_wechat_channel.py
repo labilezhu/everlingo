@@ -74,7 +74,7 @@ class TestWechatChannelRecv:
         # 手动将消息放入队列
         channel._queue.put("你好")
 
-        result = channel.recv()
+        result = asyncio.run(channel.recv())
         assert result == "你好"
 
     def test_recv_returns_none_when_channel_closed(self):
@@ -82,7 +82,7 @@ class TestWechatChannelRecv:
         channel = self._make_initialized_channel()
         channel._queue.put(None)
 
-        result = channel.recv()
+        result = asyncio.run(channel.recv())
         assert result is None
 
 

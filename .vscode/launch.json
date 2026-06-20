@@ -36,7 +36,7 @@
             },
             "python": "${workspaceFolder}/.venv/bin/python",
             "console": "integratedTerminal",
-            "justMyCode": true
+            "justMyCode": false
         }
     ]
 }

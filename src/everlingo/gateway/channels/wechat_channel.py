@@ -3,14 +3,18 @@
 # WeChatBot 是长生命单例，bot.run() 在独立线程中阻塞运行。
 # recv() 从线程安全的同步 Queue 阻塞读取消息；send() 用保存的 user_id 主动发送。
 
+import asyncio
 import queue
 import threading
 from typing import Optional
 
+
 from wechatbot import WeChatBot
 
+from everlingo.gateway.channels.channel import Channel
 
-class WechatChannel:
+
+class WechatChannel(Channel):
     """Wechat(微信) 消息 Channel 实现。
 
     ref: /docs/impl-spec/channel-wechat-ilink.md
@@ -50,13 +54,13 @@ class WechatChannel:
         bot_thread = threading.Thread(target=self._bot.run, daemon=True)
         bot_thread.start()
 
-    def recv(self) -> Optional[str]:
+    async def recv(self) -> Optional[str]:
         """阻塞读取微信消息。
 
         ref: /docs/impl-spec/channel-wechat-ilink.md
         从线程安全的同步 Queue 阻塞读取；返回 None 表示 Channel 结束。
         """
-        return self._queue.get()
+        return await asyncio.to_thread(self._queue.get)
     
     async def send_typing_hint(self) -> None:
         if self._bot is None:

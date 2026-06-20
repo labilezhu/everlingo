@@ -29,7 +29,7 @@ class Channel(Protocol):
         """        
         pass
     
-    def recv(self) -> str:
+    async def recv(self) -> str | None:
         """
         从 channel 阻塞读取/接收消息。如果当前无消息，会 block 到有消息或 Channel 结果后返回。
 
