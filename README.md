@@ -199,6 +199,8 @@ AI 每次都能回答你的问题，却永远不记得你已经问过。
 TUI:
 ```bash
 uv run python -m everlingo.main
+# or
+uv run python -m everlingo.gateway.gateway --channel_stdio
 ```
 
 微信:
