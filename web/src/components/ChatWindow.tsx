@@ -11,6 +11,7 @@ export default function ChatWindow() {
     { id: uid(), text: '你好！我是小记🐹，你的 AI 外语老师。有什么可以帮你的吗？', from: 'bot' },
   ]);
   const [thinking, setThinking] = useState(false);
+  const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -29,6 +30,7 @@ export default function ChatWindow() {
           (e: SSEEvent) => {
             if (e.type === 'message') {
               setMessages(prev => [...prev, { id: uid(), text: (e.data as { text: string }).text, from: 'bot' }]);
+              setPending(false);
               setThinking(false);
             } else {
               setThinking((e.data as { typing: boolean }).typing);
@@ -44,7 +46,10 @@ export default function ChatWindow() {
   const handleSend = useCallback(async (text: string) => {
     if (!sessionId) return;
     setMessages(prev => [...prev, { id: uid(), text, from: 'user' }]);
-    try { await sendMessage(sessionId, text); } catch { setError('发送消息失败'); }
+    try {
+      await sendMessage(sessionId, text);
+      setPending(true);
+    } catch { setError('发送消息失败'); }
   }, [sessionId]);
 
   return (
@@ -67,17 +72,15 @@ export default function ChatWindow() {
 
         {thinking && (
           <div className="flex justify-start">
-            <div className="bg-muted rounded-2xl rounded-bl-md px-4 py-3 flex gap-1">
-              <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce [animation-delay:0ms]" />
-              <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce [animation-delay:150ms]" />
-              <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce [animation-delay:300ms]" />
+            <div className="bg-muted text-foreground rounded-2xl rounded-bl-md px-4 py-2 animate-pulse">
+              小记🐹正在思考……
             </div>
           </div>
         )}
         <div ref={endRef} />
       </div>
 
-      <ChatInput onSend={handleSend} disabled={!sessionId} />
+      <ChatInput onSend={handleSend} disabled={!sessionId} pending={pending} />
     </div>
   );
 }
