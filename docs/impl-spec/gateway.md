@@ -37,6 +37,8 @@ gateway
 
 # 启动 Wechat Session Acceptor。
 gateway --channel_wechat
+
+gateway --channel_web
 ```
 
 启动时，检查用户个性初始化的`必选设置`:

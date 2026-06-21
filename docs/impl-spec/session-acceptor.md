@@ -16,6 +16,9 @@
 ## Wechat Session Acceptor
 启动时立即创建一个 Wechat Session。 包括一个 Wechat Channel。不支持 `session resume`。
 
+## Web Session Acceptor
+参考 [Web Session Acceptor](/docs/impl-spec/web-session-acceptor.md)
+
 ## Session
 见 [Session](/docs/impl-spec/session.md)
 
