@@ -12,25 +12,7 @@ Web Session Acceptor 的实现包括两部分：
 - 前端
 
 ## 前端
-Web 前端给用户，一个 Chatbot 的聊天界面。支持 markdown 格式消息的渲染。
-
-成功连接 Chatbot 后端后，session id 将作为前后端建立连接时的标识。
-
-前端技术选型： Vite + React。
-
-前端代码，静态网页文件位于目录 /web 中。
-
-### Chatbot 界面设计
-一个经典的 chatbot 聊天对话框。聊天机器人的名字叫：小记🐹 
-
-消息内容主要是 markdown 文本，markdown 文本消息需要在界面渲染。
-
-界面需要有动态元素提示：
-- `小记🐹正在思考`
-
-- 在收到后端推送的 `send_typing_hint` 后，显示`小记🐹正在思考`。在收到后端推送的 `stop_typing_hint` 后，不再显示 `小记🐹正在思考`。
-- 在收到后端的 `send` 
-
+参见 [Web Session UI](/docs/impl-spec/web-session-ui.md)
 
 ## 后端
 FastAPI 的 API。

@@ -1,10 +1,10 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import ChatBot from './ChatBot';
+import ChatWindow from './components/ChatWindow';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ChatBot />
+    <ChatWindow />
   </StrictMode>,
 );

@@ -1,7 +1,4 @@
-export interface SSEEvent {
-  type: 'message' | 'typing_hint';
-  data: Record<string, unknown>;
-}
+import type { SSEEvent } from '@/types/chat';
 
 export async function createSession(): Promise<string> {
   const res = await fetch('/api/session', { method: 'POST' });
