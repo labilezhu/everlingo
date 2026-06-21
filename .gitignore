@@ -1,4 +1,10 @@
 .venv
+web/node_modules
+web/node_modules/**
+web/out
+web/out/**
+web/dist
+web/dist/**
 .venv/**
 **/*.pyc
 .env

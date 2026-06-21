@@ -207,3 +207,20 @@ uv run python -m everlingo.gateway.gateway --channel_stdio
 ```bash
 uv run python -m everlingo.gateway.gateway --channel_wechat
 ```
+
+#### 运行 Web 服务
+
+两个终端：
+终端 1 — 后端（FastAPI + uvicorn）
+```bash
+.venv/bin/python -m everlingo.gateway.gateway --channel_web
+```
+启动后监听 http://localhost:8000，提供 API 和静态文件。
+
+终端 2 — 前端开发（Vite 热更新）
+```bash
+cd web && npm run dev
+```
+启动后监听 http://localhost:5173，/api/* 自动代理到后端 8000 端口。
+
+生产部署只需 cd web && npm run build 构建一次，FastAPI 自动从 web/dist/ 提供前端文件。后端进程启动后，直接访问 http://localhost:8000 即可。

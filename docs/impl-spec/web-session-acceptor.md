@@ -16,7 +16,7 @@ Web 前端给用户，一个 Chatbot 的聊天界面。支持 markdown 格式消
 
 成功连接 Chatbot 后端后，session id 将作为前后端建立连接时的标识。
 
-前端技术选型： Next.js (React)。
+前端技术选型： Vite + React。
 
 前端代码，静态网页文件位于目录 /web 中。
 

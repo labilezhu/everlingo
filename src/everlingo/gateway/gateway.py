@@ -8,6 +8,7 @@ from ..log_utils import setup_logging
 from ..models import LANGUAGES, UserProfile
 from ..setting import load_profile, save_profile
 from .session_acceptor import StdioSessionAcceptor, WechatSessionAcceptor
+from .web_acceptor import WebSessionAcceptor
 from .session import Session
 from ..agents.agent import MainAgent
 
@@ -107,6 +108,8 @@ class Gateway:
 
         if channel_type == "wechat":
             acceptor = WechatSessionAcceptor()
+        elif channel_type == "web":
+            acceptor = WebSessionAcceptor()
         else:
             acceptor = StdioSessionAcceptor()
 
@@ -123,6 +126,7 @@ def main() -> None:
         gateway --channel_stdio   # 启动 Stdio Channel（默认）
         gateway                   # 同上，默认启动 Stdio Channel
         gateway --channel_wechat  # 启动 Wechat Channel
+        gateway --channel_web     # 启动 Web Channel（FastAPI + 前端）
 
     ref: /docs/impl-spec/gateway.md
     """
@@ -140,9 +144,20 @@ def main() -> None:
         default=False,
         help="启动 Wechat Channel",
     )
+    channel_group.add_argument(
+        "--channel_web",
+        action="store_true",
+        default=False,
+        help="启动 Web Channel（FastAPI + 前端）",
+    )
     args = parser.parse_args()
 
-    channel_type = "wechat" if args.channel_wechat else "stdio"
+    if args.channel_wechat:
+        channel_type = "wechat"
+    elif args.channel_web:
+        channel_type = "web"
+    else:
+        channel_type = "stdio"
     gateway = Gateway()
     asyncio.run(gateway.run(channel_type=channel_type))
 
