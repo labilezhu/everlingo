@@ -5,9 +5,10 @@ import asyncio
 
 
 def main() -> None:
-    from .gateway.gateway import _run_stdio
+    from .gateway.gateway import Gateway
 
-    asyncio.run(_run_stdio())
+    gateway = Gateway()
+    asyncio.run(gateway.run(channel_type="stdio"))
 
 
 if __name__ == "__main__":

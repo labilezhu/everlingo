@@ -118,3 +118,139 @@ class TestSessionRun:
         asyncio.run(session.run())
 
         channel.init.assert_called_once()
+
+
+class TestSessionAttributes:
+    """ref: session.md — Session 新属性"""
+
+    def test_session_has_auto_generated_id(self):
+        """Session 创建时自动生成 uuid id。"""
+        channel = MagicMock()
+        agent = MagicMock()
+        session = Session(channel, agent)
+        assert session.id is not None
+        assert isinstance(session.id, str)
+        assert len(session.id) > 0
+
+    def test_session_accepts_custom_id(self):
+        """可以传入自定义 id。"""
+        channel = MagicMock()
+        agent = MagicMock()
+        session = Session(channel, agent, id="custom-id-123")
+        assert session.id == "custom-id-123"
+
+    def test_session_has_create_time(self):
+        """Session 创建时自动生成 create_time。"""
+        channel = MagicMock()
+        agent = MagicMock()
+        session = Session(channel, agent)
+        assert session.create_time is not None
+
+    def test_session_title_defaults_empty(self):
+        """Session title 默认为空字符串。"""
+        channel = MagicMock()
+        agent = MagicMock()
+        session = Session(channel, agent)
+        assert session.title == ""
+
+    def test_session_update_time_updated_after_message(self):
+        """update_time 在消息处理后更新。"""
+        channel = MagicMock()
+        channel.init = AsyncMock()
+        channel.send = AsyncMock()
+        channel.send_typing_hint = AsyncMock()
+        channel.stop_typing_hint = AsyncMock()
+        channel.recv = AsyncMock(side_effect=["hello", None])
+
+        agent = MagicMock()
+        agent.invoke = MagicMock(return_value=MessageEvent(text="reply"))
+
+        session = Session(channel, agent)
+        before = session.update_time
+        asyncio.run(session.run())
+        assert session.update_time >= before
+
+
+# ── Gateway ───────────────────────────────────────────────────────────────────
+
+class TestGateway:
+    """ref: gateway.md — Gateway 服务"""
+
+    def test_accept_session_creates_new_session(self):
+        """accept_session 创建新 Session 并加入列表。"""
+        from everlingo.gateway.gateway import Gateway
+
+        gateway = Gateway()
+        gateway._profile = MagicMock()
+
+        channel = MagicMock()
+        asyncio.run(gateway.accept_session(channel, "session-1"))
+
+        assert "session-1" in gateway.sessions
+        assert gateway.sessions["session-1"].channel is channel
+
+    def test_accept_session_resume_replaces_channel(self):
+        """已存在的 session_id 视为 resume，替换 channel。"""
+        from everlingo.gateway.gateway import Gateway
+
+        gateway = Gateway()
+        gateway._profile = MagicMock()
+
+        old_channel = MagicMock()
+        asyncio.run(gateway.accept_session(old_channel, "session-1"))
+
+        new_channel = MagicMock()
+        asyncio.run(gateway.accept_session(new_channel, "session-1"))
+
+        assert len(gateway.sessions) == 1
+        assert gateway.sessions["session-1"].channel is new_channel
+
+    def test_accept_session_multiple_sessions(self):
+        """Gateway 维护多个 Session。"""
+        from everlingo.gateway.gateway import Gateway
+
+        gateway = Gateway()
+        gateway._profile = MagicMock()
+
+        asyncio.run(gateway.accept_session(MagicMock(), "session-1"))
+        asyncio.run(gateway.accept_session(MagicMock(), "session-2"))
+
+        assert len(gateway.sessions) == 2
+
+
+# ── SessionAcceptor ──────────────────────────────────────────────────────────
+
+class TestSessionAcceptor:
+    """ref: session-acceptor.md — Session Acceptor"""
+
+    def test_stdio_acceptor_submits_creation_request(self):
+        """StdioSessionAcceptor 向 gateway 提交创建请求。"""
+        from everlingo.gateway.session_acceptor import StdioSessionAcceptor
+
+        gateway = MagicMock()
+        gateway.accept_session = AsyncMock()
+
+        asyncio.run(StdioSessionAcceptor().accept(gateway))
+
+        gateway.accept_session.assert_called_once()
+        call_args = gateway.accept_session.call_args[0]
+        from everlingo.gateway.channels.stdio_channel import StdioChannel
+        assert isinstance(call_args[0], StdioChannel)
+        assert isinstance(call_args[1], str)
+        assert len(call_args[1]) > 0
+
+    def test_wechat_acceptor_submits_creation_request(self):
+        """WechatSessionAcceptor 向 gateway 提交创建请求。"""
+        from everlingo.gateway.session_acceptor import WechatSessionAcceptor
+
+        gateway = MagicMock()
+        gateway.accept_session = AsyncMock()
+
+        asyncio.run(WechatSessionAcceptor().accept(gateway))
+
+        gateway.accept_session.assert_called_once()
+        call_args = gateway.accept_session.call_args[0]
+        from everlingo.gateway.channels.wechat_channel import WechatChannel
+        assert isinstance(call_args[0], WechatChannel)
+        assert isinstance(call_args[1], str)
+        assert len(call_args[1]) > 0

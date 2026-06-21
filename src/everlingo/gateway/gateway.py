@@ -7,8 +7,7 @@ import asyncio
 from ..log_utils import setup_logging
 from ..models import LANGUAGES, UserProfile
 from ..setting import load_profile, save_profile
-from .channels.stdio_channel import StdioChannel
-from .channels.wechat_channel import WechatChannel
+from .session_acceptor import StdioSessionAcceptor, WechatSessionAcceptor
 from .session import Session
 from ..agents.agent import MainAgent
 
@@ -64,43 +63,57 @@ def _ensure_profile() -> UserProfile:
 
 # ── Gateway ──────────────────────────────────────────────────────────────────
 
-async def _run_stdio() -> None:
-    """启动 Stdio Channel 的 Gateway。
+class Gateway:
+    """Gateway 服务。
 
     ref: /docs/impl-spec/gateway.md
-    ref: /docs/impl-spec/app-entry.md
+    负责：
+    - 按启动参数要求，创建相应的 Session Acceptor
+    - 维护和管理一个 Session 列表
+    - 接收和处理来自 Session Acceptor 的 session 创建请求
     """
-    setup_logging()
-    try:
-        profile = _ensure_profile()
-    except ValueError as e:
-        print(f"\n配置错误: {e}")
-        return
 
-    channel = StdioChannel()
-    agent = MainAgent(profile)
-    session = Session(channel, agent)
-    await session.run()
+    def __init__(self) -> None:
+        self.sessions: dict[str, Session] = {}
+        self._profile: UserProfile | None = None
 
+    async def accept_session(
+        self, channel, session_id: str
+    ) -> None:
+        """处理 Session Acceptor 提交的 session 创建请求。
 
-async def _run_wechat() -> None:
-    """启动 Wechat Channel 的 Gateway。
+        ref: /docs/impl-spec/gateway.md — session 创建请求的处理
+        如果 session_id 已存在则视为 resume，否则创建新的 Session。
+        """
+        if session_id in self.sessions:
+            self.sessions[session_id].channel = channel
+        else:
+            agent = MainAgent(self._profile)
+            session = Session(channel=channel, agent=agent, id=session_id)
+            self.sessions[session_id] = session
 
-    ref: /docs/impl-spec/gateway.md
-    ref: /docs/impl-spec/channel-wechat-ilink.md
-    """
-    setup_logging()
-    try:
-        profile = _ensure_profile()
-    except ValueError as e:
-        print(f"\n配置错误: {e}")
-        return
+    async def run(self, channel_type: str = "stdio") -> None:
+        """Gateway 主入口。
 
-    channel = WechatChannel()
-    agent = MainAgent(profile)
-    session = Session(channel, agent)
-    await session.run()
+        Args:
+            channel_type: "stdio" 或 "wechat"
+        """
+        setup_logging()
+        try:
+            self._profile = _ensure_profile()
+        except ValueError as e:
+            print(f"\n配置错误: {e}")
+            return
 
+        if channel_type == "wechat":
+            acceptor = WechatSessionAcceptor()
+        else:
+            acceptor = StdioSessionAcceptor()
+
+        await acceptor.accept(self)
+
+        if self.sessions:
+            await asyncio.gather(*[s.run() for s in self.sessions.values()])
 
 
 def main() -> None:
@@ -129,12 +142,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if args.channel_wechat:
-        asyncio.run(_run_wechat())
-        return
-
-    # 默认或指定 --channel_stdio 均启动 Stdio Channel
-    asyncio.run(_run_stdio())
+    channel_type = "wechat" if args.channel_wechat else "stdio"
+    gateway = Gateway()
+    asyncio.run(gateway.run(channel_type=channel_type))
 
 
 if __name__ == "__main__":

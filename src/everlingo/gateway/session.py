@@ -2,6 +2,8 @@
 # 每个 Session 对象有自己的线程，loop 阻塞读取 channel 的消息。
 
 import asyncio
+import uuid
+from datetime import datetime
 
 from .channels.channel import Channel
 from ..agents.agent import MainAgent, MessageEvent
@@ -13,7 +15,13 @@ class Session:
     ref: /docs/impl-spec/gateway.md — Session
     """
 
-    def __init__(self, channel: Channel, agent: MainAgent) -> None:
+    def __init__(
+        self, channel: Channel, agent: MainAgent, id: str | None = None
+    ) -> None:
+        self.id = id if id is not None else str(uuid.uuid4())
+        self.create_time = datetime.now()
+        self.update_time = datetime.now()
+        self.title = ""
         self.channel = channel
         self.agent = agent
 
@@ -30,6 +38,7 @@ class Session:
             if text is None:
                 break
 
+            self.update_time = datetime.now()
             input_msg = MessageEvent(text=text)
             await self.channel.send_typing_hint()
             reply = self.agent.invoke(input_msg)

@@ -8,3 +8,4 @@ Channel 是 Agent 运行时对外收发消息的抽象接口。它的 python 定
 
 - [Stdio Channel](/docs/impl-spec/channel-stdio.md)
 - [Wechat(微信) 消息 Channel](/docs/impl-spec/channel-wechat-ilink.md)
+- Web Channel
