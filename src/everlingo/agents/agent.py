@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Optional
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from ..llm import create_agent, create_llm
 from ..models import LANGUAGES, UserProfile
@@ -171,6 +171,15 @@ OR
 - 翻译示例：输入目标语言的句子
 - 配置管理示例：询问或修改配置
 
+## 用户显式模式指定
+
+用户可以通过 `/dict`、`/translate` 等命令在会话中设定模式。
+当模式被设定后，用户消息前会附加一条 SystemMessage 提示当前模式，
+格式为 `当前模式为「查词/翻译」，用户下一条消息应视为查词/翻译请求`。
+
+**优先级规则**：该 SystemMessage 指定的模式优先级高于自动意图识别。
+LLM 应以此模式为准，直接按指定模式处理用户消息，无需再进行意图判断。
+
 """
 
     return prompt
@@ -195,6 +204,8 @@ class MainAgent:
         self._config_version = get_config_version()
         # Agent 的消息历史，支持多轮会话
         self._messages: list = []
+        # 用户显式意图模式: None=自动, "dict"=查词, "translate"=翻译
+        self._intent_mode: Optional[str] = None
 
     def _refresh_agent_if_needed(self) -> None:
         """检查配置版本，若 set_config 被调用过则重建 agent。
@@ -212,6 +223,47 @@ class MainAgent:
             )
             self._config_version = current_version
 
+    def _handle_command(self, text: str) -> MessageEvent:
+        """处理模式切换命令，直接返回回复（不经过 LLM）。
+
+        ref: /docs/impl-spec/agents-spec.md — 用户显式模式指定
+        """
+        cmd = text.split()[0].lower()
+
+        if cmd == '/dict':
+            self._intent_mode = 'dict'
+            return MessageEvent(
+                text="已切换到查词模式。以后发送的消息将被视为查词请求。\n"
+                     "发送 `/` 可回到自动识别模式。"
+            )
+
+        if cmd == '/translate':
+            self._intent_mode = 'translate'
+            return MessageEvent(
+                text="已切换到翻译模式。以后发送的消息将被视为翻译请求。\n"
+                     "发送 `/` 可回到自动识别模式。"
+            )
+
+        if cmd == '/':
+            self._intent_mode = None
+            return MessageEvent(text="已回到自动识别模式。")
+
+        if cmd == '/help':
+            mode_desc = (
+                '自动识别' if self._intent_mode is None
+                else ('查词' if self._intent_mode == 'dict' else '翻译')
+            )
+            return MessageEvent(text=(
+                "可用命令：\n"
+                "/dict      - 切换到查词模式（后续消息视为查词请求）\n"
+                "/translate - 切换到翻译模式（后续消息视为翻译请求）\n"
+                "/          - 回到自动识别意图模式\n"
+                "/help      - 显示此帮助\n\n"
+                f"当前模式：{mode_desc}"
+            ))
+
+        return MessageEvent(text=f"未知命令：{cmd}\n发送 /help 查看可用命令。")
+
     def invoke(self, input_msg: MessageEvent) -> MessageEvent:
         """处理用户消息，返回 Agent 的回复。
 
@@ -220,17 +272,40 @@ class MainAgent:
         # 若配置被修改过，先重建 agent 以刷新 system prompt
         self._refresh_agent_if_needed()
 
-        # 累积消息历史，支持多轮会话
-        self._messages.append(HumanMessage(content=input_msg.text))
+        text = input_msg.text.strip()
 
+        # ── 模式切换命令（不经过 LLM，不写入历史）────────────
+        if text.startswith('/'):
+            return self._handle_command(text)
+
+        # ── 构建 LLM 输入消息列表 ─────────────────────────────
+        messages_for_llm = list(self._messages)
+
+        # 显式模式下注入 SystemMessage 提示，不污染用户原文
+        if self._intent_mode is not None:
+            mode_name = "查词" if self._intent_mode == "dict" else "翻译"
+            messages_for_llm.append(
+                SystemMessage(
+                    content=f"当前模式为「{mode_name}」，用户下一条消息应视为{mode_name}请求"
+                )
+            )
+
+        messages_for_llm.append(HumanMessage(content=text))
+        # 将用户消息写入持久化历史（不含模式提示）
+        self._messages.append(HumanMessage(content=text))
+
+        # ── 调用 LLM ──────────────────────────────────────────
         try:
-            response = self._agent.invoke({"messages": self._messages})
-            self._messages = response["messages"]
-
-            last_message = self._messages[-1]
-            if hasattr(last_message, "content") and last_message.content:
-                return MessageEvent(text=last_message.content)
-            else:
-                return MessageEvent(text="抱歉，我无法处理你的请求。")
+            response = self._agent.invoke({"messages": messages_for_llm})
         except Exception as e:
+            logger.exception("agent.invoke failed")
             return MessageEvent(text=f"处理请求时出错: {e}")
+
+        # 持久化 AI 回复（跳过 messages_for_llm 中注入的模式提示）
+        new_messages = response["messages"][len(messages_for_llm):]
+        self._messages.extend(new_messages)
+
+        last_message = self._messages[-1]
+        if hasattr(last_message, "content") and last_message.content:
+            return MessageEvent(text=last_message.content)
+        return MessageEvent(text="抱歉，我无法处理你的请求。")

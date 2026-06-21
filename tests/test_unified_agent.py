@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 from everlingo.models import UserBackground, UserLanguage, UserProfile
 from everlingo.llm import create_llm, create_agent
 from everlingo.agents.agent import _build_system_prompt, MainAgent, MessageEvent
+from langchain_core.messages import HumanMessage, SystemMessage
 from everlingo.tools.tools import get_all_tools
 
 
@@ -327,3 +328,177 @@ def test_agent_rebuilds_on_each_config_change(zh_en_profile, mock_agent_response
         agent.invoke(MessageEvent(text="second"))
 
     assert len(rebuilt_agents) == 2
+
+
+# ── 用户显式模式切换单元测试（无需 LLM）─────────────────────────────────
+
+@pytest.fixture
+def mock_agent_with_response():
+    """创建一个 mock agent，invoke 返回所有输入消息 + AI 回复。"""
+    mock = MagicMock()
+
+    def fake_invoke(kwargs):
+        messages = list(kwargs["messages"])
+        ai_msg = MagicMock()
+        ai_msg.content = "mock reply"
+        messages.append(ai_msg)
+        return {"messages": messages}
+
+    mock.invoke.side_effect = fake_invoke
+    return mock
+
+
+def test_dict_command_switches_mode(zh_en_profile, mock_agent_with_response):
+    """/dict 命令应切换到查词模式。"""
+    agent = _make_main_agent(zh_en_profile, mock_agent_with_response)
+    reply = agent.invoke(MessageEvent(text="/dict"))
+
+    assert "查词" in reply.text
+    assert agent._intent_mode == "dict"
+
+
+def test_translate_command_switches_mode(zh_en_profile, mock_agent_with_response):
+    """/translate 命令应切换到翻译模式。"""
+    agent = _make_main_agent(zh_en_profile, mock_agent_with_response)
+    reply = agent.invoke(MessageEvent(text="/translate"))
+
+    assert "翻译" in reply.text
+    assert agent._intent_mode == "translate"
+
+
+def test_slash_command_resets_mode(zh_en_profile, mock_agent_with_response):
+    """/ 命令应重置为自动模式。"""
+    agent = _make_main_agent(zh_en_profile, mock_agent_with_response)
+    agent.invoke(MessageEvent(text="/dict"))
+    assert agent._intent_mode == "dict"
+
+    reply = agent.invoke(MessageEvent(text="/"))
+    assert "自动" in reply.text
+    assert agent._intent_mode is None
+
+
+def test_help_command(zh_en_profile, mock_agent_with_response):
+    """/help 应返回命令列表和当前模式。"""
+    agent = _make_main_agent(zh_en_profile, mock_agent_with_response)
+    reply = agent.invoke(MessageEvent(text="/help"))
+
+    assert "/dict" in reply.text
+    assert "/translate" in reply.text
+    assert "自动识别" in reply.text
+
+
+def test_help_shows_current_mode(zh_en_profile, mock_agent_with_response):
+    """/help 应显示当前模式。"""
+    agent = _make_main_agent(zh_en_profile, mock_agent_with_response)
+    agent.invoke(MessageEvent(text="/dict"))
+
+    reply = agent.invoke(MessageEvent(text="/help"))
+    assert "查词" in reply.text
+
+
+def test_unknown_command(zh_en_profile, mock_agent_with_response):
+    """未知命令应提示错误。"""
+    agent = _make_main_agent(zh_en_profile, mock_agent_with_response)
+    reply = agent.invoke(MessageEvent(text="/unknown"))
+
+    assert "未知命令" in reply.text
+    assert "/help" in reply.text
+
+
+def test_dict_mode_injects_system_message(zh_en_profile, mock_agent_with_response):
+    """dict 模式下发消息应注入查词模式 SystemMessage。"""
+    agent = _make_main_agent(zh_en_profile, mock_agent_with_response)
+    agent.invoke(MessageEvent(text="/dict"))
+
+    agent.invoke(MessageEvent(text="serendipity"))
+
+    messages = mock_agent_with_response.invoke.call_args[0][0]["messages"]
+
+    assert any(
+        isinstance(m, SystemMessage) and "查词" in m.content
+        for m in messages
+    )
+    assert any(
+        isinstance(m, HumanMessage) and m.content == "serendipity"
+        for m in messages
+    )
+
+
+def test_translate_mode_injects_system_message(zh_en_profile, mock_agent_with_response):
+    """translate 模式下发消息应注入翻译模式 SystemMessage。"""
+    agent = _make_main_agent(zh_en_profile, mock_agent_with_response)
+    agent.invoke(MessageEvent(text="/translate"))
+
+    agent.invoke(MessageEvent(text="hello world"))
+
+    messages = mock_agent_with_response.invoke.call_args[0][0]["messages"]
+
+    assert any(
+        isinstance(m, SystemMessage) and "翻译" in m.content
+        for m in messages
+    )
+    assert any(
+        isinstance(m, HumanMessage) and m.content == "hello world"
+        for m in messages
+    )
+
+
+def test_original_text_not_polluted(zh_en_profile, mock_agent_with_response):
+    """模式提示不应污染用户原文。"""
+    agent = _make_main_agent(zh_en_profile, mock_agent_with_response)
+    agent.invoke(MessageEvent(text="/dict"))
+
+    agent.invoke(MessageEvent(text="hello"))
+
+    messages = mock_agent_with_response.invoke.call_args[0][0]["messages"]
+
+    # SystemMessage 和 HumanMessage 应分开，不拼接在原文中
+    user_msgs = [m for m in messages if isinstance(m, HumanMessage)]
+    assert any(m.content == "hello" for m in user_msgs)
+
+
+def test_mode_commands_not_in_history(zh_en_profile, mock_agent_with_response):
+    """模式切换命令不应写入会话历史。"""
+    agent = _make_main_agent(zh_en_profile, mock_agent_with_response)
+    agent.invoke(MessageEvent(text="/dict"))
+    agent.invoke(MessageEvent(text="hello"))
+    agent.invoke(MessageEvent(text="/translate"))
+    agent.invoke(MessageEvent(text="world"))
+
+    # 历史应只包含实际对话，不含命令
+    history_texts = [
+        m.content for m in agent._messages
+        if isinstance(m, HumanMessage)
+    ]
+    assert history_texts == ["hello", "world"]
+
+
+def test_mode_persists_across_messages(zh_en_profile, mock_agent_with_response):
+    """模式应在多个消息间持续生效。"""
+    agent = _make_main_agent(zh_en_profile, mock_agent_with_response)
+    agent.invoke(MessageEvent(text="/dict"))
+
+    agent.invoke(MessageEvent(text="hello"))
+    msgs1 = mock_agent_with_response.invoke.call_args[0][0]["messages"]
+
+    agent.invoke(MessageEvent(text="world"))
+    msgs2 = mock_agent_with_response.invoke.call_args[0][0]["messages"]
+
+    # 两条消息都应包含模式提示
+    assert any(
+        isinstance(m, SystemMessage) and "查词" in m.content
+        for m in msgs1
+    )
+    assert any(
+        isinstance(m, SystemMessage) and "查词" in m.content
+        for m in msgs2
+    )
+
+
+def test_mode_history_contains_no_system_message(zh_en_profile, mock_agent_with_response):
+    """mode hint SystemMessage 不应被持久化到 self._messages。"""
+    agent = _make_main_agent(zh_en_profile, mock_agent_with_response)
+    agent.invoke(MessageEvent(text="/dict"))
+    agent.invoke(MessageEvent(text="hello"))
+
+    assert not any(isinstance(m, SystemMessage) for m in agent._messages)
