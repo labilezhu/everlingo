@@ -10,7 +10,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from ..llm import create_agent, create_llm
 from ..models import LANGUAGES, UserProfile
-from ..setting import load_profile
+from ..setting import load_profile, load_user_doc, prompt_input_mtime
 from ..tools.conf_manager import get_config_version
 from ..tools.tools import get_all_tools
 
@@ -44,7 +44,7 @@ def _lang_display_name(code: str) -> str:
     return LANGUAGES.get(code, code)
 
 
-def _build_system_prompt(profile: UserProfile) -> str:
+def _build_system_prompt(profile: UserProfile, user_doc: str = "") -> str:
     """构建统一的 Agent system prompt，整合词典老师和翻译老师的功能。
 
     ref: /docs/impl-spec/agents-spec.md — _build_system_prompt
@@ -76,19 +76,23 @@ def _build_system_prompt(profile: UserProfile) -> str:
 - 界面语言(interface_lang): {interface_lang}
 - 目标学习语言(target_lang): {target_lang}
 
-### 用户个性化(User Profile)配置
+## 用户个性化(User Profile)配置
 用户个性化(User Profile)选项：
+- 用户语言设置见上方 `配置` 节
 """
 
-    # 添加用户背景信息
-    if profile.background.hobbies:
-        prompt += f"\n- 用户爱好(hobbies): {profile.background.hobbies}"
-    if profile.background.residence:
-        prompt += f"\n- 居住地区(residence): {profile.background.residence}"
-    if profile.background.gender:
-        prompt += f"\n- 性别(gender): {profile.background.gender}"
-    if profile.dictionary_definition_style:
-        prompt += f"\n- 词典解释风格(dictionary_definition_style): {profile.dictionary_definition_style}"
+    # 用户自由偏好笔记 (USER.md)。由用户以自由文本维护，可由 Agent 通过 user_doc 工具更新。
+    # ref: DOMAIN.md — 用户自由偏好笔记 (USER.md)
+    if user_doc.strip():
+        prompt += f"""
+## 用户自由偏好笔记 (USER.md)
+以下为用户以自由文本记录的个性化偏好，请在查词/翻译/答疑时予以考虑。
+仅使用其中与当前任务相关的部分，不要机械复述。
+
+---
+{user_doc.strip()}
+---
+"""
 
     prompt += f"""
 
@@ -169,14 +173,14 @@ OR
 - 用 `dest_lang` 语言表达的`single_word`语义说明
 
 个性化增加：
-1. 根据 `用户 Profile` 提供个性化的释义。如`hobbies`、`dictionary_definition_style`、`residence`、`gender`。只使用已经配置过的用户个性化属性。
+1. 根据 `用户自由偏好笔记 (USER.md)` 提供个性化的释义。只使用其中与该词相关的偏好内容。
 
 如果当前 `对话模式` 为 `dict` 。请不要输出查词释义外的其它前置或后置的用户提示、追问内容，如：
 - 当前处于 xyz 模式
 - 有什么其他单词想查的吗？
 
 ### 翻译输出要求
-翻译输出使用 `dest_lang` 语言 。适当地根据 `用户 Profile` 个性化，如`hobbies`、`residence`、`gender`。 只使用已经配置过的用户个性化属性。
+翻译输出使用 `dest_lang` 语言 。适当地根据 `用户自由偏好笔记 (USER.md)` 个性化。只使用其中与本次翻译相关的偏好内容。
 
 - 标注翻译中值得注意的句式或短语
 - 如果有多种译法，列出备选方案并说明差异
@@ -192,6 +196,12 @@ OR
 - get_config: 查询当前配置
 - set_config: 修改配置
 - get_schema: 获取配置说明
+
+用户自由偏好笔记 (USER.md) 的管理使用 user_doc 工具集：
+- user_doc_get: 读取当前 USER.md 全文
+- user_doc_set: 整体覆盖写入 USER.md。使用流程：先 user_doc_get 读取当前内容 → 在其基础上修改 → user_doc_set 写回完整内容。不要只写入片段。
+
+用户表达个性化偏好（如职业、爱好、性别、地区、年龄、学习目标、释义偏好、翻译偏好等自由文本描述）时，应使用 user_doc 工具更新 USER.md，而非 set_config。
 
 ### 未识别输入
 **响应要求**：
@@ -216,33 +226,49 @@ class MainAgent:
     def __init__(self, profile: UserProfile) -> None:
         self._llm = create_llm()
         self._tools = get_all_tools()
+        user_doc = load_user_doc()
         self._agent = create_agent(
             self._llm,
             tools=self._tools,
-            system_prompt=_build_system_prompt(profile),
+            system_prompt=_build_system_prompt(profile, user_doc),
         )
-        # 记录构建时的配置版本，用于检测是否需要重建 agent
+        # 记录构建时的配置版本与文件 mtime，用于检测是否需要重建 agent
+        # ref: agents-spec.md — system prompt 维护
         self._config_version = get_config_version()
+        self._prompt_mtime = prompt_input_mtime()
         # Agent 的消息历史，支持多轮会话
         self._messages: list = []
         # 用户显式意图模式: None=自动, "dict"=查词, "translate"=翻译
         self._intent_mode: Optional[str] = None
 
     def _refresh_agent_if_needed(self) -> None:
-        """检查配置版本，若 set_config 被调用过则重建 agent。
+        """检查配置版本或依赖文件 mtime，若变化则重建 agent 以刷新 system prompt。
+
+        触发条件（任一即可）：
+        - prompt 版本号变化（set_config / user_doc_set 被调用过）
+        - everlingo.yaml 或 USER.md 的 mtime 变化（外部编辑器修改）
 
         ref: /docs/impl-spec/agents-spec.md — _build_system_prompt 依赖配置
         """
         current_version = get_config_version()
-        if current_version != self._config_version:
-            logger.info("system prompt refreshed: {current_version} != {self._config_version}")
-            profile = load_profile()
-            self._agent = create_agent(
-                self._llm,
-                tools=self._tools,
-                system_prompt=_build_system_prompt(profile),
-            )
-            self._config_version = current_version
+        current_mtime = prompt_input_mtime()
+        if current_version == self._config_version and current_mtime == self._prompt_mtime:
+            return
+
+        logger.info(
+            "system prompt refreshed: version %s->%s, mtime %s->%s",
+            self._config_version, current_version,
+            self._prompt_mtime, current_mtime,
+        )
+        profile = load_profile()
+        user_doc = load_user_doc()
+        self._agent = create_agent(
+            self._llm,
+            tools=self._tools,
+            system_prompt=_build_system_prompt(profile, user_doc),
+        )
+        self._config_version = current_version
+        self._prompt_mtime = current_mtime
 
     def _handle_command(self, text: str) -> MessageEvent:
         """处理模式切换命令，直接返回回复（不经过 LLM）。

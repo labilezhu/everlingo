@@ -6,7 +6,6 @@ from everlingo.models import (
     LoggingSetting,
     SysSetting,
     TracingSetting,
-    UserBackground,
     UserLanguage,
     UserProfile,
 )
@@ -118,21 +117,13 @@ def test_en_japanese_profile():
     assert profile.validate() == []
 
 
-def test_profile_with_background():
+def test_profile_with_language():
     profile = UserProfile(
         language=UserLanguage(interface_language="zh-CN", target_language="en"),
-        background=UserBackground(
-            hobbies="历史与文艺",
-            residence="北京",
-            gender="male",
-        ),
-        dictionary_definition_style="- 词意\n- 词源",
     )
     assert profile.is_complete()
-    assert profile.background.hobbies == "历史与文艺"
-    assert profile.background.residence == "北京"
-    assert profile.background.gender == "male"
-    assert profile.dictionary_definition_style == "- 词意\n- 词源"
+    assert profile.language.interface_language == "zh-CN"
+    assert profile.language.target_language == "en"
 
 
 def test_sys_setting_defaults():
@@ -423,7 +414,26 @@ def test_user_profile_japanese_yaml_roundtrip():
 
 
 def test_user_profile_yaml_roundtrip():
-    # 验证 UserProfile 与 YAML 结构对齐：language/background 嵌套，ref: everlingo.example.yaml
+    # 验证 UserProfile 与 YAML 结构对齐：language 嵌套，ref: everlingo.example.yaml
+    data = {
+        "user_profile": {
+            "language": {
+                "interface_language": "zh-CN",
+                "target_language": "en",
+            },
+        }
+    }
+    setting = dict_to_setting(data)
+    assert setting.user_profile.language.interface_language == "zh-CN"
+    assert setting.user_profile.language.target_language == "en"
+    # 序列化回 dict 结构也应保持一致
+    d = setting_to_dict(setting)
+    assert d["user_profile"]["language"]["interface_language"] == "zh-CN"
+
+
+def test_user_profile_legacy_fields_ignored():
+    # 旧配置文件中残留的 background / dictionary_definition_style 字段应被静默忽略
+    # ref: DOMAIN.md — USER.md 取代自由字段，不迁移旧配置
     data = {
         "user_profile": {
             "language": {
@@ -441,14 +451,9 @@ def test_user_profile_yaml_roundtrip():
     setting = dict_to_setting(data)
     assert setting.user_profile.language.interface_language == "zh-CN"
     assert setting.user_profile.language.target_language == "en"
-    assert setting.user_profile.background.hobbies == "历史与文艺"
-    assert setting.user_profile.background.residence == "北京"
-    assert setting.user_profile.background.gender == "male"
-    assert setting.user_profile.dictionary_definition_style == "- 词意\n- 词源"
-    # 序列化回 dict 结构也应保持一致
     d = setting_to_dict(setting)
-    assert d["user_profile"]["language"]["interface_language"] == "zh-CN"
-    assert d["user_profile"]["background"]["hobbies"] == "历史与文艺"
+    assert "background" not in d["user_profile"]
+    assert "dictionary_definition_style" not in d["user_profile"]
 
 
 # Pydantic 特性：schema 校验与 JSON Schema 生成

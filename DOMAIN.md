@@ -20,12 +20,6 @@
 language:
     interface_language: zh-CN
     target_language: en
-background:
-	hobbies: 历史与文艺
-dictionary_definition_style: |
-    - 词意
-    - 词源解释和历史
-    - 词性（动词，名词……）如果是动词提供过去式，过去分词
 ```
 
 #### 用户语言设置 - language
@@ -48,25 +42,27 @@ dictionary_definition_style: |
 - `interface_language` 和 `target_language` 均必须设置
 - 两者不能相同
 
-#### 用户背景 - background
+### 用户自由偏好笔记 - USER.md
 
-| 字段        | 类型   | 可选值              | 说明                                                     | 约束 |
-| ----------- | ------ | ------------------- | -------------------------------------------------------- | ---- |
-| `hobbies`   | string |                     | 爱好描述。如：历史、文化、艺术、时事、科技、音乐、计算机 | 可选 |
-| `residence` | string | 主要居住地区        |                                                          | 可选 |
-| `gender`    | string | male, female, other | 性别                                                     | 可选 |
+存放位置： `~/.everlingo/USER.md` 。Markdown 自由文本，由用户维护。
 
-#### 词典解释风格 - dictionary_definition_style
+内容会被动态注入到 Agent 的 system prompt，用于个性化查词/翻译/答疑。
 
-类型：string 。可选配置
+维护方式：
+- 通过与 Agent 聊天，由 Agent 调用 `user_doc` 工具集更新
+- 用户用外部编辑器直接编辑文件
 
-**字段说明：**
+一般的 use case 可包含（非强制结构）：
+- 用户的个性化描述：偏好、职业、爱好、性别、地区、年龄
+- 学习目标：如要考什么语言证书或评级，或职场英语
+- 用户的查词的释义偏好
+- 用户的翻译的偏好
 
-词典解释风格。示例值如：
+约束：
+- 文件不存在时视为空（不影响 system prompt）
+- Agent 更新前应先读取当前内容（read-modify-write），整体覆盖写入
+- 写入前由工具自动备份旧内容到 `USER.md.bak`
 
-- 词意
-- 词源解释和历史
-- 词性（动词，名词……）如果是动词提供过去式，过去分词
 
 
 

@@ -89,3 +89,26 @@ tool description: 系统时间
 function name: get_datetime
 function description: 返回当前的系统时间
 returns: string . 格式：日期与时间(Shanghai timezone) 。示例： `2026-06-20 19:28:59` 
+
+## 用户自由偏好笔记 - user_doc
+
+toolset name: user_doc
+toolset description: 管理用户自由偏好笔记 (USER.md)
+
+管理 `~/.everlingo/USER.md` 文件。文件内容为 Markdown 自由文本，会被注入到 Agent 的 system prompt。参考 [DOMAIN.md](/DOMAIN.md) 中 `用户自由偏好笔记 - USER.md` 一节。
+
+### functions
+
+#### user_doc_get
+function name: user_doc_get
+function description: 读取当前 USER.md 全文
+returns: string 。文件不存在时返回空串。
+
+#### user_doc_set
+function name: user_doc_set
+function description: 整体覆盖写入 USER.md。写入前自动把旧内容备份到 `USER.md.bak`（若旧文件存在）。成功后递增 prompt 版本号，触发下次 invoke 时刷新 system prompt。
+parameters:
+    content: string 。要写入的完整内容。
+returns: string 。写入的内容。
+
+**使用约定**：Agent 更新 USER.md 时应先 `user_doc_get` 读取当前内容，在其基础上修改，再 `user_doc_set` 写回完整内容，避免片段覆盖丢失。

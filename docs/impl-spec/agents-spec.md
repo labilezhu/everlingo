@@ -28,8 +28,12 @@ Agent 的`用户意图分析` 与 `用户意图的执行与回复响应` 见 Age
 
 system prompt 刷新:
 
-由于 system prompt 使用了 User Profile 。 而用户可能动态修改 user profile 。所以 system prompt 也要刷新。
-实现思路：`conf_manager.py` 维护模块级 `_config_version` 计数器，`set_config` 工具每次成功写入后递增；`MainAgent.__init__()` 记录当时的版本号，每次 `invoke()` 前调用 `_refresh_agent_if_needed()`，发现版本号变化时用 `load_profile()` 重新构建 system prompt 并 `create_agent()`，版本号同步后不再重建
+由于 system prompt 使用了 User Profile 与 用户自由偏好笔记 (USER.md) 。而用户/Agent 可能动态修改它们。所以 system prompt 也要刷新。
+
+实现思路：
+- `setting.py` 维护模块级 `_prompt_version` 计数器；`conf_manager.set_config` 与 `user_doc.user_doc_set` 每次成功写入后调用 `bump_prompt_version()` 递增。
+- `MainAgent.__init__()` 记录当时的版本号与 `prompt_input_mtime()`（`everlingo.yaml` 与 `USER.md` 的最新 mtime）；每次 `invoke()` 前调用 `_refresh_agent_if_needed()`，发现**版本号变化**或**任一依赖文件 mtime 变化**时，用 `load_profile()` + `load_user_doc()` 重新构建 system prompt 并 `create_agent()`，同步后不再重建。
+- mtime 检测使外部编辑器修改 `everlingo.yaml` / `USER.md` 也能即时生效。
 
 ## Agent tools
 

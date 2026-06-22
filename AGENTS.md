@@ -19,6 +19,8 @@ Rules:
 - Never add dependencies without approval
 - 如发现文档说明十分模糊或矛盾的，询问确认后再执行
 - Explain your design of implmentation and let user comfirm the design before take action.
+- 如果实现和设计文档不同，询问用户是否需要更新设计文档
+- 如果实现了设计文档未提到的重要内容，询问用户是否需要更新设计文档
 - If you change any source code, ALWAYS update [TASKS.md](/TASKS.md) to record what you have done
 
 Output:

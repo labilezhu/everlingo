@@ -5,11 +5,10 @@ from pathlib import Path
 import yaml
 
 from everlingo.models import EverLingoSetting, LoggingSetting, SysSetting, UserProfile
-from everlingo.setting import save_setting
+from everlingo.setting import get_prompt_version, save_setting
 from everlingo.tools.clock import get_datetime
 from everlingo.tools.conf_manager import get_config, get_schema, set_config, get_config_version
 from everlingo.tools.tools import get_all_tools
-import everlingo.tools.conf_manager as conf_manager_module
 
 
 def test_clock_logs_tool_call(caplog):
@@ -58,7 +57,7 @@ def test_set_config_logs_tool_call(monkeypatch, caplog):
 
 
 def test_set_config_increments_version(monkeypatch):
-    """set_config 成功后，配置版本号应递增。"""
+    """set_config 成功后，prompt 版本号应递增。"""
     setting = EverLingoSetting(
         sys_setting=SysSetting(logging_setting=LoggingSetting()),
         user_profile=UserProfile(),
@@ -66,9 +65,9 @@ def test_set_config_increments_version(monkeypatch):
     monkeypatch.setattr("everlingo.tools.conf_manager.load_setting", lambda: setting)
     monkeypatch.setattr("everlingo.tools.conf_manager.save_setting", lambda s: None)
 
-    version_before = conf_manager_module._config_version
-    set_config.invoke({"config_to_be_merged": "user_profile:\n  background:\n    hobbies: 音乐"})
-    version_after = conf_manager_module._config_version
+    version_before = get_prompt_version()
+    set_config.invoke({"config_to_be_merged": "user_profile:\n  language:\n    target_language: fr"})
+    version_after = get_prompt_version()
 
     assert version_after == version_before + 1
 
@@ -82,10 +81,10 @@ def test_set_config_increments_version_multiple_times(monkeypatch):
     monkeypatch.setattr("everlingo.tools.conf_manager.load_setting", lambda: setting)
     monkeypatch.setattr("everlingo.tools.conf_manager.save_setting", lambda s: None)
 
-    version_before = conf_manager_module._config_version
-    set_config.invoke({"config_to_be_merged": "user_profile:\n  background:\n    hobbies: 音乐"})
-    set_config.invoke({"config_to_be_merged": "user_profile:\n  background:\n    hobbies: 历史"})
-    version_after = conf_manager_module._config_version
+    version_before = get_prompt_version()
+    set_config.invoke({"config_to_be_merged": "user_profile:\n  language:\n    target_language: fr"})
+    set_config.invoke({"config_to_be_merged": "user_profile:\n  language:\n    target_language: de"})
+    version_after = get_prompt_version()
 
     assert version_after == version_before + 2
 
@@ -99,9 +98,9 @@ def test_set_config_invalid_yaml_does_not_increment_version(monkeypatch):
     monkeypatch.setattr("everlingo.tools.conf_manager.load_setting", lambda: setting)
     monkeypatch.setattr("everlingo.tools.conf_manager.save_setting", lambda s: None)
 
-    version_before = conf_manager_module._config_version
+    version_before = get_prompt_version()
     result = set_config.invoke({"config_to_be_merged": ": invalid: yaml: ["})
-    version_after = conf_manager_module._config_version
+    version_after = get_prompt_version()
 
     assert version_after == version_before
     assert "error" in result
@@ -109,7 +108,7 @@ def test_set_config_invalid_yaml_does_not_increment_version(monkeypatch):
 
 def test_get_all_tools_returns_tool_objects():
     tools = get_all_tools()
-    assert len(tools) == 4
+    assert len(tools) == 6
     for t in tools:
         assert hasattr(t, "invoke")
         assert hasattr(t, "name")
@@ -118,3 +117,5 @@ def test_get_all_tools_returns_tool_objects():
     assert "conf_manager_get_schema" in names
     assert "conf_manager_get_config" in names
     assert "conf_manager_set_config" in names
+    assert "user_doc_get" in names
+    assert "user_doc_set" in names

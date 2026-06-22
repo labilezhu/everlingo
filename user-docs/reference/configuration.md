@@ -73,3 +73,11 @@ user_profile:
 配置项参考 [DOMAIN.md](/DOMAIN.md) 中 `用户 Profile` 一节。
 
 在代码中， class 名称叫 `UserProfile`. 
+
+### 用户自由偏好笔记 - USER.md
+
+存放位置： `~/.everlingo/USER.md` ，Markdown 自由文本。
+
+参考 [DOMAIN.md](/DOMAIN.md) 中 `用户自由偏好笔记 - USER.md` 一节。
+
+可通过与 Agent 聊天让 Agent 调用 `user_doc` 工具更新，也可用外部编辑器直接编辑。

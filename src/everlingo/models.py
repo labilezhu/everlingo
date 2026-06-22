@@ -92,43 +92,11 @@ class UserLanguage(BaseModel):
     )
 
 
-class UserBackground(BaseModel):
-    # 爱好描述
-    hobbies: str = Field(
-        default="",
-        description="爱好描述",
-        examples=["历史与文艺"],
-    )
-    # 主要居住地区
-    residence: str = Field(
-        default="",
-        description="主要居住地区",
-        examples=["北京"],
-    )
-    # 性别，可选值: male, female, other
-    gender: str = Field(
-        default="",
-        description="性别，可选值: male, female, other",
-        examples=["male"],
-    )
-
-
 class UserProfile(BaseModel):
     # 语言设置，ref: DOMAIN.md UserProfile
     language: UserLanguage = Field(
         default_factory=UserLanguage,
         description="用户语言设置",
-    )
-    # 用户背景（可选）
-    background: UserBackground = Field(
-        default_factory=UserBackground,
-        description="用户背景信息",
-    )
-    # 词典解释风格
-    dictionary_definition_style: str = Field(
-        default="",
-        description="词典解释风格，自定义词典老师返回单词解释时包含的内容",
-        examples=["- 词意\n- 词源解释和历史"],
     )
 
     def is_complete(self) -> bool:

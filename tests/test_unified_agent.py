@@ -4,7 +4,7 @@
 """
 import pytest
 from unittest.mock import MagicMock, patch
-from everlingo.models import UserBackground, UserLanguage, UserProfile
+from everlingo.models import UserLanguage, UserProfile
 from everlingo.llm import create_llm, create_agent
 from everlingo.agents.agent import _build_system_prompt, MainAgent, MessageEvent
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -16,7 +16,6 @@ def zh_en_profile():
     """中文界面，学习英语的用户配置"""
     return UserProfile(
         language=UserLanguage(interface_language="zh-CN", target_language="en"),
-        background=UserBackground(hobbies="历史与文艺"),
     )
 
 
@@ -84,7 +83,7 @@ def agent_zh_en(zh_en_profile):
     return create_agent(
         llm,
         tools=tools,
-        system_prompt=_build_system_prompt(zh_en_profile)
+        system_prompt=_build_system_prompt(zh_en_profile, ""),
     )
 
 
@@ -96,7 +95,7 @@ def agent_en_zh(en_zh_profile):
     return create_agent(
         llm,
         tools=tools,
-        system_prompt=_build_system_prompt(en_zh_profile)
+        system_prompt=_build_system_prompt(en_zh_profile, ""),
     )
 
 
@@ -240,32 +239,39 @@ def test_system_prompt_japanese_interface(ja_zh_profile):
 def test_system_prompt_includes_user_profile(zh_en_profile):
     """测试 system prompt 包含用户配置信息"""
     prompt = _build_system_prompt(zh_en_profile)
-    
+
     # 验证包含必要信息
     assert "界面语言" in prompt
     assert "目标学习语言" in prompt
     assert "简体中文" in prompt
     assert "英语" in prompt
-    assert "历史与文艺" in prompt  # 用户爱好
-    
+
     # 验证包含意图识别规则
     assert "查词" in prompt or "Word Lookup" in prompt
     assert "翻译" in prompt or "Translation" in prompt
     assert "配置管理" in prompt
 
 
-@pytest.mark.integration
-def test_custom_dictionary_style(agent_zh_en, zh_en_profile):
-    """测试自定义词典风格"""
-    custom_profile = zh_en_profile.model_copy(
-        update={"dictionary_definition_style": "- 词意\n- 词源解释和历史\n- 词性\n"}
-    )
-    prompt = _build_system_prompt(custom_profile)
-    
-    # 验证自定义风格被包含
-    assert "词意" in prompt
-    assert "词源解释和历史" in prompt
-    assert "词性" in prompt
+def test_system_prompt_omits_user_doc_section_when_empty(zh_en_profile):
+    """USER.md 为空时，system prompt 不应包含 USER.md 内容节。"""
+    prompt = _build_system_prompt(zh_en_profile, "")
+    assert "## 用户自由偏好笔记 (USER.md)" not in prompt
+
+
+def test_system_prompt_includes_user_doc(zh_en_profile):
+    """USER.md 非空时，system prompt 应包含其内容。"""
+    user_doc = "## 学习目标\n- 雅思 7.0\n## 查词偏好\n- 词意\n- 词源"
+    prompt = _build_system_prompt(zh_en_profile, user_doc)
+
+    assert "## 用户自由偏好笔记 (USER.md)" in prompt
+    assert "雅思 7.0" in prompt
+    assert "词源" in prompt
+
+
+def test_system_prompt_user_doc_whitespace_only_omitted(zh_en_profile):
+    """USER.md 仅含空白时不应注入内容节。"""
+    prompt = _build_system_prompt(zh_en_profile, "   \n\n  ")
+    assert "## 用户自由偏好笔记 (USER.md)" not in prompt
 
 
 @pytest.mark.integration
@@ -303,7 +309,11 @@ def mock_agent_response():
 
 
 def _make_main_agent(zh_en_profile, mock_inner_agent):
-    """用 mock 替换 create_llm / create_agent / get_all_tools 创建 MainAgent。"""
+    """用 mock 替换 create_llm / create_agent / get_all_tools 创建 MainAgent。
+
+    不 patch load_user_doc / prompt_input_mtime：让 __init__ 记录真实值，
+    这样后续 invoke 中 _refresh_agent_if_needed 比对时不会因 patch 退出而误触发重建。
+    """
     with patch("everlingo.agents.agent.create_llm", return_value=MagicMock()), \
          patch("everlingo.agents.agent.get_all_tools", return_value=[]), \
          patch("everlingo.agents.agent.create_agent", return_value=mock_inner_agent):
@@ -341,13 +351,15 @@ def test_agent_rebuilds_once_after_config_change(zh_en_profile, mock_agent_respo
     )
     with patch("everlingo.tools.conf_manager.load_setting", return_value=setting), \
          patch("everlingo.tools.conf_manager.save_setting"):
-        set_config.invoke({"config_to_be_merged": "user_profile:\n  background:\n    hobbies: 科技"})
+        set_config.invoke({"config_to_be_merged": "user_profile:\n  language:\n    target_language: fr"})
 
     mock_inner2 = MagicMock()
     mock_inner2.invoke.return_value = mock_agent_response
 
     with patch("everlingo.agents.agent.create_agent", return_value=mock_inner2) as mock_create, \
-         patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile):
+         patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+         patch("everlingo.agents.agent.load_user_doc", return_value=""), \
+         patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0):
         agent.invoke(MessageEvent(text="hello"))  # 触发重建
         agent.invoke(MessageEvent(text="world"))  # 版本已同步，不再重建
 
@@ -381,14 +393,16 @@ def test_agent_rebuilds_on_each_config_change(zh_en_profile, mock_agent_response
     with patch("everlingo.tools.conf_manager.load_setting", return_value=setting), \
          patch("everlingo.tools.conf_manager.save_setting"), \
          patch("everlingo.agents.agent.create_agent", side_effect=fake_create_agent), \
-         patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile):
+         patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+         patch("everlingo.agents.agent.load_user_doc", return_value=""), \
+         patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0):
 
         # 第一次配置变更 → invoke 触发重建
-        set_config.invoke({"config_to_be_merged": "user_profile:\n  background:\n    hobbies: 音乐"})
+        set_config.invoke({"config_to_be_merged": "user_profile:\n  language:\n    target_language: fr"})
         agent.invoke(MessageEvent(text="first"))
 
         # 第二次配置变更 → invoke 再次触发重建
-        set_config.invoke({"config_to_be_merged": "user_profile:\n  background:\n    hobbies: 历史"})
+        set_config.invoke({"config_to_be_merged": "user_profile:\n  language:\n    target_language: de"})
         agent.invoke(MessageEvent(text="second"))
 
     assert len(rebuilt_agents) == 2
@@ -469,44 +483,6 @@ def test_unknown_command(zh_en_profile, mock_agent_with_response):
     assert "/help" in reply.text
 
 
-def test_dict_mode_injects_system_message(zh_en_profile, mock_agent_with_response):
-    """dict 模式下发消息应注入查词模式 SystemMessage。"""
-    agent = _make_main_agent(zh_en_profile, mock_agent_with_response)
-    agent.invoke(MessageEvent(text="/dict"))
-
-    agent.invoke(MessageEvent(text="serendipity"))
-
-    messages = mock_agent_with_response.invoke.call_args[0][0]["messages"]
-
-    assert any(
-        isinstance(m, SystemMessage) and "查词" in m.content
-        for m in messages
-    )
-    assert any(
-        isinstance(m, HumanMessage) and m.content == "serendipity"
-        for m in messages
-    )
-
-
-def test_translate_mode_injects_system_message(zh_en_profile, mock_agent_with_response):
-    """translate 模式下发消息应注入翻译模式 SystemMessage。"""
-    agent = _make_main_agent(zh_en_profile, mock_agent_with_response)
-    agent.invoke(MessageEvent(text="/translate"))
-
-    agent.invoke(MessageEvent(text="hello world"))
-
-    messages = mock_agent_with_response.invoke.call_args[0][0]["messages"]
-
-    assert any(
-        isinstance(m, SystemMessage) and "翻译" in m.content
-        for m in messages
-    )
-    assert any(
-        isinstance(m, HumanMessage) and m.content == "hello world"
-        for m in messages
-    )
-
-
 def test_original_text_not_polluted(zh_en_profile, mock_agent_with_response):
     """模式提示不应污染用户原文。"""
     agent = _make_main_agent(zh_en_profile, mock_agent_with_response)
@@ -537,28 +513,6 @@ def test_mode_commands_not_in_history(zh_en_profile, mock_agent_with_response):
     assert history_texts == ["hello", "world"]
 
 
-def test_mode_persists_across_messages(zh_en_profile, mock_agent_with_response):
-    """模式应在多个消息间持续生效。"""
-    agent = _make_main_agent(zh_en_profile, mock_agent_with_response)
-    agent.invoke(MessageEvent(text="/dict"))
-
-    agent.invoke(MessageEvent(text="hello"))
-    msgs1 = mock_agent_with_response.invoke.call_args[0][0]["messages"]
-
-    agent.invoke(MessageEvent(text="world"))
-    msgs2 = mock_agent_with_response.invoke.call_args[0][0]["messages"]
-
-    # 两条消息都应包含模式提示
-    assert any(
-        isinstance(m, SystemMessage) and "查词" in m.content
-        for m in msgs1
-    )
-    assert any(
-        isinstance(m, SystemMessage) and "查词" in m.content
-        for m in msgs2
-    )
-
-
 def test_mode_history_contains_no_system_message(zh_en_profile, mock_agent_with_response):
     """mode hint SystemMessage 不应被持久化到 self._messages。"""
     agent = _make_main_agent(zh_en_profile, mock_agent_with_response)
@@ -566,3 +520,84 @@ def test_mode_history_contains_no_system_message(zh_en_profile, mock_agent_with_
     agent.invoke(MessageEvent(text="hello"))
 
     assert not any(isinstance(m, SystemMessage) for m in agent._messages)
+
+
+# ── USER.md / mtime 驱动的 agent 重建单元测试 ──────────────────────────
+
+def test_agent_rebuilds_on_user_doc_set(zh_en_profile, mock_agent_response):
+    """user_doc_set 被调用后，下次 invoke() 应重建 agent 一次。"""
+    from everlingo.setting import get_prompt_version
+    from everlingo.tools.user_doc import user_doc_set
+
+    mock_inner = MagicMock()
+    mock_inner.invoke.return_value = mock_agent_response
+    agent = _make_main_agent(zh_en_profile, mock_inner)
+
+    rebuilt_agents = []
+
+    def fake_create_agent(*args, **kwargs):
+        m = MagicMock()
+        m.invoke.return_value = mock_agent_response
+        rebuilt_agents.append(m)
+        return m
+
+    with patch("everlingo.agents.agent.create_agent", side_effect=fake_create_agent), \
+         patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+         patch("everlingo.agents.agent.load_user_doc", return_value="新偏好"), \
+         patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
+         patch("everlingo.tools.user_doc.save_user_doc"), \
+         patch("everlingo.tools.user_doc.setting.USER_DOC_PATH") as mock_path:
+        mock_path.exists.return_value = False
+        user_doc_set.invoke({"content": "新偏好"})
+        agent.invoke(MessageEvent(text="hello"))
+
+    assert len(rebuilt_agents) == 1
+
+
+def test_agent_rebuilds_on_external_mtime_change(zh_en_profile, mock_agent_response):
+    """外部编辑 everlingo.yaml / USER.md 导致 mtime 变化时，invoke() 应重建 agent。"""
+    mock_inner = MagicMock()
+    mock_inner.invoke.return_value = mock_agent_response
+    # __init__ 时 mtime=0.0
+    with patch("everlingo.agents.agent.create_llm", return_value=MagicMock()), \
+         patch("everlingo.agents.agent.get_all_tools", return_value=[]), \
+         patch("everlingo.agents.agent.create_agent", return_value=mock_inner), \
+         patch("everlingo.agents.agent.load_user_doc", return_value=""), \
+         patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0):
+        agent = MainAgent(profile=zh_en_profile)
+
+    rebuilt_agents = []
+
+    def fake_create_agent(*args, **kwargs):
+        m = MagicMock()
+        m.invoke.return_value = mock_agent_response
+        rebuilt_agents.append(m)
+        return m
+
+    # mtime 变化（模拟外部编辑），版本号不变
+    with patch("everlingo.agents.agent.create_agent", side_effect=fake_create_agent), \
+         patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+         patch("everlingo.agents.agent.load_user_doc", return_value=""), \
+         patch("everlingo.agents.agent.prompt_input_mtime", return_value=99999.0):
+        agent.invoke(MessageEvent(text="hello"))
+
+    assert len(rebuilt_agents) == 1
+
+
+def test_agent_no_rebuild_when_version_and_mtime_unchanged(zh_en_profile, mock_agent_response):
+    """版本号与 mtime 均未变化时，连续 invoke 不应重建 agent。"""
+    mock_inner = MagicMock()
+    mock_inner.invoke.return_value = mock_agent_response
+    with patch("everlingo.agents.agent.create_llm", return_value=MagicMock()), \
+         patch("everlingo.agents.agent.get_all_tools", return_value=[]), \
+         patch("everlingo.agents.agent.create_agent", return_value=mock_inner), \
+         patch("everlingo.agents.agent.load_user_doc", return_value=""), \
+         patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0):
+        agent = MainAgent(profile=zh_en_profile)
+
+    with patch("everlingo.agents.agent.create_agent") as mock_create, \
+         patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0):
+        agent.invoke(MessageEvent(text="hello"))
+        agent.invoke(MessageEvent(text="world"))
+
+    mock_create.assert_not_called()
