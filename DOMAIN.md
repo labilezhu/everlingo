@@ -6,6 +6,8 @@
 - `英语`，代码：`en`
 - `日本語`，代码：`ja`
 - `简体中文`，代码：`zh-CN`
+- `法语`，代码：`fr`
+- `德语`，代码：`de`
 
 ## 用户模型
 
@@ -30,8 +32,8 @@ dictionary_definition_style: |
 
 | 字段 | 类型 | 可选值 | 说明 | 约束 |
 |------|------|--------|------|------|
-| `interface_language` | string | `"zh-CN"`, `"en"`, `"ja"` | 界面语言 | 必选。不能与 `target_language` 相同 |
-| `target_language` | string | `"zh-CN"`, `"en"`, `"ja"` | 目标学习语言 | 必选。不能与 `interface_language` 相同 |
+| `interface_language` | string | `"zh-CN"`, `"en"`, `"ja"`, `"fr"`, `"de"` | 界面语言 | 必选。不能与 `target_language` 相同 |
+| `target_language` | string | `"zh-CN"`, `"en"`, `"ja"`, `"fr"`, `"de"` | 目标学习语言 | 必选。不能与 `interface_language` 相同 |
 
 
 ##### 示例

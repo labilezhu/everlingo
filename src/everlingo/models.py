@@ -78,16 +78,16 @@ class SysSetting(BaseModel):
 
 
 class UserLanguage(BaseModel):
-    # 界面语言，可选值: zh-CN, en, ja，ref: DOMAIN.md UserProfile
+    # 界面语言，可选值: zh-CN, en, ja, fr, de，ref: DOMAIN.md UserProfile
     interface_language: str = Field(
         default="",
-        description="界面语言，可选值: zh-CN, en, ja",
+        description="界面语言，可选值: zh-CN, en, ja, fr, de",
         examples=["zh-CN"],
     )
-    # 目标学习语言，可选值: zh-CN, en, ja
+    # 目标学习语言，可选值: zh-CN, en, ja, fr, de
     target_language: str = Field(
         default="",
-        description="目标学习语言，可选值: zh-CN, en, ja，不能与 interface_language 相同",
+        description="目标学习语言，可选值: zh-CN, en, ja, fr, de，不能与 interface_language 相同",
         examples=["en"],
     )
 
@@ -184,4 +184,6 @@ LANGUAGES: dict[str, str] = {
     "en": "英语",
     "ja": "日本語",
     "zh-CN": "简体中文",
+    "fr": "法语",
+    "de": "德语",
 }

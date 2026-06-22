@@ -63,6 +63,52 @@ def test_zh_japanese_profile():
     assert profile.validate() == []
 
 
+
+
+def test_french_zh_profile():
+    """法语界面，学习中文的用户配置"""
+    profile = UserProfile(
+        language=UserLanguage(interface_language="fr", target_language="zh-CN")
+    )
+    assert profile.is_complete()
+    assert profile.validate() == []
+
+
+def test_zh_german_profile():
+    """中文界面，学习德语(Deutsch)的用户配置"""
+    profile = UserProfile(
+        language=UserLanguage(interface_language="zh-CN", target_language="de")
+    )
+    assert profile.is_complete()
+    assert profile.validate() == []
+
+
+def test_en_french_profile():
+    """英文界面，学习法语的用户配置"""
+    profile = UserProfile(
+        language=UserLanguage(interface_language="en", target_language="fr")
+    )
+    assert profile.is_complete()
+    assert profile.validate() == []
+
+
+def test_de_fr_profile():
+    """德语界面，学习法语的用户配置"""
+    profile = UserProfile(
+        language=UserLanguage(interface_language="de", target_language="fr")
+    )
+    assert profile.is_complete()
+    assert profile.validate() == []
+
+
+def test_fr_de_profile():
+    """法语界面，学习德语(Deutsch)的用户配置"""
+    profile = UserProfile(
+        language=UserLanguage(interface_language="fr", target_language="de")
+    )
+    assert profile.is_complete()
+    assert profile.validate() == []
+
 def test_en_japanese_profile():
     """英文界面，学习日本語的用户配置"""
     profile = UserProfile(
@@ -119,6 +165,27 @@ def test_everlingo_setting_full():
     assert setting.user_profile.language.interface_language == "zh-CN"
     assert setting.user_profile.language.target_language == "en"
 
+
+
+
+def test_everlingo_setting_with_french():
+    setting = EverLingoSetting(
+        user_profile=UserProfile(
+            language=UserLanguage(interface_language="zh-CN", target_language="fr"),
+        ),
+    )
+    assert setting.user_profile.language.interface_language == "zh-CN"
+    assert setting.user_profile.language.target_language == "fr"
+
+
+def test_everlingo_setting_with_german():
+    setting = EverLingoSetting(
+        user_profile=UserProfile(
+            language=UserLanguage(interface_language="en", target_language="de"),
+        ),
+    )
+    assert setting.user_profile.language.interface_language == "en"
+    assert setting.user_profile.language.target_language == "de"
 
 def test_everlingo_setting_with_japanese():
     setting = EverLingoSetting(
@@ -299,6 +366,43 @@ def test_tracing_roundtrip():
     assert restored.sys_setting.tracing_setting.langfuse_public_key == "pk-lf-test"
     assert restored.sys_setting.tracing_setting.langfuse_base_url == "http://localhost:3300"
 
+
+
+
+def test_user_profile_french_yaml_roundtrip():
+    # 验证法语语言设置在 YAML roundtrip 中的正确性
+    data = {
+        "user_profile": {
+            "language": {
+                "interface_language": "zh-CN",
+                "target_language": "fr",
+            },
+        }
+    }
+    setting = dict_to_setting(data)
+    assert setting.user_profile.language.interface_language == "zh-CN"
+    assert setting.user_profile.language.target_language == "fr"
+    d = setting_to_dict(setting)
+    assert d["user_profile"]["language"]["interface_language"] == "zh-CN"
+    assert d["user_profile"]["language"]["target_language"] == "fr"
+
+
+def test_user_profile_german_yaml_roundtrip():
+    # 验证德语语言设置在 YAML roundtrip 中的正确性
+    data = {
+        "user_profile": {
+            "language": {
+                "interface_language": "en",
+                "target_language": "de",
+            },
+        }
+    }
+    setting = dict_to_setting(data)
+    assert setting.user_profile.language.interface_language == "en"
+    assert setting.user_profile.language.target_language == "de"
+    d = setting_to_dict(setting)
+    assert d["user_profile"]["language"]["interface_language"] == "en"
+    assert d["user_profile"]["language"]["target_language"] == "de"
 
 def test_user_profile_japanese_yaml_roundtrip():
     # 验证日语语言设置在 YAML roundtrip 中的正确性

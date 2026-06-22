@@ -4,14 +4,13 @@
 
 ## 可执行的任务
 
+
 ## 完成的任务
 格式：完成日期与时间(GMT+8 timezone) | 任务描述 。 示例： " - 2026-06-20 19:28 | 生成主入口代码"
+- 2026-06-22 09:56 | 增加对法语(fr)、德语(de)的支持：更新 models.py(LANGUAGES字典、字段描述)、agent.py(system prompt)、everlingo.example.yaml(注释)、DOMAIN.md(语言列表)；添加对应测试用例
+- 2026-06-22 10:15 | 修复发送按钮脉冲动画的竞态条件：将 setPending(true) 移到 await sendMessage() 之前，确保按钮状态正确还原
 
-- 2026-06-21 19:10 | 前端架构重构：引入 TailwindCSS v4 + shadcn/ui (New York)，拆分组件结构
-- 2026-06-21 19:45 | 增大可视区域：ChatWindow 去掉 max-w-2xl 约束，改用 px-6 全宽布局
-- 2026-06-21 19:45 | 调整发送按钮：增大按钮尺寸 (size="lg")，添加 SVG 向右箭头图标
-- 2026-06-21 20:30 | 实现发送按钮脉冲动画提示：新增 pending 本地状态独立控制，发送后按钮 animate-pulse，收到回复后还原
-- 2026-06-21 22:00 | 实现显式用户意图模式切换：/dict、/translate、/、/help 命令，SystemMessage 注入模式提示（不污染原文）
+
 
 
 

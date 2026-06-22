@@ -46,10 +46,13 @@ export default function ChatWindow() {
   const handleSend = useCallback(async (text: string) => {
     if (!sessionId) return;
     setMessages(prev => [...prev, { id: uid(), text, from: 'user' }]);
+    setPending(true);
     try {
       await sendMessage(sessionId, text);
-      setPending(true);
-    } catch { setError('发送消息失败'); }
+    } catch {
+      setPending(false);
+      setError('发送消息失败');
+    }
   }, [sessionId]);
 
   return (

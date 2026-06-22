@@ -37,6 +37,37 @@ def zh_ja_profile():
 
 
 @pytest.fixture
+def zh_fr_profile():
+    """中文界面，学习法语的用户配置"""
+    return UserProfile(
+        language=UserLanguage(interface_language="zh-CN", target_language="fr"),
+    )
+
+
+@pytest.fixture
+def en_de_profile():
+    """英文界面，学习德语(Deutsch)的用户配置"""
+    return UserProfile(
+        language=UserLanguage(interface_language="en", target_language="de"),
+    )
+
+
+@pytest.fixture
+def fr_zh_profile():
+    """法语界面，学习中文的用户配置"""
+    return UserProfile(
+        language=UserLanguage(interface_language="fr", target_language="zh-CN"),
+    )
+
+
+@pytest.fixture
+def de_en_profile():
+    """德语界面，学习英语的用户配置"""
+    return UserProfile(
+        language=UserLanguage(interface_language="de", target_language="en"),
+    )
+
+@pytest.fixture
 def ja_zh_profile():
     """日本語界面，学习中文的用户配置"""
     return UserProfile(
@@ -164,6 +195,39 @@ def test_system_prompt_includes_japanese(zh_ja_profile):
     assert "ja" in prompt
     assert "日文词语" in prompt
 
+
+
+
+def test_system_prompt_includes_french(zh_fr_profile):
+    """测试法语配置的 system prompt"""
+    prompt = _build_system_prompt(zh_fr_profile)
+
+    assert "法语" in prompt
+    assert "fr" in prompt
+
+
+def test_system_prompt_includes_german(en_de_profile):
+    """测试德语配置的 system prompt"""
+    prompt = _build_system_prompt(en_de_profile)
+
+    assert "德语" in prompt
+    assert "de" in prompt
+
+
+def test_system_prompt_french_interface(fr_zh_profile):
+    """测试法语界面的 system prompt"""
+    prompt = _build_system_prompt(fr_zh_profile)
+
+    assert "法语" in prompt
+    assert "fr" in prompt
+
+
+def test_system_prompt_german_interface(de_en_profile):
+    """测试德语界面的 system prompt"""
+    prompt = _build_system_prompt(de_en_profile)
+
+    assert "德语" in prompt
+    assert "de" in prompt
 
 def test_system_prompt_japanese_interface(ja_zh_profile):
     """测试日本語界面的 system prompt"""
