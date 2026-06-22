@@ -12,21 +12,17 @@ from langchain.agents import create_agent
 agent = create_agent("openai:gpt-5.5", tools=tools)
 ```
 
-产品文档中的 `角色`，如 `词典老师` `翻译老师` 均由同一个 langchain agent 去实现。而不是不同的 Agent 。 
-
-
 ## 用户意图分析、执行、回复响应
 `用户意图的分析`，应该交由 LLM / langchain agent 去判断，而不是代码实现。
 
 Agent 的`用户意图分析` 与 `用户意图的执行与回复响应` 见 Agent 的 system prompt:
-
 `src/everlingo/agents/agent.py` 中的 `_build_system_prompt()`
 
-由于 Agent 可能会动态修改 `配置` 和 `用户Profile`。 而 `_build_system_prompt()` 又依赖于这些配置，所以次轮对话，即每次 `agent.invoke()` 前，都需要刷新一下 system prompt 。
 
-### system prompt 维护
 
-system prompt 刷新:
+## system prompt 构造
+
+### system prompt 刷新
 
 由于 system prompt 使用了 User Profile 与 用户自由偏好笔记 (USER.md) 。而用户/Agent 可能动态修改它们。所以 system prompt 也要刷新。
 
@@ -35,9 +31,15 @@ system prompt 刷新:
 - `MainAgent.__init__()` 记录当时的版本号与 `prompt_input_mtime()`（`everlingo.yaml` 与 `USER.md` 的最新 mtime）；每次 `invoke()` 前调用 `_refresh_agent_if_needed()`，发现**版本号变化**或**任一依赖文件 mtime 变化**时，用 `load_profile()` + `load_user_doc()` 重新构建 system prompt 并 `create_agent()`，同步后不再重建。
 - mtime 检测使外部编辑器修改 `everlingo.yaml` / `USER.md` 也能即时生效。
 
-## Agent tools
+### 注入 *.md 文件时标题层级处理
+*.md 文件内容注入到 prompt 时，其中所有 markdown 标题需要根据注入目标位置的 markdown 标题级数，进行降级，防止用户自由文本中的标题与 prompt 外层结构冲突。
+如注入目标是 "##" 的，注入的 markdown 文本标题要增加两个级数。
 
-参考： [tools](/docs/impl-spec/tools.md)
+参考实现见 `agent.py` 中的 `_demote_headings()` 函数。
+
+### 注入 USER.md 
+`USER.md` 内容注入到 `## 用户自由偏好笔记 (USER.md)` 节。
+结构说明见 [USER-spec.md](/docs/impl-spec/worksplace/USER-spec.md)
 
 
 ## 用户显式模式指定
@@ -60,6 +62,10 @@ system prompt 刷新:
 - `self._messages` 持久化历史中排除注入的 `SystemMessage`，只保留 `HumanMessage` + `AIMessage`
 - System prompt 中的 `## 用户显式模式指定` 节告知 LLM 此机制，明确优先级高于自动意图识别
 - 模式在 agent 重建（配置变更）后依然保持（`_intent_mode` 是实例变量）
+
+## Agent tools
+
+参考： [tools](/docs/impl-spec/tools.md)
 
 ## Observability
 所有发给 LLM 的请求都写入日志文件。见 [observability.md](/docs/impl-spec/observability.md) 。 日志 level 是 debug 。

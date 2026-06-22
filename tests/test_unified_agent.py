@@ -259,13 +259,48 @@ def test_system_prompt_omits_user_doc_section_when_empty(zh_en_profile):
 
 
 def test_system_prompt_includes_user_doc(zh_en_profile):
-    """USER.md 非空时，system prompt 应包含其内容。"""
-    user_doc = "## 学习目标\n- 雅思 7.0\n## 查词偏好\n- 词意\n- 词源"
+    """USER.md 非空时，system prompt 应包含其内容，且标题被降级两级。"""
+    user_doc = "# 学习目标\n- 雅思 7.0\n## 查词偏好\n- 词意\n- 词源"
     prompt = _build_system_prompt(zh_en_profile, user_doc)
 
     assert "## 用户自由偏好笔记 (USER.md)" in prompt
     assert "雅思 7.0" in prompt
     assert "词源" in prompt
+    # 标题应被降级两级： # → ###, ## → ####
+    assert "### 学习目标" in prompt
+    assert "#### 查词偏好" in prompt
+    # 降级后的内容不应包含原样的一级或二级标题（用行边界避免子串误匹配）
+    lines = prompt.splitlines()
+    assert not any(line.strip().startswith("# 学习目标") for line in lines)
+    assert not any(line.strip().startswith("## 查词偏好") for line in lines)
+
+
+def test_system_prompt_user_doc_headings_demoted(zh_en_profile):
+    """验证所有 markdown 标题层级被正确降级两级，非标题行不变。"""
+    user_doc = """# h1
+## h2
+### h3
+#### h4
+##### h5
+###### h6
+plain text
+- list item
+> blockquote"""
+    prompt = _build_system_prompt(zh_en_profile, user_doc)
+
+    assert "### h1" in prompt
+    assert "#### h2" in prompt
+    assert "##### h3" in prompt
+    assert "###### h4" in prompt
+    assert "####### h5" in prompt
+    assert "######## h6" in prompt
+    # 降级后的内容不应包含原始标题行（用行边界避免子串误匹配）
+    lines = prompt.splitlines()
+    assert not any(line.strip().startswith("# h1") for line in lines)
+    assert not any(line.strip().startswith("## h2") for line in lines)
+    assert "plain text" in prompt
+    assert "- list item" in prompt
+    assert "> blockquote" in prompt
 
 
 def test_system_prompt_user_doc_whitespace_only_omitted(zh_en_profile):
