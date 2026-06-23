@@ -178,6 +178,10 @@
 
 TUI:
 ```bash
+export OPENAI_API_KEY=sk-xxxxf98300
+export OPENAI_BASE_URL=https://openrouter.ai/api/v1 
+export OPENAI_MODEL=deepseek/deepseek-v4-flash
+
 uv run python -m everlingo.main
 # or
 uv run python -m everlingo.gateway.gateway --channel_stdio
@@ -186,6 +190,14 @@ uv run python -m everlingo.gateway.gateway --channel_stdio
 微信:
 ```bash
 uv run python -m everlingo.gateway.gateway --channel_wechat
+```
+
+```log
+当前配置 — 界面语言: 简体中文, 目标学习语言: 日本語
+[wechatbot] Scan this URL in WeChat: https://liteapp.weixin.qq.com/q/7Giu1?qrcode=b0e7e2xxx&bot_type=3
+[wechatbot] Login confirmed
+[wechatbot] Logged in as o9cq80yLSPhlG9li7jnMusPKVI6k@im.wechat
+[wechatbot] Long-poll started
 ```
 
 #### 运行 Web 服务
