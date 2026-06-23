@@ -29,6 +29,9 @@ async def handle(msg):
     await bot.reply(msg, f"**B** B *B* ")
     # 主动发送消息
     await bot.send( msg.user_id, "SEND" )
+    # 主动发送音频消息
+    data = open("/home/labile/u.wav", "rb").read()
+    await bot.send_media( msg.user_id, {"file": data, "file_name": "report.wav"} )
 
 # 在 stdout 中输出 登录QR-CODE，提示用户在浏览器打链接，并扫码登录。用户完成登录后，开始监听，block 当前线程。 所以必要时需要专用线程。
 bot.run()

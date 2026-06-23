@@ -122,6 +122,18 @@ class TestWebChannelSSE:
         assert '"timestamp"' in formatted
 
 
+class TestWebChannelMetadata:
+    """ref: web-session-acceptor.md — get_metadata"""
+
+    def test_get_metadata_returns_channel_name(self):
+        """get_metadata() 返回 WebChannel 名称和默认值。"""
+        channel = WebChannel()
+        metadata = channel.get_metadata()
+        assert metadata.name == "WebChannel"
+        assert metadata.supported_sound_media_format == []
+        assert metadata.channel_prompt == ""
+
+
 class TestSSEEvent:
     """SSEEvent 单元测试（同步）。"""
 

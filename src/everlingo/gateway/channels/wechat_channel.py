@@ -11,7 +11,7 @@ from typing import Optional
 
 from wechatbot import WeChatBot
 
-from everlingo.gateway.channels.channel import Channel
+from everlingo.gateway.channels.channel import Channel, ChannelMetadata
 
 
 class WechatChannel(Channel):
@@ -91,3 +91,22 @@ class WechatChannel(Channel):
         if self._last_user_id is None:
             raise RuntimeError("尚未收到任何消息，无法获取 user_id 进行主动发送")
         await self._bot.send(self._last_user_id, content)
+
+    async def send_sound(self, content: bytes, format: str) -> None:
+        if self._bot is None:
+            raise RuntimeError("WechatChannel 尚未初始化，请先调用 init()")
+        if self._last_user_id is None:
+            raise RuntimeError("尚未收到任何消息，无法获取 user_id 进行主动发送")
+        await self._bot.send(self._last_user_id, {"file": content, "file_name": "report.wav"})        
+
+    def get_metadata(self) -> ChannelMetadata:
+        return ChannelMetadata(
+            name=type(self).__name__,
+            supported_sound_media_format=["wav"],
+            channel_prompt="""微信 Clawbot 对话通道，有以下特性
+            - 支持发送文本和声音
+            - 手机屏幕，不适合展示长内容。一次返回的消息内容要控制字数，一般不超过 500 字。
+            微信 Clawbot 对话通道有以下注意事项：
+            - 手机屏幕，不适合展示横排的内容。如表格。所以尽量不使用表格，如要使用，也要控制每表格行的长度。
+            """,
+        )

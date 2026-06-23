@@ -1,6 +1,7 @@
 ## 完成的任务
 格式：完成日期与时间(GMT+8 timezone) | 任务描述 。 示例： " - 2026-06-20 19:28 | 生成主入口代码"
 
+ - 2026-06-23 22:00 | SessionAcceptor.accept() 重命名为 start()，返回 asyncio.Task；WebSessionAcceptor.start() 非阻塞；Gateway.accept_session() 负责启动 session 协程并返回 task；Gateway.run() 简化为 await acceptor.start(self); await task
 - 2026-06-22 14:30 | 撰写微信公众号推广文章：创建 /docs/ads/everlingo-intro.md，包含产品介绍、已实现特性（Chatbot对话、动态学习记忆、多端接入、多语言支持）、规划中特性（科学复习、浏览器插件、iPhone集成、学习档案）、技术架构简介、快速上手指南；文章面向技术开发者与外语学习者双重受众，约2500字，包含4处截图占位提示
 - 2026-06-22 09:56 | 增加对法语(fr)、德语(de)的支持：更新 models.py(LANGUAGES字典、字段描述)、agent.py(system prompt)、everlingo.example.yaml(注释)、DOMAIN.md(语言列表)；添加对应测试用例
 - 2026-06-22 10:15 | 修复发送按钮脉冲动画的竞态条件：将 setPending(true) 移到 await sendMessage() 之前，确保按钮状态正确还原

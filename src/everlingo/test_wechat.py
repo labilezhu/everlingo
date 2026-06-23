@@ -6,8 +6,10 @@ bot = WeChatBot()
 async def handle(msg):
     print(f"[{msg.type}] {msg.user_id}: {msg.text}")
     await bot.reply(msg, f"Echo: {msg.text}")
-    await bot.reply(msg, f"Echo2: {msg.text}")
-    await bot.reply(msg, f"**B** B *B* ")
-    await bot.send( msg.user_id, "SEND" )
+    # await bot.reply(msg, f"Echo2: {msg.text}")
+    # await bot.reply(msg, f"**B** B *B* ")
+    # await bot.send( msg.user_id, "SEND" )
+    data = open("/home/labile/u.wav", "rb").read()
+    await bot.send_media( msg.user_id, {"file": data, "file_name": "report.wav"} )
 
 bot.run()  # 扫码登录 + 开始监听

@@ -6,6 +6,8 @@ import asyncio
 import json
 from datetime import datetime, timezone
 
+from everlingo.gateway.channels.channel import ChannelMetadata
+
 
 class SSEEvent:
     """SSE 推送事件模型。"""
@@ -48,6 +50,14 @@ class WebChannel:
 
     async def recv(self) -> str | None:
         return await self._incoming.get()
+
+    async def send_sound(self, content: bytes, format: str) -> None:
+        pass
+
+    def get_metadata(self) -> ChannelMetadata:
+        return ChannelMetadata(
+            name=type(self).__name__,
+        )
 
     async def _broadcast(self, event: SSEEvent) -> None:
         async with self._lock:

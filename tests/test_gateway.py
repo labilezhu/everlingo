@@ -65,6 +65,18 @@ class TestStdioChannelRecv:
         mock_print.assert_called_once_with("\ntest message\n")
 
 
+class TestStdioChannelMetadata:
+    """ref: channel-stdio.md — get_metadata"""
+
+    def test_get_metadata_returns_channel_name(self):
+        """get_metadata() 返回 StdioChannel 名称和默认值。"""
+        channel = StdioChannel()
+        metadata = channel.get_metadata()
+        assert metadata.name == "StdioChannel"
+        assert metadata.supported_sound_media_format == []
+        assert metadata.channel_prompt == ""
+
+
 # ── Session ───────────────────────────────────────────────────────────────────
 
 class TestSessionRun:

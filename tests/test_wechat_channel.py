@@ -158,3 +158,13 @@ class TestWechatChannelMessageCallback:
 
         assert channel._last_user_id == "user_abc@im.wechat"
         assert channel._queue.get_nowait() == "学习英语"
+
+
+class TestWechatChannelMetadata:
+    """ref: channel-wechat-ilink.md — get_metadata"""
+
+    def test_get_metadata_returns_channel_name(self):
+        """get_metadata() 返回 WechatChannel 名称和默认值。"""
+        channel = WechatChannel()
+        metadata = channel.get_metadata()
+        assert metadata.name == "WechatChannel"
