@@ -10,7 +10,6 @@ from ..setting import load_profile, save_profile
 from .session_acceptor import StdioSessionAcceptor, WechatSessionAcceptor
 from .web_acceptor import WebSessionAcceptor
 from .session import Session
-from ..agents.agent import MainAgent
 
 
 # ── Profile 初始化向导（从 chat.py 迁入） ────────────────────────────────────
@@ -91,8 +90,7 @@ class Gateway:
             self.sessions[session_id].channel = channel
             session = self.sessions[session_id]
         else:
-            agent = MainAgent(self._profile)
-            session = Session(channel=channel, agent=agent, id=session_id)
+            session = Session(channel=channel, profile=self._profile, id=session_id)
             self.sessions[session_id] = session
 
         return asyncio.create_task(session.run())

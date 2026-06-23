@@ -1,5 +1,5 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Protocol
 
 
 @dataclass
@@ -9,28 +9,36 @@ class ChannelMetadata:
     channel_prompt: str = ""
 
 
-class Channel(Protocol):
-    async def init(self):
+class Channel(ABC):
+    """Channel 抽象基类。
+
+    ref: gateway.md — Channel
+    """
+
+    @abstractmethod
+    async def init(self) -> None:
         pass
 
+    @abstractmethod
     async def send_typing_hint(self) -> None:
         pass
 
+    @abstractmethod
     async def stop_typing_hint(self) -> None:
         pass
 
-    async def send(self, content: str):
+    @abstractmethod
+    async def send(self, content: str) -> None:
         pass
 
+    @abstractmethod
     async def recv(self) -> str | None:
         pass
 
     async def send_sound(self, content: bytes, format: str) -> None:
-        pass
+        """默认不支持声音；子类按需覆盖。"""
+        return
 
     def get_metadata(self) -> ChannelMetadata:
-        return ChannelMetadata(
-            name=type(self).__name__,
-            supported_sound_media_format=[],
-            channel_prompt="当前对话通道(Channel)不支持声音",
-        )
+        """默认无声音能力、空 prompt；子类按需覆盖。"""
+        return ChannelMetadata(name=type(self).__name__)

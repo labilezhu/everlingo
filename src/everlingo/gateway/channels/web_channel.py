@@ -6,7 +6,7 @@ import asyncio
 import json
 from datetime import datetime, timezone
 
-from everlingo.gateway.channels.channel import ChannelMetadata
+from everlingo.gateway.channels.channel import Channel, ChannelMetadata
 
 
 class SSEEvent:
@@ -23,10 +23,10 @@ class SSEEvent:
         return f"event: {self.event_type}\ndata: {payload}\n\n"
 
 
-class WebChannel:
+class WebChannel(Channel):
     """Web Channel 实现。
 
-    ref: /docs/impl-spec/web-session-acceptor.md
+    ref: web-session-acceptor.md — Web Channel 实现
     - recv: 从 _incoming 队列读取前端发来的消息
     - send/send_typing_hint/stop_typing_hint: 通过 SSE 推送到前端
     """

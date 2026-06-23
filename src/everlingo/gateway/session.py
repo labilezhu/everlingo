@@ -5,8 +5,9 @@ import asyncio
 import uuid
 from datetime import datetime
 
-from .channels.channel import Channel
+from .channels.channel import Channel, ChannelMetadata
 from ..agents.agent import MainAgent, MessageEvent
+from ..models import UserProfile
 
 
 class Session:
@@ -16,14 +17,15 @@ class Session:
     """
 
     def __init__(
-        self, channel: Channel, agent: MainAgent, id: str | None = None
+        self, channel: Channel, profile: UserProfile, id: str | None = None
     ) -> None:
         self.id = id if id is not None else str(uuid.uuid4())
         self.create_time = datetime.now()
         self.update_time = datetime.now()
         self.title = ""
         self.channel = channel
-        self.agent = agent
+        self.channel_metadata: ChannelMetadata = channel.get_metadata()
+        self.agent = MainAgent(profile, self.channel_metadata, channel)
 
     async def run(self) -> None:
         """消息循环：阻塞读取 channel 消息，交由 agent 处理，将回复发回 channel。

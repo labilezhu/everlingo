@@ -41,6 +41,23 @@ Agent 的`用户意图分析` 与 `用户意图的执行与回复响应` 见 Age
 `USER.md` 内容注入到 `## 用户自由偏好笔记 (USER.md)` 节。
 结构说明见 [USER-spec.md](/docs/impl-spec/worksplace/USER-spec.md)
 
+### 注入 Channel 能力与注意事项
+
+`ChannelMetadata.channel_prompt` 内容注入到 `## 当前对话通道 (Channel) 能力与注意事项` 节。
+使 Agent 了解当前通道的特性、限制和支持的能力。
+
+### 分级语音 prompt 注入
+
+根据 `ChannelMetadata.supported_sound_media_format` 是否包含 `"mp3"`，注入不同的语音相关 prompt：
+
+**支持 mp3 时**：
+- 注入 `## 语音发送能力` 节，说明何时调用 `voice_speak` 工具
+- 提供 `voice_speak` 工具（见 [tools.md](/docs/impl-spec/tools.md)）
+
+**不支持 mp3 时**：
+- 注入 `## 语音发送能力` 节，告知 Agent 当前通道不支持语音
+- 若用户要求发送语音，Agent 应文字回复「当前通道不支持语音，请在微信等支持语音的通道使用。」
+
 
 ## 用户显式模式指定
 

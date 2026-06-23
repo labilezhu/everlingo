@@ -11,6 +11,8 @@ import pytest
 from everlingo.agents.agent import MessageEvent
 from everlingo.gateway.channels.stdio_channel import StdioChannel
 from everlingo.gateway.session import Session
+from everlingo.gateway.channels.channel import ChannelMetadata
+from everlingo.models import UserProfile, UserLanguage
 
 
 # ── StdioChannel ─────────────────────────────────────────────────────────────
@@ -79,22 +81,40 @@ class TestStdioChannelMetadata:
 
 # ── Session ───────────────────────────────────────────────────────────────────
 
+@pytest.fixture
+def test_profile():
+    """测试用 UserProfile"""
+    return UserProfile(
+        language=UserLanguage(interface_language="zh-CN", target_language="en"),
+    )
+
+
 class TestSessionRun:
     """ref: gateway.md — Session 消息循环"""
 
-    def _make_session(self, recv_side_effects, agent_reply_text="ok"):
+    def _make_session(self, recv_side_effects, agent_reply_text="ok", profile=None):
         """构建带 mock Channel 和 mock Agent 的 Session。"""
+        if profile is None:
+            profile = UserProfile(
+                language=UserLanguage(interface_language="zh-CN", target_language="en"),
+            )
+
         channel = MagicMock()
         channel.init = AsyncMock()
         channel.send = AsyncMock()
         channel.send_typing_hint = AsyncMock()
         channel.stop_typing_hint = AsyncMock()
         channel.recv = AsyncMock(side_effect=recv_side_effects)
+        channel.get_metadata = MagicMock(
+            return_value=ChannelMetadata(name="MockChannel")
+        )
 
         agent = MagicMock()
         agent.invoke = MagicMock(return_value=MessageEvent(text=agent_reply_text))
 
-        return Session(channel, agent), channel, agent
+        with patch("everlingo.gateway.session.MainAgent", return_value=agent):
+            session = Session(channel, profile)
+        return session, channel, agent
 
     def test_run_one_message_then_quit(self):
         """一条消息后 recv 返回 None，循环退出。"""
@@ -135,37 +155,53 @@ class TestSessionRun:
 class TestSessionAttributes:
     """ref: session.md — Session 新属性"""
 
-    def test_session_has_auto_generated_id(self):
+    def test_session_has_auto_generated_id(self, test_profile):
         """Session 创建时自动生成 uuid id。"""
         channel = MagicMock()
+        channel.get_metadata = MagicMock(
+            return_value=ChannelMetadata(name="MockChannel")
+        )
         agent = MagicMock()
-        session = Session(channel, agent)
+        with patch("everlingo.gateway.session.MainAgent", return_value=agent):
+            session = Session(channel, test_profile)
         assert session.id is not None
         assert isinstance(session.id, str)
         assert len(session.id) > 0
 
-    def test_session_accepts_custom_id(self):
+    def test_session_accepts_custom_id(self, test_profile):
         """可以传入自定义 id。"""
         channel = MagicMock()
+        channel.get_metadata = MagicMock(
+            return_value=ChannelMetadata(name="MockChannel")
+        )
         agent = MagicMock()
-        session = Session(channel, agent, id="custom-id-123")
+        with patch("everlingo.gateway.session.MainAgent", return_value=agent):
+            session = Session(channel, test_profile, id="custom-id-123")
         assert session.id == "custom-id-123"
 
-    def test_session_has_create_time(self):
+    def test_session_has_create_time(self, test_profile):
         """Session 创建时自动生成 create_time。"""
         channel = MagicMock()
+        channel.get_metadata = MagicMock(
+            return_value=ChannelMetadata(name="MockChannel")
+        )
         agent = MagicMock()
-        session = Session(channel, agent)
+        with patch("everlingo.gateway.session.MainAgent", return_value=agent):
+            session = Session(channel, test_profile)
         assert session.create_time is not None
 
-    def test_session_title_defaults_empty(self):
+    def test_session_title_defaults_empty(self, test_profile):
         """Session title 默认为空字符串。"""
         channel = MagicMock()
+        channel.get_metadata = MagicMock(
+            return_value=ChannelMetadata(name="MockChannel")
+        )
         agent = MagicMock()
-        session = Session(channel, agent)
+        with patch("everlingo.gateway.session.MainAgent", return_value=agent):
+            session = Session(channel, test_profile)
         assert session.title == ""
 
-    def test_session_update_time_updated_after_message(self):
+    def test_session_update_time_updated_after_message(self, test_profile):
         """update_time 在消息处理后更新。"""
         channel = MagicMock()
         channel.init = AsyncMock()
@@ -173,11 +209,15 @@ class TestSessionAttributes:
         channel.send_typing_hint = AsyncMock()
         channel.stop_typing_hint = AsyncMock()
         channel.recv = AsyncMock(side_effect=["hello", None])
+        channel.get_metadata = MagicMock(
+            return_value=ChannelMetadata(name="MockChannel")
+        )
 
         agent = MagicMock()
         agent.invoke = MagicMock(return_value=MessageEvent(text="reply"))
 
-        session = Session(channel, agent)
+        with patch("everlingo.gateway.session.MainAgent", return_value=agent):
+            session = Session(channel, test_profile)
         before = session.update_time
         asyncio.run(session.run())
         assert session.update_time >= before
@@ -196,6 +236,9 @@ class TestGateway:
         channel.send = AsyncMock()
         channel.send_typing_hint = AsyncMock()
         channel.stop_typing_hint = AsyncMock()
+        channel.get_metadata = MagicMock(
+            return_value=ChannelMetadata(name="MockChannel")
+        )
         return channel
 
     def test_accept_session_creates_new_session(self):
@@ -206,7 +249,8 @@ class TestGateway:
         gateway._profile = MagicMock()
 
         channel = self._make_mock_channel()
-        task = asyncio.run(gateway.accept_session(channel, "session-1"))
+        with patch("everlingo.gateway.session.MainAgent"):
+            task = asyncio.run(gateway.accept_session(channel, "session-1"))
         task.cancel()
 
         assert "session-1" in gateway.sessions
@@ -220,11 +264,13 @@ class TestGateway:
         gateway._profile = MagicMock()
 
         old_channel = self._make_mock_channel()
-        task1 = asyncio.run(gateway.accept_session(old_channel, "session-1"))
+        with patch("everlingo.gateway.session.MainAgent"):
+            task1 = asyncio.run(gateway.accept_session(old_channel, "session-1"))
         task1.cancel()
 
         new_channel = self._make_mock_channel()
-        task2 = asyncio.run(gateway.accept_session(new_channel, "session-1"))
+        with patch("everlingo.gateway.session.MainAgent"):
+            task2 = asyncio.run(gateway.accept_session(new_channel, "session-1"))
         task2.cancel()
 
         assert len(gateway.sessions) == 1
@@ -237,10 +283,11 @@ class TestGateway:
         gateway = Gateway()
         gateway._profile = MagicMock()
 
-        task1 = asyncio.run(gateway.accept_session(self._make_mock_channel(), "session-1"))
-        task1.cancel()
-        task2 = asyncio.run(gateway.accept_session(self._make_mock_channel(), "session-2"))
-        task2.cancel()
+        with patch("everlingo.gateway.session.MainAgent"):
+            task1 = asyncio.run(gateway.accept_session(self._make_mock_channel(), "session-1"))
+            task1.cancel()
+            task2 = asyncio.run(gateway.accept_session(self._make_mock_channel(), "session-2"))
+            task2.cancel()
 
         assert len(gateway.sessions) == 2
 

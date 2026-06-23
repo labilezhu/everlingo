@@ -9,11 +9,12 @@ from typing import Any, Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from ..gateway.channels.channel import ChannelMetadata
 from ..llm import create_agent, create_llm
 from ..models import LANGUAGES, UserProfile
 from ..setting import load_profile, load_user_doc, prompt_input_mtime
 from ..tools.conf_manager import get_config_version
-from ..tools.tools import get_all_tools
+from ..tools.tools import build_tools
 
 import logging
 
@@ -53,7 +54,9 @@ def _lang_display_name(code: str) -> str:
     return LANGUAGES.get(code, code)
 
 
-def _build_system_prompt(profile: UserProfile, user_doc: str = "") -> str:
+def _build_system_prompt(
+    profile: UserProfile, user_doc: str = "", channel_metadata: ChannelMetadata | None = None
+) -> str:
     """构建统一的 Agent system prompt，整合词典老师和翻译老师的功能。
 
     ref: /docs/impl-spec/agents-spec.md — _build_system_prompt
@@ -241,6 +244,38 @@ OR
 
 """
 
+    # 注入 channel 能力与注意事项
+    if channel_metadata is not None and channel_metadata.channel_prompt.strip():
+        prompt += f"""
+## 当前对话通道 (Channel) 能力与注意事项
+{_demote_headings(channel_metadata.channel_prompt.strip())}
+"""
+
+    # 分级语音 prompt
+    supports_mp3 = (
+        channel_metadata is not None
+        and "mp3" in channel_metadata.supported_sound_media_format
+    )
+    if supports_mp3:
+        prompt += """
+## 语音发送能力
+当前对话通道支持发送 mp3 语音。当满足以下任一条件时，调用 `voice_speak` 工具发送语音：
+1. 用户在「个性化偏好设置」中表达偏好发送语音
+2. 用户在对话中显式要求发音/朗读/听一下
+
+`voice_speak` 的内容优先级：
+- 查词时：所查单词的发音
+- 翻译时：目标短句的示范发音
+- 仅当用户显式要求「朗读整段回复」时，才发送整段回复的语音
+
+`voice_speak` 是异步的，调用后无需等待。可先正常给出文字回复，再决定是否调用 voice_speak。
+"""
+    else:
+        prompt += """
+## 语音发送能力
+当前对话通道不支持语音消息。若用户要求发送语音/朗读/发音，请用文字回复：「当前通道不支持语音，请在微信等支持语音的通道使用。」
+"""
+
     return prompt
 
 
@@ -251,14 +286,21 @@ class MainAgent:
     ref: /docs/impl-spec/agents-spec.md
     """
 
-    def __init__(self, profile: UserProfile) -> None:
+    def __init__(
+        self,
+        profile: UserProfile,
+        channel_metadata: ChannelMetadata,
+        channel: Any,
+    ) -> None:
+        self._channel_metadata = channel_metadata
+        self._channel = channel
         self._llm = create_llm()
-        self._tools = get_all_tools()
+        self._tools = build_tools(channel_metadata, channel)
         user_doc = load_user_doc()
         self._agent = create_agent(
             self._llm,
             tools=self._tools,
-            system_prompt=_build_system_prompt(profile, user_doc),
+            system_prompt=_build_system_prompt(profile, user_doc, channel_metadata),
         )
         # 记录构建时的配置版本与文件 mtime，用于检测是否需要重建 agent
         # ref: agents-spec.md — system prompt 维护
@@ -290,10 +332,11 @@ class MainAgent:
         )
         profile = load_profile()
         user_doc = load_user_doc()
+        self._tools = build_tools(self._channel_metadata, self._channel)
         self._agent = create_agent(
             self._llm,
             tools=self._tools,
-            system_prompt=_build_system_prompt(profile, user_doc),
+            system_prompt=_build_system_prompt(profile, user_doc, self._channel_metadata),
         )
         self._config_version = current_version
         self._prompt_mtime = current_mtime

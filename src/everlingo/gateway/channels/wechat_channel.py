@@ -97,7 +97,7 @@ class WechatChannel(Channel):
             raise RuntimeError("WechatChannel 尚未初始化，请先调用 init()")
         if self._last_user_id is None:
             raise RuntimeError("尚未收到任何消息，无法获取 user_id 进行主动发送")
-        await self._bot.send(self._last_user_id, {"file": content, "file_name": "report.wav"})        
+        await self._bot.send(self._last_user_id, {"file": content, "file_name": f"voice.{format}" })        
 
     def get_metadata(self) -> ChannelMetadata:
         return ChannelMetadata(

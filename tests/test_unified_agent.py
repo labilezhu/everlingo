@@ -7,8 +7,15 @@ from unittest.mock import MagicMock, patch
 from everlingo.models import UserLanguage, UserProfile
 from everlingo.llm import create_llm, create_agent
 from everlingo.agents.agent import _build_system_prompt, MainAgent, MessageEvent
+from everlingo.gateway.channels.channel import ChannelMetadata
 from langchain_core.messages import HumanMessage, SystemMessage
 from everlingo.tools.tools import get_all_tools
+
+
+@pytest.fixture
+def default_channel_metadata():
+    """默认 ChannelMetadata（无声音能力）"""
+    return ChannelMetadata(name="TestChannel")
 
 
 @pytest.fixture
@@ -76,26 +83,26 @@ def ja_zh_profile():
 
 
 @pytest.fixture
-def agent_zh_en(zh_en_profile):
+def agent_zh_en(zh_en_profile, default_channel_metadata):
     """创建中文界面学英语的 Agent"""
     llm = create_llm()
     tools = get_all_tools()
     return create_agent(
         llm,
         tools=tools,
-        system_prompt=_build_system_prompt(zh_en_profile, ""),
+        system_prompt=_build_system_prompt(zh_en_profile, "", default_channel_metadata),
     )
 
 
 @pytest.fixture
-def agent_en_zh(en_zh_profile):
+def agent_en_zh(en_zh_profile, default_channel_metadata):
     """创建英文界面学中文的 Agent"""
     llm = create_llm()
     tools = get_all_tools()
     return create_agent(
         llm,
         tools=tools,
-        system_prompt=_build_system_prompt(en_zh_profile, ""),
+        system_prompt=_build_system_prompt(en_zh_profile, "", default_channel_metadata),
     )
 
 
@@ -186,9 +193,9 @@ def test_mixed_language_input(agent_zh_en):
 
 
 @pytest.mark.integration
-def test_system_prompt_includes_japanese(zh_ja_profile):
+def test_system_prompt_includes_japanese(zh_ja_profile, default_channel_metadata):
     """测试日语配置的 system prompt"""
-    prompt = _build_system_prompt(zh_ja_profile)
+    prompt = _build_system_prompt(zh_ja_profile, "", default_channel_metadata)
 
     assert "日本語" in prompt
     assert "ja" in prompt
@@ -197,48 +204,48 @@ def test_system_prompt_includes_japanese(zh_ja_profile):
 
 
 
-def test_system_prompt_includes_french(zh_fr_profile):
+def test_system_prompt_includes_french(zh_fr_profile, default_channel_metadata):
     """测试法语配置的 system prompt"""
-    prompt = _build_system_prompt(zh_fr_profile)
+    prompt = _build_system_prompt(zh_fr_profile, "", default_channel_metadata)
 
     assert "法语" in prompt
     assert "fr" in prompt
 
 
-def test_system_prompt_includes_german(en_de_profile):
+def test_system_prompt_includes_german(en_de_profile, default_channel_metadata):
     """测试德语配置的 system prompt"""
-    prompt = _build_system_prompt(en_de_profile)
+    prompt = _build_system_prompt(en_de_profile, "", default_channel_metadata)
 
     assert "德语" in prompt
     assert "de" in prompt
 
 
-def test_system_prompt_french_interface(fr_zh_profile):
+def test_system_prompt_french_interface(fr_zh_profile, default_channel_metadata):
     """测试法语界面的 system prompt"""
-    prompt = _build_system_prompt(fr_zh_profile)
+    prompt = _build_system_prompt(fr_zh_profile, "", default_channel_metadata)
 
     assert "法语" in prompt
     assert "fr" in prompt
 
 
-def test_system_prompt_german_interface(de_en_profile):
+def test_system_prompt_german_interface(de_en_profile, default_channel_metadata):
     """测试德语界面的 system prompt"""
-    prompt = _build_system_prompt(de_en_profile)
+    prompt = _build_system_prompt(de_en_profile, "", default_channel_metadata)
 
     assert "德语" in prompt
     assert "de" in prompt
 
-def test_system_prompt_japanese_interface(ja_zh_profile):
+def test_system_prompt_japanese_interface(ja_zh_profile, default_channel_metadata):
     """测试日本語界面的 system prompt"""
-    prompt = _build_system_prompt(ja_zh_profile)
+    prompt = _build_system_prompt(ja_zh_profile, "", default_channel_metadata)
 
     assert "日本語" in prompt
     assert "ja" in prompt
 
 
-def test_system_prompt_includes_user_profile(zh_en_profile):
+def test_system_prompt_includes_user_profile(zh_en_profile, default_channel_metadata):
     """测试 system prompt 包含用户配置信息"""
-    prompt = _build_system_prompt(zh_en_profile)
+    prompt = _build_system_prompt(zh_en_profile, "", default_channel_metadata)
 
     # 验证包含必要信息
     assert "界面语言" in prompt
@@ -252,16 +259,16 @@ def test_system_prompt_includes_user_profile(zh_en_profile):
     assert "管理基本配置" in prompt
 
 
-def test_system_prompt_omits_user_doc_section_when_empty(zh_en_profile):
+def test_system_prompt_omits_user_doc_section_when_empty(zh_en_profile, default_channel_metadata):
     """USER.md 为空时，system prompt 不应包含 USER.md 内容节。"""
-    prompt = _build_system_prompt(zh_en_profile, "")
+    prompt = _build_system_prompt(zh_en_profile, "", default_channel_metadata)
     assert "## 个性化偏好 (USER.md)" not in prompt
 
 
-def test_system_prompt_includes_user_doc(zh_en_profile):
+def test_system_prompt_includes_user_doc(zh_en_profile, default_channel_metadata):
     """USER.md 非空时，system prompt 应包含其内容，且标题被降级两级。"""
     user_doc = "# 学习目标\n- 雅思 7.0\n## 查词偏好\n- 词意\n- 词源"
-    prompt = _build_system_prompt(zh_en_profile, user_doc)
+    prompt = _build_system_prompt(zh_en_profile, user_doc, default_channel_metadata)
 
     assert "## 个性化偏好 (USER.md)" in prompt
     assert "雅思 7.0" in prompt
@@ -275,7 +282,7 @@ def test_system_prompt_includes_user_doc(zh_en_profile):
     assert not any(line.strip().startswith("## 查词偏好") for line in lines)
 
 
-def test_system_prompt_user_doc_headings_demoted(zh_en_profile):
+def test_system_prompt_user_doc_headings_demoted(zh_en_profile, default_channel_metadata):
     """验证所有 markdown 标题层级被正确降级两级，非标题行不变。"""
     user_doc = """# h1
 ## h2
@@ -286,7 +293,7 @@ def test_system_prompt_user_doc_headings_demoted(zh_en_profile):
 plain text
 - list item
 > blockquote"""
-    prompt = _build_system_prompt(zh_en_profile, user_doc)
+    prompt = _build_system_prompt(zh_en_profile, user_doc, default_channel_metadata)
 
     assert "### h1" in prompt
     assert "#### h2" in prompt
@@ -303,9 +310,9 @@ plain text
     assert "> blockquote" in prompt
 
 
-def test_system_prompt_user_doc_whitespace_only_omitted(zh_en_profile):
+def test_system_prompt_user_doc_whitespace_only_omitted(zh_en_profile, default_channel_metadata):
     """USER.md 仅含空白时不应注入内容节。"""
-    prompt = _build_system_prompt(zh_en_profile, "   \n\n  ")
+    prompt = _build_system_prompt(zh_en_profile, "   \n\n  ", default_channel_metadata)
     assert "## 个性化偏好 (USER.md)" not in prompt
 
 
@@ -344,15 +351,18 @@ def mock_agent_response():
 
 
 def _make_main_agent(zh_en_profile, mock_inner_agent):
-    """用 mock 替换 create_llm / create_agent / get_all_tools 创建 MainAgent。
+    """用 mock 替换 create_llm / create_agent / build_tools 创建 MainAgent。
 
     不 patch load_user_doc / prompt_input_mtime：让 __init__ 记录真实值，
     这样后续 invoke 中 _refresh_agent_if_needed 比对时不会因 patch 退出而误触发重建。
     """
+    from everlingo.gateway.channels.channel import ChannelMetadata
+    mock_channel = MagicMock()
+    mock_metadata = ChannelMetadata(name="TestChannel")
     with patch("everlingo.agents.agent.create_llm", return_value=MagicMock()), \
-         patch("everlingo.agents.agent.get_all_tools", return_value=[]), \
+         patch("everlingo.agents.agent.build_tools", return_value=[]), \
          patch("everlingo.agents.agent.create_agent", return_value=mock_inner_agent):
-        agent = MainAgent(profile=zh_en_profile)
+        agent = MainAgent(profile=zh_en_profile, channel_metadata=mock_metadata, channel=mock_channel)
     return agent
 
 
@@ -591,15 +601,18 @@ def test_agent_rebuilds_on_user_doc_set(zh_en_profile, mock_agent_response):
 
 def test_agent_rebuilds_on_external_mtime_change(zh_en_profile, mock_agent_response):
     """外部编辑 everlingo.yaml / USER.md 导致 mtime 变化时，invoke() 应重建 agent。"""
+    from everlingo.gateway.channels.channel import ChannelMetadata
     mock_inner = MagicMock()
     mock_inner.invoke.return_value = mock_agent_response
+    mock_channel = MagicMock()
+    mock_metadata = ChannelMetadata(name="TestChannel")
     # __init__ 时 mtime=0.0
     with patch("everlingo.agents.agent.create_llm", return_value=MagicMock()), \
-         patch("everlingo.agents.agent.get_all_tools", return_value=[]), \
+         patch("everlingo.agents.agent.build_tools", return_value=[]), \
          patch("everlingo.agents.agent.create_agent", return_value=mock_inner), \
          patch("everlingo.agents.agent.load_user_doc", return_value=""), \
          patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0):
-        agent = MainAgent(profile=zh_en_profile)
+        agent = MainAgent(profile=zh_en_profile, channel_metadata=mock_metadata, channel=mock_channel)
 
     rebuilt_agents = []
 
@@ -621,14 +634,17 @@ def test_agent_rebuilds_on_external_mtime_change(zh_en_profile, mock_agent_respo
 
 def test_agent_no_rebuild_when_version_and_mtime_unchanged(zh_en_profile, mock_agent_response):
     """版本号与 mtime 均未变化时，连续 invoke 不应重建 agent。"""
+    from everlingo.gateway.channels.channel import ChannelMetadata
     mock_inner = MagicMock()
     mock_inner.invoke.return_value = mock_agent_response
+    mock_channel = MagicMock()
+    mock_metadata = ChannelMetadata(name="TestChannel")
     with patch("everlingo.agents.agent.create_llm", return_value=MagicMock()), \
-         patch("everlingo.agents.agent.get_all_tools", return_value=[]), \
+         patch("everlingo.agents.agent.build_tools", return_value=[]), \
          patch("everlingo.agents.agent.create_agent", return_value=mock_inner), \
          patch("everlingo.agents.agent.load_user_doc", return_value=""), \
          patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0):
-        agent = MainAgent(profile=zh_en_profile)
+        agent = MainAgent(profile=zh_en_profile, channel_metadata=mock_metadata, channel=mock_channel)
 
     with patch("everlingo.agents.agent.create_agent") as mock_create, \
          patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0):

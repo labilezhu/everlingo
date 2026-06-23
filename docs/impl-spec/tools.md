@@ -112,3 +112,41 @@ parameters:
 returns: string 。写入的内容。
 
 **使用约定**：Agent 更新 USER.md 时应先 `user_doc_get` 读取当前内容，在其基础上修改，再 `user_doc_set` 写回完整内容，避免片段覆盖丢失。
+
+## 语音发送 - voice
+
+toolset name: voice
+toolset description: 发送语音消息
+
+### 设计说明
+
+voice_speak 工具通过工厂函数 `make_voice_speak_tool(channel)` 创建，绑定到特定 channel 实例。
+仅在 `ChannelMetadata.supported_sound_media_format` 包含 `"mp3"` 时，工具才会被加入 Agent 的 tool 列表。
+
+工具是同步的，内部 fire-and-forget 调度异步 TTS+send 到后台线程（独立 event loop）。
+失败只记日志 + stderr，不影响主流程。
+
+### functions
+
+#### voice_speak
+function name: voice_speak
+function description: 向用户发送该段文本的语音朗读。仅在用户偏好或显式要求时调用。
+parameters:
+    text: string 。要朗读并发送给用户的文本。
+returns: string 。固定返回 `"voice scheduled"`。
+
+**调用准则**（由 system prompt 注入）：
+- 用户在「个性化偏好设置」中表达偏好发送语音
+- 用户在对话中显式要求发音/朗读/听一下
+- 朗读内容优先级：查词时的单词发音、翻译时的短句示范发音
+- 仅当用户显式要求「朗读整段回复」时，才发送整段回复的语音
+
+**异步机制**：
+- 工具调用后立即返回 `"voice scheduled"`，不等待 TTS 完成
+- TTS 合成与 channel.send_sound 在后台线程异步执行
+- 失败通过 `logger.error` + `print(file=sys.stderr)` 记录
+
+**TTS 抽象**：
+- 当前使用 `EdgeTTSProvider`（基于 `edge-tts` 库）
+- 接口 `TTSProvider.synthesize(text, fmt="mp3") -> bytes`
+- 未来可扩展 OpenAI / OpenRouter 等 TTS provider
