@@ -176,6 +176,16 @@ class TestSessionAttributes:
 class TestGateway:
     """ref: gateway.md — Gateway 服务"""
 
+    def _make_mock_channel(self):
+        """创建带完整 async 方法的 mock channel。"""
+        channel = MagicMock()
+        channel.init = AsyncMock()
+        channel.recv = AsyncMock(return_value=None)
+        channel.send = AsyncMock()
+        channel.send_typing_hint = AsyncMock()
+        channel.stop_typing_hint = AsyncMock()
+        return channel
+
     def test_accept_session_creates_new_session(self):
         """accept_session 创建新 Session 并加入列表。"""
         from everlingo.gateway.gateway import Gateway
@@ -183,8 +193,9 @@ class TestGateway:
         gateway = Gateway()
         gateway._profile = MagicMock()
 
-        channel = MagicMock()
-        asyncio.run(gateway.accept_session(channel, "session-1"))
+        channel = self._make_mock_channel()
+        task = asyncio.run(gateway.accept_session(channel, "session-1"))
+        task.cancel()
 
         assert "session-1" in gateway.sessions
         assert gateway.sessions["session-1"].channel is channel
@@ -196,11 +207,13 @@ class TestGateway:
         gateway = Gateway()
         gateway._profile = MagicMock()
 
-        old_channel = MagicMock()
-        asyncio.run(gateway.accept_session(old_channel, "session-1"))
+        old_channel = self._make_mock_channel()
+        task1 = asyncio.run(gateway.accept_session(old_channel, "session-1"))
+        task1.cancel()
 
-        new_channel = MagicMock()
-        asyncio.run(gateway.accept_session(new_channel, "session-1"))
+        new_channel = self._make_mock_channel()
+        task2 = asyncio.run(gateway.accept_session(new_channel, "session-1"))
+        task2.cancel()
 
         assert len(gateway.sessions) == 1
         assert gateway.sessions["session-1"].channel is new_channel
@@ -212,8 +225,10 @@ class TestGateway:
         gateway = Gateway()
         gateway._profile = MagicMock()
 
-        asyncio.run(gateway.accept_session(MagicMock(), "session-1"))
-        asyncio.run(gateway.accept_session(MagicMock(), "session-2"))
+        task1 = asyncio.run(gateway.accept_session(self._make_mock_channel(), "session-1"))
+        task1.cancel()
+        task2 = asyncio.run(gateway.accept_session(self._make_mock_channel(), "session-2"))
+        task2.cancel()
 
         assert len(gateway.sessions) == 2
 
@@ -228,9 +243,13 @@ class TestSessionAcceptor:
         from everlingo.gateway.session_acceptor import StdioSessionAcceptor
 
         gateway = MagicMock()
-        gateway.accept_session = AsyncMock()
 
-        asyncio.run(StdioSessionAcceptor().accept(gateway))
+        async def fake_accept_session(channel, session_id):
+            return asyncio.create_task(asyncio.sleep(0))
+
+        gateway.accept_session = AsyncMock(side_effect=fake_accept_session)
+
+        asyncio.run(StdioSessionAcceptor().start(gateway))
 
         gateway.accept_session.assert_called_once()
         call_args = gateway.accept_session.call_args[0]
@@ -244,9 +263,13 @@ class TestSessionAcceptor:
         from everlingo.gateway.session_acceptor import WechatSessionAcceptor
 
         gateway = MagicMock()
-        gateway.accept_session = AsyncMock()
 
-        asyncio.run(WechatSessionAcceptor().accept(gateway))
+        async def fake_accept_session(channel, session_id):
+            return asyncio.create_task(asyncio.sleep(0))
+
+        gateway.accept_session = AsyncMock(side_effect=fake_accept_session)
+
+        asyncio.run(WechatSessionAcceptor().start(gateway))
 
         gateway.accept_session.assert_called_once()
         call_args = gateway.accept_session.call_args[0]

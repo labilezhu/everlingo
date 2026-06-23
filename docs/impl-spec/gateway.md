@@ -8,11 +8,15 @@
 - 接收和处理来自 `Session Acceptor` 的 `session 创建请求`。
   
 ## `session 创建请求` 的处理
+为 Channel 实例，建立专用的 Agent 实例。并把这种 Channel 实例 与 Agent 实例的绑定，封装为一个 Session 对象。
+
 Gateway 收到 `session 创建请求` 时，一般需要**创建新的 Session 对象**，并加入到 `Session 列表`。
+
 但是，如果 `Session 列表` 中已经有 `session 创建请求` 对应的 `session id` 则：
 - 视为现有 session 的重新连接请求(`session resume`)。 不需要创建 session 对象。
 
 请注意，Session Acceptor 的实现可能是个外部线程或协程。可能在进程运行的任何时候提交 `session 创建请求`。
+
 
 
 ## 结构
@@ -51,5 +55,7 @@ gateway --channel_web
 ## Session Acceptor
 
 见 [Session Acceptor](/docs/impl-spec/session-acceptor.md)
+
+
 
 

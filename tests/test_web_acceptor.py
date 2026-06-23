@@ -24,6 +24,7 @@ def _make_gateway():
         agent.invoke = MagicMock(return_value=MagicMock(text="mock reply"))
         session = Session(channel=channel, agent=agent, id=session_id)
         gateway.sessions[session_id] = session
+        return asyncio.create_task(asyncio.sleep(0))
 
     gateway.accept_session = AsyncMock(side_effect=fake_accept_session)
     return gateway

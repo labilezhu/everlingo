@@ -1,5 +1,6 @@
 # ref: session-acceptor.md — Session Acceptor 创建 Channel 并向 Gateway 提交 session 创建请求
 
+import asyncio
 import uuid
 from typing import Any, Protocol
 
@@ -16,36 +17,39 @@ class SessionAcceptor(Protocol):
     不负责创建 Session 对象。
     """
 
-    async def accept(self, gateway: Any) -> None:
-        """向 gateway 提交 session 创建请求。
+    async def start(self, gateway: Any) -> asyncio.Task:
+        """启动 acceptor，返回需要等待的 task。
 
         Args:
             gateway: 实现了 accept_session(channel, session_id) 的对象
+
+        Returns:
+            asyncio.Task: 需要等待的 task（session task 或 server task）
         """
         ...
 
 
-class StdioSessionAcceptor:
+class StdioSessionAcceptor(SessionAcceptor):
     """Stdio Session Acceptor。
 
     ref: /docs/impl-spec/session-acceptor.md — Stdio Session Acceptor
     启动时立即创建一个 Stdio Channel。不支持 session resume。
     """
 
-    async def accept(self, gateway: Any) -> None:
+    async def start(self, gateway: Any) -> asyncio.Task:
         channel = StdioChannel()
         session_id = str(uuid.uuid4())
-        await gateway.accept_session(channel, session_id)
+        return await gateway.accept_session(channel, session_id)
 
 
-class WechatSessionAcceptor:
+class WechatSessionAcceptor(SessionAcceptor):
     """Wechat Session Acceptor。
 
     ref: /docs/impl-spec/session-acceptor.md — Wechat Session Acceptor
     启动时立即创建一个 Wechat Channel。不支持 session resume。
     """
 
-    async def accept(self, gateway: Any) -> None:
+    async def start(self, gateway: Any) -> asyncio.Task:
         channel = WechatChannel()
         session_id = str(uuid.uuid4())
-        await gateway.accept_session(channel, session_id)
+        return await gateway.accept_session(channel, session_id)

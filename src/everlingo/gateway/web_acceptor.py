@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from everlingo.gateway.channels.web_channel import WebChannel
+from everlingo.gateway.session_acceptor import SessionAcceptor
 
 app = FastAPI()
 
@@ -37,9 +38,6 @@ async def create_session():
     channel = WebChannel()
     _channels[session_id] = channel
     await _gateway.accept_session(channel, session_id)
-    session = _gateway.sessions.get(session_id)
-    if session is not None:
-        asyncio.create_task(session.run())
     return {"session_id": session_id}
 
 
@@ -103,7 +101,7 @@ async def serve_frontend(path: str = ""):
     return FileResponse(index_path)
 
 
-class WebSessionAcceptor:
+class WebSessionAcceptor(SessionAcceptor):
     """Web Session Acceptor。
 
     ref: /docs/impl-spec/web-session-acceptor.md
@@ -114,7 +112,7 @@ class WebSessionAcceptor:
         self.host = host
         self.port = port
 
-    async def accept(self, gateway: Any) -> None:
+    async def start(self, gateway: Any) -> asyncio.Task:
         global _gateway
         _gateway = gateway
 
@@ -126,4 +124,4 @@ class WebSessionAcceptor:
             log_level="info",
         )
         server = uvicorn.Server(config)
-        await server.serve()
+        return asyncio.create_task(server.serve())

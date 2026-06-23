@@ -192,7 +192,7 @@ def test_system_prompt_includes_japanese(zh_ja_profile):
 
     assert "日本語" in prompt
     assert "ja" in prompt
-    assert "日文词语" in prompt
+    assert "single_word" in prompt
 
 
 
@@ -249,13 +249,13 @@ def test_system_prompt_includes_user_profile(zh_en_profile):
     # 验证包含意图识别规则
     assert "查词" in prompt or "Word Lookup" in prompt
     assert "翻译" in prompt or "Translation" in prompt
-    assert "配置管理" in prompt
+    assert "管理基本配置" in prompt
 
 
 def test_system_prompt_omits_user_doc_section_when_empty(zh_en_profile):
     """USER.md 为空时，system prompt 不应包含 USER.md 内容节。"""
     prompt = _build_system_prompt(zh_en_profile, "")
-    assert "## 用户自由偏好笔记 (USER.md)" not in prompt
+    assert "## 个性化偏好 (USER.md)" not in prompt
 
 
 def test_system_prompt_includes_user_doc(zh_en_profile):
@@ -263,7 +263,7 @@ def test_system_prompt_includes_user_doc(zh_en_profile):
     user_doc = "# 学习目标\n- 雅思 7.0\n## 查词偏好\n- 词意\n- 词源"
     prompt = _build_system_prompt(zh_en_profile, user_doc)
 
-    assert "## 用户自由偏好笔记 (USER.md)" in prompt
+    assert "## 个性化偏好 (USER.md)" in prompt
     assert "雅思 7.0" in prompt
     assert "词源" in prompt
     # 标题应被降级两级： # → ###, ## → ####
@@ -306,7 +306,7 @@ plain text
 def test_system_prompt_user_doc_whitespace_only_omitted(zh_en_profile):
     """USER.md 仅含空白时不应注入内容节。"""
     prompt = _build_system_prompt(zh_en_profile, "   \n\n  ")
-    assert "## 用户自由偏好笔记 (USER.md)" not in prompt
+    assert "## 个性化偏好 (USER.md)" not in prompt
 
 
 @pytest.mark.integration

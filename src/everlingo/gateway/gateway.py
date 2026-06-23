@@ -80,24 +80,28 @@ class Gateway:
 
     async def accept_session(
         self, channel, session_id: str
-    ) -> None:
+    ) -> asyncio.Task:
         """处理 Session Acceptor 提交的 session 创建请求。
 
         ref: /docs/impl-spec/gateway.md — session 创建请求的处理
         如果 session_id 已存在则视为 resume，否则创建新的 Session。
+        创建/恢复 session 后启动其消息循环协程并返回 task。
         """
         if session_id in self.sessions:
             self.sessions[session_id].channel = channel
+            session = self.sessions[session_id]
         else:
             agent = MainAgent(self._profile)
             session = Session(channel=channel, agent=agent, id=session_id)
             self.sessions[session_id] = session
 
+        return asyncio.create_task(session.run())
+
     async def run(self, channel_type: str = "stdio") -> None:
         """Gateway 主入口。
 
         Args:
-            channel_type: "stdio" 或 "wechat"
+            channel_type: "stdio" 或 "wechat" 或 "web"
         """
         setup_logging()
         try:
@@ -113,10 +117,8 @@ class Gateway:
         else:
             acceptor = StdioSessionAcceptor()
 
-        await acceptor.accept(self)
-
-        if self.sessions:
-            await asyncio.gather(*[s.run() for s in self.sessions.values()])
+        task = await acceptor.start(self)
+        await task
 
 
 def main() -> None:
