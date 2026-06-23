@@ -102,8 +102,8 @@ class WechatChannel(Channel):
     def get_metadata(self) -> ChannelMetadata:
         return ChannelMetadata(
             name=type(self).__name__,
-            supported_sound_media_format=["wav"],
-            channel_prompt="""微信 Clawbot 对话通道，有以下特性
+            supported_sound_media_format=["wav","mp3"],
+            channel_prompt="""微信 Clawbot 对话通道(Channel)，有以下特性
             - 支持发送文本和声音
             - 手机屏幕，不适合展示长内容。一次返回的消息内容要控制字数，一般不超过 500 字。
             微信 Clawbot 对话通道有以下注意事项：

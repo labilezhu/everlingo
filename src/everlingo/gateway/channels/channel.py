@@ -32,5 +32,5 @@ class Channel(Protocol):
         return ChannelMetadata(
             name=type(self).__name__,
             supported_sound_media_format=[],
-            channel_prompt="",
+            channel_prompt="当前对话通道(Channel)不支持声音",
         )
