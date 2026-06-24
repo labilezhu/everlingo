@@ -76,9 +76,29 @@ Agent 的`用户意图分析` 与 `用户意图的执行与回复响应` 见 Age
 关键设计：
 - 模式切换命令**不经过 LLM**，直接返回，不写入 `self._messages` 历史
 - 模式提示以 **`SystemMessage`** 形式注入 `messages_for_llm` 列表，不污染用户的原文 `HumanMessage`
-- `self._messages` 持久化历史中排除注入的 `SystemMessage`，只保留 `HumanMessage` + `AIMessage`
+- `self._messages` 持久化历史中排除注入的 `SystemMessage`，保留 `HumanMessage` + `AIMessage` + `ToolMessage`
+  - `ToolMessage` 必须保留：多轮对话中 LLM 需要工具结果上下文（例如追问"刚才查的那个词的近义词"时需要看 voice_speak 的 ToolMessage）
 - System prompt 中的 `## 用户显式模式指定` 节告知 LLM 此机制，明确优先级高于自动意图识别
 - 模式在 agent 重建（配置变更）后依然保持（`_intent_mode` 是实例变量）
+
+## 多消息回复
+
+`MainAgent.invoke()` 返回 `list[MessageEvent]`，每条对应一个消息气泡（微信、stdio 等通道每次 `send` 为一条独立消息）。
+
+LLM 的工具调用循环可能产生多个 `AIMessage`。例如「翻译并朗读 ufo」：
+```
+AIMessage(content="UFO — 不明飞行物…", tool_calls=[voice_speak(...)])  # 含正文 + 工具调用
+ToolMessage(content="voice scheduled")                                  # 工具结果
+AIMessage(content="")                                                   # 最终空消息
+```
+
+回复聚合规则：
+- 每个**非空 `AIMessage.content`** 作为一个独立的 `MessageEvent`，按出现顺序加入返回列表
+- 跳过 `ToolMessage`（其 content 如 `"voice scheduled"` 是工具结果，不给用户；语音已由 `voice_speak` 异步直发 channel）
+- 本轮无非空 `AIMessage`（如 LLM 只调了工具无文字）→ 返回 `[]`（不发消息，语音已由工具直发）
+- 命令路径（`/dict` 等）和异常路径 → 返回单元素列表 `[MessageEvent(...)]`
+
+`Session.run()` 对返回列表逐条调用 `channel.send()`，形成多个消息气泡。
 
 ## Agent tools
 

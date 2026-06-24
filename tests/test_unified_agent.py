@@ -8,7 +8,7 @@ from everlingo.models import UserLanguage, UserProfile
 from everlingo.llm import create_llm, create_agent
 from everlingo.agents.agent import _build_system_prompt, MainAgent, MessageEvent
 from everlingo.gateway.channels.channel import ChannelMetadata
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from everlingo.tools.tools import get_all_tools
 
 
@@ -462,8 +462,7 @@ def mock_agent_with_response():
 
     def fake_invoke(kwargs):
         messages = list(kwargs["messages"])
-        ai_msg = MagicMock()
-        ai_msg.content = "mock reply"
+        ai_msg = AIMessage(content="mock reply")
         messages.append(ai_msg)
         return {"messages": messages}
 
@@ -474,18 +473,18 @@ def mock_agent_with_response():
 def test_dict_command_switches_mode(zh_en_profile, mock_agent_with_response):
     """/dict 命令应切换到查词模式。"""
     agent = _make_main_agent(zh_en_profile, mock_agent_with_response)
-    reply = agent.invoke(MessageEvent(text="/dict"))
+    replies = agent.invoke(MessageEvent(text="/dict"))
 
-    assert "查词" in reply.text
+    assert "查词" in replies[0].text
     assert agent._intent_mode == "dict"
 
 
 def test_translate_command_switches_mode(zh_en_profile, mock_agent_with_response):
     """/translate 命令应切换到翻译模式。"""
     agent = _make_main_agent(zh_en_profile, mock_agent_with_response)
-    reply = agent.invoke(MessageEvent(text="/translate"))
+    replies = agent.invoke(MessageEvent(text="/translate"))
 
-    assert "翻译" in reply.text
+    assert "翻译" in replies[0].text
     assert agent._intent_mode == "translate"
 
 
@@ -495,19 +494,19 @@ def test_slash_command_resets_mode(zh_en_profile, mock_agent_with_response):
     agent.invoke(MessageEvent(text="/dict"))
     assert agent._intent_mode == "dict"
 
-    reply = agent.invoke(MessageEvent(text="/"))
-    assert "自动" in reply.text
+    replies = agent.invoke(MessageEvent(text="/"))
+    assert "自动" in replies[0].text
     assert agent._intent_mode is None
 
 
 def test_help_command(zh_en_profile, mock_agent_with_response):
     """/help 应返回命令列表和当前模式。"""
     agent = _make_main_agent(zh_en_profile, mock_agent_with_response)
-    reply = agent.invoke(MessageEvent(text="/help"))
+    replies = agent.invoke(MessageEvent(text="/help"))
 
-    assert "/dict" in reply.text
-    assert "/translate" in reply.text
-    assert "自动识别" in reply.text
+    assert "/dict" in replies[0].text
+    assert "/translate" in replies[0].text
+    assert "自动识别" in replies[0].text
 
 
 def test_help_shows_current_mode(zh_en_profile, mock_agent_with_response):
@@ -515,17 +514,17 @@ def test_help_shows_current_mode(zh_en_profile, mock_agent_with_response):
     agent = _make_main_agent(zh_en_profile, mock_agent_with_response)
     agent.invoke(MessageEvent(text="/dict"))
 
-    reply = agent.invoke(MessageEvent(text="/help"))
-    assert "查词" in reply.text
+    replies = agent.invoke(MessageEvent(text="/help"))
+    assert "查词" in replies[0].text
 
 
 def test_unknown_command(zh_en_profile, mock_agent_with_response):
     """未知命令应提示错误。"""
     agent = _make_main_agent(zh_en_profile, mock_agent_with_response)
-    reply = agent.invoke(MessageEvent(text="/unknown"))
+    replies = agent.invoke(MessageEvent(text="/unknown"))
 
-    assert "未知命令" in reply.text
-    assert "/help" in reply.text
+    assert "未知命令" in replies[0].text
+    assert "/help" in replies[0].text
 
 
 def test_original_text_not_polluted(zh_en_profile, mock_agent_with_response):
@@ -652,3 +651,119 @@ def test_agent_no_rebuild_when_version_and_mtime_unchanged(zh_en_profile, mock_a
         agent.invoke(MessageEvent(text="world"))
 
     mock_create.assert_not_called()
+
+
+# ── 多消息回复单元测试 ──────────────────────────────────────────────
+
+@pytest.fixture
+def multi_ai_agent_response():
+    """构造一个模拟「翻译+朗读」场景的 agent response：
+    AIMessage 含正文 + tool_calls，ToolMessage 返回 voice scheduled，
+    最终 AIMessage 为空。每个非空 AIMessage.content 应作为一个独立回复。
+    """
+    from langchain_core.messages import AIMessage, ToolMessage
+
+    def fake_invoke(kwargs):
+        input_msgs = list(kwargs["messages"])
+        ai_msg = AIMessage(
+            content="UFO — 不明飞行物 (Unidentified Flying Object)",
+            tool_calls=[{
+                "id": "call_1",
+                "name": "voice_speak",
+                "args": {"text": "UFO"},
+            }],
+        )
+        tool_msg = ToolMessage(content="voice scheduled", tool_call_id="call_1")
+        final_ai = AIMessage(content="")
+        return {"messages": input_msgs + [ai_msg, tool_msg, final_ai]}
+
+    mock = MagicMock()
+    mock.invoke.side_effect = fake_invoke
+    return mock
+
+
+def test_invoke_returns_one_message_per_nonempty_ai_message(
+    zh_en_profile, multi_ai_agent_response
+):
+    """工具循环产生 [AIMessage(翻译), ToolMessage, AIMessage("")] 时，
+    invoke 应返回 1 条回复（跳过 ToolMessage，跳过空 AIMessage）。
+    """
+    agent = _make_main_agent(zh_en_profile, multi_ai_agent_response)
+    replies = agent.invoke(MessageEvent(text="翻译并朗读 ufo"))
+
+    assert len(replies) == 1
+    assert "UFO" in replies[0].text
+    assert "不明飞行物" in replies[0].text
+
+
+def test_invoke_returns_multiple_messages_when_multiple_ai_have_content(
+    zh_en_profile,
+):
+    """两条 AIMessage 都有非空 content 时，invoke 应返回 2 条回复（多气泡）。"""
+    from langchain_core.messages import AIMessage
+
+    mock_inner = MagicMock()
+
+    def fake_invoke(kwargs):
+        input_msgs = list(kwargs["messages"])
+        return {"messages": input_msgs + [
+            AIMessage(content="第一段：UFO 是..."),
+            AIMessage(content="第二段：补充说明..."),
+        ]}
+
+    mock_inner.invoke.side_effect = fake_invoke
+    agent = _make_main_agent(zh_en_profile, mock_inner)
+
+    replies = agent.invoke(MessageEvent(text="介绍 UFO"))
+
+    assert len(replies) == 2
+    assert replies[0].text == "第一段：UFO 是..."
+    assert replies[1].text == "第二段：补充说明..."
+
+
+def test_invoke_returns_empty_when_no_ai_content(zh_en_profile):
+    """LLM 只调工具无文字时，invoke 返回空列表（语音由工具异步直发）。"""
+    from langchain_core.messages import AIMessage, ToolMessage
+
+    mock_inner = MagicMock()
+
+    def fake_invoke(kwargs):
+        input_msgs = list(kwargs["messages"])
+        return {"messages": input_msgs + [
+            AIMessage(content="", tool_calls=[{
+                "id": "call_1",
+                "name": "voice_speak",
+                "args": {"text": "ufo"},
+            }]),
+            ToolMessage(content="voice scheduled", tool_call_id="call_1"),
+            AIMessage(content=""),
+        ]}
+
+    mock_inner.invoke.side_effect = fake_invoke
+    agent = _make_main_agent(zh_en_profile, mock_inner)
+
+    replies = agent.invoke(MessageEvent(text="朗读 ufo"))
+    assert replies == []
+
+
+def test_invoke_persists_tool_messages_in_history(zh_en_profile, multi_ai_agent_response):
+    """self._messages 应保留 ToolMessage（多轮 LLM 上下文需要工具结果）。"""
+    agent = _make_main_agent(zh_en_profile, multi_ai_agent_response)
+    agent.invoke(MessageEvent(text="翻译并朗读 ufo"))
+
+    tool_msgs = [m for m in agent._messages if m.type == "tool"]
+    assert len(tool_msgs) == 1
+    assert tool_msgs[0].content == "voice scheduled"
+
+
+def test_invoke_error_returns_single_element_list(zh_en_profile):
+    """agent.invoke 抛异常时，invoke 返回单元素列表（含错误信息）。"""
+    from langchain_core.messages import AIMessage
+
+    mock_inner = MagicMock()
+    mock_inner.invoke.side_effect = RuntimeError("llm down")
+    agent = _make_main_agent(zh_en_profile, mock_inner)
+
+    replies = agent.invoke(MessageEvent(text="hello"))
+    assert len(replies) == 1
+    assert "llm down" in replies[0].text

@@ -110,7 +110,7 @@ class TestSessionRun:
         )
 
         agent = MagicMock()
-        agent.invoke = MagicMock(return_value=MessageEvent(text=agent_reply_text))
+        agent.invoke = MagicMock(return_value=[MessageEvent(text=agent_reply_text)])
 
         with patch("everlingo.gateway.session.MainAgent", return_value=agent):
             session = Session(channel, profile)
@@ -132,7 +132,7 @@ class TestSessionRun:
         )
         asyncio.run(session.run())
 
-        channel.send.assert_called_once()
+        assert channel.send.call_count == 1
         sent_text = channel.send.call_args[0][0]
         assert sent_text == "这是翻译"
 
@@ -143,6 +143,30 @@ class TestSessionRun:
 
         assert agent.invoke.call_count == 2
         assert channel.send.call_count == 2
+
+    def test_run_sends_multiple_replies_per_message(self):
+        """Agent 返回多条回复时（如翻译+朗读场景），每条独立 send 形成多个气泡。"""
+        session, channel, agent = self._make_session(
+            ["translate and read ufo", None],
+            agent_reply_text="ignored",
+        )
+        agent.invoke = MagicMock(return_value=[
+            MessageEvent(text="UFO — 不明飞行物"),
+            MessageEvent(text="已为你朗读"),
+        ])
+        asyncio.run(session.run())
+
+        assert channel.send.call_count == 2
+        sent_texts = [c.args[0] for c in channel.send.call_args_list]
+        assert sent_texts == ["UFO — 不明飞行物", "已为你朗读"]
+
+    def test_run_sends_no_message_when_replies_empty(self):
+        """Agent 返回空列表时（如只调用了 voice_speak），不发任何消息。"""
+        session, channel, agent = self._make_session(["read ufo", None])
+        agent.invoke = MagicMock(return_value=[])
+        asyncio.run(session.run())
+
+        channel.send.assert_not_called()
 
     def test_run_calls_channel_init(self):
         """Session.run() 先调用 channel.init()。"""
@@ -214,7 +238,7 @@ class TestSessionAttributes:
         )
 
         agent = MagicMock()
-        agent.invoke = MagicMock(return_value=MessageEvent(text="reply"))
+        agent.invoke = MagicMock(return_value=[MessageEvent(text="reply")])
 
         with patch("everlingo.gateway.session.MainAgent", return_value=agent):
             session = Session(channel, test_profile)

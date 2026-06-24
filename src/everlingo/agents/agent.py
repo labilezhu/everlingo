@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Optional
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from ..gateway.channels.channel import ChannelMetadata
 from ..llm import create_agent, create_llm
@@ -65,7 +65,8 @@ def _build_system_prompt(
     interface_lang = _lang_display_name(profile.language.interface_language)
     target_lang = _lang_display_name(profile.language.target_language)
 
-    prompt = f"""你是 EverLingo 语言学习助手，你的名字叫 "小记"，头像是: 🐹。你主要功能是针对用户的个性化偏好，解答用户在 {target_lang} 语言方面的问题。
+    prompt = f"""你是 EverLingo 语言学习助手，你的名字叫 "小记"，头像是: 🐹。
+你主要功能是针对用户的个性化偏好，解答用户在 {target_lang} 语言方面的问题。教学时，回复或发送消息给用户时，要充分考虑**用户熟识的语言是：{interface_lang} **。
 处理每次用户消息的主要的流程是： 分析当前会话消息和历史消息 -> 识别用户意图(当最近系统消息未指定`对话模式`时) -> [可选:必要时调用提供的 tools] -> 作出友好与实用的回答。
 
 ## 术语
@@ -79,7 +80,7 @@ def _build_system_prompt(
 - 语言代码：`de` ： `德语`
 - `target_lang`: 用户的`目标学习语言`
 - `interface_lang`: 用户的`界面语言`
-- `single_word` : {target_lang} 是 `英语` 时为1个单词，是 `简体中文` 时为一个中文词语，其它语言也如此类推。
+- `single_word` : 如果 {target_lang} 是 `英语` 时为1个单词，是 `简体中文` 时为一个中文词语，其它语言也如此类推。
 - `user_message_lang`： 你从用户最近的一条消息去识别出消息主要使用的语言
 - `src_lang`： 要查词或翻译的原语言，一般同 `user_message_lang`
 - `dest_lang`： 要查词或翻译输出的目标语言。一般默认是 {interface_lang}。 但如果 {interface_lang} 与 `src_lang` 相同时，应为  {target_lang}。 无论如何，`dest_lang` 不能与 `src_lang` 相同。
@@ -269,6 +270,7 @@ OR
 - 仅当用户显式要求「朗读整段回复」时，才发送整段回复的语音
 
 `voice_speak` 是异步的，调用后无需等待。可先正常给出文字回复，再决定是否调用 voice_speak。
+因为语音发送给用户是异步的，这个语音消息和你回复的文本消息在用户端的顺序是不可预期的。所以不要在回复文本中说“以下是语音” 之类的话。说 “语音已发送” 就好 。
 """
     else:
         prompt += """
@@ -341,7 +343,7 @@ class MainAgent:
         self._config_version = current_version
         self._prompt_mtime = current_mtime
 
-    def _handle_command(self, text: str) -> MessageEvent:
+    def _handle_command(self, text: str) -> list[MessageEvent]:
         """处理模式切换命令，直接返回回复（不经过 LLM）。
 
         ref: /docs/impl-spec/agents-spec.md — 用户显式模式指定
@@ -350,42 +352,49 @@ class MainAgent:
 
         if cmd == '/dict':
             self._intent_mode = 'dict'
-            return MessageEvent(
+            return [MessageEvent(
                 text="已切换到查词模式。以后发送的消息将被视为查词请求。\n"
                      "发送 `/` 可回到自动识别模式。"
-            )
+            )]
 
         if cmd == '/translate':
             self._intent_mode = 'translate'
-            return MessageEvent(
+            return [MessageEvent(
                 text="已切换到翻译模式。以后发送的消息将被视为翻译请求。\n"
                      "发送 `/` 可回到自动识别模式。"
-            )
+            )]
 
         if cmd == '/':
             self._intent_mode = None
-            return MessageEvent(text="已回到自动识别模式。")
+            return [MessageEvent(text="已回到自动识别模式。")]
 
         if cmd == '/help':
             mode_desc = (
                 '自动识别' if self._intent_mode is None
                 else ('查词' if self._intent_mode == 'dict' else '翻译')
             )
-            return MessageEvent(text=(
+            return [MessageEvent(text=(
                 "可用命令：\n"
                 "/dict      - 切换到查词模式（后续消息视为查词请求）\n"
                 "/translate - 切换到翻译模式（后续消息视为翻译请求）\n"
                 "/          - 回到自动识别意图模式\n"
                 "/help      - 显示此帮助\n\n"
                 f"当前模式：{mode_desc}"
-            ))
+            ))]
 
-        return MessageEvent(text=f"未知命令：{cmd}\n发送 /help 查看可用命令。")
+        return [MessageEvent(text=f"未知命令：{cmd}\n发送 /help 查看可用命令。")]
 
-    def invoke(self, input_msg: MessageEvent) -> MessageEvent:
-        """处理用户消息，返回 Agent 的回复。
+    def invoke(self, input_msg: MessageEvent) -> list[MessageEvent]:
+        """处理用户消息，返回 Agent 的回复列表（每条对应一个消息气泡）。
 
-        ref: /docs/impl-spec/agents-spec.md — 用户意思的执行与回复响应
+        当 LLM 在工具调用循环中产生多个 AIMessage（例如「翻译并朗读」场景：
+        第一条 AIMessage 含翻译正文 + tool_calls，第二条 AIMessage 为空/简短确认），
+        每个非空 AIMessage.content 会作为一个独立的 MessageEvent 返回，由 Session
+        逐条调用 channel.send()，在微信等通道形成多个消息气泡。
+        ToolMessage 不计入回复（其内容如 "voice scheduled" 是工具结果，
+        语音已由 voice_speak 工具异步直发 channel）。
+
+        ref: /docs/impl-spec/agents-spec.md — 用户意图的执行与回复响应
         """
         # 若配置被修改过，先重建 agent 以刷新 system prompt
         self._refresh_agent_if_needed()
@@ -416,13 +425,17 @@ class MainAgent:
             response = self._agent.invoke({"messages": messages_for_llm})
         except Exception as e:
             logger.exception("agent.invoke failed")
-            return MessageEvent(text=f"处理请求时出错: {e}")
+            return [MessageEvent(text=f"处理请求时出错: {e}")]
 
         # 持久化 AI 回复（跳过 messages_for_llm 中注入的模式提示）
+        # 含 ToolMessage，供多轮对话中 LLM 上下文使用
         new_messages = response["messages"][len(messages_for_llm):]
         self._messages.extend(new_messages)
 
-        last_message = self._messages[-1]
-        if hasattr(last_message, "content") and last_message.content:
-            return MessageEvent(text=last_message.content)
-        return MessageEvent(text="抱歉，我无法处理你的请求。")
+        # 每个非空 AIMessage.content 作为一个独立 MessageEvent 返回
+        replies = [
+            MessageEvent(text=m.content)
+            for m in new_messages
+            if isinstance(m, AIMessage) and m.content and m.content.strip()
+        ]
+        return replies
