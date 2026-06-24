@@ -175,8 +175,7 @@ Web 前端：React + Vite + TailwindCSS + shadcn/ui
 
 
 
-最后的最后的最后，如果你觉得这开源项目 https://github.com/labilezhu/everlingo 将来有点用，记得给它打个小星星⭐。不然，下次面试我的人，又说我没项目经验，失业一年和新技术脱节了。谢谢大家🤗！
-
+最后的最后的最后，如果你觉得这开源项目 https://github.com/labilezhu/everlingo 将来有点用，记得给它打个小星星⭐。谢谢大家🤗！
 
 ## Docs
 
