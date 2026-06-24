@@ -16,6 +16,7 @@ export default function ChatInput({ onSend, disabled, pending }: ChatInputProps)
     const data = new FormData(form);
     const text = (data.get('message') as string)?.trim();
     if (!text) return;
+    if (pending) return;
     onSend(text);
     form.reset();
   }
@@ -33,7 +34,7 @@ export default function ChatInput({ onSend, disabled, pending }: ChatInputProps)
         name="message"
         placeholder="输入单词、句子或提问..."
         onKeyDown={handleKeyDown}
-        disabled={disabled || pending}
+        disabled={disabled}
         className="min-h-10 resize-none"
         rows={1}
       />

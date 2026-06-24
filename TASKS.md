@@ -8,6 +8,7 @@
  - 2026-06-24 16:00 | 文档同步：按 README.md 重写 PRODUCT.md，明确区分"已经能做什么"和"正在路上"；补齐已实现的多端接入（微信/Web/TUI）与多语言支持描述；去除技术细节与图片
  - 2026-06-24 17:30 | Web 通道支持语音朗读：WebChannel.get_metadata 声明 mp3 支持（自动挂载 voice_speak 工具与分级 prompt），send_sound 广播 sound SSE 事件（base64 mp3），前端独立语音气泡含重听按钮（缓存 blob URL，无需后端再合成）；更新 tests/test_web_channel.py 与 docs/impl-spec/web-session-acceptor.md
  - 2026-06-24 18:00 | 修复 tests/test_web_acceptor.py 5 个失败用例：旧的 `_make_gateway` 用已废弃的 `Session(channel, agent=...)` 签名构造实例；改为用 MagicMock 模拟 session（测试只关心 web_acceptor 行为，不依赖 Session 内部实现）
+ - 2026-06-24 19:00 | Web chatbot：等待服务端响应期间 textarea 不再禁用（用户可继续输入），同时在 handleSubmit 中加 pending 守卫阻止发送并保留已输入文本；发送按钮视觉逻辑保持不变（仅 disabled=disabled，pending 时 animate-pulse）
 
 
 
