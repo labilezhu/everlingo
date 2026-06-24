@@ -43,14 +43,15 @@ class WebChatBotMessage:
     from: str
 
     # 系统指令类型的消息。
-    # 当 from=server 时，可以为： send / send_typing_hint / stop_typing_hint
+    # 当 from=server 时，可以为： send / send_typing_hint / stop_typing_hint / send_sound
     command: str = None
 ```
 
 ### chatbot 服务端消息推送
 chatbot 服务端消息推送数据采用 SSE(Server-Sent Events) 作为协议。会话需要有 session id 标识。
 
-- 在 web_channel.py 的 `send_typing_hint`  `stop_typing_hint` `send` 被 Session 调用后，需要把相关的，推送到前端。
+- 在 web_channel.py 的 `send_typing_hint`  `stop_typing_hint` `send` `send_sound` 被 Session 调用后，需要把相关的，推送到前端。
+- `send_sound` 推送 `sound` 事件，`data` 含 `{ audio: <base64 mp3>, format: "mp3" }`，前端解码后渲染为独立语音气泡（含重听按钮，无需后端再次合成）。
 
 
 

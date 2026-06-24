@@ -2,10 +2,11 @@ export interface Message {
   id: string;
   text: string;
   from: 'user' | 'bot';
+  audioUrl?: string;
 }
 
 export interface SSEEvent {
-  type: 'message' | 'typing_hint';
+  type: 'message' | 'typing_hint' | 'sound';
   data: Record<string, unknown>;
 }
 

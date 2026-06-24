@@ -29,6 +29,9 @@ export function connectSSE(
   es.addEventListener('typing_hint', (e: MessageEvent) => {
     try { onEvent({ type: 'typing_hint', data: JSON.parse(e.data) }); } catch { /* skip */ }
   });
+  es.addEventListener('sound', (e: MessageEvent) => {
+    try { onEvent({ type: 'sound', data: JSON.parse(e.data) }); } catch { /* skip */ }
+  });
   es.onerror = () => onError?.();
 
   return () => es.close();

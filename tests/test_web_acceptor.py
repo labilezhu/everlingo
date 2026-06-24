@@ -19,10 +19,9 @@ def _make_gateway():
     gateway.sessions = {}
 
     async def fake_accept_session(channel, session_id):
-        from everlingo.gateway.session import Session
-        agent = MagicMock()
-        agent.invoke = MagicMock(return_value=[MagicMock(text="mock reply")])
-        session = Session(channel=channel, agent=agent, id=session_id)
+        session = MagicMock()
+        session.id = session_id
+        session.channel = channel
         gateway.sessions[session_id] = session
         return asyncio.create_task(asyncio.sleep(0))
 

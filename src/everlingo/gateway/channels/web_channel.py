@@ -3,6 +3,7 @@
 # SSE 推送 typing hint 和消息到前端。
 
 import asyncio
+import base64
 import json
 from datetime import datetime, timezone
 
@@ -52,11 +53,13 @@ class WebChannel(Channel):
         return await self._incoming.get()
 
     async def send_sound(self, content: bytes, format: str) -> None:
-        pass
+        audio_b64 = base64.b64encode(content).decode("ascii")
+        await self._broadcast(SSEEvent("sound", audio=audio_b64, format=format))
 
     def get_metadata(self) -> ChannelMetadata:
         return ChannelMetadata(
             name=type(self).__name__,
+            supported_sound_media_format=["mp3"],
         )
 
     async def _broadcast(self, event: SSEEvent) -> None:

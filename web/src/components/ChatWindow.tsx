@@ -5,6 +5,11 @@ import { createSession, sendMessage, connectSSE } from '@/services/sseClient';
 import type { SSEEvent } from '@/types/chat';
 import { Message, uid } from '@/types/chat';
 
+function decodeBase64Audio(b64: string): string {
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  return URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
+}
+
 export default function ChatWindow() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([
@@ -14,6 +19,16 @@ export default function ChatWindow() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  function playAudio(url: string) {
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+    const audio = new Audio(url);
+    audioRef.current = audio;
+    audio.play().catch(() => { /* autoplay blocked; user can replay via button */ });
+  }
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -32,6 +47,11 @@ export default function ChatWindow() {
               setMessages(prev => [...prev, { id: uid(), text: (e.data as { text: string }).text, from: 'bot' }]);
               setPending(false);
               setThinking(false);
+            } else if (e.type === 'sound') {
+              const { audio } = e.data as { audio: string };
+              const url = decodeBase64Audio(audio);
+              setMessages(prev => [...prev, { id: uid(), text: '', from: 'bot', audioUrl: url }]);
+              playAudio(url);
             } else {
               setThinking((e.data as { typing: boolean }).typing);
             }
@@ -40,7 +60,10 @@ export default function ChatWindow() {
         );
       } catch { setError('无法连接到服务器'); }
     })();
-    return () => cleanup?.();
+    return () => {
+      cleanup?.();
+      audioRef.current?.pause();
+    };
   }, []);
 
   const handleSend = useCallback(async (text: string) => {
@@ -70,7 +93,7 @@ export default function ChatWindow() {
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {messages.map(msg => (
-          <MessageBubble key={msg.id} message={msg} />
+          <MessageBubble key={msg.id} message={msg} onReplay={playAudio} />
         ))}
 
         {thinking && (
