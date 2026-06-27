@@ -3,6 +3,7 @@ from pathlib import Path
 
 from langchain_core.callbacks import BaseCallbackHandler
 
+from . import workspace
 from .models import LoggingSetting
 from .setting import load_setting
 
@@ -17,7 +18,8 @@ def _get_setting() -> LoggingSetting:
 
 
 def _default_log_path() -> Path:
-    return Path.home() / ".everlingo" / "logs" / "everlingo.log"
+    # ref: docs/impl-spec/worksplace/workspace.md — workspace 日志路径
+    return workspace.log_path()
 
 
 _LOG_LEVEL_MAP: dict[str, int] = {

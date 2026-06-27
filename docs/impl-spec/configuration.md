@@ -18,7 +18,7 @@ Environment Variables 说明，参考[配置参考](/user-docs/reference/configu
 
 ## 配置文件
 
-配置文件位置： `~/.everlingo/profile.yaml` 。 配置文件使用 yaml 格式。
+配置文件位置： `$workspace/everlingo.yaml` 。 配置文件使用 yaml 格式。
 
 配置项说明，参考[配置参考](/user-docs/reference/configuration.md) 中 `## 配置文件` 一节。
 

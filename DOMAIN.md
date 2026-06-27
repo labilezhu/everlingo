@@ -44,7 +44,7 @@ language:
 
 ### 用户自由偏好笔记 - USER.md
 
-存放位置： `~/.everlingo/USER.md` 。Markdown 自由文本，由用户维护。
+存放位置： `$workspace/memory/USER.md` 。Markdown 自由文本，由用户维护。
 
 内容会被动态注入到 Agent 的 system prompt，用于个性化查词/翻译/答疑。
 

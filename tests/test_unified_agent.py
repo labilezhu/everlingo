@@ -590,7 +590,7 @@ def test_agent_rebuilds_on_user_doc_set(zh_en_profile, mock_agent_response):
          patch("everlingo.agents.agent.load_user_doc", return_value="新偏好"), \
          patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
          patch("everlingo.tools.user_doc.save_user_doc"), \
-         patch("everlingo.tools.user_doc.setting.USER_DOC_PATH") as mock_path:
+         patch("everlingo.workspace.user_doc_path") as mock_path:
         mock_path.exists.return_value = False
         user_doc_set.invoke({"content": "新偏好"})
         agent.invoke(MessageEvent(text="hello"))

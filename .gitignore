@@ -10,3 +10,4 @@ web/dist/**
 .env
 .pytest_cache
 .pytest_cache/**
+run@130.sh

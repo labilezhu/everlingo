@@ -18,7 +18,7 @@ def get_llm_config() -> dict:
         raise ValueError(
             "OPENAI_API_KEY 未设置。"
             "请复制 .env.example 为 .env 并填入 API Key，"
-            "或在 ~/.everlingo/everlingo.yaml 的 sys_setting.openai_api_key 中配置。"
+            "或在 $workspace/everlingo.yaml 的 sys_setting.openai_api_key 中配置。"
         )
 
     return {

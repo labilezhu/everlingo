@@ -1,6 +1,6 @@
 from langchain_core.tools import tool
 
-from .. import setting
+from .. import workspace
 from ..setting import (
     bump_prompt_version,
     load_user_doc,
@@ -22,7 +22,7 @@ def user_doc_set(content: str) -> str:
     """整体覆盖写入用户的自由文本偏好笔记 (USER.md)。
     写入前会把旧内容备份到 USER.md.bak（若旧文件存在）。成功后返回写入的内容。
     """
-    user_doc_path = setting.USER_DOC_PATH
+    user_doc_path = workspace.user_doc_path()
     # 备份旧内容（若存在）
     if user_doc_path.exists():
         bak_path = user_doc_path.with_suffix(".md.bak")

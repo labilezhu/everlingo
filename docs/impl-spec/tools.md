@@ -95,7 +95,7 @@ returns: string . 格式：日期与时间(Shanghai timezone) 。示例： `2026
 toolset name: user_doc
 toolset description: 管理用户自由偏好笔记 (USER.md)
 
-管理 `~/.everlingo/USER.md` 文件。文件内容为 Markdown 自由文本，会被注入到 Agent 的 system prompt。参考 [DOMAIN.md](/DOMAIN.md) 中 `用户自由偏好笔记 - USER.md` 一节。
+管理 `$workspace/memory/USER.md` 文件。文件内容为 Markdown 自由文本，会被注入到 Agent 的 system prompt。参考 [DOMAIN.md](/DOMAIN.md) 中 `用户自由偏好笔记 - USER.md` 一节。
 
 ### functions
 

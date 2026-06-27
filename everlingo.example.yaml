@@ -1,5 +1,5 @@
 # EverLingo 配置文件
-# 存放于 ~/.everlingo/everlingo.yaml
+# 存放于 $workspace/everlingo.yaml
 # 优先级高于同名的环境变量
 
 sys_setting:
@@ -11,7 +11,7 @@ sys_setting:
   openai_model:
 
   logging_setting:
-    # 日志文件路径。默认: ~/.everlingo/logs/everlingo.log
+    # 日志文件路径。默认: $workspace/logs/everlingo.log
     log_file:
     # 日志级别。可选: debug/info/warn/error。默认: debug
     log_level: debug
@@ -35,7 +35,7 @@ user_profile:
     target_language: en
 
 # 用户自由偏好笔记 (USER.md)
-# 存放于 ~/.everlingo/USER.md ，Markdown 自由文本。
+# 存放于 $workspace/USER.md ，Markdown 自由文本。
 # 由用户通过聊天（Agent 调用 user_doc 工具）或外部编辑器维护。
 # 内容会被注入到 Agent 的 system prompt，用于个性化查词/翻译/答疑。
 # 示例内容见 /USER.example.md

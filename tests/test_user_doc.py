@@ -9,10 +9,9 @@ from everlingo.tools.user_doc import user_doc_get, user_doc_set
 
 @pytest.fixture
 def tmp_user_doc(monkeypatch, tmp_path):
-    """把 USER_DOC_PATH 重定向到临时目录下的 USER.md。"""
+    """把 workspace.user_doc_path 重定向到临时目录下的 USER.md。"""
     path = tmp_path / "USER.md"
-    monkeypatch.setattr("everlingo.setting.USER_DOC_PATH", path)
-    monkeypatch.setattr("everlingo.tools.user_doc.setting.USER_DOC_PATH", path)
+    monkeypatch.setattr("everlingo.workspace.user_doc_path", lambda: path)
     return path
 
 

@@ -434,6 +434,7 @@ def test_user_profile_yaml_roundtrip():
 def test_user_profile_legacy_fields_ignored():
     # 旧配置文件中残留的 background / dictionary_definition_style 字段应被静默忽略
     # ref: DOMAIN.md — USER.md 取代自由字段，不迁移旧配置
+    # ref: docs/impl-spec/worksplace/workspace.md — 当前 USER.md 位于 $workspace/memory/USER.md
     data = {
         "user_profile": {
             "language": {

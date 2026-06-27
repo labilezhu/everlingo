@@ -16,7 +16,7 @@
 ## 配置文件 - EverLingoSetting
 以下列出配置文件的信息。
 
-配置文件位置： `~/.everlingo/everlingo.yaml` 。 配置文件使用 yaml 格式。
+配置文件位置： `$workspace/everlingo.yaml` 。 配置文件使用 yaml 格式。
 
 **yaml 结构如下。必须按照这个结构去实现**
 ```yaml
@@ -50,7 +50,7 @@ user_profile:
 
 | 变量        | 默认值                          | 说明                                                  |
 | ----------- | ------------------------------- | ----------------------------------------------------- |
-| `log_file`  | ~/.everlingo/logs/everlingo.log | 日志文件路径                                          |
+| `log_file`  | $workspace/logs/everlingo.log | 日志文件路径                                          |
 | `log_level` | debug                           | 日志文件中的日志输出级别。可选：debug/info/warn/error |
 
 
@@ -76,7 +76,7 @@ user_profile:
 
 ### 用户自由偏好笔记 - USER.md
 
-存放位置： `~/.everlingo/USER.md` ，Markdown 自由文本。
+存放位置： `$workspace/memory/USER.md` ，Markdown 自由文本。
 
 参考 [DOMAIN.md](/DOMAIN.md) 中 `用户自由偏好笔记 - USER.md` 一节。
 

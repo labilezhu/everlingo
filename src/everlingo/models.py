@@ -5,11 +5,11 @@ from pydantic import BaseModel, Field
 
 
 class LoggingSetting(BaseModel):
-    # 日志文件路径，默认: ~/.everlingo/logs/everlingo.log，ref: configuration.md LoggingSetting
+    # 日志文件路径，默认: $workspace/logs/everlingo.log，ref: configuration.md LoggingSetting
     log_file: str = Field(
         default="",
-        description="日志文件路径，默认: ~/.everlingo/logs/everlingo.log",
-        examples=["/home/user/.everlingo/logs/everlingo.log"],
+        description="日志文件路径，默认: $workspace/logs/everlingo.log",
+        examples=["$workspace/logs/everlingo.log"],
     )
     # 日志级别，可选: debug/info/warn/error
     log_level: Literal["debug", "info", "warn", "error"] = Field(

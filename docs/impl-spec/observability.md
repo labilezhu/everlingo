@@ -1,7 +1,7 @@
 # Observability
 
 ## Logging
-日志文件输出的默认路径： `~/.everlingo/logs/everlingo.log` 。
+日志文件输出的默认路径： `$workspace/logs/everlingo.log` 。
 
 日志的配置见 [configuration.md](/user-docs/reference/configuration.md)。 
 日志的实现入口在 /src/everlingo/logging.py 。 

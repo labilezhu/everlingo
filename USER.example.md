@@ -1,5 +1,5 @@
 # 用户自由偏好笔记 (USER.md) 示例
-# 存放于 ~/.everlingo/USER.md ，Markdown 自由文本。
+# 存放于$workspace/memory/USER.md ，Markdown 自由文本。
 # 由用户通过聊天（Agent 调用 user_doc 工具）或外部编辑器维护。
 # 内容会被注入到 Agent 的 system prompt，用于个性化查词/翻译/答疑。
 # 此文件为示例，实际内容由用户自由组织。
