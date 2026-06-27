@@ -60,3 +60,12 @@ def user_doc_path() -> Path:
 def log_path() -> Path:
     """返回当前 workspace 的默认日志文件路径。"""
     return current_workspace() / "logs" / "everlingo.log"
+
+
+def plugins_dir() -> Path:
+    """返回当前 workspace 的 plugins 目录路径。
+
+    ref: docs/impl-spec/channel-wechat-ilink.md — $workspace/plugins/channels/<channel>/...
+    通用插件根目录；各插件自行拼装子路径。
+    """
+    return current_workspace() / "plugins"

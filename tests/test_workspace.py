@@ -79,6 +79,12 @@ def test_log_path_under_current_workspace(reset_workspace_state):
     assert workspace.log_path() == workspace.WORKSPACE_ROOT / "ws_c" / "logs" / "everlingo.log"
 
 
+def test_plugins_dir_under_current_workspace(reset_workspace_state):
+    """plugins_dir 应位于 $ws/plugins。"""
+    workspace.init_workspace("ws_plugins")
+    assert workspace.plugins_dir() == workspace.WORKSPACE_ROOT / "ws_plugins" / "plugins"
+
+
 def test_accessors_follow_init_changes(reset_workspace_state):
     """init_workspace 切换 workspace 后，访问器应返回新 workspace 下的路径。"""
     workspace.init_workspace("ws_x")

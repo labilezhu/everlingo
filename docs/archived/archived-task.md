@@ -1,6 +1,8 @@
 ## 完成的任务
 格式：完成日期与时间(GMT+8 timezone) | 任务描述 。 示例： " - 2026-06-20 19:28 | 生成主入口代码"
 
+ - 2026-06-27 11:12 | 完成 workspace 概念实现：新增 `src/everlingo/workspace.py`（自包含路径解析，支持 CLI `--workspace` / `EVERLINGO_WORKSPACE` 环境变量 / 默认 `default` 三级优先级），重构 `setting.py` / `log_utils.py` / `tools/user_doc.py` / `models.py` / `main.py` 接入 workspace 模块，移除 `~/.everlingo` 硬编码路径。新增 `tests/test_workspace.py`（10 用例），更新 `tests/test_user_doc.py` / `test_unified_agent.py` / `test_setting.py` 切换到 workspace 模块。更新 `docs/impl-spec/worksplace/workspace.md` 补充选择机制与迁移说明。183 个测试全部通过。
+
  - 2026-06-23 10:00 | Channel Protocol: 新增 ChannelMetadata dataclass、send_sound 和 get_metadata 方法，以及对应测试
  - 2026-06-23 22:00 | 语音发送功能：新增 tts 模块（EdgeTTSProvider）、voice_speak 工具、Channel 改 ABC、Session 构造 MainAgent、分级语音 prompt 注入、动态 tool list、更新测试与文档
  - 2026-06-24 15:00 | 多消息回复：MainAgent.invoke 返回 list[MessageEvent]，每个非空 AIMessage.content 作为独立回复；Session 逐条 channel.send 形成多气泡；ToolMessage 不计入回复但保留在历史；更新测试与 agents-spec.md / session.md

@@ -43,9 +43,9 @@ bot.run()
 - 由于  wechatbot-sdk 的运行需要连接网络和 wechat 服务，并且需要手工 login 。单元测试时，只能 Mock 或不作单元测试。
 
 
-### sdk 保存用户 token
+### sdk 保存用户 credentials
 
-用户登录认证后，token 保存于。由 SDK 自己处理的。应用层不需要关注：
+用户登录认证后， credentials 保存于。由 SDK 自己处理的。应用层不需要关注：
 
 `~/.wechatbot/credentials.json`
 ```json
@@ -57,6 +57,24 @@ bot.run()
   "savedAt": "2026-06-17T12:00:58.409100+00:00"
 }
 ```
+
+### 指定 sdk 保存用户 credentials 的文件
+
+Wechat 的证书文件，需要保存在 [workspace](/docs/impl-spec/worksplace/workspace.md) 的子目录下。具体目录和文件是： "$workspace/plugins/channels/wechat_channel/credentials/credentials.json" 。
+如果目录不存在，需要在调用 `WeChatBot()` 前自动创建。
+
+WeChatBot()调用示例：
+```python
+bot = WeChatBot(
+    base_url="https://ilinkai.weixin.qq.com",   # default
+    cred_path="$workspace/plugins/channels/wechat_channel/credentials/credentials.json",   # default
+    on_qr_url=lambda url: print(f"Scan: {url}"),
+    on_scanned=lambda: print("Scanned!"),
+    on_expired=lambda: print("Expired..."),
+    on_error=lambda err: print(f"Error: {err}"),
+)
+```
+
 
 <!-- ### 测试 SDK 的代码
 /src/everlingo/wechat.py 是测试这个 SDK 的代码。

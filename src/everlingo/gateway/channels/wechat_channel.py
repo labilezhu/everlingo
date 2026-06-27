@@ -6,11 +6,13 @@
 import asyncio
 import queue
 import threading
+from pathlib import Path
 from typing import Optional
 
 
 from wechatbot import WeChatBot
 
+from everlingo import workspace
 from everlingo.gateway.channels.channel import Channel, ChannelMetadata
 
 
@@ -32,6 +34,20 @@ class WechatChannel(Channel):
         # ref: channel-wechat-ilink.md — recv 阻塞读取，bot.run() 在独立线程运行
         self._queue: queue.Queue[Optional[str]] = queue.Queue()
 
+    def _credentials_path(self) -> Path:
+        """返回 SDK 保存用户 credentials 的文件路径。
+
+        ref: /docs/impl-spec/channel-wechat-ilink.md — 指定 sdk 保存用户 credentials 的文件
+        路径固定为 $workspace/plugins/channels/wechat_channel/credentials/credentials.json
+        """
+        return (
+            workspace.plugins_dir()
+            / "channels"
+            / "wechat_channel"
+            / "credentials"
+            / "credentials.json"
+        )
+
     async def init(self) -> None:
         """初始化 Wechat Channel。
 
@@ -39,7 +55,12 @@ class WechatChannel(Channel):
         创建 WeChatBot 单例，注册消息回调，在独立线程启动 bot.run()。
         bot.run() 会在 stdout 输出登录 QR-CODE，提示用户扫码登录。
         """
-        self._bot = WeChatBot()
+        # ref: channel-wechat-ilink.md — 指定 sdk 保存用户 credentials 的文件
+        # 目录不存在时自动创建；调用 WeChatBot 前完成
+        cred_path = self._credentials_path()
+        cred_path.parent.mkdir(parents=True, exist_ok=True)
+
+        self._bot = WeChatBot(cred_path=str(cred_path))
 
         # 注册消息回调：收到消息时将文字放入队列
         @self._bot.on_message
