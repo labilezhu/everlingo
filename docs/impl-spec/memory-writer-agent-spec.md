@@ -65,5 +65,5 @@ conversation memory entries 的格式示例：
 - mem_read_file(path)	读取文件。返回文本文件内容
 - mem_write_file(path, content)	覆盖写入或新建文件 。返回写入结果
 - mem_list_directory(path)	列出指定目录下的文件或目录。返回格式： `[{file_name:"", size_bytes:128, create_time: "2025-12-24 22:21:00", modify_time: "2025-12-24 22:21:00" }]`
-- mem_search_files(path, pattern)	按文件名搜索，目录递归。pattern 的格式与 Linux find 命令的 "-name pattern" 类似，支持 "*"。返回格式： `[{file_path:"", is_dir: false}]`
-- mem_grep(pattern, path)	按内容正则搜索，目录递归。返回格式： `[{file_path:"",matched_text:""}]`
+- mem_search_files(path, pattern)	按文件名搜索，目录递归。pattern 的格式与 Linux find 命令的 "-name pattern" 类似，支持 "*"。返回格式： `[{file_path:"", is_dir: false}]` , 输出的 file_path 为输入 path 的相对路径。
+- mem_grep(path, pattern)	按内容正则搜索，目录递归。返回格式： `[{file_path:"",matched_text:""}]`, 输出的 file_path 为输入 path 的相对路径。
