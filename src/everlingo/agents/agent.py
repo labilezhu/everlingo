@@ -1,6 +1,6 @@
-# ref: agents-spec.md — Agent 实现
+# ref: chat-agent-spec.md — Agent 实现
 # 主要实现在 MainAgent。产品文档中的"词典老师"、"翻译老师"均由同一个 langchain agent 实现。
-# ref: /docs/impl-spec/agents-spec.md
+# ref: /docs/impl-spec/chat-agent-spec.md
 
 import re
 from dataclasses import dataclass, field
@@ -24,7 +24,7 @@ logger = logging.getLogger("everlingo")
 class MessageEvent:
     """从 Channel 收到的消息的规范化表示。
 
-    ref: /docs/impl-spec/agents-spec.md
+    ref: /docs/impl-spec/chat-agent-spec.md
     """
 
     # 消息正文
@@ -45,7 +45,7 @@ class MessageEvent:
 def _demote_headings(text: str) -> str:
     """将 markdown 标题降两级，确保低于 system prompt 中外围的 '##' 标题层级。
 
-    ref: agents-spec.md — USER.md 标题层级处理
+    ref: chat-agent-spec.md — USER.md 标题层级处理
     """
     return re.sub(r'^(#+)\s', r'##\1 ', text, flags=re.MULTILINE)
 
@@ -59,7 +59,7 @@ def _build_system_prompt(
 ) -> str:
     """构建统一的 Agent system prompt，整合词典老师和翻译老师的功能。
 
-    ref: /docs/impl-spec/agents-spec.md — _build_system_prompt
+    ref: /docs/impl-spec/chat-agent-spec.md — _build_system_prompt
     ref: /docs/product/pro-chatbot.md — 用户意图分析 & 用户意图响应
     """
     interface_lang = _lang_display_name(profile.language.interface_language)
@@ -285,7 +285,7 @@ class MainAgent:
     """EverLingo 主 Agent。
 
     产品文档中的"词典老师"、"翻译老师"均由同一个 langchain agent 实现。
-    ref: /docs/impl-spec/agents-spec.md
+    ref: /docs/impl-spec/chat-agent-spec.md
     """
 
     def __init__(
@@ -305,7 +305,7 @@ class MainAgent:
             system_prompt=_build_system_prompt(profile, user_doc, channel_metadata),
         )
         # 记录构建时的配置版本与文件 mtime，用于检测是否需要重建 agent
-        # ref: agents-spec.md — system prompt 维护
+        # ref: chat-agent-spec.md — system prompt 维护
         self._config_version = get_config_version()
         self._prompt_mtime = prompt_input_mtime()
         # Agent 的消息历史，支持多轮会话
@@ -320,7 +320,7 @@ class MainAgent:
         - prompt 版本号变化（set_config / user_doc_set 被调用过）
         - everlingo.yaml 或 USER.md 的 mtime 变化（外部编辑器修改）
 
-        ref: /docs/impl-spec/agents-spec.md — _build_system_prompt 依赖配置
+        ref: /docs/impl-spec/chat-agent-spec.md — _build_system_prompt 依赖配置
         """
         current_version = get_config_version()
         current_mtime = prompt_input_mtime()
@@ -346,7 +346,7 @@ class MainAgent:
     def _handle_command(self, text: str) -> list[MessageEvent]:
         """处理模式切换命令，直接返回回复（不经过 LLM）。
 
-        ref: /docs/impl-spec/agents-spec.md — 用户显式模式指定
+        ref: /docs/impl-spec/chat-agent-spec.md — 用户显式模式指定
         """
         cmd = text.split()[0].lower()
 
@@ -394,7 +394,7 @@ class MainAgent:
         ToolMessage 不计入回复（其内容如 "voice scheduled" 是工具结果，
         语音已由 voice_speak 工具异步直发 channel）。
 
-        ref: /docs/impl-spec/agents-spec.md — 用户意图的执行与回复响应
+        ref: /docs/impl-spec/chat-agent-spec.md — 用户意图的执行与回复响应
         """
         # 若配置被修改过，先重建 agent 以刷新 system prompt
         self._refresh_agent_if_needed()

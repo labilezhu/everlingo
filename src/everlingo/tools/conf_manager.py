@@ -14,7 +14,7 @@ from ..setting import (
 from . import log_tool_call
 
 # 兼容旧引用：conf_manager._config_version / get_config_version
-# 实际状态保存在 setting._prompt_version。ref: agents-spec.md — system prompt 维护
+# 实际状态保存在 setting._prompt_version。ref: chat-agent-spec.md — system prompt 维护
 
 
 def get_config_version() -> int:

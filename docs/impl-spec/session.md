@@ -36,4 +36,4 @@ while True:
 `AIMessage` 时（例如「翻译并朗读」），每条非空 `AIMessage.content` 作为独立
 `MessageEvent` 返回，Session 逐条发送形成多个消息气泡。
 
-详见 [agents-spec.md](/docs/impl-spec/agents-spec.md) — 多消息回复。
+详见 [chat-agent-spec.md](/docs/impl-spec/chat-agent-spec.md) — 多消息回复。

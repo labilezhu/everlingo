@@ -7,5 +7,24 @@
 - 用户的查词的释义偏好
 - 用户的翻译的偏好
 
+用途：
+
+- 注入 system prompt；
+- 决定解释风格；
+- 决定学习目标；
+- 决定例句领域。
+
+
+位置：
+```text
+$workspace/memory/USER.md
+```
+
+
+示例：
+
+```markdown
+用户是后端开发者，英语主要用于阅读技术文档，日语处于初级阶段。
+```
 
 示例： [USER.example.md](/USER.example.md)

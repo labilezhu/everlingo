@@ -1,4 +1,4 @@
-# Agent 实现
+# Chat Agent
 
 应实现于： `/src/everlingo/agents/agent.py` ，主要实现在 `class MainAgent` 。
 
@@ -103,6 +103,9 @@ AIMessage(content="")                                                   # 最终
 ## Agent tools
 
 参考： [tools](/docs/impl-spec/tools.md)
+
+## memory 写入
+memory 写入见 [Memory Writer Agent](/docs/impl-spec/memory-writer-agent-spec.md)
 
 ## Observability
 所有发给 LLM 的请求都写入日志文件。见 [observability.md](/docs/impl-spec/observability.md) 。 日志 level 是 debug 。

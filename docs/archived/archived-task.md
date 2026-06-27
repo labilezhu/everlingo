@@ -5,7 +5,7 @@
 
  - 2026-06-23 10:00 | Channel Protocol: 新增 ChannelMetadata dataclass、send_sound 和 get_metadata 方法，以及对应测试
  - 2026-06-23 22:00 | 语音发送功能：新增 tts 模块（EdgeTTSProvider）、voice_speak 工具、Channel 改 ABC、Session 构造 MainAgent、分级语音 prompt 注入、动态 tool list、更新测试与文档
- - 2026-06-24 15:00 | 多消息回复：MainAgent.invoke 返回 list[MessageEvent]，每个非空 AIMessage.content 作为独立回复；Session 逐条 channel.send 形成多气泡；ToolMessage 不计入回复但保留在历史；更新测试与 agents-spec.md / session.md
+ - 2026-06-24 15:00 | 多消息回复：MainAgent.invoke 返回 list[MessageEvent]，每个非空 AIMessage.content 作为独立回复；Session 逐条 channel.send 形成多气泡；ToolMessage 不计入回复但保留在历史；更新测试与 chat-agent-spec.md / session.md
  - 2026-06-24 16:00 | 文档同步：按 README.md 重写 PRODUCT.md，明确区分"已经能做什么"和"正在路上"；补齐已实现的多端接入（微信/Web/TUI）与多语言支持描述；去除技术细节与图片
  - 2026-06-24 17:30 | Web 通道支持语音朗读：WebChannel.get_metadata 声明 mp3 支持（自动挂载 voice_speak 工具与分级 prompt），send_sound 广播 sound SSE 事件（base64 mp3），前端独立语音气泡含重听按钮（缓存 blob URL，无需后端再合成）；更新 tests/test_web_channel.py 与 docs/impl-spec/web-session-acceptor.md
  - 2026-06-24 18:00 | 修复 tests/test_web_acceptor.py 5 个失败用例：旧的 `_make_gateway` 用已废弃的 `Session(channel, agent=...)` 签名构造实例；改为用 MagicMock 模拟 session（测试只关心 web_acceptor 行为，不依赖 Session 内部实现）
@@ -15,8 +15,8 @@
 - 2026-06-22 14:30 | 撰写微信公众号推广文章：创建 /docs/ads/everlingo-intro.md，包含产品介绍、已实现特性（Chatbot对话、动态学习记忆、多端接入、多语言支持）、规划中特性（科学复习、浏览器插件、iPhone集成、学习档案）、技术架构简介、快速上手指南；文章面向技术开发者与外语学习者双重受众，约2500字，包含4处截图占位提示
 - 2026-06-22 09:56 | 增加对法语(fr)、德语(de)的支持：更新 models.py(LANGUAGES字典、字段描述)、agent.py(system prompt)、everlingo.example.yaml(注释)、DOMAIN.md(语言列表)；添加对应测试用例
 - 2026-06-22 10:15 | 修复发送按钮脉冲动画的竞态条件：将 setPending(true) 移到 await sendMessage() 之前，确保按钮状态正确还原
-- 2026-06-22 11:30 | 新增 USER.md 用户自由偏好笔记机制：新建$workspace/memory/USER.md（Markdown 自由文本，动态注入 system prompt）；新增 user_doc toolset（user_doc_get/user_doc_set，写前备份 .bak）；从 UserProfile 移除 background/dictionary_definition_style（旧配置残留字段被 pydantic 静默忽略，不迁移）；prompt 版本号重构到 setting.py（bump_prompt_version/get_prompt_version），conf_manager 与 user_doc 共用；MainAgent 刷新逻辑改为版本号 + 文件 mtime 双检（外部编辑 everlingo.yaml/USER.md 也能即时刷新 system prompt）；更新 DOMAIN.md/configuration.md/tools.md/agents-spec.md 及示例文件；新增 tests/test_user_doc.py 与 _build_system_prompt/重建相关测试
-- 2026-06-22 12:15 | 修复 USER.md 标题注入层级冲突：新增 _demote_headings() 将 user_doc 内 markdown 标题在注入 system prompt 时降级两级（#→###, ##→####），避免与外围 "## 用户自由偏好笔记" 同级或更高级；更新 agents-spec.md 说明；新增对应测试用例
+- 2026-06-22 11:30 | 新增 USER.md 用户自由偏好笔记机制：新建$workspace/memory/USER.md（Markdown 自由文本，动态注入 system prompt）；新增 user_doc toolset（user_doc_get/user_doc_set，写前备份 .bak）；从 UserProfile 移除 background/dictionary_definition_style（旧配置残留字段被 pydantic 静默忽略，不迁移）；prompt 版本号重构到 setting.py（bump_prompt_version/get_prompt_version），conf_manager 与 user_doc 共用；MainAgent 刷新逻辑改为版本号 + 文件 mtime 双检（外部编辑 everlingo.yaml/USER.md 也能即时刷新 system prompt）；更新 DOMAIN.md/configuration.md/tools.md/chat-agent-spec.md 及示例文件；新增 tests/test_user_doc.py 与 _build_system_prompt/重建相关测试
+- 2026-06-22 12:15 | 修复 USER.md 标题注入层级冲突：新增 _demote_headings() 将 user_doc 内 markdown 标题在注入 system prompt 时降级两级（#→###, ##→####），避免与外围 "## 用户自由偏好笔记" 同级或更高级；更新 chat-agent-spec.md 说明；新增对应测试用例
 - 2026-06-21 19:10 | 前端架构重构：引入 TailwindCSS v4 + shadcn/ui (New York)，拆分组件结构
 - 2026-06-21 19:45 | 增大可视区域：ChatWindow 去掉 max-w-2xl 约束，改用 px-6 全宽布局
 - 2026-06-21 19:45 | 调整发送按钮：增大按钮尺寸 (size="lg")，添加 SVG 向右箭头图标

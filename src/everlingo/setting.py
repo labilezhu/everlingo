@@ -19,7 +19,7 @@ _prompt_version: int = 0
 
 
 def get_prompt_version() -> int:
-    """返回当前 prompt 版本号。ref: agents-spec.md — system prompt 维护"""
+    """返回当前 prompt 版本号。ref: chat-agent-spec.md — system prompt 维护"""
     return _prompt_version
 
 
@@ -98,7 +98,7 @@ def prompt_input_mtime() -> float:
     MainAgent 用此值与版本号一起判断是否需要重建 agent，
     使外部编辑器修改 everlingo.yaml / USER.md 也能即时生效。
 
-    ref: agents-spec.md — system prompt 维护
+    ref: chat-agent-spec.md — system prompt 维护
     """
     mtimes: list[float] = []
     setting_path = workspace.setting_path()

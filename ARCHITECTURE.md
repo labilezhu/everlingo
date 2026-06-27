@@ -23,7 +23,7 @@
 
 
 ## 实现设计
-- [Agent 实现](/docs/impl-spec/agents-spec.md)
+- [Agent 实现](/docs/impl-spec/chat-agent-spec.md)
 - [Gateway 服务](/docs/impl-spec/gateway.md)
 
 ## 应用的主入口
