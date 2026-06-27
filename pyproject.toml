@@ -19,6 +19,7 @@ dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.34.0",
     "edge-tts>=6.1.0",
+    "markdown-it-py>=3.0",
 ]
 
 [project.scripts]

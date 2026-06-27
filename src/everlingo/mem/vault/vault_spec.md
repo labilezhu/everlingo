@@ -2,7 +2,7 @@
 
 由 markdown 文件、结构化目录组成的 memory vault。 用于记录用户的语言学习事件，语言知识点。
 
-结构示例：
+目录结构示例：
 ```bash
 en/
   events/
@@ -17,7 +17,6 @@ en/
       take-for-granted--01JZABC789.md
     grammar/
       present-perfect--01JZABD001.md
-  meta.md
 
 ja/
   events/
@@ -29,17 +28,16 @@ ja/
       曖昧--01JZABD123.md
     phrases/
     grammar/
-  meta.md
 ```
 
-以下 `$lang` 表示 en/ja 等等目标学习语言的编码。
+以下 `$lang` 表示 en/ja 等等`目标学习语言`的编码。
 
 ## 文件命名
 
 文件命名格式：
 
 ```text
-{file_name}--{ulid}.md
+{main_file_name}--{ulid}.md
 ```
 
 例如：
@@ -58,7 +56,7 @@ te-form--01JZABE001.md
 - 文件名改变时也能通过 `ulid` 追踪；
 - 避免同名词条冲突。
 
-## Markdown Frontmatter 字段规范
+## Markdown Frontmatter 字段
 
 先定义一个轻量 schema，避免后面文件越来越乱。
 
@@ -83,5 +81,9 @@ slug: 用于将来生成 wiki 静态网站时作为人类友好的 url 部分。
 - 中文的："男人" ，用英文词同义词 "man" 
 - 日语，"曖昧" 则用发音词 "aimai"
 
-### items/ 知识点类 memory items
+## items/ 知识点类 memory items
+{{ include [参考 kb_items_spec.md](./kb_items_spec.md) }}
+
+## events/ 事件类
+{{ include [参考 events_spec.md](./events_spec.md) }}
 
