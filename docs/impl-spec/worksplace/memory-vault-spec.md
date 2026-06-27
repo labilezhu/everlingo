@@ -27,8 +27,6 @@
 
 [kb_items_spec.md](/src/everlingo/mem/vault/kb_items_spec.md)
 
-这是 Wiki 的主体。
-
 ---
 
 ## 5. Procedural Memory(暂不实现)

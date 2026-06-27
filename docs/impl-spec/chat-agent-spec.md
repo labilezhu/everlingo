@@ -104,8 +104,30 @@ AIMessage(content="")                                                   # 最终
 
 参考： [tools](/docs/impl-spec/tools.md)
 
-## memory 写入
-memory 写入见 [Memory Writer Agent](/docs/impl-spec/memory-writer-agent-spec.md)
+## 同步对话到 memory writer agent
+在每轮用户对话结束后， Chat Agent 应该把新的对话 memory entry 同步给 [Memory Writer Agent](/docs/impl-spec/memory-writer-agent-spec.md).
+
+### memory writer agent 同步筛选
+
+哪些 memory entry 应该同步给 Memory Writer Agent，哪些该跳过：
+
+应跳过的内容：
+- 与学习 `目标学习语言` 无关的信息。
+- 琐碎/显而易见的信息
+- 原始数据转储：大段内容，数据量过大(超过1000字)，不适合存入记忆
+- 会话特有的临时信息：如用户要求你当一个图书管理员角色，类似这样只影响当前会话的信息。
+- 在当前会话中，之前已经有同步过的内容，不要重复同步
+- 用户偏好，因为用户偏好应该保存在 USER.md
+
+应主动保存的内容:
+- 用户明确要求：“记住 somebody used to do something 这个短语” 
+- 纠正事项：发现信息生产源头是用户自己 且 用户未预期到的 且 `目标学习语言`方面的任何错误。
+
+应主动询问是否记住的内容：
+- 同一个对话会话中，多次出现的与`目标学习语言`相关的知识
+- 明显难记忆或生僻小众的`目标学习语言`相关的知识
+- 通过用户偏好或个性设置，发现很容易出错的知识。如，中国程序员很容易回答 Aren't you a programmer? 为 No
+
 
 ## Observability
 所有发给 LLM 的请求都写入日志文件。见 [observability.md](/docs/impl-spec/observability.md) 。 日志 level 是 debug 。

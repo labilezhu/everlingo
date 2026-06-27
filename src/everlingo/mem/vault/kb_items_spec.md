@@ -5,11 +5,6 @@
 
 记录真正沉淀下来的知识点。
 
-用途：
-- 词汇；
-- 短语；
-- 语法；
-
 目录结构示例：
 ```
     vocab/
@@ -19,6 +14,7 @@
       take-for-granted--01JZABC789.md
     grammar/
       present-perfect--01JZABD001.md
+    pragmatics/ # 语用      
 ```
 
 
@@ -42,7 +38,26 @@ related:
   - 微妙
 ```
 
-## item types
+## 知识点通用 markdown 文件章节
+
+### 遇到记录 - encounter log
+
+遇到记录，记录每次需要记忆当前知识点的 conversation context
+
+```markdown
+## 遇到记录
+
+- 2026-06-22：微信中询问“曖昧”和中文“暧昧”的区别。
+- 2026-06-26：阅读日语文章时再次遇到。
+```
+
+## 知识类型说明
+
+知识类型 item types: 对应不同子目录
+- vocab
+- phrases
+- grammar
+- pragmatics
 
 ### vocab 文件 items/$lang/vocab/
 
@@ -60,7 +75,6 @@ id: 01JZABD123
 type: vocab
 lang: ja
 headword: 曖昧
-reading: あいまい
 aliases:
   - あいまい
   - ambiguous
@@ -116,10 +130,6 @@ schema_version: 1
 
 > 边界没有画清楚。
 
-## 遇到记录
-
-- 2026-06-22：微信中询问“曖昧”和中文“暧昧”的区别。
-- 2026-06-26：阅读日语文章时再次遇到。
 ```
 
 
