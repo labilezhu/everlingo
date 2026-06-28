@@ -24,14 +24,21 @@ class ExtractInput:
     会话级元数据（chat_session_id / channel_name / target_lang / interface_lang）
     由 Extract Agent 实例持有，每轮 extract 复用，不放入 ExtractInput，
     保证输入可序列化、可测试，且与状态解耦。
+
+    会话内 dedup 由 MainAgent 通过 extract 游标在输入侧完成（new/context 分离），
+    Extract Agent 自身无状态。
     """
 
     # 本轮 MainAgent._intent_mode 快照：None=自动, "dict"=查词, "translate"=翻译
     intent_mode: Optional[str]
 
-    # 最近最多 20 轮对话（含本轮）。
-    # 顺序与 LLM 实际收到/产出一致；已排除注入的 SystemMessage（模式提示）；
+    # 本轮新增 messages（自上次 extract 游标以来）。
+    # 唯一允许的抽取来源。通常含本轮 HumanMessage + 其后的 AIMessage / ToolMessage；
     # 必须保留 ToolMessage —— 查词/翻译工具返回是 mean_summary 的事实来源。
+    new_messages: list[BaseMessage]
+
+    # 背景上下文（不含本轮），最近最多 19 轮。
+    # 仅供 LLM 生成 conversation_context 字段，禁止从中抽取知识点。
     context_messages: list[BaseMessage]
 
 

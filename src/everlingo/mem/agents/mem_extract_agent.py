@@ -63,7 +63,7 @@ def _now_gmt8_str() -> str:
 
 
 def _render_context_messages(messages) -> str:
-    """把 context_messages 序列化为 LLM 可读的多行文本。
+    """把 messages 序列化为 LLM 可读的多行文本。
 
     按发言者与内容线性展开，便于 LLM 识别本轮对话事实。
     顺序与 MainAgent._messages 一致（不含注入的 SystemMessage）。
@@ -94,15 +94,12 @@ def _build_system_prompt(
     target_lang: str,
     interface_lang: str,
     channel_name: str,
-    seen_headwords: list[str],
     user_doc: str,
 ) -> str:
     """构建 Extract Agent 的 system prompt。
 
     ref: docs/impl-spec/memory-extract-agent-spec.md — 实现 · System prompt 要点
     """
-    seen_text = "\n".join(f"- {h}" for h in seen_headwords) if seen_headwords else "（无）"
-
     user_doc_section = ""
     if user_doc.strip():
         user_doc_section = (
@@ -129,11 +126,19 @@ def _build_system_prompt(
 
 ## 输入
 
-每轮你会收到：
-- intent_mode：本轮 MainAgent 模式（None=自动 / dict / 查词 / translate / 翻译）
-- context_messages：最近最多 20 轮对话片段，顺序与 Chat Agent 实际收到/产出一致。
-  包含 HumanMessage（用户）/ AIMessage（Chat Agent 回复）/ ToolMessage（查词/翻译工具返回）。
-  ToolMessage 的 content 是 mean_summary 的**事实来源**。
+每轮你会收到两段对话文本：
+
+- **本轮新增（new_messages）**：自上次抽取以来新增的对话消息。这是**唯一允许的抽取来源**。
+- **背景上下文（context_messages）**：最近最多 19 轮历史对话。**仅供生成 conversation_context 字段**，禁止从中抽取知识点。
+
+两段都包含 HumanMessage（用户）/ AIMessage（Chat Agent 回复）/ ToolMessage（查词/翻译工具返回）。
+ToolMessage 的 content 是 mean_summary 的**事实来源**（仅限 new_messages 段内的 ToolMessage）。
+
+## 抽取边界（硬约束）
+
+- **只允许从「本轮新增」段抽取知识点**。
+- 「背景上下文」段仅供理解对话场景、生成 `conversation_context`，**不得**作为 entry 输出。
+- 这是为了避免同一段历史在多轮抽取中被反复输出。
 
 ## 筛选规则（本阶段精简版）
 
@@ -153,19 +158,13 @@ def _build_system_prompt(
 1. **与目标学习语言（lang={target_lang}）无关**。
 2. **用户偏好类**：应入 USER.md（由 Chat Agent 通过 user_doc 工具处理），不由你抽取。
 3. **原始数据转储**：单条 Message 文本超过 1000 字时，该 Message 不作为 mean_summary 的事实来源，但轮内其它知识点仍可抽取。
-4. **会话内已抽取**：headword 已在下方"会话内已抽取 headword"列表中。
+4. **从背景上下文抽取**：知识点来自 context_messages 段而非 new_messages 段。
 5. **琐碎/显而易见**。
 
 ### 本阶段不做（推迟到下一阶段）
 
 - 推断用户需要记住
 - 主动询问是否记住
-
-## 会话内已抽取 headword
-
-以下 headword 已在本次会话抽取过，**不要再输出**：
-
-{seen_text}
 
 {user_doc_section}
 ## 输出 schema（必须严格遵循）
@@ -191,11 +190,11 @@ def _build_system_prompt(
 - **item_type**：vocab（单词）/ phrases（短语）/ grammar（语法点）/ pragmatics（语用）。
 - **why_want_to_save_memory**：本阶段只允许上面 schema 中列出的两个枚举值。
 - **headword**：单词时为单词本身；短语则原样写出。
-- **mean_summary**：必须基于 context_messages 中 ToolMessage 的事实内容（查词/翻译工具返回）。
-  - 本轮无工具返回（纯问答）时，基于 Chat Agent 的回复给出的解释。
-  - **不允许引入外部知识或对 USER.md 做个性化改写**。
+- **mean_summary**：必须基于「本轮新增」段中 ToolMessage 的事实内容（查词/翻译工具返回）。
+  - 本轮无工具返回（纯问答）时，基于「本轮新增」段中 Chat Agent 回复给出的解释。
+  - **禁止**从「背景上下文」段取材，**不允许引入外部知识或对 USER.md 做个性化改写**。
   - 应保持事实性、简洁。
-- **conversation_context**：本轮学习该知识点的对话场景（一两句话）。
+- **conversation_context**：本轮学习该知识点的对话场景（一两句话），可参考「背景上下文」段理解场景。
 
 ## 输出格式
 
@@ -229,8 +228,8 @@ class MemoryExtractAgent:
         self._interface_lang = interface_lang
 
         # ref: memory-extract-agent-spec.md — 会话级状态
-        # 本阶段只有 session_seen_headwords。
-        self._session_seen_headwords: list[str] = []
+        # Extract Agent 自身无状态：会话内 dedup 由 MainAgent 通过 extract 游标
+        # 在输入侧完成（new/context 分离），不在此维护 headword 列表。
 
         # ref: 实现 · 用 langchain 的 LLM 调用 + structured output
         # ref: memory-extract-agent-spec.md — 已知简化 / 待评估
@@ -299,16 +298,18 @@ class MemoryExtractAgent:
             target_lang=self._target_lang,
             interface_lang=self._interface_lang,
             channel_name=self._channel_name,
-            seen_headwords=self._session_seen_headwords,
             user_doc=user_doc,
         )
 
         intent_label = _intent_mode_label(extract_input.intent_mode)
+        new_text = _render_context_messages(extract_input.new_messages)
         context_text = _render_context_messages(extract_input.context_messages)
         user_msg = (
             f"intent_mode: {intent_label}\n\n"
-            f"context_messages (chronological, most recent last):\n"
+            f"=== 背景上下文（仅供理解对话场景，禁止从中抽取知识点）===\n"
             f"{context_text}\n\n"
+            f"=== 本轮新增（唯一允许的抽取来源）===\n"
+            f"{new_text}\n\n"
             "请按 system prompt 中的筛选规则与 schema 输出 JSON。"
         )
 
@@ -319,11 +320,6 @@ class MemoryExtractAgent:
         ])
 
         entries = self._post_process(result.entries, intent_label)
-
-        # 累积 seen headwords（仅当 LLM 输出被采纳的 entries）
-        for e in entries:
-            if e.headword not in self._session_seen_headwords:
-                self._session_seen_headwords.append(e.headword)
 
         # ref: 日志要求 — 每个 entry info 日志输出全部字段
         for e in entries:

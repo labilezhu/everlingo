@@ -13,7 +13,7 @@
 - 琐碎/显而易见的信息
 - 原始数据转储：大段内容，数据量过大(超过1000字)，不适合存入记忆
 - 会话特有的临时信息：如用户要求你当一个图书管理员角色，类似这样只影响当前会话的信息。
-- 在当前会话中，之前已经有同步过的内容，不要重复同步
+- 从背景上下文中抽取：`context_messages` 段仅供生成 `conversation_context`，禁止从中抽取知识点。抽取来源仅限 `new_messages` 段。
 - 用户偏好，因为用户偏好应该保存在 USER.md
 
 应主动保存的内容:
@@ -49,8 +49,8 @@
 1. 与 `target_lang` 无关。
 2. 用户偏好类（应入 USER.md，由 Chat Agent 处理）。
 3. 原始数据转储：单条 Message 文本超 1000 字时，该 Message 不作为 `mean_summary` 的事实来源，但轮内其它知识点仍可抽取。
-4. 会话内已抽取：`headword` 已在 `session_seen_headwords` 中。
-5. 琕碎/显而易见。
+4. 从背景上下文中抽取：`context_messages` 仅供生成 `conversation_context`，禁止从中抽取知识点；抽取来源仅限 `new_messages` 段。
+5. 琐碎/显而易见。
 
 #### 本阶段不做（推迟到下一阶段）
 
@@ -111,11 +111,16 @@ class MainAgent:
 
 ### 会话级状态
 
-Memory Extract Agent 是有状态的。本阶段会话级状态只有一个：
+Memory Extract Agent **无状态**。本阶段所有会话级 dedup 由 `MainAgent` 通过 **extract 游标** 完成：
 
-- `session_seen_headwords: list[str]` —— 本会话内已抽取过的 headword，用于会话内 dedup。每次 extract 产出 entries 后，把新增 headword 追加进列表。
+- `MainAgent._extract_cursor: int` —— 已提交过 extract 的 `_messages` 长度。每次 `invoke()` 末尾构造 `ExtractInput` 时：
+  - `new_messages = self._messages[self._extract_cursor:]`（本轮往返，唯一抽取来源）
+  - `context_messages = _tail_recent_turns(self._messages[:self._extract_cursor], limit=19)`（背景上下文，仅供生成 `conversation_context`）
+  - 推进 `self._extract_cursor = len(self._messages)`。**即使后续 extract LLM call 失败也推进**（与 daemon thread "可接受丢失"语义一致，避免失败轮次在下次 invoke 被重抽）。
 
-下阶段加"主动询问是否记住"逻辑时，再扩 `session_asked_headwords: set` 与 `session_ask_count: int`，本阶段不实现。
+游标放在 MainAgent 而非 Extract Agent：Extract Agent 消费 `ExtractInput` 即完成全部判断，无状态、可序列化、可测试。Extract Agent 自身不再持有任何会话级状态。
+
+下阶段加"主动询问是否记住"逻辑时，再扩 `session_asked_headwords: set` 与 `session_ask_count: int`（届时再决定归属），本阶段不实现。
 
 ### 生命周期
 
@@ -133,30 +138,37 @@ class ExtractInput:
     # —— 本轮 MainAgent._intent_mode 快照 ——
     intent_mode: str | None      # None=自动, "dict"=查词, "translate"=翻译
 
-    # —— 最近最多 20 轮对话（含本轮）——
-    # 顺序与 LLM 实际收到/产出一致
-    # 必须排除注入的 SystemMessage（模式提示）
-    # 必须保留 ToolMessage —— 查词/翻译工具返回是 mean_summary 的事实来源
+    # —— 本轮新增 messages（自上次 extract 游标以来）——
+    # 唯一允许的抽取来源。通常含本轮 HumanMessage + 其后的 AIMessage / ToolMessage。
+    # 必须保留 ToolMessage —— 查词/翻译工具返回是 mean_summary 的事实来源。
+    new_messages: list[Message]
+
+    # —— 背景上下文（不含本轮）——
+    # 最近最多 19 轮，仅供 LLM 生成 conversation_context 字段。
+    # 禁止从中抽取知识点。
     context_messages: list[Message]
 ```
 
 ### 设计说明
 
 - `chat_session_id / channel_name / target_lang / interface_lang` 这些会话元数据在 Extract Agent 创建时由 MainAgent 传入，作为实例属性持有，每轮 extract 复用，不放入 `ExtractInput`。避免每轮重复传递，也让 ExtractInput 更纯粹。
-- `session_seen_headwords` 是 Extract Agent 内部状态，不放入 `ExtractInput`。这样 ExtractInput 可序列化、可测试，不耦合状态。
-- `context_messages` 取最近最多 20 轮（含本轮），来源为 `MainAgent._messages` 尾部截取（`_messages` 已排除注入的 SystemMessage，可直接用）。
+- Extract Agent 自身无会话级状态（dedup 由 MainAgent 游标解决），`ExtractInput` 自包含、可序列化、可测试。
+- `new_messages / context_messages` 均来自 `MainAgent._messages`（已排除注入的 SystemMessage，可直接切片）。`new_messages = _messages[cursor:]`，`context_messages = _tail_recent_turns(_messages[:cursor], limit=19)`。
 
 ### "轮"的定义
 
 1 轮 = 1 个 `HumanMessage` + 其后到下一个 `HumanMessage` 之前的所有 `AIMessage` / `ToolMessage`。即一个 user turn 的完整往返。
 
-20 轮 ≈ 20 个 `HumanMessage` 触发的完整对话片段。若历史不足 20 轮则全部传入。
+`context_messages` 取最近最多 19 轮（不含本轮）。`new_messages` 通常为 1 轮（本轮往返），但若 MainAgent 在一次 invoke 内向 `_messages` 追加了多段 AI/Tool 片段（如多步工具调用），`new_messages` 会含整段——这是符合预期的，整段都属于"本轮"。
 
-### 为什么用 20 轮而非本轮 delta
+### 为什么分离 new / context
 
-- `conversation_context` 字段需要跨轮上下文才能生成有意义的内容（如"用户在学习日语小说《罗生门》时查词"可能需要前几轮的背景）。
-- 为下阶段"同一知识点出现 2 次"的询问规则打基础（虽然本阶段不做，但上下文已就位）。
-- "用户明确要求记住"与"纠正事项"在最新轮即可判断，20 轮 context 不影响这两条规则的触发，只是提供更充分的判断背景。
+旧设计每轮都把最近 20 轮（含本轮）整体交给 LLM，LLM 视角里旧轮次与当前轮平等，没有任何信号告诉它"这段已抽过"。会话内 dedup 靠 `session_seen_headwords` 字符串匹配，而 headword 由 LLM 生成、即使 `temperature=0` 也无法稳定到逐字一致（同一历史片段两次抽取得到不同 headword），导致：
+
+- 同一段历史被反复抽取；
+- 两次 headword 不一致，事后 dedup 失效。
+
+新设计把"本轮新增"与"背景上下文"在输入侧硬隔离：抽取来源仅限 `new_messages`，`context_messages` 仅用于生成 `conversation_context`。从而在 LLM 层面就避免重复抽取，无需依赖 headword 字符串匹配。
 
 ## 输出规范
 
@@ -188,7 +200,7 @@ schema 与 [memory-writer-agent-spec.md](/docs/impl-spec/memory-writer-agent-spe
 
 ## mean_summary 真实性约束
 
-`mean_summary` **必须基于 `context_messages` 中 `ToolMessage` 的事实内容**（查词/翻译工具的返回），不允许 LLM 自由发挥或引入外部知识。本轮无工具返回（纯问答）时，基于 Agent 回复中给出的解释。此约束写进 system prompt，并在测试用例中验证。
+`mean_summary` **必须基于 `new_messages` 中 `ToolMessage` 的事实内容**（查词/翻译工具的返回），不允许 LLM 自由发挥或引入外部知识。本轮无工具返回（纯问答）时，基于 Agent 回复中给出的解释。此约束写进 system prompt，并在测试用例中验证。**禁止**从 `context_messages` 中取材 `mean_summary`。
 
 USER.md 仅用于**筛选判断**（判断"琐碎/显而易见""与 target_lang 相关性""用户偏好类应跳过"等），`mean_summary` 保持事实性、不个性化。否则 mean_summary 会偏离工具返回的真实释义，违反真实性约束。
 
@@ -213,19 +225,20 @@ Extract LLM call 异常或结构化输出解析失败时：
 ### System prompt 要点
 
 - 角色：知识点抽取器，不与用户对话。
-- 输入字段含义说明（`intent_mode` / `context_messages`，以及实例属性中的会话元数据）。
+- 输入字段含义说明（`intent_mode` / `new_messages` / `context_messages`，以及实例属性中的会话元数据）。
+- **抽取边界硬约束**：只允许从 `new_messages` 中抽取知识点；`context_messages` 仅用于生成 `conversation_context`，其中出现过的事实不得作为 entry 输出。
 - 筛选规则（本阶段精简版）与规则优先级。
 - 输出 schema 与字段来源约定。
-- mean_summary 真实性约束（基于 ToolMessage 事实，不个性化）。
-- 注入 `session_seen_headwords` 列表，告诉 LLM 这些 headword 已记过，跳过不再输出。
+- mean_summary 真实性约束（基于 `new_messages` 中 ToolMessage 事实，不个性化）。
 - 注入 USER.md 内容（标题降级，防止与 prompt 外层结构冲突），用于筛选判断。参考 `agent.py` 的 `_demote_headings()` 实现标题降级。
 - 只输出 JSON，不输出解释性文字。
 
 ## 已知简化 / 待评估
 
 - **模型**：使用独立工厂 `create_extract_llm()`（见 `src/everlingo/llm.py`），与主对话同 model / callbacks / tracing，唯一差异是 `temperature=0`。抽取任务要求结构化、确定性输出，0.7 会带来字段漂移；已实施独立配置，不再复用 `create_llm()`。
-- **会话内 dedup 基于 headword 字符串匹配**：粗糙，"曖昧" 与 "暧昧" 不会判重。本阶段可接受，下阶段读取能力上线后可改进。
-- **context 上限 20 轮**：经验值，若发现不足或过多再调整。context_messages 取 `MainAgent._messages` 尾部截取，不单独持久化。
+- **失败轮次丢失**：extract LLM call 失败时本轮 `new_messages` 不再重抽（游标已在 submit 前推进），与 daemon thread "可接受丢失"语义一致。
+- **跨会话 dedup**：本阶段 Extract Agent 不读 vault，无法跨会话 dedup，推迟到下阶段读取能力上线。
+- **context 上限 19 轮**：经验值，若发现不足或过多再调整。`context_messages` 取 `MainAgent._messages[:cursor]` 的尾部 turn 截断，不单独持久化。
 
 
 ## 人工手工测试用例
@@ -233,4 +246,4 @@ Extract LLM call 异常或结构化输出解析失败时：
 - 「记住 ambiguous 这个词」→ 触发"用户明确要求记住知识点"
 - 「I goes to school」被纠正 → 触发"纠正事项"
 - 正常查词/翻译 → 应被跳过（无 entries 日志）
-- cat 查词两次 → 第二次应被 session_seen_headwords dedup
+- 同一段纠正历史在后续闲聊轮中不再被抽取（因后续轮 `new_messages` 不含该历史，仅作 `context_messages` 背景）

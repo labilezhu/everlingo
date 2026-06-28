@@ -15,3 +15,8 @@
 
 ## Do NOT test
 - 不要写强依赖于 LLM Message 自然语言文本输出 或 system prompt 自然语言文本输入的测试。如对 LLM Message 自然语言文本输出作字串上的匹配。因为这种测试很难应对变化，也很难维护。
+
+
+## Run test
+使用 `uv run pytest` 的系列工具。
+使用 python venv 作为环境。而不是系统默认的 python

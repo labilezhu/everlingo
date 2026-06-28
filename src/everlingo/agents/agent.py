@@ -66,17 +66,20 @@ def _get_memory_writer():
     return memory_writer
 
 
-# ref: docs/impl-spec/memory-extract-agent-spec.md — "轮"的定义 & 为什么 20 轮
+# ref: docs/impl-spec/memory-extract-agent-spec.md — "轮"的定义 & 为什么分离 new / context
 # 1 轮 = 1 个 HumanMessage + 其后到下一个 HumanMessage 之前的所有 AIMessage / ToolMessage。
-# 取最近最多 20 轮片段，用于 Extract Agent 判断本轮对话上下文。
-_RECENT_TURNS_LIMIT = 20
+# context_messages 取最近最多 19 轮（不含本轮），仅供生成 conversation_context。
+# new_messages = 自上次 extract 游标以来新增的所有 messages，是唯一抽取来源。
+_CONTEXT_TURNS_LIMIT = 19
 
 
-def _tail_recent_turns(messages: list, limit: int = _RECENT_TURNS_LIMIT) -> list:
-    """从 MainAgent._messages 尾部取最近 limit 个 user turn（含本轮）。
+def _tail_recent_turns(messages: list, limit: int = _CONTEXT_TURNS_LIMIT) -> list:
+    """从 messages 尾部取最近 limit 个 user turn。
 
     1 turn = 1 HumanMessage + 其后到下一个 HumanMessage 之前的所有 AIMessage/ToolMessage。
     `_messages` 已排除注入的 SystemMessage；ToolMessage 必须保留。
+
+    用于 context_messages（背景上下文）截断，不含本轮（调用方负责切片）。
     """
     # 收集所有 HumanMessage 的索引
     human_indexes = [i for i, m in enumerate(messages) if isinstance(m, HumanMessage)]
@@ -350,6 +353,10 @@ class MainAgent:
         self._messages: list = []
         # 用户显式意图模式: None=自动, "dict"=查词, "translate"=翻译
         self._intent_mode: Optional[str] = None
+        # ref: docs/impl-spec/memory-extract-agent-spec.md — 会话级状态 · extract 游标
+        # 已提交过 extract 的 _messages 长度。每轮 invoke 末尾切片 new/context 后推进。
+        # 即使 extract 失败也推进（与 daemon 可丢失语义一致），避免失败轮次被重抽。
+        self._extract_cursor: int = 0
 
         # ── Memory Extract Agent ──────────────────────────────────────
         # ref: docs/impl-spec/memory-extract-agent-spec.md — 生命周期与状态
@@ -493,13 +500,20 @@ class MainAgent:
         ]
 
         # ── 提交 Memory Extract Agent（异步，不阻塞回复） ──────────
-        # ref: docs/impl-spec/memory-extract-agent-spec.md — 异步执行
-        # MainAgent.invoke() 返回 replies 后构造 ExtractInput 入队。
-        # daemon thread 异步消费，不影响用户回复延迟。
+        # ref: docs/impl-spec/memory-extract-agent-spec.md — 异步执行 / 输入规范
+        # new_messages = 自上次 extract 游标以来新增的 messages（本轮往返，唯一抽取来源）
+        # context_messages = 游标之前的最近 19 轮（背景上下文，仅供 conversation_context）
+        # 游标在切片后立即推进，即使 extract 失败也不再重抽本轮。
         # 命令路径已在函数早期 return；此处仅在真实 LLM 调用后到达。
+        new_messages = list(self._messages[self._extract_cursor:])
+        context_messages = _tail_recent_turns(
+            self._messages[:self._extract_cursor]
+        )
+        self._extract_cursor = len(self._messages)
         self._extract_agent.submit(ExtractInput(
             intent_mode=self._intent_mode,
-            context_messages=_tail_recent_turns(self._messages),
+            new_messages=new_messages,
+            context_messages=context_messages,
         ))
 
         return replies

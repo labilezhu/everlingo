@@ -131,7 +131,7 @@ class TestUtilityFunctions:
 
 
 class TestTailRecentTurns:
-    """ref: memory-extract-agent-spec.md — "轮"的定义 & 为什么 20 轮"""
+    """ref: memory-extract-agent-spec.md — "轮"的定义 & 为什么分离 new / context"""
 
     def _make_messages(self, n_human: int):
         msgs = []
@@ -143,21 +143,21 @@ class TestTailRecentTurns:
 
     def test_returns_all_when_under_limit(self):
         msgs = self._make_messages(5)
-        out = _tail_recent_turns(msgs, limit=20)
+        out = _tail_recent_turns(msgs)
         assert len(out) == len(msgs)
 
-    def test_caps_to_20_turns(self):
+    def test_caps_to_19_turns(self):
         msgs = self._make_messages(25)
-        out = _tail_recent_turns(msgs, limit=20)
-        # 应包含第 5..24 个 HumanMessage，共 20 个 turn，每个 turn 3 条消息
+        out = _tail_recent_turns(msgs)
+        # 应包含最近 19 个 turn，每个 turn 3 条消息
         human_count = sum(1 for m in out if isinstance(m, HumanMessage))
-        assert human_count == 20
-        # 最早一条应是第 5 个 user turn
-        assert out[0].content == "u5"
+        assert human_count == 19
+        # 最早一条应是第 (25-19+1)=7 个 user turn（索引从 0 → u6）
+        assert out[0].content == "u6"
 
     def test_preserves_tool_messages(self):
         msgs = self._make_messages(3)
-        out = _tail_recent_turns(msgs, limit=20)
+        out = _tail_recent_turns(msgs)
         tool_count = sum(1 for m in out if isinstance(m, ToolMessage))
         assert tool_count == 3
 
@@ -174,40 +174,30 @@ class TestBuildSystemPrompt:
             target_lang="en",
             interface_lang="zh-CN",
             channel_name="StdioChannel",
-            seen_headwords=[],
             user_doc="",
         )
         assert "en" in prompt
         assert "zh-CN" in prompt
         assert "StdioChannel" in prompt
 
-    def test_includes_seen_headwords_when_non_empty(self):
+    def test_states_new_context_boundary(self):
         prompt = _build_system_prompt(
             target_lang="en",
             interface_lang="zh-CN",
             channel_name="C",
-            seen_headwords=["gcc", "kernel"],
             user_doc="",
         )
-        assert "- gcc" in prompt
-        assert "- kernel" in prompt
-
-    def test_seen_headwords_empty_marker(self):
-        prompt = _build_system_prompt(
-            target_lang="en",
-            interface_lang="zh-CN",
-            channel_name="C",
-            seen_headwords=[],
-            user_doc="",
-        )
-        assert "（无）" in prompt
+        # 应明确区分 new_messages 与 context_messages 的抽取边界
+        assert "本轮新增" in prompt
+        assert "背景上下文" in prompt
+        assert "唯一允许的抽取来源" in prompt
+        assert "禁止从中抽取知识点" in prompt
 
     def test_user_doc_section_skipped_when_empty(self):
         prompt = _build_system_prompt(
             target_lang="en",
             interface_lang="zh-CN",
             channel_name="C",
-            seen_headwords=[],
             user_doc="",
         )
         # section header 是唯一的 USER.md 标识；规则文本中也提到 USER.md，
@@ -219,7 +209,6 @@ class TestBuildSystemPrompt:
             target_lang="en",
             interface_lang="zh-CN",
             channel_name="C",
-            seen_headwords=[],
             user_doc="# 偏好\n- 词源",
         )
         assert "## 用户个性化偏好 (USER.md)" in prompt
@@ -232,7 +221,6 @@ class TestBuildSystemPrompt:
             target_lang="en",
             interface_lang="zh-CN",
             channel_name="C",
-            seen_headwords=[],
             user_doc="   \n\n  ",
         )
         assert "## 用户个性化偏好 (USER.md)" not in prompt
@@ -243,7 +231,6 @@ class TestBuildSystemPrompt:
             target_lang="en",
             interface_lang="zh-CN",
             channel_name="C",
-            seen_headwords=[],
             user_doc="",
         )
         assert "chat_session_id" in prompt
@@ -278,7 +265,8 @@ class TestExtractSync:
         ]))
         entries = agent._extract(ExtractInput(
             intent_mode="dict",
-            context_messages=[HumanMessage(content="gcc")],
+            new_messages=[HumanMessage(content="gcc")],
+            context_messages=[],
         ))
         assert len(entries) == 1
         e = entries[0]
@@ -300,24 +288,16 @@ class TestExtractSync:
         agent = self._make_agent(fake_writer, llm_response_factory([
             _entry(headword="x"),
         ]))
-        entries = agent._extract(ExtractInput(intent_mode=None, context_messages=[]))
+        entries = agent._extract(ExtractInput(
+            intent_mode=None, new_messages=[], context_messages=[]
+        ))
         assert entries[0].user_intent == "None"
-
-    def test_session_seen_headwords_accumulate(self, fake_writer, llm_response_factory):
-        agent = self._make_agent(fake_writer, llm_response_factory([
-            _entry(headword="gcc"),
-        ]))
-        agent._extract(ExtractInput(intent_mode=None, context_messages=[]))
-        assert "gcc" in agent._session_seen_headwords
-
-        # 第二次 extract 仍能再产出新条目
-        agent._llm.invoke.return_value = llm_response_factory([_entry(headword="kernel")])
-        agent._extract(ExtractInput(intent_mode=None, context_messages=[]))
-        assert agent._session_seen_headwords == ["gcc", "kernel"]
 
     def test_empty_entries_skip_enqueue(self, fake_writer, llm_response_factory):
         agent = self._make_agent(fake_writer, llm_response_factory([]))
-        entries = agent._extract(ExtractInput(intent_mode=None, context_messages=[]))
+        entries = agent._extract(ExtractInput(
+            intent_mode=None, new_messages=[], context_messages=[]
+        ))
         assert entries == []
         fake_writer.enqueue.assert_not_called()
 
@@ -326,7 +306,9 @@ class TestExtractSync:
             _entry(headword="gcc"),
             _entry(headword="kernel"),
         ]))
-        entries = agent._extract(ExtractInput(intent_mode=None, context_messages=[]))
+        entries = agent._extract(ExtractInput(
+            intent_mode=None, new_messages=[], context_messages=[]
+        ))
         fake_writer.enqueue.assert_called_once()
         assert len(fake_writer.enqueue.call_args[0][0]) == 2
 
@@ -346,7 +328,9 @@ class TestExtractSync:
             raise RuntimeError("llm down")
 
         agent._llm.invoke.side_effect = first_invoke
-        agent.submit(ExtractInput(intent_mode=None, context_messages=[]))
+        agent.submit(ExtractInput(
+            intent_mode=None, new_messages=[], context_messages=[]
+        ))
 
         # 等第一次 invoke 真正发生（daemon thread 已进入 _extract，异常已被 logger.exception 吞掉）
         deadline = time.time() + 2.0
@@ -358,7 +342,9 @@ class TestExtractSync:
         agent._llm.invoke = MagicMock(
             return_value=llm_response_factory([_entry(headword="ok")])
         )
-        agent.submit(ExtractInput(intent_mode=None, context_messages=[]))
+        agent.submit(ExtractInput(
+            intent_mode=None, new_messages=[], context_messages=[]
+        ))
 
         # 等第二次成功 enqueue
         deadline = time.time() + 2.0
@@ -388,7 +374,9 @@ class TestExtractSync:
         agent.start()
 
         t0 = time.time()
-        agent.submit(ExtractInput(intent_mode=None, context_messages=[]))
+        agent.submit(ExtractInput(
+            intent_mode=None, new_messages=[], context_messages=[]
+        ))
         elapsed = time.time() - t0
         # 远小于 slow_invoke 的 0.3s
         assert elapsed < 0.05
@@ -403,7 +391,9 @@ class TestExtractSync:
             _entry(headword="gcc", mean="GNU C 编译器", ctx="查词"),
         ]))
         with caplog.at_level(_logging.INFO, logger="everlingo"):
-            agent._extract(ExtractInput(intent_mode="dict", context_messages=[]))
+            agent._extract(ExtractInput(
+                intent_mode="dict", new_messages=[], context_messages=[]
+            ))
 
         records = [r for r in caplog.records if "memory extract entry" in r.message]
         assert len(records) == 1
@@ -449,7 +439,7 @@ class TestMainAgentWiring:
         self, zh_en_profile, mock_agent_response
     ):
         """invoke() 应在返回 replies 前 submit 一个 ExtractInput，
-        intent_mode 与当前 self._intent_mode 一致。
+        intent_mode 与当前 self._intent_mode 一致，且 new/context 切片正确。
         """
         mock_inner = MagicMock()
         mock_inner.invoke.return_value = mock_agent_response
@@ -468,9 +458,46 @@ class TestMainAgentWiring:
         first_input = mock_extract_inst.submit.call_args_list[0][0][0]
         assert isinstance(first_input, ExtractInput)
         assert first_input.intent_mode == "dict"
-        # context_messages 不应为空（应至少含本轮的 HumanMessage）
+        # new_messages 应含本轮 HumanMessage（唯一抽取来源）
         assert any(isinstance(m, HumanMessage) and m.content == "hello"
-                   for m in first_input.context_messages)
+                   for m in first_input.new_messages)
+        # context_messages 不应含本轮 HumanMessage
+        assert not any(isinstance(m, HumanMessage) and m.content == "hello"
+                       for m in first_input.context_messages)
+        # 首轮 context_messages 应为空（游标从 0 起步）
+        assert first_input.context_messages == []
+
+        # 第二次 submit：new_messages 应含 "world" 轮，context_messages 应含上一轮 "hello"
+        second_input = mock_extract_inst.submit.call_args_list[1][0][0]
+        assert any(isinstance(m, HumanMessage) and m.content == "world"
+                   for m in second_input.new_messages)
+        assert not any(isinstance(m, HumanMessage) and m.content == "world"
+                       for m in second_input.context_messages)
+        assert any(isinstance(m, HumanMessage) and m.content == "hello"
+                   for m in second_input.context_messages)
+
+    def test_cursor_advances_so_old_turns_never_re_extracted(
+        self, zh_en_profile, mock_agent_response
+    ):
+        """ref: spec — 抽取边界硬约束：同一段历史不应在后续轮被放入 new_messages。"""
+        mock_inner = MagicMock()
+        mock_inner.invoke.return_value = mock_agent_response
+        agent, mock_extract_inst = _make_main_agent(zh_en_profile, mock_inner)
+
+        agent.invoke(MessageEvent(text="turn1"))
+        agent.invoke(MessageEvent(text="turn2"))
+        agent.invoke(MessageEvent(text="turn3"))
+
+        # 三轮后，最新一轮的 new_messages 只应含 "turn3"，前两轮只能在 context
+        latest = mock_extract_inst.submit.call_args_list[2][0][0]
+        human_in_new = [m.content for m in latest.new_messages
+                        if isinstance(m, HumanMessage)]
+        assert human_in_new == ["turn3"]
+        # 前两轮 HumanMessage 必须出现在 context_messages（背景）
+        ctx_humans = [m.content for m in latest.context_messages
+                      if isinstance(m, HumanMessage)]
+        assert "turn1" in ctx_humans
+        assert "turn2" in ctx_humans
 
     def test_command_path_does_not_submit(self, zh_en_profile, mock_agent_response):
         """/dict 等命令路径不应触发 submit。"""
