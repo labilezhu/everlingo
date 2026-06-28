@@ -223,7 +223,7 @@ Extract LLM call 异常或结构化输出解析失败时：
 
 ## 已知简化 / 待评估
 
-- **模型**：本阶段复用 `create_llm()`（与主对话同配置、同 temperature=0.7），简化设计。若后续发现 temperature=0.7 影响抽取稳定性，再考虑在 `llm.py` 增加 `create_extract_llm()` 独立配置（更低 temperature）。
+- **模型**：使用独立工厂 `create_extract_llm()`（见 `src/everlingo/llm.py`），与主对话同 model / callbacks / tracing，唯一差异是 `temperature=0`。抽取任务要求结构化、确定性输出，0.7 会带来字段漂移；已实施独立配置，不再复用 `create_llm()`。
 - **会话内 dedup 基于 headword 字符串匹配**：粗糙，"曖昧" 与 "暧昧" 不会判重。本阶段可接受，下阶段读取能力上线后可改进。
 - **context 上限 20 轮**：经验值，若发现不足或过多再调整。context_messages 取 `MainAgent._messages` 尾部截取，不单独持久化。
 

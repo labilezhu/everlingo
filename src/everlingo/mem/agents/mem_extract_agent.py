@@ -14,7 +14,7 @@ from typing import Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from ...llm import create_llm
+from ...llm import create_extract_llm
 from ...setting import load_user_doc
 from .mem_entries import (
     EntryWriterProtocol,
@@ -233,7 +233,9 @@ class MemoryExtractAgent:
         self._session_seen_headwords: list[str] = []
 
         # ref: 实现 · 用 langchain 的 LLM 调用 + structured output
-        self._llm = create_llm().with_structured_output(ExtractLLMOutput)
+        # ref: memory-extract-agent-spec.md — 已知简化 / 待评估
+        # 抽取任务使用独立工厂 create_extract_llm()，temperature=0 以保证结构化输出确定性。
+        self._llm = create_extract_llm().with_structured_output(ExtractLLMOutput)
 
         self._queue: "queue.Queue[Optional[ExtractInput]]" = queue.Queue()
         self._thread: Optional[threading.Thread] = None

@@ -20,3 +20,10 @@
 你计划一下。
 
 
+---
+
+现在的 [Chat Agent](/docs/impl-spec/chat-agent-spec.md) 异步给对话内容给 [Memory Extract Agent](/docs/impl-spec/memory-extract-agent-spec.md) 去筛选记忆。 但这个设计让 Chat Agent 无法很好地知道记忆筛选结果，就无法向用户提供有用的记忆反馈。 我想修改成同步的调用，这样 Chat Agent 就知识记忆情况，可以更有信心地和用户沟通了。你觉得如何？分析一下，包括从产品设计和实现架构两方面说说。
+
+---
+
+太复杂了，我还是觉得，为 Chat Agent 提供一个 tool ，查询一下最近的 Memory Extract Agent 的输出结果就好。在用户需要落实询问记忆保存时，才查询，你觉得怎样？
