@@ -20,6 +20,8 @@
 
 ## 增加 Markdown Frontmatter 字段
 
+在 [vault_spec.md](/src/everlingo/mem/vault/vault_spec.md) 的 “Markdown Frontmatter 通用字段字段” 基础上，增加几个字段
+
 ```yaml
 first_seen: 2026-06-22T18:08:00+08:00
 last_seen: 2026-06-26T09:15:00+08:00

@@ -1,8 +1,11 @@
 # ref: gateway.md — Gateway 进程入口
 # ref: app-entry.md — 应用主入口
+# ref: docs/impl-spec/memory-extract-agent-spec.md — 异步执行
+# ref: docs/impl-spec/memory-writer-agent-spec.md — 异步执行（Writer 单例）
 
 import argparse
 import asyncio
+import logging
 
 from ..log_utils import setup_logging
 from ..models import LANGUAGES, UserProfile
@@ -10,6 +13,32 @@ from ..setting import load_profile, save_profile
 from .session_acceptor import StdioSessionAcceptor, WechatSessionAcceptor
 from .web_acceptor import WebSessionAcceptor
 from .session import Session
+
+
+logger = logging.getLogger("everlingo")
+
+
+# ── Memory Writer Agent 单例（可行性测试阶段 stub）───────────────────────
+# ref: memory-writer-agent-spec.md — 进程级单例，独立 daemon Thread + queue.Queue。
+# 本阶段 Writer Agent 暂不实现，这里提供一个 log-only stub：
+# Memory Extract Agent 通过 enqueue(entries) 把已生成 entries 转交给 Writer；
+# stub 仅 info 日志记接收条数，不写文件、不做任何持久化。
+# 后续实现真正的 Memory Writer Agent 时，替换该单例即可，Extract Agent 无需改动。
+
+class _StubMemoryWriter:
+    """可行性测试阶段的 Memory Writer Agent 占位实现。
+
+    ref: docs/impl-spec/memory-writer-agent-spec.md
+    后续替换为真正的 Memory Writer Agent（异步 daemon thread 消费 + vault 写入）。
+    """
+
+    def enqueue(self, entries) -> None:
+        # entries 字段已在 Extract Agent 中 info 日志输出，本 stub 仅简短记录接收数量
+        logger.info("memory_writer(stub) received %d entries", len(entries))
+
+
+# 模块级进程级单例（与 spec 中"放 gateway.py 模块级实例"一致）
+memory_writer = _StubMemoryWriter()
 
 
 # ── Profile 初始化向导（从 chat.py 迁入） ────────────────────────────────────

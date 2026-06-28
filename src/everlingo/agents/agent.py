@@ -11,6 +11,8 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from ..gateway.channels.channel import ChannelMetadata
 from ..llm import create_agent, create_llm
+from ..mem.agents.mem_entries import ExtractInput
+from ..mem.agents.mem_extract_agent import MemoryExtractAgent
 from ..models import LANGUAGES, UserProfile
 from ..setting import load_profile, load_user_doc, prompt_input_mtime
 from ..tools.conf_manager import get_config_version
@@ -54,6 +56,37 @@ def _lang_display_name(code: str) -> str:
     return LANGUAGES.get(code, code)
 
 
+def _get_memory_writer():
+    """延迟导入 gateway 模块级 memory_writer 单例。
+
+    延迟导入避免 main -> gateway -> agent -> main 循环 import；
+    gateway 模块 import agent 时 _get_memory_writer 尚未被调用。
+    """
+    from ..gateway.gateway import memory_writer
+    return memory_writer
+
+
+# ref: docs/impl-spec/memory-extract-agent-spec.md — "轮"的定义 & 为什么 20 轮
+# 1 轮 = 1 个 HumanMessage + 其后到下一个 HumanMessage 之前的所有 AIMessage / ToolMessage。
+# 取最近最多 20 轮片段，用于 Extract Agent 判断本轮对话上下文。
+_RECENT_TURNS_LIMIT = 20
+
+
+def _tail_recent_turns(messages: list, limit: int = _RECENT_TURNS_LIMIT) -> list:
+    """从 MainAgent._messages 尾部取最近 limit 个 user turn（含本轮）。
+
+    1 turn = 1 HumanMessage + 其后到下一个 HumanMessage 之前的所有 AIMessage/ToolMessage。
+    `_messages` 已排除注入的 SystemMessage；ToolMessage 必须保留。
+    """
+    # 收集所有 HumanMessage 的索引
+    human_indexes = [i for i, m in enumerate(messages) if isinstance(m, HumanMessage)]
+    if len(human_indexes) <= limit:
+        return list(messages)
+    # 取最近 limit 个 turn 的起点：第 (len-limit) 个 HumanMessage 位置
+    start = human_indexes[len(human_indexes) - limit]
+    return list(messages[start:])
+
+
 def _build_system_prompt(
     profile: UserProfile, user_doc: str = "", channel_metadata: ChannelMetadata | None = None
 ) -> str:
@@ -68,6 +101,10 @@ def _build_system_prompt(
     prompt = f"""你是 EverLingo 语言学习助手，你的名字叫 "小记"，头像是: 🐹。
 你主要功能是针对用户的个性化偏好，解答用户在 {target_lang} 语言方面的问题。教学时，回复或发送消息给用户时，要充分考虑**用户熟识的语言是：{interface_lang} **。
 处理每次用户消息的主要的流程是： 分析当前会话消息和历史消息 -> 识别用户意图(当最近系统消息未指定`对话模式`时) -> [可选:必要时调用提供的 tools] -> 作出友好与实用的回答。
+你的记忆有两部分组成：
+- 个性化偏好 (USER.md) ，支持读写，已经为你提供读写工具
+- 目标学习语言({target_lang}) 的相关知识，只支持写入，而且不是由你去写入。
+需要写入记忆时，你要先分类一下记忆内容。对于 目标学习语言 知识相关的，非个性化偏好的记忆， 有一个 Memory Extract Agent 负责监控你的对话内容。并异步写入目标学习语言笔记库。如果用户要求你记住目标学习语言的知识，只需要提示用户，已经提交笔记请求即可。
 
 ## 术语
 先定义下面将使用的术语
@@ -293,6 +330,7 @@ class MainAgent:
         profile: UserProfile,
         channel_metadata: ChannelMetadata,
         channel: Any,
+        session_id: Optional[str] = None,
     ) -> None:
         self._channel_metadata = channel_metadata
         self._channel = channel
@@ -312,6 +350,21 @@ class MainAgent:
         self._messages: list = []
         # 用户显式意图模式: None=自动, "dict"=查词, "translate"=翻译
         self._intent_mode: Optional[str] = None
+
+        # ── Memory Extract Agent ──────────────────────────────────────
+        # ref: docs/impl-spec/memory-extract-agent-spec.md — 生命周期与状态
+        # 每个 MainAgent 实例持有自己的 Extract Agent 实例（会话级状态相关）；
+        # 进程级单例 memory_writer 通过 gateway 模块级导入。
+        # session_id 为 None 时（极少数测试场景）生成稳定 id 避免空字符串污染日志。
+        self._session_id = session_id or "no-session-id"
+        self._extract_agent = MemoryExtractAgent(
+            memory_writer=_get_memory_writer(),
+            chat_session_id=self._session_id,
+            channel_name=channel_metadata.name,
+            target_lang=profile.language.target_language,
+            interface_lang=profile.language.interface_language,
+        )
+        self._extract_agent.start()
 
     def _refresh_agent_if_needed(self) -> None:
         """检查配置版本或依赖文件 mtime，若变化则重建 agent 以刷新 system prompt。
@@ -438,4 +491,15 @@ class MainAgent:
             for m in new_messages
             if isinstance(m, AIMessage) and m.content and m.content.strip()
         ]
+
+        # ── 提交 Memory Extract Agent（异步，不阻塞回复） ──────────
+        # ref: docs/impl-spec/memory-extract-agent-spec.md — 异步执行
+        # MainAgent.invoke() 返回 replies 后构造 ExtractInput 入队。
+        # daemon thread 异步消费，不影响用户回复延迟。
+        # 命令路径已在函数早期 return；此处仅在真实 LLM 调用后到达。
+        self._extract_agent.submit(ExtractInput(
+            intent_mode=self._intent_mode,
+            context_messages=_tail_recent_turns(self._messages),
+        ))
+
         return replies

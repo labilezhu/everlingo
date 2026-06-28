@@ -25,7 +25,7 @@ class Session:
         self.title = ""
         self.channel = channel
         self.channel_metadata: ChannelMetadata = channel.get_metadata()
-        self.agent = MainAgent(profile, self.channel_metadata, channel)
+        self.agent = MainAgent(profile, self.channel_metadata, channel, session_id=self.id)
 
     async def run(self) -> None:
         """消息循环：阻塞读取 channel 消息，交由 agent 处理，将回复发回 channel。

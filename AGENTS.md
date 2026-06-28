@@ -13,9 +13,9 @@ Before making changes, make sure read following documentations:
 - [代码风格](/CODING_STYLE.md)
 - [测试风格](/TEST_STYLE.md)
 
-Rules:
+## Rules
 
-- When generate code, write tests
+- Generally speaking, when generate code, write tests
 - Never add dependencies without approval
 - 如发现文档说明十分模糊或矛盾的，询问确认后再执行
 - Explain your design of implmentation and let user comfirm the design before take action.
@@ -27,5 +27,8 @@ Output:
 - Explain your design
 - Then generate code
 
+
 ## Boundaries
 - 🚫 **Never do:** commit secrets
+
+

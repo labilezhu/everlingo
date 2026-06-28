@@ -29,8 +29,7 @@ ja/
   items/ #学习类 memory items
     vocab/
       曖昧--01JZABD123.md
-    phrases/
-    grammar/
+    ...
 
 tmp/ #程序内容使用的临时文件，没有用户数据价值。
 ```
@@ -61,7 +60,7 @@ te-form--01JZABE001.md
 - 文件名改变时也能通过 `ulid` 追踪；
 - 避免同名词条冲突。
 
-## Markdown Frontmatter 字段
+## Markdown Frontmatter 通用字段字段
 
 先定义一个轻量 schema，避免后面文件越来越乱。
 
