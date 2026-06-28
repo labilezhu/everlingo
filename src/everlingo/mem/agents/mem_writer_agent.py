@@ -1,0 +1,348 @@
+# ref: docs/impl-spec/memory-writer-agent-spec.md
+# Chat Agent -> Memory Extract Agent -> Memory Writer Agent 数据流水线中的"异步写 vault"。
+# 全局单例：模块级实例位于 gateway.gateway.memory_writer。
+# 独立 daemon Thread + queue.Queue：因单线程顺序消费，没有并发写文件问题。
+# 队列内容不持久化，可接受进程非法结束导致的丢失（与 Extract Agent 一致）。
+
+from __future__ import annotations
+
+import json
+import logging
+import queue
+import threading
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+from langchain_core.messages import HumanMessage, SystemMessage
+
+from ... import workspace
+from ...llm import create_agent, create_mem_writer_llm
+from ...utils.md_prompt_compiler import PackageSource, compile_prompt
+from .mem_entries import MemoryEntry
+from .mem_writer_tools import build_mem_writer_tools
+
+logger = logging.getLogger(__name__)
+
+
+# ── 常量 ──────────────────────────────────────────────────────────────
+
+
+# ref: memory-extract-agent-spec.md — entry.timestamp 格式
+_TIMESTAMP_FMT = "%Y-%m-%d %H:%M:%S"
+
+# ref: events_spec.md — markdown 表格头（首次创建当日 events 文件时写入）
+_EVENT_TABLE_HEADER = (
+    "| chat_session_id | entry_id | timestamp | channel_name | item_type "
+    "| why_want_to_save_memory | user_intent | lang | headword | mean_summary "
+    "| conversation_context |\n"
+    "|---|---|---|---|---|---|---|---|---|---|---|\n"
+)
+
+
+# ── 系统提示词构建 ──────────────────────────────────────────────────
+
+
+def _build_writer_system_prompt() -> str:
+    """构建 Memory Writer Agent 的 system prompt。
+
+    ref: docs/impl-spec/memory-writer-agent-spec.md — System prompt
+    通过 PackageSource + compile_prompt 编译 vault_spec.md，自动展开其内嵌的
+    {{ include kb_items_spec.md }} 与 {{ include events_spec.md }}。
+    """
+    vault_doc = compile_prompt(
+        "vault_spec.md",
+        PackageSource(package="everlingo.mem.vault"),
+    )
+
+    prefix = """你是 EverLingo 的 Memory Writer Agent。Memory Extract Agent 会把筛选出的
+conversation memory entries 异步转交给你，由你把每个 entry 合并或写入 memory vault。
+
+你**不**与用户对话。你**不**接受外部输入（除 Extract Agent 转交的 entry 外）。
+events/ 目录由代码直接追加，不由你处理；你只负责 items/ 知识库条目的写入。
+
+
+
+## memory vault 结构
+
+下文为 vault 的结构规范，请严格遵守其中的目录布局、文件命名、frontmatter 字段、
+知识库条目正文模板。
+
+---
+
+"""
+    suffix = """
+
+---
+# memory vault 注意事项
+
+注意：所有写入 memory vault 里 markdown 文件的内容，均应该来源于 输入的 entry 信息。对于 memory vault 结构和示例文件的章节，如 entry 有对应内容就应该填上，如 entry 没有对应内容，注意不要自行生成填入。你的所有填入的信息，均应该来源于 entry。不应该自己生成信息填入。
+
+## 工具的沙箱规则（强制）
+
+所有 mem_* 工具**只能使用相对 path**，相对于 `$workspace/memory/`。
+工具层会强制校验：解析后的绝对路径不能逃出 memory_dir，否则直接报错。
+这意味着：
+- 不允许使用绝对路径（如 `/etc/passwd`）。
+- 不允许使用 `..` 跳出（如 `../foo`）。
+- 不需要写 `memory/` 前缀（路径默认就在 memory_dir 之下）。
+
+## 单个 entry 处理流程
+
+每次你会收到**一个** entry（JSON 格式），按下列步骤处理：
+
+1. **定位 items 目录**：`items/<lang>/<item_type>/`（如 `items/en/vocab/`）。
+2. **查找是否已有该 headword 的条目**：用 `mem_grep` 在上述目录递归搜索
+   headword 文本。`mem_grep` 返回 `[{file_path, matched_text}]`。
+3. **如果命中**（条目已存在）：
+   1. `mem_read_file(file_path)` 读取一次（**整轮不超过一次**）。
+   2. 在内存中合并：
+      - 在文件末尾的「## 遇到记录」追加新一行（格式：`- <YYYY-MM-DD>：<conversation_context>`）。
+      - 更新 frontmatter：`last_seen` = 本次 timestamp（ISO 8601 GMT+8）；
+        `seen_count` += 1；`updated_at` = 当前时间。
+      - 必要时根据 kb_items_spec 中对应 item_type 的模板补充正文内容
+        （例如新发现的相关用法 / 常见错误等）。
+   3. `mem_write_file(file_path, new_content)` 写入一次（**整轮不超过一次**）。
+4. **如果未命中**（新建条目）：
+   1. `mem_gen_id()` 取一个 ULID（26 字符）作为 frontmatter `id` 与文件名 ulid 部分。
+   2. 构造 main_file_name：从 headword 派生，去掉 url/操作系统不安全字符，
+      空格替换为下划线。例如 `曖昧` → `曖昧`、`take for granted` → `take_for_granted`。
+   3. 文件名 = `{main_file_name}--{ulid}.md`。
+   4. 按 kb_items_spec 中对应 item_type 的模板构造 frontmatter + 正文。
+      `first_seen` / `last_seen` / `created_at` / `updated_at` 都用本次 timestamp（ISO 8601 GMT+8）。
+      `seen_count` = 1。
+   5. `mem_write_file(file_path, content)` 创建并写入文件。
+
+## 工具调用约束
+
+- 对**目标 markdown 文件**：`mem_read_file` 至多 1 次、`mem_write_file` 至多 1 次。
+- `mem_grep` 用于查找，可调用多次直到定位目标。
+- `mem_gen_id` 仅在新建条目时调用 1 次。
+- 不要创建 `tmp/` 下的临时文件（除非确有需要）；最终结果直接写入目标 kb item 文件。
+
+## pragmatics 的通用模板
+
+kb_items_spec 未为 pragmatics（语用）定义专用模板。处理 pragmatics 时使用
+通用结构：
+
+```markdown
+---
+id: <ulid>
+type: pragmatics
+title: <headword>
+main_file_name: <sanitized_headword>
+slug: <url_safe>
+lang: <lang>
+tags:
+  - <lang>
+  - pragmatics
+status: learning
+first_seen: <iso>
+last_seen: <iso>
+seen_count: 1
+schema_version: 1
+---
+
+# <headword>
+
+## 含义
+
+<mean_summary>
+
+## 遇到记录
+
+- <YYYY-MM-DD>：<conversation_context>
+```
+
+## 日志
+
+你不需要主动写日志；工具层会自动记录每次写入的文件路径与内容。
+"""
+    return prefix + vault_doc.strip() + suffix
+
+
+# ── events/ 写入（纯代码，无 LLM）──────────────────────────────────
+
+
+def _events_rel_path(entry: MemoryEntry) -> str:
+    """构造当日 events 文件相对 path: <lang>/events/<YYYY>/<MM>/<YYYY-MM-DD>.md."""
+    dt = datetime.strptime(entry.timestamp, _TIMESTAMP_FMT)
+    return (
+        f"{entry.lang}/events/"
+        f"{dt.year:04d}/{dt.month:02d}/"
+        f"{dt.year:04d}-{dt.month:02d}-{dt.day:02d}.md"
+    )
+
+
+def _format_event_row(entry: MemoryEntry) -> str:
+    """按 events_spec.md 表格格式构造一行 markdown。"""
+    cells = [
+        entry.chat_session_id,
+        entry.entry_id,
+        entry.timestamp,
+        entry.channel_name,
+        entry.item_type,
+        entry.why_want_to_save_memory,
+        entry.user_intent,
+        entry.lang,
+        entry.headword,
+        entry.mean_summary.replace("\n", " ").replace("|", "\\|"),
+        entry.conversation_context.replace("\n", " ").replace("|", "\\|"),
+    ]
+    return "| " + " | ".join(cells) + " |"
+
+
+def _append_event(entry: MemoryEntry) -> None:
+    """把单条 entry 追加到当日 events 文件。
+
+    ref: memory-writer-agent-spec.md — 记录 events 的实现
+    events/ 追加不该走 LLM：按日期拼路径，文件不存在则创建带表头的文件。
+    """
+    rel = _events_rel_path(entry)
+    abs_path = (workspace.memory_dir() / rel).resolve()
+    abs_path.parent.mkdir(parents=True, exist_ok=True)
+
+    created = False
+    if not abs_path.exists():
+        header = (
+            "# 当天事件\n\n"
+            "事件按时间顺序记录，即最早的事件在前面。\n"
+            "事件记录格式：\n\n"
+            f"{_EVENT_TABLE_HEADER}"
+        )
+        abs_path.write_text(header, encoding="utf-8")
+        created = True
+
+    row = _format_event_row(entry)
+    with abs_path.open("a", encoding="utf-8") as f:
+        f.write(row + "\n")
+
+    logger.info(
+        "events: %s %s, content=%s",
+        "created" if created else "appended",
+        rel,
+        row,
+    )
+
+
+# ── kb item 写入（LLM 驱动）──────────────────────────────────────────
+
+
+def _render_entry_payload(entry: MemoryEntry) -> str:
+    """把 MemoryEntry 序列化为 LLM 可读的 JSON 文本块。"""
+    return json.dumps(entry.model_dump(), ensure_ascii=False, indent=2)
+
+
+# ── 主类 ──────────────────────────────────────────────────────────────
+
+
+class MemoryWriterAgent:
+    """Memory Writer Agent，异步守护线程 + queue.Queue 消费 entries。
+
+    ref: docs/impl-spec/memory-writer-agent-spec.md
+
+    - 全局单例（位于 gateway.gateway.memory_writer 模块级）。
+    - `enqueue(entries)` 仅入队、不阻塞，由 Extract Agent 调用。
+    - daemon 线程顺序消费 entries 列表，先写 events（代码），再写 kb item（LLM）。
+    - 单线程顺序执行 → 没有并发写文件问题。
+    """
+
+    def __init__(self) -> None:
+        self._queue: "queue.Queue[Optional[list[MemoryEntry]]]" = queue.Queue()
+        self._thread: Optional[threading.Thread] = None
+
+        # ref: memory-writer-agent-spec.md — 用 langchain 的 agent 框架
+        # LLM 工厂使用 create_mem_writer_llm()（temperature=0），kb items 正文（释义/例句/
+        # 记忆钩子）需要自然语言写作。文件结构操作靠 system prompt 约束 + 工具沙箱保证。
+        self._tools = build_mem_writer_tools()
+        self._system_prompt = _build_writer_system_prompt()
+        self._agent = create_agent(
+            create_mem_writer_llm(),
+            tools=self._tools,
+            system_prompt=self._system_prompt,
+        )
+
+    # ── 生命周期 ────────────────────────────────────────────────
+
+    def start(self) -> None:
+        """启动守护消费线程。已 alive 时幂等。"""
+        if self._thread is not None and self._thread.is_alive():
+            return
+        # daemon=True：进程退出时直接丢弃未处理项，与 spec「可接受丢失」一致
+        self._thread = threading.Thread(
+            target=self._run_loop,
+            name="mem-writer",
+            daemon=True,
+        )
+        self._thread.start()
+
+    def enqueue(self, entries: list[MemoryEntry]) -> None:
+        """入队即返回，不阻塞。
+
+        ref: memory-extract-agent-spec.md — 异步执行 · Extract Agent 转交 entries
+        """
+        self._queue.put(list(entries))
+
+    def stop(self, timeout: float = 5.0) -> None:
+        """发送结束哨兵并等待线程退出。供测试与优雅关闭使用。"""
+        self._queue.put(None)
+        if self._thread is not None:
+            self._thread.join(timeout=timeout)
+
+    # ── 主循环 ────────────────────────────────────────────────────
+
+    def _run_loop(self) -> None:
+        """消费 entries 列表；遇 None 哨兵退出。"""
+        while True:
+            item = self._queue.get()
+            if item is None:
+                return
+            try:
+                self._process_batch(item)
+            except Exception:
+                # ref: 失败处理 —— logger.exception 后丢弃本批 entries，继续消费
+                logger.exception("memory writer batch failed")
+
+    # ── 批处理 ────────────────────────────────────────────────────
+
+    def _process_batch(self, entries: list[MemoryEntry]) -> None:
+        """对一批 entries 顺序执行：先 events（代码）→ 再 kb item（LLM）。
+
+        ref: memory-writer-agent-spec.md — 处理 conversation memory entries
+        """
+        # 1. events 追加：纯代码，无 LLM
+        for entry in entries:
+            try:
+                _append_event(entry)
+            except Exception:
+                logger.exception(
+                    "events append failed for entry_id=%s headword=%s",
+                    entry.entry_id, entry.headword,
+                )
+
+        # 2. kb item 写入：逐 entry 调一次 LLM agent
+        for entry in entries:
+            try:
+                self._write_kb_item(entry)
+            except Exception:
+                logger.exception(
+                    "kb item write failed for entry_id=%s headword=%s",
+                    entry.entry_id, entry.headword,
+                )
+
+    def _write_kb_item(self, entry: MemoryEntry) -> None:
+        """对单个 entry 调一次 LLM agent，由 LLM 通过工具完成 grep/read/write。
+
+        ref: memory-writer-agent-spec.md — 更新知识点类 memory items
+        """
+        payload = _render_entry_payload(entry)
+        user_msg = (
+            "请将以下 entry 合并或写入 memory vault。\n\n"
+            f"```json\n{payload}\n```"
+        )
+        self._agent.invoke({
+            "messages": [
+                SystemMessage(content=self._system_prompt),
+                HumanMessage(content=user_msg),
+            ]
+        })

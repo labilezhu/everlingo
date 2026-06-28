@@ -44,6 +44,19 @@ def create_extract_llm() -> ChatOpenAI:
         callbacks=callbacks,
     )
 
+def create_mem_writer_llm() -> ChatOpenAI:
+    cfg = get_llm_config()
+    callbacks = [LLMLoggingHandler()]
+    langfuse_handler = setup_tracing()
+    if langfuse_handler:
+        callbacks.append(langfuse_handler)
+    return ChatOpenAI(
+        api_key=cfg["api_key"],
+        base_url=cfg["base_url"],
+        model=cfg["model"],
+        temperature=0,
+        callbacks=callbacks,
+    )
 
 def create_agent(
     llm: ChatOpenAI,

@@ -107,8 +107,6 @@ AIMessage(content="")                                                   # 最终
 
 参考： [tools](/docs/impl-spec/tools.md)
 
-#### memory writer agent 
-
 ## Observability
 所有发给 LLM 的请求都写入日志文件。见 [observability.md](/docs/impl-spec/observability.md) 。 日志 level 是 debug 。
 
