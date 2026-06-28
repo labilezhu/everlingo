@@ -38,6 +38,27 @@ def test_setup_logging_custom_loglevel(monkeypatch):
         assert logger.level == logging.ERROR
 
 
+def test_setup_logging_format(monkeypatch):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        log_file = Path(tmpdir) / "test.log"
+        monkeypatch.setattr(
+            "everlingo.log_utils._get_setting",
+            lambda: LoggingSetting(log_file=str(log_file), log_level="debug"),
+        )
+        setup_logging()
+        child_logger = logging.getLogger("everlingo.tests.child")
+        child_logger.info("hello world")
+        for h in logging.getLogger("everlingo").handlers:
+            h.flush()
+        line = log_file.read_text(encoding="utf-8").strip().splitlines()[-1]
+        import re
+        pattern = (
+            r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} "
+            r"\[INFO\] \[\d+\] \[MainThread\] \[test_log_utils\] \[everlingo\.tests\.child\] : hello world$"
+        )
+        assert re.match(pattern, line), f"unexpected format: {line!r}"
+
+
 def test_llm_logging_handler_start_logs_debug(caplog):
     caplog.set_level(logging.DEBUG, logger="everlingo")
     handler = LLMLoggingHandler()

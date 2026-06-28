@@ -15,7 +15,7 @@ from .web_acceptor import WebSessionAcceptor
 from .session import Session
 
 
-logger = logging.getLogger("everlingo")
+logger = logging.getLogger(__name__)
 
 
 # ── Memory Writer Agent 单例（可行性测试阶段 stub）───────────────────────

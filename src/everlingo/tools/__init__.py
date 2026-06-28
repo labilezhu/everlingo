@@ -1,7 +1,7 @@
 import functools
 import logging
 
-logger = logging.getLogger("everlingo")
+logger = logging.getLogger(__name__)
 
 
 def log_tool_call(tool_name: str):

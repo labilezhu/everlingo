@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from ..tts import get_tts_provider
 
-logger = logging.getLogger("everlingo")
+logger = logging.getLogger(__name__)
 
 _voice_loop: asyncio.AbstractEventLoop | None = None
 _voice_thread: threading.Thread | None = None

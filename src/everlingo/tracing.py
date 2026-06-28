@@ -2,7 +2,7 @@ import logging
 
 from .setting import load_setting
 
-logger = logging.getLogger("everlingo")
+logger = logging.getLogger(__name__)
 
 
 def setup_tracing():

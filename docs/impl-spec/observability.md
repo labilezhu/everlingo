@@ -4,7 +4,7 @@
 日志文件输出的默认路径： `$workspace/logs/everlingo.log` 。
 
 日志的配置见 [configuration.md](/user-docs/reference/configuration.md)。 
-日志的实现入口在 /src/everlingo/logging.py 。 
+日志的实现入口在 /src/everlingo/log_utils.py 。 
 
 ### logging level
 本应用的日志分为 debug/info/warn/error 级别。
@@ -18,6 +18,10 @@ _LOG_LEVEL_MAP: dict[str, int] = {
     "error": logging.ERROR,
 }
 ```
+
+### logging format
+
+2026-06-28 15:42:25.123 [$logging_level] [$thread_id] [$thread_name] [$module] [$logger_name] : $message
 
 ## LLM Traffic Observability
 

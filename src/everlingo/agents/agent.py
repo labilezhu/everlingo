@@ -20,7 +20,7 @@ from ..tools.tools import build_tools
 
 import logging
 
-logger = logging.getLogger("everlingo")
+logger = logging.getLogger(__name__)
 
 @dataclass
 class MessageEvent:

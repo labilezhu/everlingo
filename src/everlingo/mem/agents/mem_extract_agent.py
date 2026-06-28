@@ -27,7 +27,7 @@ from .mem_entries import (
 _GMT8 = timezone(timedelta(hours=8))
 
 
-logger = logging.getLogger("everlingo")
+logger = logging.getLogger(__name__)
 
 
 # ref: chat-agent-spec.md — *_demote_headings*

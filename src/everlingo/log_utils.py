@@ -7,7 +7,7 @@ from . import workspace
 from .models import LoggingSetting
 from .setting import load_setting
 
-logger = logging.getLogger("everlingo")
+logger = logging.getLogger(__name__)
 
 
 def _get_setting() -> LoggingSetting:
@@ -41,7 +41,8 @@ def setup_logging() -> None:
     handler = logging.FileHandler(str(log_path), encoding="utf-8")
     handler.setLevel(level)
     formatter = logging.Formatter(
-        "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        "%(asctime)s.%(msecs)03d [%(levelname)s] [%(thread)d] [%(threadName)s] "
+        "[%(module)s] [%(name)s] : %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     handler.setFormatter(formatter)
