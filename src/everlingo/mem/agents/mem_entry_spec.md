@@ -19,6 +19,8 @@
 
 ## 字段补充说明
 
+- lang: 目标学习语言
+- interface_language: 界面语言
 - **item_type**： 记忆类型。 vocab （单词）/ phrases （短语）/ grammar （语法点）/ pragmatics （语用） / others。
 - **why_want_to_save_memory**： 为什么要记住。 用户明确要求记住知识点 / 纠正事项。
 - **headword**：在相同的 item_type 下，标识这个记忆的关键文本，最多一句话，保持简洁。 根据 item_type 的不同有不同取值倾向：
