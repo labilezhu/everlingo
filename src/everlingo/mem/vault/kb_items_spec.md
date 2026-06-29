@@ -10,7 +10,7 @@
     vocab/ # 词汇
       gcc--01JZABC123.md
       ambiguous--01JZABC456.md
-    phrases/ # 短语
+    phrase/ # 短语
       take-for-granted--01JZABC789.md
     grammar/ # 语法
       present-perfect--01JZABD001.md
@@ -33,7 +33,6 @@
 ulid: 01JZABD123
 slug: pragmatically-answering-yes-or-no-can-easily-lead-to-confusion
 tags:
-  - pragmatics
 type: pragmatics
 first_seen: 2026-06-22T18:08:00+08:00
 last_seen: 2026-06-26T09:15:00+08:00
@@ -62,7 +61,7 @@ slug: 下文中每类知识点，都有自己的 slug 提取说明
 
 ```text
 ambiguous--01JZABC456.md
-曖昧--01JZABD123.md
+aimai--01JZABD123.md
 te-form--01JZABE001.md
 ```
 
@@ -102,16 +101,16 @@ related:
 
 知识类型 item types: 对应不同子目录
 - vocab
-- phrases
+- phrase
 - grammar
 - pragmatics
 - others
 
-### vocab 文件 items/$lang/vocab/
+### vocab 文件 $lang/vocab/
 
 文件名与路径，例如：
 ```text
-items/ja/vocab/曖昧--01JZABD123.md
+ja/vocab/aimai--01JZABD123.md
 ```
 
 #### Markdown Frontmatter 字段补充说明
@@ -128,8 +127,6 @@ aliases:
   - あいまい
   - ambiguous
 tags:
-  - ja
-  - vocab
   - adjective
   - confusing
 status: learning
@@ -194,12 +191,12 @@ slug:
 ```
 
 
-### phrases 文件 items/$lang/phrases/
+### phrase 文件 $lang/phrase/
 
 文件名与路径，例如：
 
 ```text
-items/en/phrases/take-for-granted--01JZABC789.md
+en/phrase/take-for-granted--01JZABC789.md
 ```
 
 
@@ -212,11 +209,10 @@ headword: take for granted
 slug: take-for-granted
 intro_in_interface_lang: “take for granted” 词汇
 intro_in_target_lang: The phrase "take for granted"
+title: “take for granted” 词汇
 aliases:
   - taken for granted
 tags:
-  - en
-  - phrase
   - workplace
 status: learning
 first_seen: 2026-06-20T21:00:00+08:00
@@ -267,11 +263,11 @@ slug:
 
 
 
-### grammar 文件 items/$lang/grammar/
+### grammar 文件 $lang/grammar/
 
 文件名与路径，例如：
 ```text
-items/ja/grammar/te-form--01JZABE001.md
+ja/grammar/te-form--01JZABE001.md
 ```
 
 #### Markdown Frontmatter 字段补充说明
@@ -279,14 +275,13 @@ items/ja/grammar/te-form--01JZABE001.md
 ```yaml
 ulid: 01JZABE001
 type: grammar
-lang: ja
 title: TE形 语法
 headword: TE形
 slug: te-form
+intro_in_interface_lang: TE形 语法
+intro_in_target_lang: 「て」形の文法
+seen_count: 1
 tags:
-  - ja
-  - grammar
-  - verb
 status: learning
 first_seen: 2026-06-24T10:00:00+08:00
 last_seen: 2026-06-26T10:10:00+08:00
@@ -294,7 +289,7 @@ schema_version: 1
 ```
 
 字段说明:
-headword: 使用`界面语言` 用最少的文字命名语法知识点
+headword: 使用`目标学习语言` 用最少的文字命名语法知识点
 slug: 源于 `headword`。翻译成英文。最后注意按照 “slug 基础规则” 说明处理
 
 #### markdown 主体内容
@@ -321,20 +316,19 @@ slug: 源于 `headword`。翻译成英文。最后注意按照 “slug 基础规
 ```
 
 
-### pragmatics 文件 items/$lang/pragmatics/
+### pragmatics 文件 $lang/pragmatics/
 
 文件名与路径，例如：
 ```text
-items/ja/pragmatics/te-form--01JZABE001.md
+ja/pragmatics/pragmatically-answering-yes-or-no-can-easily-lead-to-confusion--01JZABE001.md
 ```
 
 #### Markdown Frontmatter 字段补充说明
 
 ```yaml
-ulid: 01JZABD123
+ulid: 01JZABE001
 slug: pragmatically-answering-yes-or-no-can-easily-lead-to-confusion
 tags:
-  - pragmatics
 type: pragmatics
 first_seen: 2026-06-22T18:08:00+08:00
 last_seen: 2026-06-26T09:15:00+08:00
@@ -372,11 +366,11 @@ No.
 
 ```
 
-### others 文件 items/$lang/others/
+### others 文件 $lang/others/
 
 文件名与路径，例如：
 ```text
-items/ja/others/te-form--01JZABE001.md
+ja/others/pragmatically-answering-yes-or-no-can-easily-lead-to-confusion--01JZABE001.md
 ```
 
 #### Markdown Frontmatter 字段补充说明
@@ -385,7 +379,6 @@ items/ja/others/te-form--01JZABE001.md
 ulid: 01JZABD123
 slug: pragmatically-answering-yes-or-no-can-easily-lead-to-confusion
 tags:
-  - others
 type: others
 first_seen: 2026-06-22T18:08:00+08:00
 last_seen: 2026-06-26T09:15:00+08:00
@@ -393,6 +386,7 @@ seen_count: 4
 title: 语用学上，回答 Yes 或 No 时容易混淆
 intro_in_interface_lang: 语用学上，回答 Yes 或 No 时容易混淆
 intro_in_target_lang: Pragmatically, answering "Yes" or "No" can easily lead to confusion.
+schema_version: 1
 ```
 
 字段说明：

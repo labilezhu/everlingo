@@ -21,14 +21,6 @@
 
 按
 
-## 增加 Markdown Frontmatter 字段
-
-在 [vault_spec.md](/src/everlingo/mem/vault/vault_spec.md) 的 “Markdown Frontmatter 通用字段字段” 基础上，增加几个字段:(暂时不增加)
-
-```yaml
-```
-
-
 ## markdown 文件示例
 
 

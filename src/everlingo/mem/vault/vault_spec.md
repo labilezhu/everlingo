@@ -15,7 +15,7 @@ en/ # 目标学习语言
     vocab/
       gcc--01JZABC123.md
       ambiguous--01JZABC456.md
-    phrases/
+    phrase/
       take-for-granted--01JZABC789.md
     grammar/
       present-perfect--01JZABD001.md
@@ -29,7 +29,7 @@ ja/
         2026-06-26.md
   items/ #学习类 memory items
     vocab/
-      曖昧--01JZABD123.md
+      aimai--01JZABD123.md
     ...
 
 tmp/ #程序内容使用的临时文件，没有用户数据价值。
