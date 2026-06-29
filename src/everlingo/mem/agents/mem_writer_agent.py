@@ -31,12 +31,12 @@ logger = logging.getLogger(__name__)
 # ref: memory-extract-agent-spec.md — entry.timestamp 格式
 _TIMESTAMP_FMT = "%Y-%m-%d %H:%M:%S"
 
-# ref: events_spec.md — markdown 表格头（首次创建当日 events 文件时写入）
-_EVENT_TABLE_HEADER = (
-    "| chat_session_id | entry_id | timestamp | channel_name | item_type "
-    "| why_want_to_save_memory | user_intent | lang | headword | mean_summary "
-    "| conversation_context |\n"
-    "|---|---|---|---|---|---|---|---|---|---|---|\n"
+# ref: events_spec.md — 当日 events 文件首次创建时写入的「文件前置内容」。
+# 见 events_spec.md:24-32
+_EVENT_FILE_PREAMBLE = (
+    "# 当天事件\n\n"
+    "事件按时间顺序记录，即最早的事件在前面。\n"
+    "事件记录格式：\n\n"
 )
 
 
@@ -151,29 +151,42 @@ def _events_rel_path(entry: MemoryEntry) -> str:
     )
 
 
-def _format_event_row(entry: MemoryEntry) -> str:
-    """按 events_spec.md 表格格式构造一行 markdown。"""
-    cells = [
-        entry.chat_session_id,
-        entry.entry_id,
-        entry.timestamp,
-        entry.channel_name,
-        entry.item_type,
-        entry.why_want_to_save_memory,
-        entry.user_intent,
-        entry.lang,
-        entry.headword,
-        entry.mean_summary.replace("\n", " ").replace("|", "\\|"),
-        entry.conversation_context.replace("\n", " ").replace("|", "\\|"),
+def _format_event_section(entry: MemoryEntry) -> str:
+    """按 events_spec.md 段落格式构造一个 event markdown 段落。
+
+    ref: events_spec.md:34-54 — 每个 event 是一个 ## Event 段落，包含字段列表
+    与 mean_summary / conversation_context 两个 ### 子段。
+    """
+    fields = [
+        ("chat_session_id", entry.chat_session_id),
+        ("entry_id", entry.entry_id),
+        ("timestamp", entry.timestamp),
+        ("channel_name", entry.channel_name),
+        ("item_type", entry.item_type),
+        ("why_want_to_save_memory", entry.why_want_to_save_memory),
+        ("user_intent", entry.user_intent),
+        ("lang", entry.lang),
+        ("headword", entry.headword),
     ]
-    return "| " + " | ".join(cells) + " |"
+    field_lines = "\n".join(f"- {name}: {value}" for name, value in fields)
+    return (
+        f"## Event\n"
+        f"{field_lines}\n"
+        f"\n"
+        f"### mean_summary\n"
+        f"{entry.mean_summary}\n"
+        f"\n"
+        f"### conversation_context\n"
+        f"{entry.conversation_context}\n"
+    )
 
 
 def _append_event(entry: MemoryEntry) -> None:
     """把单条 entry 追加到当日 events 文件。
 
     ref: memory-writer-agent-spec.md — 记录 events 的实现
-    events/ 追加不该走 LLM：按日期拼路径，文件不存在则创建带表头的文件。
+    events/ 追加不该走 LLM：按日期拼路径，文件不存在则创建带「文件前置内容」
+    的 markdown 文件，否则按 events_spec.md:34-54 追加一个 ## Event 段落。
     """
     rel = _events_rel_path(entry)
     abs_path = (workspace.memory_dir() / rel).resolve()
@@ -181,24 +194,18 @@ def _append_event(entry: MemoryEntry) -> None:
 
     created = False
     if not abs_path.exists():
-        header = (
-            "# 当天事件\n\n"
-            "事件按时间顺序记录，即最早的事件在前面。\n"
-            "事件记录格式：\n\n"
-            f"{_EVENT_TABLE_HEADER}"
-        )
-        abs_path.write_text(header, encoding="utf-8")
+        abs_path.write_text(_EVENT_FILE_PREAMBLE, encoding="utf-8")
         created = True
 
-    row = _format_event_row(entry)
+    section = _format_event_section(entry)
     with abs_path.open("a", encoding="utf-8") as f:
-        f.write(row + "\n")
+        f.write(section + "\n")
 
     logger.info(
         "events: %s %s, content=%s",
         "created" if created else "appended",
         rel,
-        row,
+        section,
     )
 
 

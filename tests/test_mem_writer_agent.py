@@ -7,7 +7,7 @@ TEST_STYLE 要求：核心流程相关测试 + 边缘用户输入场景；
 测试覆盖：
 - ULID 生成格式与唯一性
 - 工具沙箱：相对路径约束、../ 逃逸拒绝、tmp/ 支持
-- events 追加：文件不存在时建表头、已存在时追加行
+- events 追加：文件不存在时建「文件前置内容」、已存在时追加 markdown 段落
 - MemoryWriterAgent 生命周期与异步消费
 - 单 entry 触发一次 agent.invoke；失败隔离
 - gateway.memory_writer 单例代理
@@ -28,7 +28,7 @@ from everlingo.mem.agents.mem_writer_agent import (
     _append_event,
     _build_writer_system_prompt,
     _events_rel_path,
-    _format_event_row,
+    _format_event_section,
 )
 from everlingo.mem.agents.mem_writer_tools import (
     PathSandboxError,
@@ -287,36 +287,52 @@ class TestEventsRelPath:
         assert _events_rel_path(e).startswith("ja/events/2026/11/")
 
 
-class TestFormatEventRow:
-    def test_row_has_all_columns(self):
+class TestFormatEventSection:
+    def test_section_has_all_fields(self):
         e = _entry()
-        row = _format_event_row(e)
-        # 11 列
-        assert row.count("|") == 12
-        assert "gcc" in row
-        assert "GNU C 编译器" in row
-        assert "cs-1" in row
-        assert "StdioChannel" in row
+        section = _format_event_section(e)
+        assert "## Event" in section
+        # 字段名与值
+        assert "- chat_session_id: cs-1" in section
+        assert "- entry_id: entry-uuid-1" in section
+        assert "- timestamp: 2026-11-21 14:58:56" in section
+        assert "- channel_name: StdioChannel" in section
+        assert "- item_type: vocab" in section
+        assert "- why_want_to_save_memory: 用户明确要求记住知识点" in section
+        assert "- user_intent: dict" in section
+        assert "- lang: en" in section
+        assert "- headword: gcc" in section
+        # mean_summary / conversation_context 子段
+        assert "### mean_summary" in section
+        assert "GNU C 编译器" in section
+        assert "### conversation_context" in section
+        assert "用户在查词" in section
 
-    def test_row_escapes_pipe_in_summary(self):
-        e = _entry(mean="a | b")
-        row = _format_event_row(e)
-        assert "a \\| b" in row
+    def test_section_keeps_multiline_summary(self):
+        e = _entry(mean="第一行\n第二行\n第三行")
+        section = _format_event_section(e)
+        # 段落格式保留原文换行，不再压平
+        assert "第一行\n第二行\n第三行" in section
+        assert "### mean_summary\n第一行\n第二行\n第三行" in section
 
 
 class TestAppendEvent:
-    def test_creates_file_with_header_when_missing(self, tmp_memory, caplog):
+    def test_creates_file_with_preamble_when_missing(self, tmp_memory, caplog):
         import logging as _logging
         with caplog.at_level(_logging.INFO, logger="everlingo"):
             _append_event(_entry(timestamp="2026-11-21 14:58:56", lang="en"))
         f = tmp_memory / "en/events/2026/11/2026-11-21.md"
         assert f.exists()
         text = f.read_text(encoding="utf-8")
-        # 表头包含列名
-        assert "chat_session_id" in text
-        assert "headword" in text
-        # 行包含 entry 内容
-        assert "gcc" in text
+        # preamble 出现
+        assert text.startswith("# 当天事件")
+        assert "事件按时间顺序记录" in text
+        assert "事件记录格式：" in text
+        # 段落出现
+        assert "## Event" in text
+        assert "- headword: gcc" in text
+        assert "### mean_summary" in text
+        assert "GNU C 编译器" in text
         # 日志：created
         assert any("events: created" in r.message for r in caplog.records)
 
@@ -331,9 +347,12 @@ class TestAppendEvent:
             ))
         f = tmp_memory / "en/events/2026/11/2026-11-21.md"
         text = f.read_text(encoding="utf-8")
-        # 两条 entry 都应在文件中
+        # 两条 entry 的 ## Event 段都应在文件中
+        assert text.count("## Event") == 2
         assert "gcc" in text
         assert "kernel" in text
+        # preamble 只出现一次
+        assert text.count("# 当天事件") == 1
         # 日志：appended
         assert any("events: appended" in r.message for r in caplog.records)
 

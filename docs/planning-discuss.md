@@ -59,3 +59,16 @@ Memory Extract Agent: 筛选出记忆
 - vault_spec.md  新增加了一节 “## Markdown 文件使用什么语言编写”
 - docs/impl-spec/memory-writer-agent-spec.md 中 “## sync conversation memory entries spec” 加入了 “"interface_language": "zh-CN", // 界面语言” 字段。
 - src/everlingo/mem/agents/mem_writer_agent.py 的 system prompt 需要同步这个变更
+
+
+---
+
+docs/impl-spec/memory-writer-agent-spec.md 的 “### 记录 events 的实现” 一节设计有变化
+以前的设计是：
+```
+events/ 的追加不该走 LLM。 
+
+ events_spec.md 是按日期 markdown 表格追加行，纯结构化追加。让 LLM 去 read→modify→write 当天 events 文件性价比很低，且增加幻觉/格式错误风险。所以：
+- events/ 写入用代码直接 append（按日期拼路径，追加一行 markdown 表格行，文件不存在则创建带表头的文件）
+```
+请更新代码，以实现当前设计

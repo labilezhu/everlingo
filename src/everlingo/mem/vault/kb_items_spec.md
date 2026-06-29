@@ -26,7 +26,7 @@
 
 ## 增加 Markdown Frontmatter 字段
 
-在 [vault_spec.md](/src/everlingo/mem/vault/vault_spec.md) 的 “Markdown Frontmatter 通用字段字段” 基础上，增加几个**必选字段**
+在 [vault_spec.md](/src/everlingo/mem/vault/vault_spec.md) 的 “Markdown Frontmatter 通用字段” 基础上，增加几个**必选字段**
 
 字段示例：
 ```yaml
@@ -106,7 +106,7 @@ related:
 - pragmatics
 - others
 
-### vocab 文件 $lang/vocab/
+### vocab 文件 vocab/
 
 文件名与路径，例如：
 ```text
@@ -119,7 +119,7 @@ ja/vocab/aimai--01JZABD123.md
 ulid: 01JZABD123
 type: vocab
 headword: 曖昧
-slug: aimei
+slug: aimai
 title: “曖昧” 释义
 intro_in_interface_lang: “曖昧” 释义
 intro_in_target_lang: 「曖昧」の定義
@@ -129,7 +129,6 @@ aliases:
 tags:
   - adjective
   - confusing
-status: learning
 first_seen: 2026-06-22T18:08:00+08:00
 last_seen: 2026-06-26T09:15:00+08:00
 seen_count: 4
@@ -144,7 +143,7 @@ schema_version: 1
 headword: 词汇本身
 
 slug: 
-源于 `headword`。如
+源于 `headword`，如非英文，需要转换：
 - 中文的：headword="男人" ，用英文词同义词 "man" 
 - 日语，headword="曖昧" 则用发音词 "aimai"
 最后注意按照 “slug 基础规则” 说明处理
@@ -191,7 +190,7 @@ slug:
 ```
 
 
-### phrase 文件 $lang/phrase/
+### phrase 文件 phrase/
 
 文件名与路径，例如：
 
@@ -214,7 +213,6 @@ aliases:
   - taken for granted
 tags:
   - workplace
-status: learning
 first_seen: 2026-06-20T21:00:00+08:00
 last_seen: 2026-06-26T08:30:00+08:00
 seen_count: 3
@@ -225,7 +223,7 @@ schema_version: 1
 headword: phrase 本身
 
 slug: 
-源于 `headword`。如
+源于 `headword`，如非英文，需要转换：
 - 中文的：headword="男人" ，用英文词同义词 "man" 
 - 日语，headword="曖昧" 则用发音词 "aimai"
 最后注意按照 “slug 基础规则” 说明处理
@@ -263,7 +261,7 @@ slug:
 
 
 
-### grammar 文件 $lang/grammar/
+### grammar 文件 grammar/
 
 文件名与路径，例如：
 ```text
@@ -282,7 +280,6 @@ intro_in_interface_lang: TE形 语法
 intro_in_target_lang: 「て」形の文法
 seen_count: 1
 tags:
-status: learning
 first_seen: 2026-06-24T10:00:00+08:00
 last_seen: 2026-06-26T10:10:00+08:00
 schema_version: 1
@@ -316,7 +313,7 @@ slug: 源于 `headword`。翻译成英文。最后注意按照 “slug 基础规
 ```
 
 
-### pragmatics 文件 $lang/pragmatics/
+### pragmatics 文件 pragmatics/
 
 文件名与路径，例如：
 ```text
@@ -366,7 +363,7 @@ No.
 
 ```
 
-### others 文件 $lang/others/
+### others 文件 others/
 
 文件名与路径，例如：
 ```text
@@ -377,15 +374,15 @@ ja/others/pragmatically-answering-yes-or-no-can-easily-lead-to-confusion--01JZAB
 
 ```yaml
 ulid: 01JZABD123
-slug: pragmatically-answering-yes-or-no-can-easily-lead-to-confusion
+slug: take-off
 tags:
 type: others
 first_seen: 2026-06-22T18:08:00+08:00
 last_seen: 2026-06-26T09:15:00+08:00
 seen_count: 4
-title: 语用学上，回答 Yes 或 No 时容易混淆
-intro_in_interface_lang: 语用学上，回答 Yes 或 No 时容易混淆
-intro_in_target_lang: Pragmatically, answering "Yes" or "No" can easily lead to confusion.
+title: 表示「离开」 Take off
+intro_in_interface_lang: 表示「离开」 Take off
+intro_in_target_lang: To express "leaving" - Take off
 schema_version: 1
 ```
 

@@ -64,8 +64,8 @@ conversation memory entries 的格式示例：
 
 events/ 的追加不该走 LLM。 
 
-events_spec.md 是按日期 markdown 表格追加行，纯结构化追加。让 LLM 去 read→modify→write 当天 events 文件性价比很低，且增加幻觉/格式错误风险。所以：
-- events/ 写入用代码直接 append（按日期拼路径，追加一行 markdown 表格行，文件不存在则创建带表头的文件）
+ events_spec.md 是按日期 markdown 文件追加，纯结构化追加。让 LLM 去 read→modify→write 当天 events 文件性价比很低，且增加幻觉/格式错误风险。所以：
+- events/ 写入用代码直接 append markdown 段落（按日期拼路径，追加内容，文件不存在则创建带 前置内容的 markdown 文件）
 
 ### 更新 知识点类 memory items
 
