@@ -72,3 +72,10 @@ events/ 的追加不该走 LLM。
 - events/ 写入用代码直接 append（按日期拼路径，追加一行 markdown 表格行，文件不存在则创建带表头的文件）
 ```
 请更新代码，以实现当前设计
+
+
+---
+
+/src/everlingo/mem/agents/mem_extract_agent.py 需要把现在代码中有关 “输出 schema” 与 “输出字段说明与真实性约束” 部分的 system prompt ，移动到 /src/everlingo/mem/agents/mem_extract_spec.md 中。
+然后加载 prompt 的方式，修改成与 src/everlingo/mem/agents/mem_writer_agent.py 加载 /src/everlingo/mem/vault/vault_spec.md 到 system prompt 的方式一致（运用 compile_prompt 与 PackageSource ） 。
+

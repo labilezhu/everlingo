@@ -16,6 +16,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from ...llm import create_extract_llm
 from ...setting import load_user_doc
+from ...utils.md_prompt_compiler import PackageSource, compile_prompt
 from .mem_entries import (
     EntryWriterProtocol,
     ExtractInput,
@@ -99,7 +100,15 @@ def _build_system_prompt(
     """构建 Extract Agent 的 system prompt。
 
     ref: docs/impl-spec/memory-extract-agent-spec.md — 实现 · System prompt 要点
+    通过 PackageSource + compile_prompt 编译 mem_extract_spec.md，拼入
+    「输出 schema / 字段说明与真实性约束 / 输出格式」三段硬约束（与
+    Memory Writer Agent 加载 vault_spec.md 的机制一致）。
     """
+    spec_doc = compile_prompt(
+        "mem_extract_spec.md",
+        PackageSource(package="everlingo.mem.agents"),
+    )
+
     user_doc_section = ""
     if user_doc.strip():
         user_doc_section = (
@@ -112,7 +121,7 @@ def _build_system_prompt(
             "---\n"
         )
 
-    return f"""你是 EverLingo 的"知识点抽取器"。你的职责是分析本轮 Chat Agent 与用户的对话，判断是否有值得记入记忆库的知识点，并以结构化 JSON 输出 entries。
+    prefix = f"""你是 EverLingo 的"知识点抽取器(Memory Extract Agent)"。你的职责是分析本轮 Chat Agent 与用户的对话，判断是否有值得记入记忆库的知识点，并以结构化 JSON 输出 entries。
 
 你**不**与用户对话。你**不**写入任何文件。输出 JSON 后流程结束。
 
@@ -122,7 +131,7 @@ def _build_system_prompt(
 - channel_name: {channel_name}
 - user_intent: 自动 / dict / translate（由系统从 input 传入）
 - lang (目标学习语言): {target_lang}
-- interface_lang (用户熟识的语言): {interface_lang}
+- interface_lang (用户熟识的语言/界面语言): {interface_lang}
 
 ## 输入
 
@@ -167,40 +176,14 @@ ToolMessage 的 content 是 mean_summary 的**事实来源**（仅限 new_messag
 - 主动询问是否记住
 
 {user_doc_section}
-## 输出 schema（必须严格遵循）
+## 输出规范
 
-你只输出以下字段（其余字段如 chat_session_id / entry_id / timestamp / channel_name / user_intent / lang 由系统填充，不要尝试生成）：
+以下为输出 schema、字段说明与真实性约束、输出格式的硬约束。请严格遵守。
 
-```json
-{{
-  "entries": [
-    {{
-      "item_type": "vocab | phrases | grammar | pragmatics",
-      "why_want_to_save_memory": "用户明确要求记住知识点 | 纠正事项",
-      "headword": "...",
-      "mean_summary": "...",
-      "conversation_context": "..."
-    }}
-  ]
-}}
-```
+---
 
-## 字段说明与真实性约束
-
-- **item_type**：vocab（单词）/ phrases（短语）/ grammar（语法点）/ pragmatics（语用）。
-- **why_want_to_save_memory**：本阶段只允许上面 schema 中列出的两个枚举值。
-- **headword**：单词时为单词本身；短语则原样写出。
-- **mean_summary**：必须基于「本轮新增」段中 ToolMessage 的事实内容（查词/翻译工具返回）。
-  - 本轮无工具返回（纯问答）时，基于「本轮新增」段中 Chat Agent 回复给出的解释。
-  - **禁止**从「背景上下文」段取材，**不允许引入外部知识或对 USER.md 做个性化改写**。
-  - 应保持事实性、简洁。
-- **conversation_context**：本轮学习该知识点的对话场景（一两句话），可参考「背景上下文」段理解场景。
-
-## 输出格式
-
-- 只输出合法 JSON，不输出任何解释性文字、Markdown 代码块包装或前后缀。
-- 没有符合规则的知识点时，输出 `{{"entries": []}}`。
 """
+    return prefix + spec_doc.strip() + "\n"
 
 
 class MemoryExtractAgent:
