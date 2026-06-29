@@ -51,3 +51,11 @@ Memory Extract Agent: 筛选出记忆
 ---
 
 实现 [Memory Writer Agent](docs/impl-spec/memory-writer-agent-spec.md)，并让 [Memory Extract Agent](/docs/impl-spec/memory-extract-agent-spec.md) 的输出写入 Memory Writer Agent。
+
+
+--- 
+
+由于 src/everlingo/mem/vault/vault_spec.md 中的 markdown 文件使用的主语言需要指定为应用配置的 `界面语言`。：
+- vault_spec.md  新增加了一节 “## Markdown 文件使用什么语言编写”
+- docs/impl-spec/memory-writer-agent-spec.md 中 “## sync conversation memory entries spec” 加入了 “"interface_language": "zh-CN", // 界面语言” 字段。
+- src/everlingo/mem/agents/mem_writer_agent.py 的 system prompt 需要同步这个变更

@@ -113,6 +113,8 @@ class MemoryEntry(BaseModel):
     channel_name: str
     user_intent: str  # "dict" / "translate" / "None"
     lang: str         # target_lang 语言代码
+    # ref: docs/impl-spec/memory-writer-agent-spec.md — interface_language
+    interface_language: str  # 界面语言
 
     # LLM 生成
     item_type: ItemType

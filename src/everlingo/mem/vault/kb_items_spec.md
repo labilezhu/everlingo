@@ -7,33 +7,78 @@
 
 目录结构示例：
 ```
-    vocab/
+    vocab/ # 词汇
       gcc--01JZABC123.md
       ambiguous--01JZABC456.md
-    phrases/
+    phrases/ # 短语
       take-for-granted--01JZABC789.md
-    grammar/
+    grammar/ # 语法
       present-perfect--01JZABD001.md
-    pragmatics/ # 语用      
+    pragmatics/ # 语用  
+    others/ # 其它分类    
+
 ```
 
+## 基础规则
+
+### slug 基础规则
+用于将来生成 wiki 静态网站时作为人类友好的 url 部分。使用 url 安全的英文字符集(所以必要时需要翻译成英文)。但不能使用各操作系统或 url 要转义或不安全的文件名字符，如有，去掉之。空格变为"-"。
 
 ## 增加 Markdown Frontmatter 字段
 
-在 [vault_spec.md](/src/everlingo/mem/vault/vault_spec.md) 的 “Markdown Frontmatter 通用字段字段” 基础上，增加几个字段
+在 [vault_spec.md](/src/everlingo/mem/vault/vault_spec.md) 的 “Markdown Frontmatter 通用字段字段” 基础上，增加几个**必选字段**
 
+字段示例：
 ```yaml
+ulid: 01JZABD123
+slug: pragmatically-answering-yes-or-no-can-easily-lead-to-confusion
+tags:
+  - pragmatics
+type: pragmatics
 first_seen: 2026-06-22T18:08:00+08:00
 last_seen: 2026-06-26T09:15:00+08:00
 seen_count: 4
+title: 语用学上，回答 Yes 或 No 时容易混淆
+intro_in_interface_lang: 语用学上，回答 Yes 或 No 时容易混淆
+intro_in_target_lang: Pragmatically, answering "Yes" or "No" can easily lead to confusion.
 ```
+
+字段说明：
+ulid: 同文件命名格式中的 `ulid`。保证稳定唯一；
+title: 使用`界面语言`，限一句话，描述本文件的知识点。用于语义搜索和 full text search。
+intro_in_interface_lang: 同 title
+intro_in_target_lang: 使用`目标学习语言`，限一句话，描述本文件的知识点。用于 full text search 。
+slug: 下文中每类知识点，都有自己的 slug 提取说明
+
+## 文件命名
+
+文件命名格式：
+
+```text
+{slug}--{ulid}.md
+```
+
+例如：
+
+```text
+ambiguous--01JZABC456.md
+曖昧--01JZABD123.md
+te-form--01JZABE001.md
+```
+
+注意：
+
+- `slug` 文件名主体部分，方便人类找到文件。同 “Markdown Frontmatter 字段” 的 `slug`。
+- `ulid` 保证稳定唯一；。同 “Markdown Frontmatter 字段” 的 `ulid`。
+  - 文件名改变时也能通过 `ulid` 追踪；
+  - 避免同名词条冲突。
+
 
 ### 关联字段
 
 ```yaml
 aliases:
   - あいまい
-  - ambiguous
 related:
   - 明確
   - はっきり
@@ -44,7 +89,7 @@ related:
 
 ### 遇到记录 - encounter log
 
-遇到记录，记录每次需要记忆当前知识点的 conversation context
+遇到记录，记录每次需要记忆当前知识点的 conversation context 。这个章节放文件最后。
 
 ```markdown
 ## 遇到记录
@@ -60,23 +105,25 @@ related:
 - phrases
 - grammar
 - pragmatics
+- others
 
 ### vocab 文件 items/$lang/vocab/
 
-例如：
-
+文件名与路径，例如：
 ```text
 items/ja/vocab/曖昧--01JZABD123.md
 ```
 
-内容：
+#### Markdown Frontmatter 字段补充说明
 
-```markdown
----
-id: 01JZABD123
+```yaml
+ulid: 01JZABD123
 type: vocab
-lang: ja
 headword: 曖昧
+slug: aimei
+title: “曖昧” 释义
+intro_in_interface_lang: “曖昧” 释义
+intro_in_target_lang: 「曖昧」の定義
 aliases:
   - あいまい
   - ambiguous
@@ -94,8 +141,20 @@ related:
   - はっきり
   - 微妙
 schema_version: 1
----
+```
 
+字段说明:
+headword: 词汇本身
+
+slug: 
+源于 `headword`。如
+- 中文的：headword="男人" ，用英文词同义词 "man" 
+- 日语，headword="曖昧" 则用发音词 "aimai"
+最后注意按照 “slug 基础规则” 说明处理
+
+#### markdown 主体内容
+
+```markdown
 # 曖昧
 
 ## 给我的解释
@@ -135,23 +194,24 @@ schema_version: 1
 ```
 
 
-
 ### phrases 文件 items/$lang/phrases/
 
-
+文件名与路径，例如：
 
 ```text
 items/en/phrases/take-for-granted--01JZABC789.md
 ```
 
 
+#### Markdown Frontmatter 字段补充说明
 
-```markdown
----
-id: 01JZABC789
+```yaml
+ulid: 01JZABC789
 type: phrase
-lang: en
 headword: take for granted
+slug: take-for-granted
+intro_in_interface_lang: “take for granted” 词汇
+intro_in_target_lang: The phrase "take for granted"
 aliases:
   - taken for granted
 tags:
@@ -163,7 +223,20 @@ first_seen: 2026-06-20T21:00:00+08:00
 last_seen: 2026-06-26T08:30:00+08:00
 seen_count: 3
 schema_version: 1
----
+```
+
+字段说明:
+headword: phrase 本身
+
+slug: 
+源于 `headword`。如
+- 中文的：headword="男人" ，用英文词同义词 "man" 
+- 日语，headword="曖昧" 则用发音词 "aimai"
+最后注意按照 “slug 基础规则” 说明处理
+
+#### markdown 主体内容
+
+```markdown
 
 # take for granted
 
@@ -196,18 +269,20 @@ schema_version: 1
 
 ### grammar 文件 items/$lang/grammar/
 
+文件名与路径，例如：
 ```text
 items/ja/grammar/te-form--01JZABE001.md
 ```
 
+#### Markdown Frontmatter 字段补充说明
 
-
-```markdown
----
-id: 01JZABE001
+```yaml
+ulid: 01JZABE001
 type: grammar
 lang: ja
-title: て形
+title: TE形 语法
+headword: TE形
+slug: te-form
 tags:
   - ja
   - grammar
@@ -216,8 +291,15 @@ status: learning
 first_seen: 2026-06-24T10:00:00+08:00
 last_seen: 2026-06-26T10:10:00+08:00
 schema_version: 1
----
+```
 
+字段说明:
+headword: 使用`界面语言` 用最少的文字命名语法知识点
+slug: 源于 `headword`。翻译成英文。最后注意按照 “slug 基础规则” 说明处理
+
+#### markdown 主体内容
+
+```markdown
 # て形
 
 ## 是什么
@@ -239,5 +321,104 @@ schema_version: 1
 ```
 
 
+### pragmatics 文件 items/$lang/pragmatics/
+
+文件名与路径，例如：
+```text
+items/ja/pragmatics/te-form--01JZABE001.md
+```
+
+#### Markdown Frontmatter 字段补充说明
+
+```yaml
+ulid: 01JZABD123
+slug: pragmatically-answering-yes-or-no-can-easily-lead-to-confusion
+tags:
+  - pragmatics
+type: pragmatics
+first_seen: 2026-06-22T18:08:00+08:00
+last_seen: 2026-06-26T09:15:00+08:00
+seen_count: 4
+title: 语用学上，回答 Yes 或 No 时容易混淆
+intro_in_interface_lang: 语用学上，回答 Yes 或 No 时容易混淆
+intro_in_target_lang: Pragmatically, answering "Yes" or "No" can easily lead to confusion.
+```
+
+字段说明：
+slug: 
+    源于 `intro_in_interface_lang`。最后注意按照 “slug 基础规则” 说明处理
+
+#### markdown 主体内容
 
 
+```markdown
+# Yes、 No 的回答
+
+别人问：
+
+Didn't you go yesterday?
+
+如果你去了，应该回答：
+
+Yes, I did.
+
+很多中国人会错误回答：
+
+No.
+
+因为他们是在回答"没有（不是没去）"，而英语回答的是事实。
+
+这是典型的 pragmatics 问题
+
+```
+
+### others 文件 items/$lang/others/
+
+文件名与路径，例如：
+```text
+items/ja/others/te-form--01JZABE001.md
+```
+
+#### Markdown Frontmatter 字段补充说明
+
+```yaml
+ulid: 01JZABD123
+slug: pragmatically-answering-yes-or-no-can-easily-lead-to-confusion
+tags:
+  - others
+type: others
+first_seen: 2026-06-22T18:08:00+08:00
+last_seen: 2026-06-26T09:15:00+08:00
+seen_count: 4
+title: 语用学上，回答 Yes 或 No 时容易混淆
+intro_in_interface_lang: 语用学上，回答 Yes 或 No 时容易混淆
+intro_in_target_lang: Pragmatically, answering "Yes" or "No" can easily lead to confusion.
+```
+
+字段说明：
+slug: 
+    源于 `intro_in_interface_lang`。最后注意按照 “slug 基础规则” 说明处理
+
+#### markdown 主体内容
+
+
+```markdown
+# Yes、 No 的回答
+
+别人问：
+
+Didn't you go yesterday?
+
+如果你去了，应该回答：
+
+Yes, I did.
+
+很多中国人会错误回答：
+
+No.
+
+因为他们是在回答"没有（不是没去）"，而英语回答的是事实。
+
+这是典型的 pragmatics 问题
+
+```

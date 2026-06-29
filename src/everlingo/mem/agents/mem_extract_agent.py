@@ -326,10 +326,11 @@ class MemoryExtractAgent:
             logger.info(
                 "memory extract entry: entry_id=%s chat_session_id=%s timestamp=%s "
                 "channel_name=%s item_type=%s why=%s user_intent=%s lang=%s "
+                "interface_language=%s "
                 "headword=%s mean_summary=%r conversation_context=%r",
                 e.entry_id, e.chat_session_id, e.timestamp,
                 e.channel_name, e.item_type, e.why_want_to_save_memory,
-                e.user_intent, e.lang,
+                e.user_intent, e.lang, e.interface_language,
                 e.headword, e.mean_summary, e.conversation_context,
             )
 
@@ -353,6 +354,7 @@ class MemoryExtractAgent:
                 channel_name=self._channel_name,
                 user_intent=user_intent,
                 lang=self._target_lang,
+                interface_language=self._interface_lang,
                 item_type=raw.item_type,
                 why_want_to_save_memory=raw.why_want_to_save_memory,
                 headword=raw.headword,

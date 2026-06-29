@@ -29,6 +29,7 @@ conversation memory entries 的格式示例：
       "why_want_to_save_memory": "用户明确要求记住知识点", //为什么 chatbot 深度保存记忆： 触发真实记忆的可能性由高到低分为： 用户明确要求记住知识点 / 纠正事项 / 推断用户需要记住
       "user_intent": "dict", // 用户在 chatbot 上的意图： None=其它, "dict"=查词, "translate"=翻译
       "lang": "ja", // 目标学习语言
+      "interface_language": "zh-CN", // 界面语言
       "headword": "曖昧", // 知识的 keyword : 单词时为单词本身。 短语就如： 
       "mean_summary": "表示不明确、含糊、边界不清。日语中比中文“暧昧”使用范围更广。", // headword 的释义
       "conversation_context": "用户在学习日语小说《罗生门》时直接查词", // 在什么对话上下文中
@@ -42,6 +43,7 @@ conversation memory entries 的格式示例：
       "why_want_to_save_memory": "推断用户需要记住",
       "user_intent": "translate", 
       "lang": "en",
+      "interface_language": "zh-CN", // 界面语言
       "headword": "take for granted",
       "mean_summary": "认为是理所当然的",
       "conversation_context": "用户翻译一封来自 manager 的 email 内容", // 在什么对话上下文中

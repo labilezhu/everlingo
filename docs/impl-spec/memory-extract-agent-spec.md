@@ -181,9 +181,10 @@ schema 与 [memory-writer-agent-spec.md](/docs/impl-spec/memory-writer-agent-spe
 
 便于实现与测试，明确每个字段的来源：
 
-- `chat_session_id / channel_name / user_intent / lang`：从 Extract Agent 实例属性与 `ExtractInput.intent_mode` 透传，LLM 不应修改。实现时拿到 LLM 输出后**用实例属性值覆盖**，保证一致性。
+- `chat_session_id / channel_name / user_intent / lang / interface_language`：从 Extract Agent 实例属性与 `ExtractInput.intent_mode` 透传，LLM 不应修改。实现时拿到 LLM 输出后**用实例属性值覆盖**，保证一致性。
   - `user_intent` 映射：`intent_mode="dict"` → `"dict"`；`"translate"` → `"translate"`；`None` → `"None"`。
   - `lang` = 实例属性 `target_lang`。
+  - `interface_language` = 实例属性 `interface_lang`（界面语言，Memory Writer 用作 markdown 正文的主要书写语言，见 `src/everlingo/mem/vault/vault_spec.md`「Markdown 文件使用什么语言编写」）。
 - `entry_id / timestamp`：**代码生成**，不让 LLM 生成。
   - `entry_id`：uuid4。
   - `timestamp`：Extract 执行时刻，格式 `yyyy-mm-dd HH:MM:SS`，GMT+8。
