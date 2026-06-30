@@ -76,6 +76,12 @@ events/ 的追加不该走 LLM。
 
 ---
 
-/src/everlingo/mem/agents/mem_extract_agent.py 需要把现在代码中有关 “输出 schema” 与 “输出字段说明与真实性约束” 部分的 system prompt ，移动到 /src/everlingo/mem/agents/mem_extract_spec.md 中。
+/src/everlingo/mem/agents/mem_extract_agent.py 需要把现在代码中有关 “输出 schema” 与 “输出字段说明与真实性约束” 部分的 system prompt ，移动到 /src/everlingo/mem/agents/mem_extract_output_spec.md 中。
 然后加载 prompt 的方式，修改成与 src/everlingo/mem/agents/mem_writer_agent.py 加载 /src/everlingo/mem/vault/vault_spec.md 到 system prompt 的方式一致（运用 compile_prompt 与 PackageSource ） 。
 
+---
+
+Memory Writer Agent(src/everlingo/mem/agents/mem_writer_agent.py) 的 system prompt 没有说明 `目标学习语言` 和 `界面语言` 两个配置。需要加入。配置的值来源于 输入的  Memory Entry 中的 `lang` （目标学习语言） 和 `interface_language` （界面语言）。输入说明见 [Memory Extract Agent 输出规范](/src/everlingo/mem/agents/mem_extract_output_spec.md)
+
+
+现在 src/everlingo/mem/agents/mem_writer_agent.py 的 system prompt ，有很好地告诉 LLM ，它的 input 是什么 schema， 每个字段是什么意思吗？如果没有，可以引入 src/everlingo/mem/agents/mem_extract_output_spec.md 到 system prompt 吗？ 类似 src/everlingo/mem/agents/mem_extract_agent.py 中的 compile_prompt 的做法。

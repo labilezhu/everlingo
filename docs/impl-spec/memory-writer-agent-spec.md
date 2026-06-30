@@ -2,8 +2,7 @@
 
 负责写入 [memory vault](/docs/impl-spec/worksplace/memory-vault-spec.md) 。
 
-不让 [Chat Agent](/docs/impl-spec/chat-agent-spec.md) 直接编辑 Markdown 文件。
-Chat Agent 只输出结构化 Memory Ops，  Memory Writer Agent 负责验证、合并、写入文件。
+Memory Writer Agent 负责验证、合并 [Memory Extract Agent](/docs/impl-spec/memory-extract-agent-spec.md) 的输出，并写入 memory vault 。
 
 Memory Writer Agent 用一个队列接收请求，然后**异步**处理。Memory Writer Agent 是全局单例和独立单线程或协程。由于使用独立单线程或协程，所以没有并发写文件问题。队列内容不需要持久化，可接受因程序非法结束的丢失。
 
@@ -11,48 +10,12 @@ Memory Writer Agent 用一个队列接收请求，然后**异步**处理。Memor
 
 单例归属：放 src/everlingo/gateway/gateway.py 模块级实例。
 
-## sync conversation memory entries spec
 
-Chat Agent 输出 sync conversation memory 请求 ， Memory Writer Agent 用一个队列接收请求，然后**异步**处理：
-- 更新 Memory Vault
+## 输入
+见： [Memory Extract Agent 输出规范](/src/everlingo/mem/agents/mem_extract_output_spec.md)
 
-conversation memory entries 的格式示例：
-```json
-{
-  "entries": [
-    {
-      "chat_session_id": "", // 会话 id
-      "entry_id": "", // 新生成 uuid
-      "timestamp": "2026-11-21 14:58:56", //yyyymmdd HH:mm:ss
-      "channel_name": "WechatChannel", //session 相关的 channel name
-      "item_type": "vocab", // 知识类型： vocab / phrases / grammar / pragmatics
-      "why_want_to_save_memory": "用户明确要求记住知识点", //为什么 chatbot 深度保存记忆： 触发真实记忆的可能性由高到低分为： 用户明确要求记住知识点 / 纠正事项 / 推断用户需要记住
-      "user_intent": "dict", // 用户在 chatbot 上的意图： None=其它, "dict"=查词, "translate"=翻译
-      "lang": "ja", // 目标学习语言
-      "interface_language": "zh-CN", // 界面语言
-      "headword": "曖昧", // 知识的 keyword : 单词时为单词本身。 短语就如： 
-      "mean_summary": "表示不明确、含糊、边界不清。日语中比中文“暧昧”使用范围更广。", // headword 的释义
-      "conversation_context": "用户在学习日语小说《罗生门》时直接查词", // 在什么对话上下文中
-    },
-    {
-      "chat_session_id": "",
-      "entry_id": "", 
-      "timestamp": "2026-11-21 15:58:56",
-      "channel_name": "WechatChannel", 
-      "item_type": "phrases",
-      "why_want_to_save_memory": "推断用户需要记住",
-      "user_intent": "translate", 
-      "lang": "en",
-      "interface_language": "zh-CN", // 界面语言
-      "headword": "take for granted",
-      "mean_summary": "认为是理所当然的",
-      "conversation_context": "用户翻译一封来自 manager 的 email 内容", // 在什么对话上下文中
-    }
-  ]
-}
-```
 
-## 处理 conversation memory entries
+## 处理 Memory Entry
 
 写入 [memory vault](/docs/impl-spec/worksplace/memory-vault-spec.md)
 1. 记录 [events](/src/everlingo/mem/vault/events_spec.md) 。
@@ -83,6 +46,13 @@ events/ 的追加不该走 LLM。
 
 ### System prompt
 System prompt 需要包括 src/everlingo/mem/vault/vault_spec.md ，因为需要告诉 Agent memory vault 的结构 。这个文件中有 `{{ include [参考 kb_items_spec.md](./kb_items_spec.md) }}` 的包含引用部分。使用 src/everlingo/utils/md_prompt_compiler.py 的  `PackageSource` 来处理 markdown 文件运行期合并问题。
+
+另外，system prompt 需包含一段「语言配置」说明，明确告诉 Agent 两个语言字段的来源与用途：
+
+- `目标学习语言`：来自 entry 的 `lang` 字段（语言代码，如 `ja`、`en`），表示用户正在学习的语言。kb item 中对该语言的引用（headword、词形、例句）必须使用该语言本身书写。
+- `界面语言`：来自 entry 的 `interface_language` 字段（语言代码，如 `zh-CN`），表示用户界面使用的语言。memory vault 中 markdown 文件正文（释义、记忆钩子、conversation_context 等）必须主要使用界面语言编写。
+
+两个字段值由 Memory Extract Agent 在上游填充，Writer Agent 直接采用，不要自行推断或改写。
 
 
 ### Agent tools

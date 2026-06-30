@@ -100,12 +100,12 @@ def _build_system_prompt(
     """构建 Extract Agent 的 system prompt。
 
     ref: docs/impl-spec/memory-extract-agent-spec.md — 实现 · System prompt 要点
-    通过 PackageSource + compile_prompt 编译 mem_extract_spec.md，拼入
+    通过 PackageSource + compile_prompt 编译 mem_extract_output_spec.md，拼入
     「输出 schema / 字段说明与真实性约束 / 输出格式」三段硬约束（与
     Memory Writer Agent 加载 vault_spec.md 的机制一致）。
     """
     spec_doc = compile_prompt(
-        "mem_extract_spec.md",
+        "mem_extract_output_spec.md",
         PackageSource(package="everlingo.mem.agents"),
     )
 

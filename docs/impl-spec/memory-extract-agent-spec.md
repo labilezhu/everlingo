@@ -1,6 +1,6 @@
 # Memory Extract Agent
 
-负责从刚刚结束的一轮对话中，筛选出值得记入 [memory vault](/docs/impl-spec/worksplace/memory-vault-spec.md) 的知识点，并输出结构化 entries，转交给 [Memory Writer Agent](/docs/impl-spec/memory-writer-agent-spec.md) 异步写入。
+负责从刚刚结束的一轮对话中，筛选出值得记入 [memory vault](/docs/impl-spec/worksplace/memory-vault-spec.md) 的知识点，并输出结构化 entries ，转交给 [Memory Writer Agent](/docs/impl-spec/memory-writer-agent-spec.md) 异步写入。
 
 
 ## 筛选规则
@@ -172,7 +172,7 @@ class ExtractInput:
 
 ## 输出规范
 
-schema 与 [memory-writer-agent-spec.md](/docs/impl-spec/memory-writer-agent-spec.md) 的 conversation memory entries 一致
+见： [Memory Extract Agent 输出规范](/src/everlingo/mem/agents/mem_extract_output_spec.md)
 
 ### 日志要求
 输出的所有 entries ，都需要有 info 级别的日志输出所有字段的内容。
@@ -229,14 +229,14 @@ Extract LLM call 异常或结构化输出解析失败时：
 - 输入字段含义说明（`intent_mode` / `new_messages` / `context_messages`，以及实例属性中的会话元数据）。
 - **抽取边界硬约束**：只允许从 `new_messages` 中抽取知识点；`context_messages` 仅用于生成 `conversation_context`，其中出现过的事实不得作为 entry 输出。
 - 筛选规则（本阶段精简版）与规则优先级。
-- 输出 schema、字段说明与真实性约束（见 `src/everlingo/mem/agents/mem_extract_spec.md`，由运行期加载拼入）。
+- 输出 schema、字段说明与真实性约束（见 `src/everlingo/mem/agents/mem_extract_output_spec.md`，由运行期加载拼入）。
 - mean_summary 真实性约束（基于 `new_messages` 中 ToolMessage 事实，不个性化）。
 - 注入 USER.md 内容（标题降级，防止与 prompt 外层结构冲突），用于筛选判断。参考 `agent.py` 的 `_demote_headings()` 实现标题降级。
 - 只输出 JSON，不输出解释性文字。
 
 ### Prompt 文件加载
 
-「输出 schema / 字段说明与真实性约束 / 输出格式」三段抽离至 `src/everlingo/mem/agents/mem_extract_spec.md`。System prompt 在 `_build_system_prompt()` 中通过 `src/everlingo/utils/md_prompt_compiler.py` 的 `PackageSource` 加载该 md 并与 inline prefix 段（角色 / 会话元数据 / 输入 / 抽取边界 / 筛选规则 / USER.md）拼接，最终作为 LLM system prompt。与 [memory-writer-agent-spec.md](/docs/impl-spec/memory-writer-agent-spec.md) 加载 `src/everlingo/mem/vault/vault_spec.md` 的机制一致。
+「输出 schema / 字段说明与真实性约束 / 输出格式」三段抽离至 `src/everlingo/mem/agents/mem_extract_output_spec.md`。System prompt 在 `_build_system_prompt()` 中通过 `src/everlingo/utils/md_prompt_compiler.py` 的 `PackageSource` 加载该 md 并与 inline prefix 段（角色 / 会话元数据 / 输入 / 抽取边界 / 筛选规则 / USER.md）拼接，最终作为 LLM system prompt。与 [memory-writer-agent-spec.md](/docs/impl-spec/memory-writer-agent-spec.md) 加载 `src/everlingo/mem/vault/vault_spec.md` 的机制一致。
 
 ## 已知简化 / 待评估
 

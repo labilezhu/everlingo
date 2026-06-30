@@ -47,7 +47,7 @@ class ExtractInput:
 
 # 与 memory-writer-agent-spec.md 的 conversation memory entry 字段对齐。
 # `item_type` 仅使用 vault 规范定义的四种知识类型。
-ItemType = Literal["vocab", "phrases", "grammar", "pragmatics"]
+ItemType = Literal["vocab", "phrase", "grammar", "pragmatics", "others"]
 
 # 本阶段 why_want_to_save_memory 仅允许两个枚举值（其余推迟到下一阶段）。
 # ref: memory-extract-agent-spec.md — why_want_to_save_memory 枚举
@@ -74,7 +74,7 @@ class LLMGeneratedEntry(BaseModel):
     """LLM 负责生成的 entry 子集（不含透传与系统生成字段）。"""
 
     item_type: ItemType = Field(
-        description="知识类型：vocab / phrases / grammar / pragmatics",
+        description="知识类型：vocab / phrase / grammar / pragmatics / others",
     )
     why_want_to_save_memory: WhySave = Field(
         description=(
