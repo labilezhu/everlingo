@@ -1,4 +1,5 @@
 import importlib
+from pathlib import Path
 
 import pytest
 
@@ -7,8 +8,9 @@ from everlingo import workspace
 
 @pytest.fixture(autouse=True)
 def reset_workspace_state(monkeypatch):
-    """每个测试前后重置 workspace 模块状态与 EVERLINGO_WORKSPACE 环境变量。"""
+    """每个测试前后重置 workspace 模块状态与 EVERLINGO_WORKSPACE* 环境变量。"""
     monkeypatch.delenv("EVERLINGO_WORKSPACE", raising=False)
+    monkeypatch.delenv("EVERLINGO_WORKSPACE_DIR", raising=False)
     importlib.reload(workspace)
     yield
     importlib.reload(workspace)
@@ -94,3 +96,52 @@ def test_accessors_follow_init_changes(reset_workspace_state):
     assert workspace.setting_path().parent.name == "ws_y"
     assert workspace.user_doc_path().parent.parent.name == "ws_y"
     assert workspace.log_path().parent.parent.name == "ws_y"
+
+
+def test_init_workspace_dir_overrides_name(reset_workspace_state):
+    """init_workspace_dir 应优先于 init_workspace。"""
+    workspace.init_workspace("alpha")
+    workspace.init_workspace_dir("/tmp/anywhere")
+    assert workspace.current_workspace() == Path("/tmp/anywhere")
+
+
+def test_env_workspace_dir_overrides_env_name(reset_workspace_state, monkeypatch):
+    """EVERLINGO_WORKSPACE_DIR 应优先于 EVERLINGO_WORKSPACE。"""
+    monkeypatch.setenv("EVERLINGO_WORKSPACE", "from_env_name")
+    monkeypatch.setenv("EVERLINGO_WORKSPACE_DIR", "/tmp/from_env_dir")
+    assert workspace.current_workspace() == Path("/tmp/from_env_dir")
+
+
+def test_init_workspace_dir_none_resets(reset_workspace_state, monkeypatch):
+    """init_workspace_dir(None) 应重置为"未指定"，让 env/default 重新生效。"""
+    monkeypatch.setenv("EVERLINGO_WORKSPACE_DIR", "/tmp/from_env_dir")
+    workspace.init_workspace_dir("/tmp/inited")
+    assert workspace.current_workspace() == Path("/tmp/inited")
+
+    workspace.init_workspace_dir(None)
+    assert workspace.current_workspace() == Path("/tmp/from_env_dir")
+
+    monkeypatch.delenv("EVERLINGO_WORKSPACE_DIR")
+    assert workspace.current_workspace() == workspace.WORKSPACE_ROOT / "default"
+
+
+def test_init_workspace_dir_expands_user(reset_workspace_state):
+    """init_workspace_dir 应展开 ~。"""
+    workspace.init_workspace_dir("~/my_ws")
+    assert workspace.current_workspace() == Path.home() / "my_ws"
+
+
+def test_init_dir_overrides_env_dir(reset_workspace_state, monkeypatch):
+    """init_workspace_dir 应优先于 EVERLINGO_WORKSPACE_DIR。"""
+    monkeypatch.setenv("EVERLINGO_WORKSPACE_DIR", "/tmp/from_env_dir")
+    workspace.init_workspace_dir("/tmp/inited")
+    assert workspace.current_workspace() == Path("/tmp/inited")
+
+
+def test_accessors_follow_init_dir(reset_workspace_state):
+    """init_workspace_dir 设定后，访问器应直接基于该目录。"""
+    workspace.init_workspace_dir("/tmp/my_ws")
+    assert workspace.setting_path() == Path("/tmp/my_ws/everlingo.yaml")
+    assert workspace.user_doc_path() == Path("/tmp/my_ws/memory/USER.md")
+    assert workspace.log_path() == Path("/tmp/my_ws/logs/everlingo.log")
+    assert workspace.plugins_dir() == Path("/tmp/my_ws/plugins")

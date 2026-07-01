@@ -13,11 +13,17 @@ WORKSPACE_ROOT: Path = Path.home() / ".everlingo" / "workspaces"
 # 不需要在启动时显式调用 init_workspace。
 _current_ws_name: str | None = None
 
+# 进程级当前 workspace 目录。
+# 非空时优先于 _current_ws_name 解析：current_workspace() 直接返回该路径，
+# 不再拼接 WORKSPACE_ROOT/<name>。用于把 workspace 指向任意目录。
+# ref: docs/impl-spec/worksplace/workspace.md — 选择机制
+_current_ws_dir: Path | None = None
+
 
 def init_workspace(name: str | None) -> None:
-    """显式设定当前 workspace。
+    """显式设定当前 workspace（按名字）。
 
-    - 传入非空字符串：覆盖后续访问器的路径解析结果
+    - 传入非空字符串：覆盖后续访问器的路径解析结果（若未同时 init dir）
     - 传入 None：重置为"未指定"，让 current_workspace 走 env/default 分支
     - 允许重复调用，后调用覆盖前者（便于测试切换 workspace）
 
@@ -27,6 +33,20 @@ def init_workspace(name: str | None) -> None:
     _current_ws_name = name
 
 
+def init_workspace_dir(path: str | Path | None) -> None:
+    """显式设定当前 workspace 目录（任意路径）。
+
+    - 传入非空路径：覆盖后续访问器路径解析，current_workspace() 直接返回该路径
+    - 传入 None：重置为"未指定"，让 current_workspace 走 env/default 分支
+    - 路径仅做 expanduser() 处理，不做 resolve()，由调用方负责创建
+    - 优先级高于 init_workspace() 与所有 name-based 来源
+
+    ref: docs/impl-spec/worksplace/workspace.md — 选择机制
+    """
+    global _current_ws_dir
+    _current_ws_dir = Path(path).expanduser() if path is not None else None
+
+
 def _resolve_ws_name() -> str:
     """按优先级解析 workspace 名：init > env > 'default'."""
     if _current_ws_name is not None:
@@ -34,11 +54,26 @@ def _resolve_ws_name() -> str:
     return os.getenv("EVERLINGO_WORKSPACE") or "default"
 
 
+def _resolve_ws_dir() -> Path | None:
+    """解析来自环境变量的 workspace 目录；未设置返回 None."""
+    raw = os.getenv("EVERLINGO_WORKSPACE_DIR")
+    if raw is None or raw == "":
+        return None
+    return Path(raw).expanduser()
+
+
 def current_workspace() -> Path:
     """返回当前 workspace 根目录路径。
 
+    解析优先级：init dir > EVERLINGO_WORKSPACE_DIR > init name > env name > 'default'.
+
     不负责创建目录；调用方在需要时自行 mkdir(parents=True)。
     """
+    if _current_ws_dir is not None:
+        return _current_ws_dir
+    dir_from_env = _resolve_ws_dir()
+    if dir_from_env is not None:
+        return dir_from_env
     return WORKSPACE_ROOT / _resolve_ws_name()
 
 

@@ -37,20 +37,28 @@ workspace_b/
 
 代码实现位于 `src/everlingo/workspace.py`。当前 workspace 的解析优先级如下：
 
-1. **CLI 参数 `--workspace` / `-w`**（最高优先级）
+1. **CLI 参数 `--workspace-dir <path>`**（最高优先级）
    - 仅当 `everlingo` 命令显式传入时生效
-   - 调用 `workspace.init_workspace(name)`
-2. **环境变量 `EVERLINGO_WORKSPACE`**
-   - 在未通过 CLI 显式指定时生效
-3. **默认 `"default"`**
-   - 两者都未指定时回退
+   - 调用 `workspace.init_workspace_dir(path)`，直接将该路径作为 workspace 根目录
+   - 路径仅做 `expanduser()` 处理，不做 `resolve()`（不存在目录也允许，调用方负责创建）
+2. **环境变量 `EVERLINGO_WORKSPACE_DIR`**
+   - 在未通过 CLI 显式指定 dir 时生效
+3. **CLI 参数 `--workspace` / `-w`**
+   - 与 `--workspace-dir` 互斥（同时指定时 argparse 报错退出）
+   - 调用 `workspace.init_workspace(name)`，name 拼接到 `WORKSPACE_ROOT` 下
+4. **环境变量 `EVERLINGO_WORKSPACE`**
+   - 在未通过 CLI 显式指定 name 时生效
+5. **默认 `"default"`**
+   - 全部未指定时回退到 `~/.everlingo/workspaces/default/`
 
 ```bash
-# 显式指定 workspace
+# 指定任意目录作为 workspace
+everlingo --workspace-dir /path/to/my_ws
+EVERLINGO_WORKSPACE_DIR=/path/to/my_ws everlingo
+
+# 或指定 ~/.everlingo/workspaces/ 下的名字
 everlingo --workspace workspace_a
 everlingo -w workspace_a
-
-# 或通过环境变量
 EVERLINGO_WORKSPACE=workspace_b everlingo
 ```
 
