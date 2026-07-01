@@ -17,6 +17,7 @@ from everlingo.utils.md_prompt_compiler import (
     IncludeNotFoundError,
     PackageSource,
     compile_prompt,
+    shift_headings,
 )
 
 
@@ -339,3 +340,79 @@ def test_renders_blockquote(tmp_path: Path) -> None:
     _write(tmp_path / "m.md", src)
     out = compile_prompt("m.md", FilesystemSource(base_dir=tmp_path))
     assert "> quoted line" in out
+
+
+# ---------------- shift_headings ----------------
+
+
+def test_shift_headings_positive_offset() -> None:
+    """Single h1 shifted by +2 becomes h3."""
+    md = "# Title\n\nbody\n"
+    out = shift_headings(md, 2)
+    assert "### Title" in out
+    # 行首不应出现 h1（"### Title" 含子串 "# Title"，故用 splitlines 检查）
+    for line in out.splitlines():
+        assert not line.lstrip().startswith("# Title "), repr(line)
+    assert "body" in out
+
+
+def test_shift_headings_mixed_levels() -> None:
+    """h1/h2/h3 each shift by +2 to h3/h4/h5."""
+    md = "# A\n\n## B\n\n### C\n"
+    out = shift_headings(md, 2)
+    assert "### A" in out
+    assert "#### B" in out
+    assert "##### C" in out
+
+
+def test_shift_headings_clamp_at_6() -> None:
+    """h5 +2 clamps to h6, never exceeds."""
+    md = "##### Deep\n\nbody\n"
+    out = shift_headings(md, 2)
+    assert "###### Deep" in out
+    assert "####### Deep" not in out
+
+
+def test_shift_headings_zero_offset_idempotent() -> None:
+    """offset=0 leaves heading levels and content intact."""
+    md = "# T\n\npara\n\n## Sub\n\n- a\n- b\n"
+    out = shift_headings(md, 0)
+    assert "# T" in out
+    assert "## Sub" in out
+    assert "- a" in out
+    assert "- b" in out
+
+
+def test_shift_headings_preserves_code_fence_hashes() -> None:
+    """`#` inside a fenced code block is not a heading and must be unchanged."""
+    md = (
+        "# Real Heading\n\n"
+        "```bash\n"
+        "# this is a comment, not a heading\n"
+        "echo hi\n"
+        "```\n"
+    )
+    out = shift_headings(md, 2)
+    assert "### Real Heading" in out
+    assert "# this is a comment, not a heading" in out
+    assert "### this is a comment" not in out
+
+
+def test_shift_headings_negative_offset() -> None:
+    """h3 -1 becomes h2; h1 -1 clamps to h1 (no underflow)."""
+    md = "### Three\n\n# One\n"
+    out = shift_headings(md, -1)
+    assert "## Three" in out
+    assert "# One" in out
+    # ensure no zero-level heading produced
+    assert "\n# One\n" in out
+
+
+def test_shift_headings_no_headings_unchanged() -> None:
+    """Pure paragraph text with no headings is rendered unchanged in content."""
+    md = "just a paragraph\nwith two lines\n"
+    out = shift_headings(md, 2)
+    assert "just a paragraph" in out
+    assert "with two lines" in out
+    assert "#" not in out
+

@@ -154,6 +154,26 @@ def compile_prompt(entry_path: str, source: FileSource) -> str:
     return _render(tokens)
 
 
+def shift_headings(md: str, offset: int) -> str:
+    """Shift every heading level in ``md`` by ``offset``, clamped to 1..6.
+
+    Complementary to ``compile_prompt``'s internal include-level adjustment:
+    that only shifts headings of files pulled in via ``{{ include }}`` and
+    leaves the entry file's own headings untouched. ``shift_headings`` operates
+    on arbitrary markdown text (typically the output of ``compile_prompt``) and
+    shifts *all* headings uniformly.
+
+    Operates on the markdown-it AST, so ``#`` inside fenced code blocks is
+    never mistaken for a heading — a limitation of regex-based demotion
+    helpers. ``offset`` may be negative; levels are clamped to 1..6.
+    """
+    md_parser = _make_parser()
+    tokens = md_parser.parse(md)
+    if offset != 0:
+        _apply_heading_offset(tokens, offset)
+    return _render(tokens)
+
+
 def _make_parser() -> MarkdownIt:
     return MarkdownIt("commonmark").enable("table")
 

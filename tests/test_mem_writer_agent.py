@@ -384,6 +384,59 @@ class TestWriterSystemPrompt:
         prompt = _build_writer_system_prompt()
         assert "pragmatics" in prompt
 
+    def test_includes_entry_schema(self):
+        """system prompt 应注入 mem_entry_spec.md，使 LLM 知道输入字段含义。"""
+        prompt = _build_writer_system_prompt()
+        # 输入结构说明段标题
+        assert "## 输入 entry 结构" in prompt
+        # mem_entry_spec.md 关键字段（系统填充字段）应全部出现
+        for field in (
+            "chat_session_id",
+            "entry_id",
+            "timestamp",
+            "channel_name",
+            "item_type",
+            "why_want_to_save_memory",
+            "user_intent",
+            "lang",
+            "interface_language",
+            "headword",
+            "mean_summary",
+            "conversation_context",
+        ):
+            assert field in prompt, f"missing entry field: {field}"
+        # mem_entry_spec.md 字段补充说明标题应被展开
+        assert "字段补充说明" in prompt
+
+    def test_entry_schema_appears_before_vault_spec(self):
+        """输入 schema 段应位于 vault 结构段之前（先告诉 LLM 输入，再讲输出）。"""
+        prompt = _build_writer_system_prompt()
+        assert prompt.index("## 输入 entry 结构") < prompt.index("## memory vault 结构")
+
+    def test_injected_spec_headings_nested_under_parent(self):
+        """注入的 spec markdown 标题应 +2 平移，嵌套于外层 h2 父标题之下。
+
+        - mem_entry_spec.md 的 `# 记忆实体…` → `### 记忆实体…`
+        - vault_spec.md 的 `# Memory Vault Runtime Spec` → `### Memory Vault Runtime Spec`
+        原始 h1（行首单个 `# `）不应出现，避免与外层 ## 父标题冲突。
+        """
+        prompt = _build_writer_system_prompt()
+        assert "### 记忆实体" in prompt
+        assert "### Memory Vault Runtime Spec" in prompt
+        # 行首的 h1（单个 # 后空格）不应出现；用换行前缀避免子串误匹配
+        # （"### X" 含子串 "# X"，故不能直接用 "# X" not in prompt）
+        for line in prompt.splitlines():
+            stripped = line.lstrip()
+            assert not stripped.startswith("# 记忆实体"), (
+                f"未平移的 h1 仍存在: {line!r}"
+            )
+            assert not stripped.startswith("# Memory Vault Runtime Spec"), (
+                f"未平移的 h1 仍存在: {line!r}"
+            )
+        # 父标题仍为 h2
+        assert "## 输入 entry 结构" in prompt
+        assert "## memory vault 结构" in prompt
+
 
 # ── MemoryWriterAgent 同步测试 ───────────────────────────────────────
 

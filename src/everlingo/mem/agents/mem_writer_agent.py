@@ -18,7 +18,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from ... import workspace
 from ...llm import create_agent, create_mem_writer_llm
-from ...utils.md_prompt_compiler import PackageSource, compile_prompt
+from ...utils.md_prompt_compiler import PackageSource, compile_prompt, shift_headings
 from .mem_entries import MemoryEntry
 from .mem_writer_tools import build_mem_writer_tools
 
@@ -47,12 +47,28 @@ def _build_writer_system_prompt() -> str:
     """构建 Memory Writer Agent 的 system prompt。
 
     ref: docs/impl-spec/memory-writer-agent-spec.md — System prompt
-    通过 PackageSource + compile_prompt 编译 vault_spec.md，自动展开其内嵌的
-    {{ include kb_items_spec.md }} 与 {{ include events_spec.md }}。
+    通过 PackageSource + compile_prompt 编译 mem_entry_spec.md 与 vault_spec.md，
+    自动展开 vault_spec.md 内嵌的 {{ include kb_items_spec.md }} 与
+    {{ include events_spec.md }}。mem_entry_spec.md 用于告知 LLM 其输入 entry
+    的完整字段结构与含义。
+
+    注入前对两份 spec 文档整体 shift_headings(+2)，使其最浅标题 h1 → h3，
+    嵌套于外层 `## 输入 entry 结构` / `## memory vault 结构` (h2) 之下。
+    与 chat-agent-spec.md「*.md 注入需降级标题」约定一致。
     """
-    vault_doc = compile_prompt(
-        "vault_spec.md",
-        PackageSource(package="everlingo.mem.vault"),
+    entry_spec_doc = shift_headings(
+        compile_prompt(
+            "mem_entry_spec.md",
+            PackageSource(package="everlingo.mem.agents"),
+        ),
+        offset=2,
+    )
+    vault_doc = shift_headings(
+        compile_prompt(
+            "vault_spec.md",
+            PackageSource(package="everlingo.mem.vault"),
+        ),
+        offset=2,
     )
 
     prefix = """你是 EverLingo 的 Memory Writer Agent。Memory Extract Agent 会把筛选出的
@@ -68,6 +84,17 @@ conversation memory entries 异步转交给你，由你把每个 entry 合并或
 
 两者的值均由 Memory Extract Agent 在上游填充，你直接采用 entry 中的值，
 不要自行推断或改写。
+
+
+## 输入 entry 结构
+
+每轮你会收到**一个** entry（JSON 格式），其完整结构与字段含义如下。
+下文为该 schema 的规范说明，请严格按字段含义理解 entry 内容。
+
+---
+
+"""
+    middle = """
 
 
 ## memory vault 结构
@@ -142,7 +169,13 @@ memory vault 中的 markdown 文件正文，主要语言必须使用 entry 的 `
 
 你不需要主动写日志；工具层会自动记录每次写入的文件路径与内容。
 """
-    return prefix + vault_doc.strip() + suffix
+    return (
+        prefix
+        + entry_spec_doc.strip()
+        + middle
+        + vault_doc.strip()
+        + suffix
+    )
 
 
 # ── events/ 写入（纯代码，无 LLM）──────────────────────────────────

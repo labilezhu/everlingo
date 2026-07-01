@@ -85,3 +85,20 @@ Memory Writer Agent(src/everlingo/mem/agents/mem_writer_agent.py) 的 system pro
 
 
 现在 src/everlingo/mem/agents/mem_writer_agent.py 的 system prompt ，有很好地告诉 LLM ，它的 input 是什么 schema， 每个字段是什么意思吗？如果没有，可以引入 src/everlingo/mem/agents/mem_extract_output_spec.md 到 system prompt 吗？ 类似 src/everlingo/mem/agents/mem_extract_agent.py 中的 compile_prompt 的做法。
+
+---
+
+src/everlingo/mem/agents/mem_writer_agent.py 的 system prompt 注入 markdown 文件时，没有考虑被注入的子 markdown 文件的标题 level 可能高于父 markdown 文件的标题 level ？
+
+---
+
+ md_prompt_compiler.py 有一个公开函数 shift_headings(md_text, offset) ，能不能把现在 src/everlingo/agents/agent.py _demote_headings(text: str) 的调用，修改为对 shift_headings 的调用？
+
+
+ ---
+
+ 为现在的 @docs/impl-spec/worksplace/memory-vault-spec.md 输出的 markdown vault 目录结构，在架构层面，先不写代码，设计一个基于 sqlite 的全文搜索方案。
+
+ ---
+
+ 你提到的 FTS5 内置 trigram tokenizer 的问题，我同意，所以，可以换成  引入 jieba（中文）和 fugashi+mecab（日文）做预分词

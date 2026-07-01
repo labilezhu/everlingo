@@ -45,7 +45,7 @@
 }
 ```
 
-### 输出时字段填写规则补充说明
+## 输出时字段填写规则补充说明
 
 输出字段除了按 mem_entry_spec.md 中的说明填写外，补充说明一些规则
 
@@ -53,6 +53,27 @@
   - **禁止**从「背景上下文」段取材，**不允许引入外部知识或对 USER.md 做个性化改写**。
   - 应保持事实性。
 - conversation_context：引发本轮记忆的对话场景（一两句话），可参考「背景上下文」段理解场景。使用`界面语言`。
+
+## 根据 item_type 决定取值策略
+
+根据 item_type 的不同有不同取值倾向。
+
+### item_type=vocab
+- headword：单词本身
+
+### item_type=phrase
+- headword： 为短语本身
+
+### item_type=grammar
+- headword： 只包括语法点名称，用 `界面语言` 表达。如：
+  - 错误，不包括语法点名称外的信息： I go to school（主谓一致：I 搭配动词原形）
+  - 正确： 主谓一致：I 搭配动词原形
+
+### item_type=pragmatics
+- headword： 为语用的关键单词
+
+### item_type=others
+- headword： 为能标识这个记忆的关键字，使用的语言由你判断
 
 
 

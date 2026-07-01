@@ -12,7 +12,9 @@ Memory Writer Agent 用一个队列接收请求，然后**异步**处理。Memor
 
 
 ## 输入
-见： [Memory Extract Agent 输出规范](/src/everlingo/mem/agents/mem_extract_output_spec.md)
+见： [Memory Entry 结构说明](/src/everlingo/mem/agents/mem_entry_spec.md) 。
+
+Memory Extract Agent 转交每条 entry 时会填充 `chat_session_id` / `entry_id` / `timestamp` / `channel_name` / `user_intent` / `lang` / `interface_language` 等系统字段；Writer Agent 不应自行生成或改写这些字段。
 
 
 ## 处理 Memory Entry
@@ -46,6 +48,10 @@ events/ 的追加不该走 LLM。
 
 ### System prompt
 System prompt 需要包括 src/everlingo/mem/vault/vault_spec.md ，因为需要告诉 Agent memory vault 的结构 。这个文件中有 `{{ include [参考 kb_items_spec.md](./kb_items_spec.md) }}` 的包含引用部分。使用 src/everlingo/utils/md_prompt_compiler.py 的  `PackageSource` 来处理 markdown 文件运行期合并问题。
+
+System prompt 还需要包括 src/everlingo/mem/agents/mem_entry_spec.md ，用于告知 Agent 其输入 entry 的完整字段结构与字段含义（字段补充说明）。同样通过 `PackageSource` + `compile_prompt` 加载。
+
+注入 `mem_entry_spec.md` 与 `vault_spec.md` 前，需用 `md_prompt_compiler.shift_headings(doc, 2)` 整体平移标题 +2 级，使其最浅标题 h1 → h3，嵌套于外层 `## 输入 entry 结构` / `## memory vault 结构` (h2) 之下。此约定与 `chat-agent-spec.md` 中「*.md 注入需降级标题」一致。`compile_prompt` 内部的 `context_level` 机制只调整 include 子文件标题，不调整入口文件自身标题，故需 `shift_headings` 在编译输出上额外平移。
 
 另外，system prompt 需包含一段「语言配置」说明，明确告诉 Agent 两个语言字段的来源与用途：
 
