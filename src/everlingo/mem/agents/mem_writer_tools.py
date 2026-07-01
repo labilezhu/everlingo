@@ -1,4 +1,5 @@
 # ref: docs/impl-spec/memory-writer-agent-spec.md — Agent tools
+# ref: docs/impl-spec/search/memory-vault-search-spec.md — Writer 集成
 # Memory Writer Agent 的 mem_* 工具沙箱。
 # 所有工具强制使用相对于 workspace.memory_dir() 的 path，并在工具层校验
 # 解析后路径不能逃出 memory_dir（防 ../），否则 LLM 一次幻觉就会写到 workspace 外。
@@ -14,13 +15,39 @@ import re
 import time
 import uuid
 from pathlib import Path
+from typing import Callable
 
 from langchain_core.tools import tool
 
 from ... import workspace
 from ...tools import log_tool_call
+from ..vault.frontmatter import normalize_frontmatter_text
 
 logger = logging.getLogger(__name__)
+
+
+# ── 写后索引钩子（gateway 进程设置） ────────────────────────────────
+# ref: docs/impl-spec/search/memory-vault-search-spec.md — Writer 集成
+# Writer 写完 .md 后调 SearchClient.index_file(path) fire-and-forget。
+# 工具层不直接 import SearchClient（gateway 侧才用）—— 改用回调注入。
+# 单元测试可设置 _post_write_hook 为 spy / noop。
+_post_write_hook: Callable[[str, str], None] | None = None
+
+
+def set_post_write_hook(hook: Callable[[str, str], None] | None) -> None:
+    """设置写后索引钩子。hook(path, op) -> None；op ∈ {'index','delete'}。"""
+    global _post_write_hook
+    _post_write_hook = hook
+
+
+def _fire_post_write(rel: str, op: str) -> None:
+    """触发钩子。钩子不存在或抛异常时静默吞掉（fire-and-forget）。"""
+    if _post_write_hook is None:
+        return
+    try:
+        _post_write_hook(rel, op)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("post-write hook failed for %s: %s", rel, e)
 
 
 # ── ULID 生成 ──────────────────────────────────────────────────────────
@@ -141,11 +168,18 @@ def mem_write_file(path: str, content: str) -> str:
     """覆盖写入或新建文件。
 
     自动创建缺失的父目录。成功后 info 日志记录写了什么文件、什么内容。
+    写后通过 set_post_write_hook() 注入的钩子触发 SearchClient.index_file(path)，
+    失败/未设置钩子时静默吞掉（fire-and-forget）。
+
+    如果 content 含 YAML frontmatter，会先归一化（tolerant parse + safe_dump），
+    保证落盘 frontmatter 永远合法，避免 LLM 偶尔写坏（内嵌引号/冒号）。
     """
     abs_path = _resolve_safe(path)
     abs_path.parent.mkdir(parents=True, exist_ok=True)
+    content = normalize_frontmatter_text(content)
     abs_path.write_text(content, encoding="utf-8")
     logger.info("mem_write_file: wrote %s, content=%r", path, content)
+    _fire_post_write(path, "index")
     return f"ok: wrote {len(content)} chars to {path}"
 
 
@@ -155,12 +189,14 @@ def mem_append_file(path: str, content: str) -> str:
     """追加写入文件末尾；文件不存在则创建。
 
     自动创建缺失的父目录。成功后 info 日志记录追加的内容。
+    写后触发 SearchClient.index_file(path) fire-and-forget。
     """
     abs_path = _resolve_safe(path)
     abs_path.parent.mkdir(parents=True, exist_ok=True)
     with abs_path.open("a", encoding="utf-8") as f:
         f.write(content)
     logger.info("mem_append_file: appended to %s, content=%r", path, content)
+    _fire_post_write(path, "index")
     return f"ok: appended {len(content)} chars to {path}"
 
 
@@ -173,6 +209,7 @@ def mem_remove_file(path: str) -> str:
         return f"error: file not found: {path}"
     abs_path.unlink()
     logger.info("mem_remove_file: removed %s", path)
+    _fire_post_write(path, "delete")
     return f"ok: removed {path}"
 
 

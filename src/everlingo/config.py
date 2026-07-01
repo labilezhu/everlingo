@@ -13,6 +13,9 @@ def get_llm_config() -> dict:
     api_key = ss.openai_api_key or os.getenv("OPENAI_API_KEY", "")
     base_url = ss.openai_base_url or os.getenv("OPENAI_BASE_URL", "")
     model = ss.openai_model or os.getenv("OPENAI_MODEL", "")
+    embedding_model = (
+        ss.openai_embedding_model or os.getenv("OPENAI_EMBEDDING_MODEL", "")
+    )
 
     if not api_key:
         raise ValueError(
@@ -25,4 +28,5 @@ def get_llm_config() -> dict:
         "api_key": api_key,
         "base_url": base_url or "https://openrouter.ai/api/v1",
         "model": model or "gpt-3.5-turbo",
+        "embedding_model": embedding_model,
     }

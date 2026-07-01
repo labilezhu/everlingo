@@ -177,6 +177,42 @@ class TestMemWriteRead:
         with pytest.raises(PathSandboxError):
             mem_write_file.invoke({"path": "../escape.md", "content": "x"})
 
+    def test_write_normalizes_malformed_frontmatter(self, tmp_memory):
+        """LLM Writer 偶尔写出含内嵌引号的近似 YAML：落盘必须被归一化为合法 YAML。"""
+        import yaml
+
+        content = (
+            "---\n"
+            "ulid: 01KWDV\n"
+            "type: vocab\n"
+            "headword: god\n"
+            'title: "god" 释义\n'
+            'intro_in_target_lang: The difference between "for" and "since": '
+            "duration vs point in time\n"
+            "tags: []\n"
+            "aliases:\n"
+            "related:\n"
+            "seen_count: 1\n"
+            "schema_version: 1\n"
+            "---\n\n"
+            "# god\n\n`god` 是英语名词。\n"
+        )
+        mem_write_file.invoke(
+            {"path": "en/items/vocab/god--01KWDV.md", "content": content}
+        )
+        p = tmp_memory / "en" / "items" / "vocab" / "god--01KWDV.md"
+        text = p.read_text(encoding="utf-8")
+        # 归一化后 frontmatter 严格 yaml.safe_load 必须成功
+        fm = text.split("---", 2)[1]
+        data = yaml.safe_load(fm)
+        assert data["ulid"] == "01KWDV"
+        assert data["title"] == '"god" 释义'
+        assert data["intro_in_target_lang"] == (
+            'The difference between "for" and "since": duration vs point in time'
+        )
+        # body 段不变
+        assert text.endswith("`god` 是英语名词。\n")
+
 
 class TestMemCreateTmpFile:
     def test_creates_file_in_tmp_dir(self, tmp_memory):

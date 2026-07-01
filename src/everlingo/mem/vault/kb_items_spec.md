@@ -39,7 +39,7 @@ last_seen: 2026-06-26T09:15:00+08:00
 seen_count: 4
 title: 语用学上，回答 Yes 或 No 时容易混淆
 intro_in_interface_lang: 语用学上，回答 Yes 或 No 时容易混淆
-intro_in_target_lang: Pragmatically, answering "Yes" or "No" can easily lead to confusion.
+intro_in_target_lang: 'Pragmatically, answering "Yes" or "No" can easily lead to confusion.'
 ```
 
 字段说明：
@@ -120,8 +120,8 @@ ulid: 01JZABD123
 type: vocab
 headword: 曖昧
 slug: aimai
-title: “曖昧” 释义
-intro_in_interface_lang: “曖昧” 释义
+title: '"曖昧" 释义'
+intro_in_interface_lang: '"曖昧" 释义'
 intro_in_target_lang: 「曖昧」の定義
 aliases:
   - あいまい
@@ -206,9 +206,9 @@ ulid: 01JZABC789
 type: phrase
 headword: take for granted
 slug: take-for-granted
-intro_in_interface_lang: “take for granted” 词汇
-intro_in_target_lang: The phrase "take for granted"
-title: “take for granted” 词汇
+intro_in_interface_lang: '"take for granted" 词汇'
+intro_in_target_lang: 'The phrase "take for granted"'
+title: '"take for granted" 词汇'
 aliases:
   - taken for granted
 tags:
@@ -332,7 +332,7 @@ last_seen: 2026-06-26T09:15:00+08:00
 seen_count: 4
 title: 语用学上，回答 Yes 或 No 时容易混淆
 intro_in_interface_lang: 语用学上，回答 Yes 或 No 时容易混淆
-intro_in_target_lang: Pragmatically, answering "Yes" or "No" can easily lead to confusion.
+intro_in_target_lang: 'Pragmatically, answering "Yes" or "No" can easily lead to confusion.'
 ```
 
 字段说明：

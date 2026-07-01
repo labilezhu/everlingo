@@ -65,6 +65,14 @@ class SysSetting(BaseModel):
         description="使用的模型名称",
         examples=["gpt-4o-mini"],
     )
+    # Embedding 模型名称（可选）。空值时表示不启用 embedding 相关功能。
+    # 复用 openai_api_key / openai_base_url，指向 OpenRouter 上的 embedding 模型
+    # （如 openai/text-embedding-3-small）。无默认值，必须显式配置。
+    openai_embedding_model: str = Field(
+        default="",
+        description="Embedding 模型名称（可选，无默认值）",
+        examples=["openai/text-embedding-3-small"],
+    )
     # 日志设定，ref: configuration.md LoggingSetting
     logging_setting: LoggingSetting = Field(
         default_factory=LoggingSetting,

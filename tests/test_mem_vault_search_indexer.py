@@ -1,0 +1,372 @@
+# ref: docs/impl-spec/search/memory-vault-search-spec.md — Schema DDL / indexer
+# 核心流程：
+#   - init_db 建表 + 写 meta
+#   - parse_file frontmatter / events / USER.md 路径分发
+#   - index_file 幂等 upsert（FTS 字段化分词入列，body_raw 原文）
+#   - split_chunks：## section 切分 + 800 字符二次切
+#   - delete_file / delete_by_ulid
+#   - content_hash 跳过未变文件
+
+from __future__ import annotations
+
+import sqlite3
+from pathlib import Path
+
+import pytest
+
+from everlingo.mem.vault.search import indexer
+from everlingo.mem.vault.search.indexer import (
+    count_chunks,
+    count_docs,
+    delete_by_ulid,
+    delete_file,
+    get_by_ulid,
+    get_meta,
+    index_file,
+    init_db,
+    parse_file,
+    set_meta,
+    split_chunks,
+)
+
+
+@pytest.fixture
+def memory_root(tmp_path: Path) -> Path:
+    root = tmp_path / "memory"
+    root.mkdir()
+    return root
+
+
+@pytest.fixture
+def db_path(tmp_path: Path) -> Path:
+    return tmp_path / "index" / "memory.sqlite"
+
+
+@pytest.fixture
+def conn(db_path: Path) -> sqlite3.Connection:
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    c = sqlite3.connect(str(db_path))
+    c.execute("PRAGMA foreign_keys=ON")
+    init_db(c)
+    yield c
+    c.close()
+
+
+# ── init_db / meta ──────────────────────────────────────────────
+
+
+def test_init_db_creates_tables(conn: sqlite3.Connection):
+    rows = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type IN ('table','view') ORDER BY name"
+    ).fetchall()
+    names = {r[0] for r in rows}
+    assert "documents" in names
+    assert "documents_fts" in names
+    assert "chunks" in names
+    assert "chunk_embeddings" in names
+    assert "meta" in names
+
+
+def test_init_db_sets_meta(conn: sqlite3.Connection):
+    assert get_meta(conn, "tokenizer_version") is not None
+    assert get_meta(conn, "schema_version") == "1"
+
+
+def test_set_meta_overwrites(conn: sqlite3.Connection):
+    set_meta(conn, "k", "v1")
+    set_meta(conn, "k", "v2")
+    assert get_meta(conn, "k") == "v2"
+
+
+# ── parse_file: kb item / events / user ────────────────────────
+
+
+def _write_kb_item(memory_root: Path, name: str, front: dict, body: str = "正文") -> Path:
+    p = memory_root / "en" / "items" / "vocab" / name
+    p.parent.mkdir(parents=True, exist_ok=True)
+    fm_lines = ["---"]
+    for k, v in front.items():
+        fm_lines.append(f"{k}: {v}")
+    fm_lines.append("---")
+    p.write_text("\n".join(fm_lines) + "\n\n" + body, encoding="utf-8")
+    return p
+
+
+def test_parse_file_kb_item(memory_root: Path):
+    p = _write_kb_item(
+        memory_root,
+        "aimai--01JZABD123.md",
+        {
+            "ulid": "01JZABD123",
+            "slug": "aimai",
+            "type": "vocab",
+            "headword": "aimai",
+            "title": "あいまい",
+        },
+        body="# あいまい\n## 例句\nこれは例です。",
+    )
+    parsed = parse_file(p, memory_root)
+    assert parsed.kind == "item"
+    assert parsed.ulid == "01JZABD123"
+    assert parsed.item_type == "vocab"
+    assert parsed.headword == "aimai"
+    assert parsed.title == "あいまい"
+    assert parsed.lang is None  # 上面 frontmatter 没写 lang
+    assert parsed.content_hash
+    assert parsed.body.startswith("# あいまい")
+
+
+def test_parse_file_kb_item_missing_ulid_raises(memory_root: Path):
+    p = memory_root / "en" / "items" / "vocab" / "no-ulid.md"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("---\ntitle: x\n---\n\nbody", encoding="utf-8")
+    with pytest.raises(ValueError):
+        parse_file(p, memory_root)
+
+
+def test_parse_file_events(memory_root: Path):
+    p = memory_root / "en" / "events" / "2026" / "06" / "2026-06-26.md"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("# 当天事件\n\n## Event\n", encoding="utf-8")
+    parsed = parse_file(p, memory_root)
+    assert parsed.kind == "event"
+    assert parsed.ulid == "event:en:2026-06-26"
+    assert parsed.lang == "en"
+
+
+def test_parse_file_user(memory_root: Path):
+    p = memory_root / "USER.md"
+    p.write_text("# USER\n\nname: alice\n", encoding="utf-8")
+    parsed = parse_file(p, memory_root)
+    assert parsed.kind == "user"
+    assert parsed.ulid == "user:root"
+
+
+# ── index_file: 幂等 upsert / FTS / chunks ─────────────────────
+
+
+def test_index_file_inserts_doc_fts_chunks(conn: sqlite3.Connection, memory_root: Path):
+    p = _write_kb_item(
+        memory_root,
+        "computer--01JZABD789.md",
+        {
+            "ulid": "01JZABD789",
+            "slug": "computer",
+            "type": "vocab",
+            "headword": "computer",
+            "title": "计算机",
+            "lang": "en",
+            "tags": "tech hardware",
+        },
+        body="## 例句\nThis is a computer.\n## 解释\n硬件设备。",
+    )
+    parsed = parse_file(p, memory_root)
+    rowid = index_file(conn, parsed)
+    assert rowid > 0
+    assert count_docs(conn) == 1
+    assert count_chunks(conn) >= 1
+
+    # 文档字段正确
+    row = conn.execute(
+        "SELECT ulid, kind, lang, item_type, headword, title, tags FROM documents WHERE rowid=?",
+        (rowid,),
+    ).fetchone()
+    assert row[0] == "01JZABD789"
+    assert row[1] == "item"
+    assert row[2] == "en"
+    assert row[3] == "vocab"
+    assert row[4] == "computer"
+    assert row[5] == "计算机"
+    assert row[6] == "tech hardware"
+
+    # FTS 行存在
+    fts_row = conn.execute("SELECT headword, body, body_raw FROM documents_fts WHERE rowid=?", (rowid,)).fetchone()
+    assert fts_row is not None
+    assert "computer" in fts_row[0]
+    # body_raw 是原文（与 parsed.body 相同）
+    assert fts_row[2] == parsed.body
+
+
+def test_index_file_idempotent_no_change(conn: sqlite3.Connection, memory_root: Path):
+    """content_hash 未变 → 重新 index_file 也不应改变 documents 行内容。"""
+    p = _write_kb_item(
+        memory_root,
+        "x--01JZABD999.md",
+        {"ulid": "01JZABD999", "slug": "x", "type": "vocab"},
+        body="body",
+    )
+    parsed = parse_file(p, memory_root)
+    index_file(conn, parsed)
+    index_file(conn, parsed)  # 二次 index
+    assert count_docs(conn) == 1
+
+
+def test_index_file_update_changes_hash(conn: sqlite3.Connection, memory_root: Path):
+    p = _write_kb_item(
+        memory_root,
+        "x--01JZABD998.md",
+        {"ulid": "01JZABD998", "slug": "x", "type": "vocab"},
+        body="old",
+    )
+    parsed = parse_file(p, memory_root)
+    index_file(conn, parsed)
+    p.write_text(
+        "---\nulid: 01JZABD998\nslug: x\ntype: vocab\n---\n\nnew body content",
+        encoding="utf-8",
+    )
+    parsed2 = parse_file(p, memory_root)
+    assert parsed2.content_hash != parsed.content_hash
+    index_file(conn, parsed2)
+    assert count_docs(conn) == 1
+    assert get_by_ulid(conn, "01JZABD998")[1] == parsed2.content_hash
+
+
+def test_index_file_events_kind_event_ulid(conn: sqlite3.Connection, memory_root: Path):
+    p = memory_root / "ja" / "events" / "2026" / "06" / "2026-06-26.md"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(
+        "# 当天事件\n\n## Event\n- chat_session_id: s1\n- entry_id: e1\n- timestamp: 2026-06-26 10:00:00\n- channel_name: stdio\n- item_type: vocab\n- why_want_to_save_memory: w\n- user_intent: i\n- lang: ja\n- headword: 曖昧\n\n### mean_summary\n意味がはっきりしない。\n",
+        encoding="utf-8",
+    )
+    parsed = parse_file(p, memory_root)
+    index_file(conn, parsed)
+    assert count_docs(conn) == 1
+    # FTS 行 kind='event'
+    row = conn.execute("SELECT kind FROM documents WHERE ulid=?", (parsed.ulid,)).fetchone()
+    assert row[0] == "event"
+
+
+# ── delete_file / delete_by_ulid ────────────────────────────────
+
+
+def test_delete_file_cascades_chunks(conn: sqlite3.Connection, memory_root: Path):
+    p = _write_kb_item(
+        memory_root,
+        "x--01JZABD997.md",
+        {"ulid": "01JZABD997", "slug": "x", "type": "vocab"},
+        body="## 例句\nfoo",
+    )
+    parsed = parse_file(p, memory_root)
+    index_file(conn, parsed)
+    assert count_chunks(conn) >= 1
+    assert delete_file(conn, parsed.file_path) is True
+    assert count_docs(conn) == 0
+    assert count_chunks(conn) == 0
+
+
+def test_delete_by_ulid(conn: sqlite3.Connection, memory_root: Path):
+    p = _write_kb_item(
+        memory_root,
+        "x--01JZABD996.md",
+        {"ulid": "01JZABD996", "slug": "x", "type": "vocab"},
+        body="x",
+    )
+    parsed = parse_file(p, memory_root)
+    index_file(conn, parsed)
+    assert delete_by_ulid(conn, "01JZABD996") is True
+    assert count_docs(conn) == 0
+
+
+# ── split_chunks ────────────────────────────────────────────────
+
+
+def test_split_chunks_by_section():
+    body = "preamble text\n\n## 例句\nThis is example.\n\n## 解释\nexplanation."
+    chunks = split_chunks(body, "item")
+    titles = [c.section_title for c in chunks]
+    assert "例句" in titles
+    assert "解释" in titles
+
+
+def test_split_chunks_section_kind_mapping():
+    body = "## 例句\na\n\n## 给我的解释\nb\n\n## 记忆钩子\nc"
+    chunks = split_chunks(body, "item")
+    kinds = {c.section_title: c.section_kind for c in chunks}
+    assert kinds["例句"] == "example"
+    assert kinds["给我的解释"] == "explanation"
+    assert kinds["记忆钩子"] == "memory_hook"
+
+
+def test_split_chunks_oversize_sub_split():
+    """单段 >800 字符应按段落/句号二次切。"""
+    long = "a。" * 500  # 1000 字符
+    body = f"## 解释\n{long}"
+    chunks = split_chunks(body, "item")
+    # 二次切至少 2 段
+    sec = [c for c in chunks if c.section_title == "解释"]
+    assert len(sec) >= 2
+    for c in sec:
+        assert len(c.text) <= 800 or len(sec) == 1
+
+
+def test_split_chunks_events_sections():
+    body = "preamble\n\n## Event\nfoo\n\n## Event\nbar"
+    chunks = split_chunks(body, "event")
+    event_chunks = [c for c in chunks if c.section_kind == "event"]
+    assert len(event_chunks) == 2
+    assert "foo" in event_chunks[0].text
+    assert "bar" in event_chunks[1].text
+
+
+def test_split_chunks_empty_body_returns_empty():
+    assert split_chunks("", "item") == []
+    assert split_chunks("   \n  ", "item") == []
+
+
+# ── parse_file: 容错 frontmatter（LLM Writer 写坏 case） ─────────
+
+
+def _write_kb_item_raw(memory_root: Path, name: str, raw_fm: str, body: str = "body") -> Path:
+    p = memory_root / "en" / "items" / "vocab" / name
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(f"---\n{raw_fm}\n---\n\n{body}", encoding="utf-8")
+    return p
+
+
+def test_parse_file_tolerates_title_with_embedded_quotes(memory_root: Path):
+    """log 真实 case: `title: "god" 释义`"""
+    p = _write_kb_item_raw(
+        memory_root,
+        "god--01KWDV.md",
+        'ulid: 01KWDV\ntype: vocab\nheadword: god\ntitle: "god" 释义',
+    )
+    parsed = parse_file(p, memory_root)
+    assert parsed.ulid == "01KWDV"
+    assert parsed.title == '"god" 释义'
+    assert parsed.kind == "item"
+
+
+def test_parse_file_tolerates_intro_with_colon_in_value(memory_root: Path):
+    """log 真实 case: `intro_in_target_lang: ... "for" and "since": duration vs point in time`"""
+    p = _write_kb_item_raw(
+        memory_root,
+        "x--01KWBS.md",
+        (
+            "ulid: 01KWBS\n"
+            "type: grammar\n"
+            'intro_in_target_lang: The difference between "for" and "since": '
+            "duration vs point in time"
+        ),
+    )
+    parsed = parse_file(p, memory_root)
+    assert parsed.ulid == "01KWBS"
+    assert "duration vs point in time" in parsed.intro_in_target_lang
+
+
+def test_parse_file_tolerates_intro_with_colon_before_quotes(memory_root: Path):
+    """log 真实 case: `intro_in_target_lang: Subject-verb agreement: "I" takes ...`"""
+    p = _write_kb_item_raw(
+        memory_root,
+        "y--01KWB7.md",
+        (
+            "ulid: 01KWB7\n"
+            "type: grammar\n"
+            'intro_in_target_lang: Subject-verb agreement: "I" takes the base '
+            "form of the verb"
+        ),
+    )
+    parsed = parse_file(p, memory_root)
+    assert parsed.ulid == "01KWB7"
+    assert parsed.intro_in_target_lang == (
+        'Subject-verb agreement: "I" takes the base form of the verb'
+    )

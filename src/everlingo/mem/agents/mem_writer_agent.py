@@ -227,6 +227,10 @@ def _append_event(entry: MemoryEntry) -> None:
     ref: memory-writer-agent-spec.md — 记录 events 的实现
     events/ 追加不该走 LLM：按日期拼路径，文件不存在则创建带「文件前置内容」
     的 markdown 文件，否则按 events_spec.md:34-54 追加一个 ## Event 段落。
+
+    ref: docs/impl-spec/search/memory-vault-search-spec.md — Writer 集成
+    写后通过 mem_writer_tools 注入的钩子触发 SearchClient.index_file(rel)，
+    让 indexer 即时拿到新追加的 event 段。失败时静默吞掉（fire-and-forget）。
     """
     rel = _events_rel_path(entry)
     abs_path = (workspace.memory_dir() / rel).resolve()
@@ -247,6 +251,10 @@ def _append_event(entry: MemoryEntry) -> None:
         rel,
         section,
     )
+    # 触发索引钩子
+    from .mem_writer_tools import _fire_post_write
+
+    _fire_post_write(rel, "index")
 
 
 # ── kb item 写入（LLM 驱动）──────────────────────────────────────────

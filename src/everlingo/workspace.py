@@ -104,3 +104,23 @@ def plugins_dir() -> Path:
     通用插件根目录；各插件自行拼装子路径。
     """
     return current_workspace() / "plugins"
+
+
+def index_dir() -> Path:
+    """返回当前 workspace 的 search index 目录路径。
+
+    ref: docs/impl-spec/search/memory-vault-search-spec.md — DB 文件位置
+    包含 memory.sqlite（SQLite+FTS5 索引）与 indexer.sock（IPC unix socket）。
+    不负责创建；调用方在需要时自行 mkdir(parents=True)。
+    """
+    return current_workspace() / "index"
+
+
+def index_db_path() -> Path:
+    """返回 SQLite DB 文件路径 ($workspace/index/memory.sqlite)。"""
+    return index_dir() / "memory.sqlite"
+
+
+def indexer_socket_path() -> Path:
+    """返回 indexer IPC unix socket 路径 ($workspace/index/indexer.sock)。"""
+    return index_dir() / "indexer.sock"
