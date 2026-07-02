@@ -444,6 +444,31 @@ def index_file(
         rowid = cur.lastrowid
     else:
         rowid = existing
+        old_hash = conn.execute(
+            "SELECT content_hash FROM documents WHERE rowid=?", (rowid,)
+        ).fetchone()[0]
+        if old_hash == parsed.content_hash:
+            # 内容未变：仅刷新 mtime/索引时间与可变元数据(seen_count 等)；
+            # 不动 chunks / FTS / embedding，保 chunk_id 稳定。
+            conn.execute(
+                """
+                UPDATE documents SET
+                    file_mtime=?, indexed_at=?,
+                    seen_count=?, last_seen=?, first_seen=?
+                WHERE rowid=?
+                """,
+                (
+                    parsed.file_mtime,
+                    indexed_at,
+                    parsed.seen_count,
+                    parsed.last_seen,
+                    parsed.first_seen,
+                    rowid,
+                ),
+            )
+            conn.commit()
+            logger.debug("index_file: content_hash 未变，跳过重建 ulid=%s", parsed.ulid)
+            return rowid
         conn.execute(
             """
             UPDATE documents SET

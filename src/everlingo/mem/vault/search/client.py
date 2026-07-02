@@ -16,6 +16,8 @@ from typing import Literal
 import httpx
 
 from .protocol import (
+    EmbedRequest,
+    EmbedResponse,
     IndexRequest,
     RebuildResponse,
     SearchHit,
@@ -156,4 +158,23 @@ class SearchClient:
                 logger.warning("indexer 不可达，status 失败: %s", e)
             else:
                 logger.warning("status 失败: %s", e)
+            return None
+
+    def embed(self, *, rebuild: bool = False, batch: int = 64, wait: bool = True) -> EmbedResponse | None:
+        """触发 indexer 跑一轮 embedding 补嵌。
+
+        rebuild=True: drop 旧 vec0+embeddings 全量重嵌。
+        wait=True: 同步等到全量完成；False: fire-and-forget（仅返回当前状态）。
+        """
+        req = EmbedRequest(rebuild=rebuild, batch=batch, wait=wait)
+        try:
+            client = self._ensure_client()
+            resp = client.post("http://localhost/embed", json=req.model_dump())
+            resp.raise_for_status()
+            return EmbedResponse.model_validate(resp.json())
+        except Exception as e:
+            if self._is_unreachable(e):
+                logger.warning("indexer 不可达，embed 失败: %s", e)
+            else:
+                logger.warning("embed 失败: %s", e)
             return None

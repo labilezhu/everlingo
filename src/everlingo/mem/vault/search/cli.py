@@ -80,6 +80,39 @@ def cmd_indexer_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_embed(args: argparse.Namespace) -> int:
+    """经 HTTP 触发 indexer 跑一轮 embedding 补嵌。"""
+    _resolve_workspace(args)
+    client = _client()
+    if not _require_indexer_alive(client):
+        print(
+            f"indexer 未运行，请先 `everlingo mem indexer start` (socket={workspace.indexer_socket_path()})",
+            file=sys.stderr,
+        )
+        return 1
+    resp = client.embed(rebuild=args.rebuild, batch=args.batch, wait=not args.fire_and_forget)
+    if resp is None:
+        print("embed 调用失败", file=sys.stderr)
+        return 1
+    if not resp.ok:
+        print(
+            "embedder 未启用（OPENAI_EMBEDDING_MODEL 未配）；向量检索不可用",
+            file=sys.stderr,
+        )
+        return 1
+    if args.rebuild:
+        print(
+            f"rebuild 嵌入: total={resp.total_chunks} embedded={resp.embedded_chunks} "
+            f"model_id={resp.embedding_model_id} dim={resp.embedding_dim} took_ms={resp.took_ms:.1f}"
+        )
+    else:
+        print(
+            f"embed: total={resp.total_chunks} embedded={resp.embedded_chunks} "
+            f"model_id={resp.embedding_model_id} dim={resp.embedding_dim} took_ms={resp.took_ms:.1f}"
+        )
+    return 0
+
+
 def cmd_reindex(args: argparse.Namespace) -> int:
     _resolve_workspace(args)
     client = _client()
@@ -161,6 +194,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_reindex.add_argument("--rebuild", action="store_true", help="完全删除 index，从零重建")
     p_reindex.add_argument("-v", "--verbose", action="store_true", help="逐文件输出")
     p_reindex.set_defaults(func=cmd_reindex)
+
+    p_embed = sub.add_parser("embed", help="补嵌/重建 embedding")
+    p_embed.add_argument("--rebuild", action="store_true", help="drop 旧 vec0+embeddings，全量重嵌")
+    p_embed.add_argument("--batch", type=int, default=64, help="每批嵌入 chunk 数（默认 64）")
+    p_embed.add_argument(
+        "--fire-and-forget",
+        action="store_true",
+        help="触发后立即返回，不等待嵌入完成",
+    )
+    p_embed.set_defaults(func=cmd_embed)
 
     return parser
 

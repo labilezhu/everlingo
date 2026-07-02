@@ -9,6 +9,10 @@ sys_setting:
   openai_base_url:
   # 使用的模型名称
   openai_model:
+  # Embedding 模型名称（可选，无默认值）。空值时 create_ai_embedding() 抛错
+  # 复用 openai_api_key / openai_base_url，指向 OpenRouter 上的 embedding 模型
+  # （如 openai/text-embedding-3-small）
+  openai_embedding_model:
 
   logging_setting:
     # 日志文件路径。默认: $workspace/logs/everlingo.log

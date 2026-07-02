@@ -103,6 +103,30 @@ class RebuildResponse(BaseModel):
     took_ms: float
 
 
+class EmbedRequest(BaseModel):
+    """POST /embed 请求体。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    rebuild: bool = Field(False, description="True=drop vec0+embeddings，全量重嵌")
+    batch: int = Field(64, ge=1, le=512, description="每批嵌入 chunk 数")
+    wait: bool = Field(True, description="True=同步等到全量完成；False=fire-and-forget")
+
+
+class EmbedResponse(BaseModel):
+    """POST /embed 响应。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ok: bool = True
+    embedded: int = Field(0, description="本次嵌入的 chunk 数（wait=False 时为 0）")
+    total_chunks: int
+    embedded_chunks: int
+    embedding_model_id: str | None = None
+    embedding_dim: int | None = None
+    took_ms: float = 0.0
+
+
 class StatusResponse(BaseModel):
     """GET /status 响应。"""
 
@@ -113,3 +137,6 @@ class StatusResponse(BaseModel):
     docs: int
     chunks: int
     uptime_s: float
+    embedding_model_id: str | None = None
+    embedding_dim: int | None = None
+    embedded_chunks: int = 0

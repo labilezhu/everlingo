@@ -67,6 +67,10 @@ CREATE TABLE chunk_embeddings (
   embedded_at TEXT NOT NULL
 );
 
+-- vec0 KNN 索引 dim 由 indexer 启动时按 meta 动态建（ensure_vec_table）。
+-- vec0 与 chunk_embeddings 的同步清理在 embedding/store.py 的 sync_* 函数里
+-- 集中处理（避免 chunk_vec 表未建时触发器失败）。
+
 CREATE TABLE meta (
   key TEXT PRIMARY KEY,
   value TEXT

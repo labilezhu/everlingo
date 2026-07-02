@@ -45,12 +45,24 @@ def open_db(db_path: Path) -> sqlite3.Connection:
     check_same_thread=False 因为 SQLite 连接会被 FastAPI TestClient / uvicorn
     的 worker 线程共享。indexer 进程内仍以单线程为主（FastAPI sync 路由），
     不存在并发写问题；如需异步 worker，再加锁。
+
+    加载 sqlite-vec 扩展（chunk_vec KNN 索引需要）。加载失败 → log warning，
+    向量功能降级，semantic/hybrid 查询返回空，FTS 不受影响。
     """
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db_path), isolation_level=None, check_same_thread=False)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA foreign_keys=ON")
+    # 加载 sqlite-vec（vec0 虚表 + 标量函数）
+    try:
+        import sqlite_vec
+
+        conn.enable_load_extension(True)
+        conn.load_extension(sqlite_vec.loadable_path())
+        conn.enable_load_extension(False)
+    except Exception as e:
+        logger.warning("sqlite-vec 扩展加载失败，向量功能降级: %s", e)
     # 首次启动：建表
     cur = conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='documents'"

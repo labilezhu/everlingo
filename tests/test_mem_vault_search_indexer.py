@@ -201,6 +201,78 @@ def test_index_file_idempotent_no_change(conn: sqlite3.Connection, memory_root: 
     assert count_docs(conn) == 1
 
 
+def test_index_file_content_hash_short_circuit_preserves_chunks(
+    conn: sqlite3.Connection, memory_root: Path
+):
+    """touch 未变内容 → chunk_id 保持不变，chunks 计数不变。
+
+    保护 embedding 持久化：content_hash 短路避免 chunks DELETE+重建。
+    """
+    p = _write_kb_item(
+        memory_root,
+        "y--01JZABD1FF.md",
+        {"ulid": "01JZABD1FF", "slug": "y", "type": "vocab", "seen_count": 1},
+        body="## 解释\noriginal body",
+    )
+    parsed = parse_file(p, memory_root)
+    index_file(conn, parsed)
+    first_chunks = conn.execute(
+        "SELECT chunk_id, section_kind FROM chunks ORDER BY chunk_id"
+    ).fetchall()
+    assert len(first_chunks) >= 1
+    # 模拟 touch：mtime 变、seen_count 增，content_hash 不变
+    parsed2 = parse_file(p, memory_root)
+    assert parsed2.content_hash == parsed.content_hash
+    index_file(conn, parsed2)
+    second_chunks = conn.execute(
+        "SELECT chunk_id, section_kind FROM chunks ORDER BY chunk_id"
+    ).fetchall()
+    # chunk_id 完全一致（保 embedding 持久化）
+    assert [c[0] for c in second_chunks] == [c[0] for c in first_chunks]
+    # chunks 数量不变
+    assert len(second_chunks) == len(first_chunks)
+    # 但 mtime / indexed_at 应已更新
+    new_mtime = conn.execute(
+        "SELECT file_mtime FROM documents WHERE ulid=?", ("01JZABD1FF",)
+    ).fetchone()[0]
+    assert new_mtime == parsed2.file_mtime
+
+
+def test_index_file_content_change_rebuilds_chunks(
+    conn: sqlite3.Connection, memory_root: Path
+):
+    """content_hash 变了 → 走原 DELETE+重建路径，chunks 内容更新。"""
+    p = _write_kb_item(
+        memory_root,
+        "z--01JZABD200.md",
+        {"ulid": "01JZABD200", "slug": "z", "type": "vocab"},
+        body="## 解释\nv1",
+    )
+    parsed = parse_file(p, memory_root)
+    index_file(conn, parsed)
+    old_text = conn.execute(
+        "SELECT text FROM chunks LIMIT 1"
+    ).fetchone()[0]
+    assert "v1" in old_text
+    # 改内容
+    p.write_text(
+        "---\nulid: 01JZABD200\nslug: z\ntype: vocab\n---\n\n## 解释\nv2 body",
+        encoding="utf-8",
+    )
+    parsed2 = parse_file(p, memory_root)
+    assert parsed2.content_hash != parsed.content_hash
+    index_file(conn, parsed2)
+    new_text = conn.execute(
+        "SELECT text FROM chunks LIMIT 1"
+    ).fetchone()[0]
+    assert "v2" in new_text
+    # documents.content_hash 也已更新
+    h = conn.execute(
+        "SELECT content_hash FROM documents WHERE ulid=?", ("01JZABD200",)
+    ).fetchone()[0]
+    assert h == parsed2.content_hash
+
+
 def test_index_file_update_changes_hash(conn: sqlite3.Connection, memory_root: Path):
     p = _write_kb_item(
         memory_root,

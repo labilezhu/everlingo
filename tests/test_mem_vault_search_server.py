@@ -61,6 +61,10 @@ def test_status_after_open(client, state):
     assert data["running"] is True
     assert data["docs"] == 0
     assert data["chunks"] == 0
+    # 新增字段存在；具体值依赖环境（OPENAI_EMBEDDING_MODEL 是否配）。
+    assert "embedded_chunks" in data
+    assert "embedding_model_id" in data
+    assert "embedding_dim" in data
 
 
 def test_index_then_search(client, state, memory_root: Path):
@@ -102,3 +106,16 @@ def test_rebuild(client, state, memory_root: Path):
 def test_index_missing_file_returns_404(client, state):
     r = client.post("/index", json={"path": "en/items/vocab/nonexistent--01JZZ.md"})
     assert r.status_code == 404
+
+
+def test_embed_endpoint_returns_valid_response(client, state):
+    """/embed 端点存在且返回结构合法。env 配了 model 时 ok=True，否则 False。"""
+    r = client.post("/embed", json={})
+    assert r.status_code == 200
+    data = r.json()
+    assert "ok" in data
+    assert "total_chunks" in data
+    assert "embedded_chunks" in data
+    assert "embedding_model_id" in data
+    assert "embedding_dim" in data
+    assert "took_ms" in data
