@@ -1,0 +1,545 @@
+<svg host="65bd71144e" xmlns="http://www.w3.org/2000/svg" style="background: transparent; background-color: transparent;" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="3307px" height="1459px" viewBox="-0.5 -0.5 3307 1459" content="&lt;mxfile&gt;&lt;diagram id=&quot;9OdzozItT4WjAYciXMkh&quot; name=&quot;Page-1&quot;&gt;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&lt;/diagram&gt;&lt;/mxfile&gt;">
+    <defs/>
+    <g>
+        <g>
+            <rect x="1530" y="0" width="850" height="390" fill="#e1d5e7" stroke="#9673a6" pointer-events="all" style="fill: light-dark(rgb(225, 213, 231), rgb(57, 47, 63)); stroke: light-dark(rgb(150, 115, 166), rgb(149, 119, 163));"/>
+        </g>
+        <g>
+            <g transform="translate(-0.5 -0.5)">
+                <switch>
+                    <foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility">
+                        <div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-start; justify-content: unsafe flex-start; width: 848px; height: 1px; padding-top: 7px; margin-left: 1532px;">
+                            <div style="box-sizing: border-box; font-size: 0; text-align: left; color: #000000; ">
+                                <div style="display: inline-block; font-size: 12px; font-family: &quot;Courier New&quot;; color: light-dark(#000000, #ffffff); line-height: 1.2; pointer-events: all; white-space: normal; word-wrap: normal; ">
+                                    CREATE TABLE documents (
+                                    <br/>
+                                    rowid INTEGER PRIMARY KEY,
+                                    <br/>
+                                    ulid TEXT UNIQUE,                       -- kb item 的 ulid；event 用合成键 'event:{lang}:{date}'
+                                    <br/>
+                                    kind TEXT NOT NULL,                     -- 'item' | 'event' | 'user'
+                                    <br/>
+                                    lang TEXT,                              -- en / ja / ...
+                                    <br/>
+                                    item_type TEXT,                         -- vocab/phrase/grammar/pragmatics/others；event/user 为 NULL
+                                    <br/>
+                                    file_path TEXT NOT NULL UNIQUE,         -- 相对 $workspace/memory 的路径
+                                    <br/>
+                                    slug TEXT,
+                                    <br/>
+                                    headword TEXT,
+                                    <br/>
+                                    title TEXT,
+                                    <br/>
+                                    intro_in_interface_lang TEXT,
+                                    <br/>
+                                    intro_in_target_lang TEXT,
+                                    <br/>
+                                    aliases TEXT,                           -- '\n' 连接
+                                    <br/>
+                                    related TEXT,                           -- '\n' 连接
+                                    <br/>
+                                    tags TEXT,                              -- ' ' 连接，便于过滤
+                                    <br/>
+                                    first_seen TEXT,
+                                    <br/>
+                                    last_seen TEXT,
+                                    <br/>
+                                    seen_count INTEGER,
+                                    <br/>
+                                    schema_version INTEGER,
+                                    <br/>
+                                    body TEXT NOT NULL,                     -- frontmatter 后的 markdown 原文，供 chunks 切分/展示/content_hash
+                                    <br/>
+                                    content_hash TEXT NOT NULL,            -- 整文件 hash（基于原文），跳过未变更的重嵌入与重索引
+                                    <br/>
+                                    file_mtime TEXT NOT NULL,               -- ISO 字符串，watcher 去抖与对账依据
+                                    <br/>
+                                    indexed_at TEXT NOT NULL
+                                    <br/>
+                                    );
+                                </div>
+                            </div>
+                        </div>
+                    </foreignObject>
+                    <text x="1532" y="19" fill="light-dark(#000000, #ffffff)" font-family="&quot;Courier New&quot;" font-size="12px">
+                        CREATE TABLE documents (...
+                    </text>
+                </switch>
+            </g>
+        </g>
+        <g>
+            <rect x="1010" y="580" width="590" height="240" fill="#e1d5e7" stroke="#9673a6" pointer-events="all" style="fill: light-dark(rgb(225, 213, 231), rgb(57, 47, 63)); stroke: light-dark(rgb(150, 115, 166), rgb(149, 119, 163));"/>
+        </g>
+        <g>
+            <g transform="translate(-0.5 -0.5)">
+                <switch>
+                    <foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility">
+                        <div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-start; justify-content: unsafe flex-start; width: 588px; height: 1px; padding-top: 587px; margin-left: 1012px;">
+                            <div style="box-sizing: border-box; font-size: 0; text-align: left; color: #000000; ">
+                                <div style="display: inline-block; font-size: 12px; font-family: &quot;Courier New&quot;; color: light-dark(#000000, #ffffff); line-height: 1.2; pointer-events: all; white-space: normal; word-wrap: normal; ">
+                                    -- 全文索引：字段化，便于按字段加权与高亮
+                                    <br/>
+                                    -- 各列存「分词后空格连接」文本；body_raw 存原文供 snippet() 干净高亮
+                                    <br/>
+                                    <br/>
+                                    CREATE VIRTUAL TABLE documents_fts USING fts5(
+                                    <br/>
+                                    headword, title,
+                                    <br/>
+                                    intro_in_interface_lang, intro_in_target_lang,
+                                    <br/>
+                                    aliases, related, tags, body,
+                                    <br/>
+                                    body_raw UNINDEXED,                     -- 原文，仅给 snippet() 用，不索引
+                                    <br/>
+                                    tokenize='unicode61'
+                                    <br/>
+                                    );
+                                </div>
+                            </div>
+                        </div>
+                    </foreignObject>
+                    <text x="1012" y="599" fill="light-dark(#000000, #ffffff)" font-family="&quot;Courier New&quot;" font-size="12px">
+                        -- 全文索引：字段化，便于按字段加权与高亮...
+                    </text>
+                </switch>
+            </g>
+        </g>
+        <g>
+            <rect x="1900" y="580" width="760" height="200" fill="#e1d5e7" stroke="#9673a6" pointer-events="all" style="fill: light-dark(rgb(225, 213, 231), rgb(57, 47, 63)); stroke: light-dark(rgb(150, 115, 166), rgb(149, 119, 163));"/>
+        </g>
+        <g>
+            <g transform="translate(-0.5 -0.5)">
+                <switch>
+                    <foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility">
+                        <div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-start; justify-content: unsafe flex-start; width: 758px; height: 1px; padding-top: 587px; margin-left: 1902px;">
+                            <div style="box-sizing: border-box; font-size: 0; text-align: left; color: #000000; ">
+                                <div style="display: inline-block; font-size: 12px; font-family: &quot;Courier New&quot;; color: light-dark(#000000, #ffffff); line-height: 1.2; pointer-events: all; white-space: normal; word-wrap: normal; ">
+                                    //段级文本，向量作用层
+                                    <br/>
+                                    <br/>
+                                    CREATE TABLE chunks (
+                                    <br/>
+                                    chunk_id INTEGER PRIMARY KEY,
+                                    <br/>
+                                    doc_rowid INTEGER NOT NULL REFERENCES documents(rowid) ON DELETE CASCADE,
+                                    <br/>
+                                    chunk_index INTEGER NOT NULL,
+                                    <br/>
+                                    section_title TEXT,                     -- '## 例句' / '## Event' / NULL
+                                    <br/>
+                                    section_kind TEXT,                      -- 'event'|'explanation'|'example'|'memory_hook'|...
+                                    <br/>
+                                    text TEXT NOT NULL,                     -- 该段清洗后纯文本（原文，不分词）
+                                    <br/>
+                                    char_offset INTEGER,                    -- 在 body 中的起点，用于命中后定位/滚动
+                                    <br/>
+                                    content_hash TEXT NOT NULL,             -- 段 hash（基于原文），跳过未变更段的重嵌入
+                                    <br/>
+                                    UNIQUE(doc_rowid, chunk_index)
+                                    <br/>
+                                    );
+                                </div>
+                            </div>
+                        </div>
+                    </foreignObject>
+                    <text x="1902" y="599" fill="light-dark(#000000, #ffffff)" font-family="&quot;Courier New&quot;" font-size="12px">
+                        //段级文本，向量作用层...
+                    </text>
+                </switch>
+            </g>
+        </g>
+        <g>
+            <path d="M 1955 390 L 1955 475 Q 1955 485 1965 485 L 2270 485 Q 2280 485 2280 495 L 2280 580" fill="none" stroke="#000000" stroke-miterlimit="10" pointer-events="stroke" style="stroke: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));"/>
+            <path d="M 2276 572 L 2284 572 M 2284 580 L 2280 572 L 2276 580" fill="none" stroke="#000000" stroke-miterlimit="10" pointer-events="all" style="stroke: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));"/>
+        </g>
+        <g>
+            <rect x="1965" y="980" width="630" height="170" fill="#e1d5e7" stroke="#9673a6" pointer-events="all" style="fill: light-dark(rgb(225, 213, 231), rgb(57, 47, 63)); stroke: light-dark(rgb(150, 115, 166), rgb(149, 119, 163));"/>
+        </g>
+        <g>
+            <g transform="translate(-0.5 -0.5)">
+                <switch>
+                    <foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility">
+                        <div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-start; justify-content: unsafe flex-start; width: 628px; height: 1px; padding-top: 987px; margin-left: 1967px;">
+                            <div style="box-sizing: border-box; font-size: 0; text-align: left; color: #000000; ">
+                                <div style="display: inline-block; font-size: 12px; font-family: &quot;Courier New&quot;; color: light-dark(#000000, #ffffff); line-height: 1.2; pointer-events: all; white-space: normal; word-wrap: normal; ">
+                                    -- 嵌入表 vec0 索引
+                                    <br/>
+                                    <br/>
+                                    CREATE TABLE chunk_embeddings (
+                                    <br/>
+                                    chunk_id INTEGER PRIMARY KEY REFERENCES chunks(chunk_id) ON DELETE CASCADE,
+                                    <br/>
+                                    model_id TEXT NOT NULL,                 -- 'bge-m3:1024' 等，换模型时按此作废
+                                    <br/>
+                                    dim INTEGER NOT NULL,
+                                    <br/>
+                                    embedding BLOB NOT NULL,
+                                    <br/>
+                                    embedded_at TEXT NOT NULL
+                                    <br/>
+                                    );
+                                </div>
+                            </div>
+                        </div>
+                    </foreignObject>
+                    <text x="1967" y="999" fill="light-dark(#000000, #ffffff)" font-family="&quot;Courier New&quot;" font-size="12px">
+                        -- 嵌入表 vec0 索引...
+                    </text>
+                </switch>
+            </g>
+        </g>
+        <g>
+            <rect x="1010" y="910" width="450" height="240" fill="#e1d5e7" stroke="#9673a6" pointer-events="all" style="fill: light-dark(rgb(225, 213, 231), rgb(57, 47, 63)); stroke: light-dark(rgb(150, 115, 166), rgb(149, 119, 163));"/>
+        </g>
+        <g>
+            <g transform="translate(-0.5 -0.5)">
+                <switch>
+                    <foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility">
+                        <div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-start; justify-content: unsafe flex-start; width: 448px; height: 1px; padding-top: 917px; margin-left: 1012px;">
+                            <div style="box-sizing: border-box; font-size: 0; text-align: left; color: #000000; ">
+                                <div style="display: inline-block; font-size: 12px; font-family: &quot;Courier New&quot;; color: light-dark(#000000, #ffffff); line-height: 1.2; pointer-events: all; white-space: normal; word-wrap: normal; ">
+                                    -- 元信息：分词器版本、schema 版本，启动时比对触发重建
+                                    <br/>
+                                    <br/>
+                                    CREATE TABLE meta (
+                                    <br/>
+                                    key TEXT PRIMARY KEY,
+                                    <br/>
+                                    value TEXT
+                                    <br/>
+                                    );
+                                    <br/>
+                                    <br/>
+                                    key:
+                                    <br/>
+                                    - tokenizer_version
+                                    <br/>
+                                    - embedding_model_id 标识 embedding 模型
+                                    <br/>
+                                    - embedding_dim embedding 维度数
+                                    <br/>
+                                    - embedding_schema_version
+                                </div>
+                            </div>
+                        </div>
+                    </foreignObject>
+                    <text x="1012" y="929" fill="light-dark(#000000, #ffffff)" font-family="&quot;Courier New&quot;" font-size="12px">
+                        -- 元信息：分词器版本、schema 版本，启动时比对触发重建...
+                    </text>
+                </switch>
+            </g>
+        </g>
+        <g>
+            <path d="M 2280 980 L 2280 780" fill="none" stroke="#000000" stroke-miterlimit="10" pointer-events="stroke" style="stroke: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));"/>
+            <path d="M 2276 976 L 2284 976 M 2276 972 L 2284 972" fill="none" stroke="#000000" stroke-miterlimit="10" pointer-events="all" style="stroke: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));"/>
+            <path d="M 2284 784 L 2276 784 M 2284 788 L 2276 788" fill="none" stroke="#000000" stroke-miterlimit="10" pointer-events="all" style="stroke: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));"/>
+        </g>
+        <g>
+            <rect x="1965" y="1230" width="630" height="90" fill="#e1d5e7" stroke="#9673a6" pointer-events="all" style="fill: light-dark(rgb(225, 213, 231), rgb(57, 47, 63)); stroke: light-dark(rgb(150, 115, 166), rgb(149, 119, 163));"/>
+        </g>
+        <g>
+            <g transform="translate(-0.5 -0.5)">
+                <switch>
+                    <foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility">
+                        <div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-start; justify-content: unsafe flex-start; width: 628px; height: 1px; padding-top: 1237px; margin-left: 1967px;">
+                            <div style="box-sizing: border-box; font-size: 0; text-align: left; color: #000000; ">
+                                <div style="display: inline-block; font-size: 12px; font-family: &quot;Courier New&quot;; color: light-dark(#000000, #ffffff); line-height: 1.2; pointer-events: all; white-space: normal; word-wrap: normal; ">
+                                    CREATE VIRTUAL TABLE IF NOT EXISTS
+                                    <br/>
+                                    chunk_vec USING vec0(chunk_id INTEGER PRIMARY KEY, embedding FLOAT[:dim])
+                                </div>
+                            </div>
+                        </div>
+                    </foreignObject>
+                    <text x="1967" y="1249" fill="light-dark(#000000, #ffffff)" font-family="&quot;Courier New&quot;" font-size="12px">
+                        CREATE VIRTUAL TABLE IF NOT EXISTS...
+                    </text>
+                </switch>
+            </g>
+        </g>
+        <g style="filter: drop-shadow(light-dark(rgba(0, 0, 0, 0.25), rgba(237, 237, 237, 0.25)) 2px 3px 2px);">
+            <path d="M 2700 1160 L 3280 1160 L 3300 1180 L 3300 1280 L 2700 1280 L 2700 1160 Z" fill="#fff2cc" stroke="#d6b656" stroke-width="2" stroke-miterlimit="10" pointer-events="all" style="fill: light-dark(rgb(255, 242, 204), rgb(40, 29, 0)); stroke: light-dark(rgb(214, 182, 86), rgb(109, 81, 0));"/>
+            <path d="M 3280 1160 L 3280 1180 L 3300 1180" fill="none" stroke="#d6b656" stroke-width="2" stroke-miterlimit="10" pointer-events="all" style="stroke: light-dark(rgb(214, 182, 86), rgb(109, 81, 0));"/>
+        </g>
+        <g>
+            <g transform="translate(-0.5 -0.5)">
+                <switch>
+                    <foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility">
+                        <div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 598px; height: 1px; padding-top: 1220px; margin-left: 2701px;">
+                            <div style="box-sizing: border-box; font-size: 0; text-align: center; color: #666600; ">
+                                <div style="display: inline-block; font-size: 12px; font-family: &quot;Helvetica&quot;; color: light-dark(#666600, #a2a24a); line-height: 1.2; pointer-events: all; white-space: normal; word-wrap: normal; ">
+                                    chunk_embeddings 表为权威持久存储；chunk_vec 为派生 KNN 索引，二者同步写入
+                                </div>
+                            </div>
+                        </div>
+                    </foreignObject>
+                    <text x="3000" y="1224" fill="#666600" font-family="&quot;Helvetica&quot;" font-size="12px" text-anchor="middle">
+                        chunk_embeddings 表为权威持久存储；chunk_vec 为派生 KNN 索引，二者同步写入
+                    </text>
+                </switch>
+            </g>
+        </g>
+        <g>
+            <path d="M 2595 1132.81 L 2721.29 1160" fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" stroke-dasharray="2 6" pointer-events="stroke" style="stroke: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));"/>
+        </g>
+        <g>
+            <path d="M 2595 1250.94 L 2700 1242.92" fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" stroke-dasharray="2 6" pointer-events="stroke" style="stroke: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));"/>
+        </g>
+        <g style="filter: drop-shadow(light-dark(rgba(0, 0, 0, 0.25), rgba(237, 237, 237, 0.25)) 2px 3px 2px);">
+            <path d="M 2715 820 L 3230 820 L 3250 840 L 3250 940 L 2715 940 L 2715 820 Z" fill="#fff2cc" stroke="#d6b656" stroke-width="2" stroke-miterlimit="10" pointer-events="all" style="fill: light-dark(rgb(255, 242, 204), rgb(40, 29, 0)); stroke: light-dark(rgb(214, 182, 86), rgb(109, 81, 0));"/>
+            <path d="M 3230 820 L 3230 840 L 3250 840" fill="none" stroke="#d6b656" stroke-width="2" stroke-miterlimit="10" pointer-events="all" style="stroke: light-dark(rgb(214, 182, 86), rgb(109, 81, 0));"/>
+        </g>
+        <g>
+            <g transform="translate(-0.5 -0.5)">
+                <switch>
+                    <foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility">
+                        <div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 533px; height: 1px; padding-top: 880px; margin-left: 2716px;">
+                            <div style="box-sizing: border-box; font-size: 0; text-align: center; color: #666600; ">
+                                <div style="display: inline-block; font-size: 12px; font-family: &quot;Helvetica&quot;; color: light-dark(#666600, #a2a24a); line-height: 1.2; pointer-events: all; white-space: normal; word-wrap: normal; ">
+                                    <div>
+                                        <span style="color: light-dark(rgb(63, 63, 63), rgb(183, 183, 183)); background-color: transparent;">
+                                            pending chunk：SELECT chunk_id, text FROM chunks WHERE chunk_id NOT IN (SELECT chunk_id FROM chunk_embeddings WHERE model_id=:cur)
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </foreignObject>
+                    <text x="2983" y="884" fill="#666600" font-family="&quot;Helvetica&quot;" font-size="12px" text-anchor="middle">
+                        pending chunk：SELECT chunk_id, text FROM chunks WHERE chunk_id NOT IN (SELECT chunk_id FRO...
+                    </text>
+                </switch>
+            </g>
+        </g>
+        <g>
+            <path d="M 2631.25 780 L 2771.75 820" fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" stroke-dasharray="2 6" pointer-events="stroke" style="stroke: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));"/>
+        </g>
+        <g>
+            <path d="M 2595 982.05 L 2754.66 940" fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" stroke-dasharray="2 6" pointer-events="stroke" style="stroke: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));"/>
+        </g>
+        <g>
+            <path d="M 2280 1230 L 2280 1150" fill="none" stroke="#000000" stroke-miterlimit="10" pointer-events="stroke" style="stroke: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));"/>
+            <path d="M 2276 1226 L 2284 1226 M 2276 1222 L 2284 1222" fill="none" stroke="#000000" stroke-miterlimit="10" pointer-events="all" style="stroke: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));"/>
+            <path d="M 2284 1154 L 2276 1154 M 2284 1158 L 2276 1158" fill="none" stroke="#000000" stroke-miterlimit="10" pointer-events="all" style="stroke: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));"/>
+        </g>
+        <g style="filter: drop-shadow(light-dark(rgba(0, 0, 0, 0.25), rgba(237, 237, 237, 0.25)) 2px 3px 2px);">
+            <path d="M 540 310 L 910 310 L 930 330 L 930 500 L 540 500 L 540 310 Z" fill="#fff2cc" stroke="#d6b656" stroke-width="2" stroke-miterlimit="10" pointer-events="all" style="fill: light-dark(rgb(255, 242, 204), rgb(40, 29, 0)); stroke: light-dark(rgb(214, 182, 86), rgb(109, 81, 0));"/>
+            <path d="M 910 310 L 910 330 L 930 330" fill="none" stroke="#d6b656" stroke-width="2" stroke-miterlimit="10" pointer-events="all" style="stroke: light-dark(rgb(214, 182, 86), rgb(109, 81, 0));"/>
+        </g>
+        <g>
+            <g transform="translate(-0.5 -0.5)">
+                <switch>
+                    <foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility">
+                        <div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe flex-start; width: 388px; height: 1px; padding-top: 405px; margin-left: 542px;">
+                            <div style="box-sizing: border-box; font-size: 0; text-align: left; color: #666600; ">
+                                <div style="display: inline-block; font-size: 12px; font-family: &quot;Helvetica&quot;; color: light-dark(#666600, #a2a24a); line-height: 1.2; pointer-events: all; white-space: normal; word-wrap: normal; ">
+                                    <div>
+                                        <font>
+                                            查询示例：找含 "computer" 的短语: (:tokenized_query 为 query 经 tokenize() 处理后的字符串)
+                                        </font>
+                                    </div>
+                                    <div>
+                                        <font color="#666600" style="color: light-dark(rgb(102, 102, 0), rgb(162, 162, 74));">
+                                            <br/>
+                                        </font>
+                                    </div>
+                                    <div>
+                                        <font color="#666600" style="color: light-dark(rgb(102, 102, 0), rgb(162, 162, 74));">
+                                            SELECT d.ulid, d.slug, d.headword, d.title,
+                                        </font>
+                                    </div>
+                                    <div>
+                                        <font color="#666600" style="color: light-dark(rgb(102, 102, 0), rgb(162, 162, 74));">
+                                            snippet(documents_fts, 8, '【', '】', '…', 12) AS body_snippet
+                                        </font>
+                                    </div>
+                                    <div>
+                                        <font color="#666600" style="color: light-dark(rgb(102, 102, 0), rgb(162, 162, 74));">
+                                            FROM documents_fts f
+                                        </font>
+                                    </div>
+                                    <div>
+                                        <font color="#666600" style="color: light-dark(rgb(102, 102, 0), rgb(162, 162, 74));">
+                                            JOIN documents d ON d.rowid = f.rowid
+                                        </font>
+                                    </div>
+                                    <div>
+                                        <font color="#666600" style="color: light-dark(rgb(102, 102, 0), rgb(162, 162, 74));">
+                                            WHERE documents_fts MATCH :tokenized_query
+                                        </font>
+                                    </div>
+                                    <div>
+                                        <font color="#666600" style="color: light-dark(rgb(102, 102, 0), rgb(162, 162, 74));">
+                                            AND d.kind = 'item'
+                                        </font>
+                                    </div>
+                                    <div>
+                                        <font color="#666600" style="color: light-dark(rgb(102, 102, 0), rgb(162, 162, 74));">
+                                            AND d.item_type = 'phrase'
+                                        </font>
+                                    </div>
+                                    <div>
+                                        <font color="#666600" style="color: light-dark(rgb(102, 102, 0), rgb(162, 162, 74));">
+                                            ORDER BY rank
+                                        </font>
+                                    </div>
+                                    <div>
+                                        <font color="#666600" style="color: light-dark(rgb(102, 102, 0), rgb(162, 162, 74));">
+                                            LIMIT 20;
+                                        </font>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </foreignObject>
+                    <text x="542" y="409" fill="#666600" font-family="&quot;Helvetica&quot;" font-size="12px">
+                        查询示例：找含 "computer" 的短语: (:tokenized_query 为 query 经 tokenize() 处理后的字符串)...
+                    </text>
+                </switch>
+            </g>
+        </g>
+        <g>
+            <path d="M 1073.14 580 L 918.56 500" fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" stroke-dasharray="2 6" pointer-events="stroke" style="stroke: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));"/>
+        </g>
+        <g>
+            <path d="M 1530 268.16 L 930 371.43" fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" stroke-dasharray="2 6" pointer-events="stroke" style="stroke: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));"/>
+        </g>
+        <g>
+            <path d="M 1305 580 L 1305 495 Q 1305 485 1315 485 L 1732.5 485 Q 1742.5 485 1742.5 475 L 1742.5 390" fill="none" stroke="#000000" stroke-miterlimit="10" pointer-events="stroke" style="stroke: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));"/>
+            <path d="M 1301 576 L 1309 576 M 1301 572 L 1309 572" fill="none" stroke="#000000" stroke-miterlimit="10" pointer-events="all" style="stroke: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));"/>
+            <path d="M 1746.5 394 L 1738.5 394 M 1746.5 398 L 1738.5 398" fill="none" stroke="#000000" stroke-miterlimit="10" pointer-events="all" style="stroke: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));"/>
+        </g>
+        <g>
+            <rect x="0" y="690" width="60" height="30" fill="none" stroke="none" pointer-events="all"/>
+        </g>
+        <g>
+            <g transform="translate(-0.5 -0.5)">
+                <switch>
+                    <foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility">
+                        <div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 58px; height: 1px; padding-top: 705px; margin-left: 1px;">
+                            <div style="box-sizing: border-box; font-size: 0; text-align: center; color: #000000; ">
+                                <div style="display: inline-block; font-size: 12px; font-family: &quot;Helvetica&quot;; color: light-dark(#000000, #ffffff); line-height: 1.2; pointer-events: all; white-space: normal; word-wrap: normal; ">
+                                    Text
+                                </div>
+                            </div>
+                        </div>
+                    </foreignObject>
+                    <text x="30" y="709" fill="light-dark(#000000, #ffffff)" font-family="&quot;Helvetica&quot;" font-size="12px" text-anchor="middle">
+                        Text
+                    </text>
+                </switch>
+            </g>
+        </g>
+        <g style="filter: drop-shadow(light-dark(rgba(0, 0, 0, 0.25), rgba(237, 237, 237, 0.25)) 2px 3px 2px);">
+            <rect x="330" y="900" width="400" height="150" fill="#fff2cc" stroke="#d6b656" pointer-events="all" style="fill: light-dark(rgb(255, 242, 204), rgb(40, 29, 0)); stroke: light-dark(rgb(214, 182, 86), rgb(109, 81, 0));"/>
+        </g>
+        <g>
+            <g transform="translate(-0.5 -0.5)">
+                <switch>
+                    <foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility">
+                        <div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-start; justify-content: unsafe flex-start; width: 398px; height: 1px; padding-top: 907px; margin-left: 332px;">
+                            <div style="box-sizing: border-box; font-size: 0; text-align: left; max-height: 146px; overflow: hidden; color: #000000; ">
+                                <div style="display: inline-block; font-size: 12px; font-family: &quot;Helvetica&quot;; color: light-dark(#000000, #ffffff); line-height: 1.2; pointer-events: all; white-space: normal; word-wrap: normal; ">
+                                    <table>
+                                        <tbody>
+                                            <tr>
+                                                <th>
+                                                    key
+                                                </th>
+                                                <th>
+                                                    value
+                                                </th>
+                                            </tr>
+                                            <tr></tr>
+                                            <tr>
+                                                <td>
+                                                    tokenizer_version
+                                                </td>
+                                                <td>
+                                                    jieba:0.42+fugashi:1.1+unidic:unknown
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>
+                                                    schema_version
+                                                </td>
+                                                <td>
+                                                    1
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>
+                                                    embedding_model_id
+                                                </td>
+                                                <td>
+                                                    openai/text-embedding-3-small
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>
+                                                    embedding_dim
+                                                </td>
+                                                <td>
+                                                    1536
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>
+                                                    embedding_schema_version
+                                                </td>
+                                                <td>
+                                                    1
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </foreignObject>
+                    <text x="332" y="919" fill="light-dark(#000000, #ffffff)" font-family="&quot;Helvetica&quot;" font-size="12px">
+                        keyvaluetokenizer_versionjieba:0.42+fugashi:1.1+unidic:unknownsche...
+                    </text>
+                </switch>
+            </g>
+        </g>
+        <g>
+            <path d="M 1010 1012.45 L 730 990.6" fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" stroke-dasharray="2 6" pointer-events="stroke" style="stroke: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));"/>
+        </g>
+        <g style="filter: drop-shadow(light-dark(rgba(0, 0, 0, 0.25), rgba(237, 237, 237, 0.25)) 2px 3px 2px);">
+            <path d="M 2700 1330 L 3280 1330 L 3300 1350 L 3300 1450 L 2700 1450 L 2700 1330 Z" fill="#fff2cc" stroke="#d6b656" stroke-width="2" stroke-miterlimit="10" pointer-events="all" style="fill: light-dark(rgb(255, 242, 204), rgb(40, 29, 0)); stroke: light-dark(rgb(214, 182, 86), rgb(109, 81, 0));"/>
+            <path d="M 3280 1330 L 3280 1350 L 3300 1350" fill="none" stroke="#d6b656" stroke-width="2" stroke-miterlimit="10" pointer-events="all" style="stroke: light-dark(rgb(214, 182, 86), rgb(109, 81, 0));"/>
+        </g>
+        <g>
+            <g transform="translate(-0.5 -0.5)">
+                <switch>
+                    <foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility">
+                        <div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 598px; height: 1px; padding-top: 1390px; margin-left: 2701px;">
+                            <div style="box-sizing: border-box; font-size: 0; text-align: center; color: #666600; ">
+                                <div style="display: inline-block; font-size: 12px; font-family: &quot;Helvetica&quot;; color: light-dark(#666600, #a2a24a); line-height: 1.2; pointer-events: all; white-space: normal; word-wrap: normal; ">
+                                    dim 从 meta.embedding_dim 读取后动态建，故不在 schema.sql 静态写死
+                                </div>
+                            </div>
+                        </div>
+                    </foreignObject>
+                    <text x="3000" y="1394" fill="#666600" font-family="&quot;Helvetica&quot;" font-size="12px" text-anchor="middle">
+                        dim 从 meta.embedding_dim 读取后动态建，故不在 schema.sql 静态写死
+                    </text>
+                </switch>
+            </g>
+        </g>
+        <g>
+            <path d="M 2561.74 1320 L 2700 1342.08" fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" stroke-dasharray="2 6" pointer-events="stroke" style="stroke: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));"/>
+        </g>
+    </g>
+    <switch>
+        <g requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"/>
+        <a transform="translate(0,-5)" xlink:href="https://www.drawio.com/doc/faq/svg-export-text-problems" target="_blank">
+            <text text-anchor="middle" font-size="10px" x="50%" y="100%">
+                Text is not SVG - cannot display
+            </text>
+        </a>
+    </switch>
+</svg>

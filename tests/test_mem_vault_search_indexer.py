@@ -442,3 +442,195 @@ def test_parse_file_tolerates_intro_with_colon_before_quotes(memory_root: Path):
     assert parsed.intro_in_target_lang == (
         'Subject-verb agreement: "I" takes the base form of the verb'
     )
+
+
+
+# ── frontmatter chunks ─────────────────────────────────────
+
+from everlingo.mem.vault.search.indexer import _frontmatter_chunks, Chunk
+
+
+def test_frontmatter_chunks_kind_item():
+    """kind='item' 时 headword/title/intro_*/intro_* 各生成一个 chunk。"""
+    parsed = _make_parsed_doc(
+        kind="item",
+        headword="曖昧",
+        title='"曖昧" 释义',
+        intro_in_interface_lang='"曖昧" 释义',
+        intro_in_target_lang="「曖昧」の定義",
+    )
+    chunks = _frontmatter_chunks(parsed)
+    labels = [c.section_title for c in chunks]
+    assert labels == ["headword", "title", "intro_in_interface_lang", "intro_in_target_lang"]
+    for c in chunks:
+        assert c.section_kind == "frontmatter"
+        assert c.char_offset is None
+        assert c.text.startswith(f"{c.section_title}: ")
+
+
+def test_frontmatter_chunks_empty_fields_skipped():
+    """空值/缺失字段不产生 chunk（如 pragmatics 无 headword）。"""
+    parsed = _make_parsed_doc(
+        kind="item",
+        headword=None,
+        title="语用学解释",
+        intro_in_interface_lang="语用学解释",
+        intro_in_target_lang="pragmatics explanation",
+    )
+    chunks = _frontmatter_chunks(parsed)
+    labels = [c.section_title for c in chunks]
+    assert "headword" not in labels
+    assert "title" in labels
+
+
+def test_frontmatter_chunks_not_for_events():
+    parsed = _make_parsed_doc(kind="event")
+    assert _frontmatter_chunks(parsed) == []
+
+
+def test_frontmatter_chunks_not_for_user():
+    parsed = _make_parsed_doc(kind="user")
+    assert _frontmatter_chunks(parsed) == []
+
+
+def test_index_file_frontmatter_chunks_prepended(conn: sqlite3.Connection, memory_root: Path):
+    """index_file 写入的 chunks 中 frontmatter chunk 排在 body chunk 之前。"""
+    p = _write_kb_item(
+        memory_root,
+        "aimai--01JZABD123.md",
+        {
+            "ulid": "01JZABD123",
+            "slug": "aimai",
+            "type": "vocab",
+            "headword": "曖昧",
+            "title": "曖昧释义",
+            "intro_in_interface_lang": "曖昧释义",
+            "intro_in_target_lang": "aimai definition",
+            "lang": "ja",
+        },
+        body="## 例句\nこれは例です。\n\n## 解释\n説明。",
+    )
+    parsed = parse_file(p, memory_root)
+    index_file(conn, parsed)
+    rows = conn.execute(
+        "SELECT chunk_index, section_kind, section_title, char_offset FROM chunks "
+        "WHERE doc_rowid=(SELECT rowid FROM documents WHERE ulid=?) "
+        "ORDER BY chunk_index",
+        (parsed.ulid,),
+    ).fetchall()
+    # 前 4 个（或全部 frontmatter chunk）应为 frontmatter
+    fm_rows = [r for r in rows if r[1] == "frontmatter"]
+    body_rows = [r for r in rows if r[1] != "frontmatter"]
+    assert len(fm_rows) == 4
+    # frontmatter chunk_index 从 0 开始
+    assert fm_rows[0][0] == 0
+    # body chunk chunk_index 从 4 开始
+    assert body_rows[0][0] == 4
+    # char_offset 为 NULL（SQLite 返回 None）
+    for r in fm_rows:
+        assert r[3] is None
+
+
+def test_index_file_frontmatter_chunks_content_hash_triggers_rebuild(
+    conn: sqlite3.Connection, memory_root: Path
+):
+    """仅 frontmatter 改变（body 不变）→ content_hash 变 → chunks 重建。"""
+    p = _write_kb_item(
+        memory_root,
+        "x--01JZABD300.md",
+        {
+            "ulid": "01JZABD300",
+            "slug": "x",
+            "type": "vocab",
+            "headword": "old",
+            "title": "old",
+        },
+        body="## 解释\nbody",
+    )
+    parsed = parse_file(p, memory_root)
+    index_file(conn, parsed)
+    old_chunk_texts = {
+        r[0] for r in conn.execute("SELECT text FROM chunks").fetchall()
+    }
+    # 改 frontmatter title
+    p.write_text(
+        "---\nulid: 01JZABD300\nslug: x\ntype: vocab\n"
+        "headword: old\ntitle: new title\n---\n\n## 解释\nbody",
+        encoding="utf-8",
+    )
+    parsed2 = parse_file(p, memory_root)
+    assert parsed2.content_hash != parsed.content_hash
+    index_file(conn, parsed2)
+    new_chunk_texts = {
+        r[0] for r in conn.execute("SELECT text FROM chunks").fetchall()
+    }
+    # frontmatter chunk 中应有 'title: new title'
+    assert any("new title" in t for t in new_chunk_texts)
+
+
+def test_rebuild_fts_includes_frontmatter_chunks(conn: sqlite3.Connection, memory_root: Path):
+    """rebuild_fts 重建的 chunks 也含 frontmatter chunk。"""
+    p = _write_kb_item(
+        memory_root,
+        "x--01JZABD301.md",
+        {
+            "ulid": "01JZABD301",
+            "slug": "x",
+            "type": "vocab",
+            "headword": "foo",
+            "title": "bar",
+            "intro_in_interface_lang": "bar",
+            "intro_in_target_lang": "bar target",
+        },
+        body="## 例句\nexample",
+    )
+    parsed = parse_file(p, memory_root)
+    index_file(conn, parsed)
+    # 触发 rebuild_fts（通过改 tokenizer_version 或直接调）
+    from everlingo.mem.vault.search.indexer import rebuild_fts
+    rebuild_fts(conn)
+    rows = conn.execute(
+        "SELECT section_kind, section_title FROM chunks "
+        "WHERE doc_rowid=(SELECT rowid FROM documents WHERE ulid=?) "
+        "ORDER BY chunk_index",
+        ("01JZABD301",),
+    ).fetchall()
+    fm = [r for r in rows if r[0] == "frontmatter"]
+    assert len(fm) == 4
+
+
+# ── helpers ────────────────────────────────────────────────
+
+def _make_parsed_doc(
+    kind: str,
+    headword=None,
+    title=None,
+    intro_in_interface_lang=None,
+    intro_in_target_lang=None,
+    lang=None,
+    item_type=None,
+):
+    """构造最小 ParsedDoc 用于 _frontmatter_chunks 测试。"""
+    from everlingo.mem.vault.search.indexer import ParsedDoc
+    return ParsedDoc(
+        kind=kind,
+        lang=lang,
+        item_type=item_type,
+        file_path="dummy.md",
+        ulid="test-ulid",
+        slug=None,
+        headword=headword,
+        title=title,
+        intro_in_interface_lang=intro_in_interface_lang,
+        intro_in_target_lang=intro_in_target_lang,
+        aliases=None,
+        related=None,
+        tags=None,
+        first_seen=None,
+        last_seen=None,
+        seen_count=None,
+        schema_version=None,
+        body="",
+        file_mtime="2026-01-01T00:00:00",
+        content_hash="dummy",
+    )

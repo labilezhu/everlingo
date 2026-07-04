@@ -79,7 +79,8 @@ src/everlingo/mem/vault/search/
 ```
 
 - gateway 进程只依赖 `client.py` + `protocol.py`，不加载 mecab/jieba/embedder，不打开 SQLite。
-- indexer 进程加载全部模块，独占 SQLite 读写 + watchdog + embedding worker（见 embedding-spec）。
+- indexer 进程加载全部模块，独占 SQLite 读写 + watchdog + embedding worker。见 [embedding-spec](/docs/impl-spec/search/memory-vault-embedding-spec.md)。
+
 ## DB 文件位置
 
 所有路径基于当前 workspace 解析（见 [workspace.md](/docs/impl-spec/worksplace/workspace.md)「Workspace 选择机制」）：
@@ -136,7 +137,7 @@ CREATE VIRTUAL TABLE documents_fts USING fts5(
   tokenize='unicode61'
 );
 
--- 段级文本，向量作用层（embedding 列本期建表不写数据）
+-- 段级文本，向量作用层
 CREATE TABLE chunks (
   chunk_id INTEGER PRIMARY KEY,
   doc_rowid INTEGER NOT NULL REFERENCES documents(rowid) ON DELETE CASCADE,
@@ -231,8 +232,9 @@ jieba 词典更新、unidic 版本变化会导致 token 集变化，需触发重
   - `## 记忆钩子` → `'memory_hook'`
   - 等等
 - 单 chunk 超阈值 **800 字符**时按段落/句号二次切，子 chunk 继承 `section_title`。
-- `char_offset` 记 body 内起点，命中后用于前端滚动定位。
+- `char_offset` 记 body 内起点，命中后用于前端滚动定位；frontmatter chunk 的 `char_offset` 为 `NULL`（不在 body 内）。
 - `chunks.text` 保留**原文**（向量嵌入用原文，不分词），不受分词器版本影响。
+- **frontmatter 字段 chunk**（仅 `kind='item'`）：`headword` / `title` / `intro_in_interface_lang` / `intro_in_target_lang` 四个文本内容字段各生成一个 chunk，`section_kind='frontmatter'`，`section_title=<字段名>`，`text` 格式为 `"{key}: {value}"`，`chunk_index` 排在 body chunk 之前。数组字段（`aliases`/`related`/`tags`）不生成 chunk。详见 `indexer.py` `_frontmatter_chunks`。
 
 ## IPC 协议
 
@@ -262,13 +264,13 @@ curl --unix-socket $workspace/index/indexer.sock http://localhost/search \
 # 搜索含 "god" mode: hybrid
 curl --unix-socket $workspace/index/indexer.sock http://localhost/search \
   -H 'Content-Type: application/json' \
-  -d '{"q":"god","mode":"hybrid","limit":4}' | jq -r
+  -d '{"q":"god","mode":"hybrid","limit":4}' | jq -r 
 
 
 # 搜索含 "god" 的短语
 curl --unix-socket $workspace/index/indexer.sock http://localhost/search \
   -H 'Content-Type: application/json' \
-  -d '{"q":"god","item_type":"phrase","mode":"exact","limit":20}'
+  -d '{"q":"god","item_type":"phrase","mode":"exact","limit":4}'
 
 # Writer 投递索引请求
 curl --unix-socket $workspace/index/indexer.sock http://localhost/index \

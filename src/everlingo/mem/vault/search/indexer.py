@@ -195,6 +195,46 @@ def parse_file(absolute: Path, memory_root: Path) -> ParsedDoc:
     )
 
 
+# ── frontmatter chunks（仅 kind='item'）─────────────────────────────
+# 每个文本内容 frontmatter 字段（headword / title /
+# intro_in_interface_lang / intro_in_target_lang）生成一个 chunk，
+# 供向量检索命中。数组字段（aliases/related/tags）跳过。
+# 顺序固定，空值/缺失跳过；chunk_index 排在 body chunks 之前。
+
+_FRONTMATTER_CHUNK_FIELDS: list[tuple[str, str | None]] = [
+    ("headword", "headword"),
+    ("title", "title"),
+    ("intro_in_interface_lang", "intro_in_interface_lang"),
+    ("intro_in_target_lang", "intro_in_target_lang"),
+]
+
+
+def _frontmatter_chunks(parsed: ParsedDoc) -> list[Chunk]:
+    """为 kind='item' 的 frontmatter 文本内容字段生成 chunk 列表。
+
+    chunk_index 从 0 开始；调用方在拼接 body chunks 时需顺延。
+    """
+    if parsed.kind != "item":
+        return []
+    out: list[Chunk] = []
+    idx = 0
+    for attr, label in _FRONTMATTER_CHUNK_FIELDS:
+        value = getattr(parsed, attr, None)
+        if not value:
+            continue
+        text = f"{label}: {value}"
+        out.append(Chunk(
+            chunk_index=idx,
+            section_title=label,
+            section_kind="frontmatter",
+            text=text,
+            char_offset=None,
+            content_hash=_hash_content(text),
+        ))
+        idx += 1
+    return out
+
+
 # ── chunks 切分 ─────────────────────────────────────────────────────
 
 
@@ -204,7 +244,7 @@ class Chunk:
     section_title: str | None
     section_kind: str | None
     text: str
-    char_offset: int
+    char_offset: int | None
     content_hash: str
 
 
@@ -538,9 +578,14 @@ def index_file(
         ),
     )
 
-    # chunks
-    chunks = split_chunks(parsed.body, parsed.kind)
-    for c in chunks:
+    # chunks：frontmatter 字段 chunk 在前，body chunk 在后
+    fm_chunks = _frontmatter_chunks(parsed)
+    body_chunks = split_chunks(parsed.body, parsed.kind)
+    offset = len(fm_chunks)
+    for c in body_chunks:
+        c.chunk_index += offset
+    all_chunks = fm_chunks + body_chunks
+    for c in all_chunks:
         conn.execute(
             """
             INSERT INTO chunks(
@@ -635,13 +680,36 @@ def rebuild_fts(conn: sqlite3.Connection) -> int:
                 body,
             ),
         )
-        # chunks 重建
-        for c in split_chunks(body, kind):
-            conn.execute(
-                "INSERT INTO chunks(doc_rowid, chunk_index, section_title, section_kind, "
-                "text, char_offset, content_hash) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (rowid, c.chunk_index, c.section_title, c.section_kind, c.text, c.char_offset, c.content_hash),
-            )
-        indexed += 1
+    # chunks 重建
+    fm_fields = [(headword, "headword"), (title, "title"),
+                 (intro_iface, "intro_in_interface_lang"),
+                 (intro_target, "intro_in_target_lang")]
+    fm_chunks: list[Chunk] = []
+    if kind == "item":
+        idx = 0
+        for value, label in fm_fields:
+            if not value:
+                continue
+            text = f"{label}: {value}"
+            fm_chunks.append(Chunk(
+                chunk_index=idx,
+                section_title=label,
+                section_kind="frontmatter",
+                text=text,
+                char_offset=None,
+                content_hash=_hash_content(text),
+            ))
+            idx += 1
+    body_chunks = split_chunks(body, kind)
+    offset = len(fm_chunks)
+    for c in body_chunks:
+        c.chunk_index += offset
+    for c in fm_chunks + body_chunks:
+        conn.execute(
+            "INSERT INTO chunks(doc_rowid, chunk_index, section_title, section_kind, "
+            "text, char_offset, content_hash) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (rowid, c.chunk_index, c.section_title, c.section_kind, c.text, c.char_offset, c.content_hash),
+        )
+    indexed += 1
     conn.commit()
     return indexed

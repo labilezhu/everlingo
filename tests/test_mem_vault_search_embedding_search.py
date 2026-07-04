@@ -106,11 +106,14 @@ def test_semantic_returns_vec_source_and_chunk(conn, memory_root):
     ])
     emb = FakeEmbedder()
     hits = do_search(conn, "apple", embedder=emb, mode="semantic", limit=10)
-    assert len(hits) == 1
-    assert hits[0].source == "vec"
-    assert hits[0].chunk is not None
-    assert hits[0].chunk.text  # 段文本非空
-    assert hits[0].score > 0  # cosine similarity 转换后非负
+    assert len(hits) >= 1
+    for h in hits:
+        assert h.source == "vec"
+        assert h.chunk is not None
+        assert h.chunk.text
+        assert h.score > 0
+    # 全部来自同一文档
+    assert all(h.ulid == hits[0].ulid for h in hits)
 
 
 def test_semantic_filter_by_lang(conn, memory_root):
@@ -120,9 +123,9 @@ def test_semantic_filter_by_lang(conn, memory_root):
     ])
     emb = FakeEmbedder()
     hits = do_search(conn, "apple", embedder=emb, mode="semantic", lang="ja", limit=10)
-    assert len(hits) == 1
-    assert hits[0].lang == "ja"
-    assert hits[0].ulid == "01JZS0003"
+    assert len(hits) >= 1
+    assert all(h.lang == "ja" for h in hits)
+    assert all(h.ulid == "01JZS0003" for h in hits)
 
 
 def test_semantic_no_embedder_returns_empty(conn, memory_root):
@@ -166,9 +169,10 @@ def test_hybrid_rrf_dedups_within_each_source(conn, memory_root):
     # FTS 来源：1 条（ulid=01JZH0002）
     fts_hits = [h for h in hits if h.chunk is None]
     assert len(fts_hits) == 1
-    # vec 来源：1 条（01JZH0002 的 chunk；最近）
+    # vec 来源：文档 01JZH0002 的多个 chunk（headword / title / body）
     vec_hits = [h for h in hits if h.chunk is not None]
-    assert len(vec_hits) == 1
+    assert len(vec_hits) >= 1
+    assert all(h.ulid == "01JZH0002" for h in vec_hits)
     # 全部 source='hybrid'，全部 score > 0
     assert all(h.source == "hybrid" and h.score > 0 for h in hits)
 
