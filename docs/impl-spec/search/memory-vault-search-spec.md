@@ -236,50 +236,13 @@ jieba 词典更新、unidic 版本变化会导致 token 集变化，需触发重
 - `chunks.text` 保留**原文**（向量嵌入用原文，不分词），不受分词器版本影响。
 - **frontmatter 字段 chunk**（仅 `kind='item'`）：`headword` / `title` / `intro_in_interface_lang` / `intro_in_target_lang` 四个文本内容字段各生成一个 chunk，`section_kind='frontmatter'`，`section_title=<字段名>`，`text` 格式为 `"{key}: {value}"`，`chunk_index` 排在 body chunk 之前。数组字段（`aliases`/`related`/`tags`）不生成 chunk。详见 `indexer.py` `_frontmatter_chunks`。
 
-## IPC 协议
+## Search API
 
 HTTP/1.1 over unix domain socket，REST + JSON。uvicorn 绑定 `$workspace/index/indexer.sock`，FastAPI 提供路由与 pydantic 模型校验，自带 `/docs` 交互文档便于浏览器调试。
 
-### REST 端点
+### Search API Spec
+[Search API Spec](/docs/impl-spec/search/search-api-spec.md)
 
-| 方法 路径 | 用途 | 请求 body | 响应 |
-|---|---|---|---|
-| `POST /search` | 全文检索 | `{q, lang?, item_type?, tags?, kind?, mode, limit}` | `{hits:[...], count, took_ms}` |
-| `POST /index` | Writer 投递索引请求 | `{path}` | `{ok}` |
-| `POST /delete` | 删除指定文件索引 | `{path}` | `{ok}` |
-| `POST /rebuild` | 全量重建 | `{}` | `{ok, indexed, chunks, took_ms}` |
-| `GET /status` | 查询状态 | — | `{running, tokenizer_version, docs, chunks, uptime_s}` |
-
-### curl 示例
-
-```bash
-# 状态
-curl --unix-socket $workspace/index/indexer.sock http://localhost/status
-
-# 搜索含 "god" mode: semantic
-curl --unix-socket $workspace/index/indexer.sock http://localhost/search \
-  -H 'Content-Type: application/json' \
-  -d '{"q":"上帝","mode":"semantic","limit":4}' | jq -r
-
-# 搜索含 "god" mode: hybrid
-curl --unix-socket $workspace/index/indexer.sock http://localhost/search \
-  -H 'Content-Type: application/json' \
-  -d '{"q":"god","mode":"hybrid","limit":4}' | jq -r 
-
-
-# 搜索含 "god" 的短语
-curl --unix-socket $workspace/index/indexer.sock http://localhost/search \
-  -H 'Content-Type: application/json' \
-  -d '{"q":"god","item_type":"phrase","mode":"exact","limit":4}'
-
-# Writer 投递索引请求
-curl --unix-socket $workspace/index/indexer.sock http://localhost/index \
-  -H 'Content-Type: application/json' \
-  -d '{"path":"ja/items/vocab/aimai--01JZABD123.md"}'
-
-# 全量重建
-curl --unix-socket $workspace/index/indexer.sock -X POST http://localhost/rebuild
-```
 
 ### 实现
 

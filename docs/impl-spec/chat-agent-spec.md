@@ -52,7 +52,7 @@ Agent 的`用户意图分析` 与 `用户意图的执行与回复响应` 见 Age
 
 **支持 mp3 时**：
 - 注入 `## 语音发送能力` 节，说明何时调用 `voice_speak` 工具
-- 提供 `voice_speak` 工具（见 [tools.md](/docs/impl-spec/tools.md)）
+- 提供 `voice_speak` 工具（见 [chat-agent-tools-spec.md](/docs/impl-spec/chat-agent-tools-spec.md)）
 
 **不支持 mp3 时**：
 - 注入 `## 语音发送能力` 节，告知 Agent 当前通道不支持语音
@@ -105,7 +105,7 @@ AIMessage(content="")                                                   # 最终
 
 ## Agent tools
 
-参考： [tools](/docs/impl-spec/tools.md)
+参考： [chat-agent-tools-spec.md](/docs/impl-spec/chat-agent-tools-spec.md)
 
 ## Observability
 所有发给 LLM 的请求都写入日志文件。见 [observability.md](/docs/impl-spec/observability.md) 。 日志 level 是 debug 。

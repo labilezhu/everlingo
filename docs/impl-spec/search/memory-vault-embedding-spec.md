@@ -136,7 +136,10 @@ def search(query, ..., mode='exact', limit=20) -> list[SearchHit]:
 - **`_fuse`（RRF）**：两路各自按 score 排序；`score = Σ 1/(60 + rank_i)`；FTS 文件级 hit（无 chunk）按 ulid 去重，vec hit 按 (ulid, chunk_id) 去重；合并取 top-limit，`source='hybrid'`。
 - lang/item_type/kind/tags 过滤两路都应用。
 
-## CLI 与 IPC
+## Search API
+[Search API](/docs/impl-spec/search/memory-vault-search-spec.md) 中 “## Search API” 一节。
+
+## CLI
 
 - 新增 `everlingo mem embed`：经 HTTP `POST /embed` 触发 worker 跑一轮；`--rebuild` 先 drop 再全量重嵌；`--status` 报 embedded_chunks / total_chunks / model_id。
 - `GET /status` 响应增 `embedded_chunks`、`embedding_model_id`。
