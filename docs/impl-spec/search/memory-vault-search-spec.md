@@ -104,7 +104,7 @@ CREATE TABLE documents (
   rowid INTEGER PRIMARY KEY,
   ulid TEXT UNIQUE,                       -- kb item 的 ulid；event 用合成键 'event:{lang}:{date}'
   kind TEXT NOT NULL,                     -- 'item' | 'event' | 'user'
-  lang TEXT,                              -- en / ja / ...
+  lang TEXT,                              -- en / ja / ...；来源：vault 文件路径前缀 {lang}/，不来自 frontmatter
   item_type TEXT,                         -- vocab/phrase/grammar/pragmatics/others；event/user 为 NULL
   file_path TEXT NOT NULL UNIQUE,         -- 相对 $workspace/memory 的路径
   slug TEXT,

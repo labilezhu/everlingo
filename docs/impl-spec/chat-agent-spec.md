@@ -101,7 +101,7 @@ AIMessage(content="")                                                   # 最终
 `Session.run()` 对返回列表逐条调用 `channel.send()`，形成多个消息气泡。
 
 ## Memory Extract
-每个 Chat Agent 实例，均有自己专属的 [Memory Extract Agent](/docs/impl-spec/memory-extract-agent-spec.md) 实例。用户从对话中提炼要记忆的对象。输见 [Memory Extract Agent](/docs/impl-spec/memory-extract-agent-spec.md) 中的 “## 输入规范” 。
+每个 Chat Agent 实例，均有自己专属的 [Memory Extract Agent](/docs/impl-spec/memory-extract-agent-spec.md) 实例。用户从对话中提炼要记忆的对象。见 [Memory Extract Agent](/docs/impl-spec/memory-extract-agent-spec.md) 中的 “## 输入规范” 。
 
 ## Agent tools
 

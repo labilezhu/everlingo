@@ -111,7 +111,7 @@ def test_parse_file_kb_item(memory_root: Path):
     assert parsed.item_type == "vocab"
     assert parsed.headword == "aimai"
     assert parsed.title == "あいまい"
-    assert parsed.lang is None  # 上面 frontmatter 没写 lang
+    assert parsed.lang == "en"  # lang 来自路径前缀 en/items/...，不来自 frontmatter
     assert parsed.content_hash
     assert parsed.body.startswith("# あいまい")
 
@@ -122,6 +122,38 @@ def test_parse_file_kb_item_missing_ulid_raises(memory_root: Path):
     p.write_text("---\ntitle: x\n---\n\nbody", encoding="utf-8")
     with pytest.raises(ValueError):
         parse_file(p, memory_root)
+
+
+def test_parse_file_kb_item_lang_from_path_not_frontmatter(memory_root: Path):
+    """frontmatter 写 lang=ja 但路径是 en/items/... → lang 应以路径为准（en）。"""
+    p = _write_kb_item(
+        memory_root,
+        "aimai--01JZABD123.md",
+        {
+            "ulid": "01JZABD123",
+            "slug": "aimai",
+            "type": "vocab",
+            "headword": "aimai",
+            "title": "あいまい",
+            "lang": "ja",  # 故意写错，测试 path 优先
+        },
+        body="# あいまい\n## 例句\nこれは例です。",
+    )
+    parsed = parse_file(p, memory_root)
+    assert parsed.lang == "en"  # 来自路径前缀 en/items/...
+
+
+def test_parse_file_kb_item_path_mismatch_lang_none(memory_root: Path):
+    """路径不匹配 {lang}/items/{type}/... 时 lang=None（不 raise）。"""
+    p = memory_root / "misc" / "orphan.md"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(
+        "---\nulid: 01JZABD999\nslug: x\ntype: vocab\n---\n\nbody",
+        encoding="utf-8",
+    )
+    parsed = parse_file(p, memory_root)
+    assert parsed.kind == "item"
+    assert parsed.lang is None
 
 
 def test_parse_file_events(memory_root: Path):
@@ -155,7 +187,6 @@ def test_index_file_inserts_doc_fts_chunks(conn: sqlite3.Connection, memory_root
             "type": "vocab",
             "headword": "computer",
             "title": "计算机",
-            "lang": "en",
             "tags": "tech hardware",
         },
         body="## 例句\nThis is a computer.\n## 解释\n硬件设备。",
@@ -506,7 +537,6 @@ def test_index_file_frontmatter_chunks_prepended(conn: sqlite3.Connection, memor
             "title": "曖昧释义",
             "intro_in_interface_lang": "曖昧释义",
             "intro_in_target_lang": "aimai definition",
-            "lang": "ja",
         },
         body="## 例句\nこれは例です。\n\n## 解释\n説明。",
     )

@@ -110,7 +110,7 @@ related:
 
 文件名与路径，例如：
 ```text
-ja/vocab/aimai--01JZABD123.md
+vocab/aimai--01JZABD123.md
 ```
 
 #### Markdown Frontmatter 字段补充说明
@@ -195,7 +195,7 @@ slug:
 文件名与路径，例如：
 
 ```text
-en/phrase/take-for-granted--01JZABC789.md
+phrase/take-for-granted--01JZABC789.md
 ```
 
 
@@ -265,7 +265,7 @@ slug:
 
 文件名与路径，例如：
 ```text
-ja/grammar/te-form--01JZABE001.md
+grammar/te-form--01JZABE001.md
 ```
 
 #### Markdown Frontmatter 字段补充说明
@@ -317,7 +317,7 @@ slug: 源于 `headword`。翻译成英文。最后注意按照 “slug 基础规
 
 文件名与路径，例如：
 ```text
-ja/pragmatics/pragmatically-answering-yes-or-no-can-easily-lead-to-confusion--01JZABE001.md
+pragmatics/pragmatically-answering-yes-or-no-can-easily-lead-to-confusion--01JZABE001.md
 ```
 
 #### Markdown Frontmatter 字段补充说明
@@ -367,7 +367,7 @@ No.
 
 文件名与路径，例如：
 ```text
-ja/others/pragmatically-answering-yes-or-no-can-easily-lead-to-confusion--01JZABE001.md
+others/pragmatically-answering-yes-or-no-can-easily-lead-to-confusion--01JZABE001.md
 ```
 
 #### Markdown Frontmatter 字段补充说明

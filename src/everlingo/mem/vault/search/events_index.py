@@ -32,6 +32,30 @@ class EventFileMeta:
     month: str
 
 
+# 路径 pattern：{lang}/items/{item_type}/{slug}--{ulid}.md
+_KB_ITEM_PATH_RE = re.compile(
+    r"^(?P<lang>[a-z]{2}(?:-[A-Za-z0-9]+)?)/items/(?P<item_type>[^/]+)/(?P<filename>[^/]+\.md)$"
+)
+
+
+@dataclass(frozen=True)
+class KbItemFileMeta:
+    lang: str
+    item_type: str  # 路径段，仅用于 lang 推导；documents.item_type 仍取 frontmatter type
+
+
+def parse_kb_item_path(rel_path: str) -> KbItemFileMeta | None:
+    """解析 kb item 文件路径，返回 KbItemFileMeta；非 kb item 路径返回 None。
+
+    lang 编码在路径前缀 {lang}/items/... 中，不来自 frontmatter。
+    """
+    p = rel_path.replace("\\", "/")
+    m = _KB_ITEM_PATH_RE.match(p)
+    if m is None:
+        return None
+    return KbItemFileMeta(lang=m.group("lang"), item_type=m.group("item_type"))
+
+
 def parse_event_path(rel_path: str) -> EventFileMeta | None:
     """解析 events 文件路径，返回 EventFileMeta；非 events 文件返回 None。"""
     p = rel_path.replace("\\", "/")

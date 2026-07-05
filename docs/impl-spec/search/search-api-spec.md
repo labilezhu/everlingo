@@ -1,5 +1,7 @@
 # Search API spec
 
+搜索 Memory Vault 记忆知识库。支持全文精确搜索、语义搜索、混合搜索。
+
 ## REST 端点
 
 | 方法 路径 | 用途 | 请求 body | 响应 |
@@ -18,7 +20,7 @@ Request: {q, lang?, item_type?, tags?, kind?, mode, limit}
 
 字段说明：
 
-q: 要匹配的文本
+q: 要搜索的文本或语义
 lang:       匹配过滤条件：目标学习语言。如 en,ja,zh-CN
 kind:       匹配过滤条件：memory vault 文档分类。取值包括： 
     item : 知识类文档
@@ -27,7 +29,7 @@ kind:       匹配过滤条件：memory vault 文档分类。取值包括：
 item_type:  匹配过滤条件：知识类型 。取值包括： 
     kind=item 时，取值包括： vocab/phrase/grammar/pragmatics/others
     kind=event/user 为 NULL
-mode: 搜索模式。取值包括： 
+mode: 搜索模式。一般情况下，优先使用 hybrid 混合搜索： `"mode":"hybrid"`。取值包括： 
     exact ： 全文精确搜索
     semantic ： 语义搜索
     hybrid ： 混合搜索。混合以上两人种搜索的结果
@@ -44,6 +46,7 @@ curl --unix-socket $workspace/index/indexer.sock http://localhost/search \
 ```
 
 #### Response body
+
 
 ##### 示例 1 - 全文搜索含 "god" 的词语
 ```bash
@@ -158,6 +161,8 @@ hits: 搜索结果（字段意义同 示例 1，以下补充其它字段）
 
 
 ##### 示例 3 - hybrid 混合搜索
+
+hybrid 混合搜索。混合了 全文搜索 和 语义搜索 的结果。
 
 ```bash
 curl --unix-socket $workspace/index/indexer.sock http://localhost/search \

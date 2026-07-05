@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Iterable
 
 from . import events_index
+from .events_index import parse_kb_item_path
 from ..frontmatter import parse_frontmatter
 from .tokenizer import tokenize, tokenizer_version
 
@@ -142,10 +143,10 @@ def parse_file(absolute: Path, memory_root: Path) -> ParsedDoc:
     # USER.md
     if events_index.is_user_file(rel):
         fm, body = parse_frontmatter(text)
-        # ulid 用合成键 'user:<lang>'，但 USER.md 单文件无 lang；用 'user:root'
+        # ulid 用合成键 'user:<lang>'，但 USER.md 单文件无 lang 前缀；用 'user:root'
         return ParsedDoc(
             kind="user",
-            lang=fm.get("lang"),
+            lang=None,
             item_type=None,
             file_path=rel,
             ulid="user:root",
@@ -171,9 +172,12 @@ def parse_file(absolute: Path, memory_root: Path) -> ParsedDoc:
     ulid = fm.get("ulid")
     if not ulid:
         raise ValueError(f"kb item 缺少 ulid frontmatter: {rel}")
+    kb = parse_kb_item_path(rel)
+    if kb is None:
+        logger.warning("kb item 路径不匹配 {lang}/items/{type}/... 格式: %s", rel)
     return ParsedDoc(
         kind="item",
-        lang=fm.get("lang"),
+        lang=kb.lang if kb else None,
         item_type=fm.get("type"),
         file_path=rel,
         ulid=str(ulid),
