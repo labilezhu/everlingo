@@ -1,8 +1,8 @@
 # ref: docs/impl-spec/memory-writer-agent-spec.md — Agent tools
 # ref: docs/impl-spec/search/memory-vault-search-spec.md — Writer 集成
 # Memory Writer Agent 的 mem_* 工具沙箱。
-# 所有工具强制使用相对于 workspace.memory_dir() 的 path，并在工具层校验
-# 解析后路径不能逃出 memory_dir（防 ../），否则 LLM 一次幻觉就会写到 workspace 外。
+# 所有工具强制使用相对于 workspace.vault_dir() 的 path，并在工具层校验
+# 解析后路径不能逃出 vault_dir（防 ../），否则 LLM 一次幻觉就会写到 workspace 外。
 # 此外，对写操作（create_tmp / write / append / remove）在成功后记录 info 日志，
 # 描述写了什么文件、什么内容。
 
@@ -79,24 +79,24 @@ def _gen_ulid() -> str:
 
 
 class PathSandboxError(ValueError):
-    """工具路径逃逸出 memory_dir 时抛出。"""
+    """工具路径逃逸出 vault_dir 时抛出。"""
 
 
 def _memory_root() -> Path:
-    """当前 workspace 的 memory 目录（resolve 后绝对路径）。"""
-    return workspace.memory_dir().resolve()
+    """当前 workspace 的 Memory Vault 目录（resolve 后绝对路径）。"""
+    return workspace.vault_dir().resolve()
 
 
 def _resolve_safe(rel_path: str) -> Path:
-    """把相对 path 解析为 memory_dir 下的绝对路径，并校验不逃逸。
+    """把相对 path 解析为 vault_dir 下的绝对路径，并校验不逃逸。
 
     ref: memory-writer-agent-spec.md — 工具沙箱
-    相对路径解析后必须仍然在 memory_dir 之内；否则抛 PathSandboxError。
-    空路径视为 memory_dir 本身（用于 list_directory / search / grep 等
+    相对路径解析后必须仍然在 vault_dir 之内；否则抛 PathSandboxError。
+    空路径视为 vault_dir 根（用于 list_directory / search / grep 等
     列目录类的工具）。
     """
     root = _memory_root()
-    # 空字符串 / "." → memory_dir 根
+    # 空字符串 / "." → vault_dir 根
     if rel_path is None:
         rel_path = ""
     rel = rel_path.strip()
@@ -107,7 +107,7 @@ def _resolve_safe(rel_path: str) -> Path:
         candidate.relative_to(root)
     except ValueError as e:
         raise PathSandboxError(
-            f"path escapes memory_dir: {rel_path!r}"
+            f"path escapes vault_dir: {rel_path!r}"
         ) from e
     return candidate
 
@@ -154,7 +154,7 @@ def mem_create_tmp_file() -> str:
 def mem_read_file(path: str) -> str:
     """读取相对 path 指向的文件，返回文本内容。
 
-    path 为相对于 memory_dir 的相对路径。tmp/ 目录下文件可读。
+    path 为相对于 vault_dir 的相对路径。tmp/ 目录下文件可读。
     """
     abs_path = _resolve_safe(path)
     if not abs_path.is_file():
@@ -219,7 +219,7 @@ def mem_list_directory(path: str) -> list[dict]:
     """列出指定目录下的直接子项（不递归）。
 
     返回 [{file_name, size_bytes, create_time, modify_time}]。
-    不存在的路径返回空列表。path 留空表示 memory_dir 根。
+    不存在的路径返回空列表。path 留空表示 vault_dir 根。
     """
     abs_path = _resolve_safe(path or "")
     if not abs_path.is_dir():

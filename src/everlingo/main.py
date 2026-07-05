@@ -96,7 +96,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "path",
         nargs="?",
         default=None,
-        help="文件或目录路径（相对 $workspace/memory）；省略=全 vault",
+        help="文件或目录路径（相对 $workspace/memory/vault）；省略=全 vault",
     )
     p_reindex.add_argument("--rebuild", action="store_true", help="完全删除 index，从零重建")
     p_reindex.add_argument("-v", "--verbose", action="store_true", help="逐文件输出")

@@ -2,6 +2,8 @@
 
 由 markdown 文件、结构化目录组成的 memory vault 。 保存于 [workspace](/docs/impl-spec/worksplace/workspace.md) 下的 memory 目录。
 
+Memory Vault 位于 $workspace/memory/vault/ 目录下。其中 $workspace 是 EverLingo 的 workspace 工作目录。
+
 
 目录说明参考：[vault_spec.md](/src/everlingo/mem/vault/vault_spec.md)
 

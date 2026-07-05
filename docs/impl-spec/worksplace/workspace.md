@@ -2,18 +2,7 @@
 
 抽象出 workspace 概念。支持同一台服务器安装多个独立配置的 everlingo 实例。
 
-## 原配置文件目录结构需要重构
-之前，配置目录 hard code 在 `~/.everlingo/` :
-```
-.
-├── everlingo.yaml
-├── logs
-│   └── everlingo.log
-├── USER.md
-```
-现在引入 workspace 概念。需要改变。
-
-## 配置文件目录结构
+## EverLingo 目录结构
 
 现在引入 workspace 概念。多个 workspace 存放在目录 `~/.everlingo/workspaces` 下：
 ```
@@ -24,13 +13,23 @@ workspace_b/
 
 其中 default 为默认的 workspace。
 
-每个 workspace 的结构如下：
-```
+### Workspace 目录结构
+
+每个 workspace 的结构示例如下：
+```bash
 /everlingo.yaml
 /logs
     everlingo.log
+    indexer.log
+
+/plugins
+   /channels
+      /wechat_channel
+         /credentials  
 /memory
     USER.md
+    /vault
+    /vault_index 
 ```
 
 ## Workspace 选择机制

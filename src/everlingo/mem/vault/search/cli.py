@@ -134,7 +134,7 @@ def cmd_reindex(args: argparse.Namespace) -> int:
         return 0
 
     # 增量：扫描 PATH 或全 vault，逐个 POST /index
-    memory_root = workspace.memory_dir()
+    memory_root = workspace.vault_dir()
     if not memory_root.exists():
         print(f"memory 目录不存在: {memory_root}", file=sys.stderr)
         return 1

@@ -1,5 +1,5 @@
 # ref: docs/impl-spec/search/memory-vault-search-spec.md — IPC 协议 / server.py
-# FastAPI app + uvicorn --uds $workspace/index/indexer.sock 入口。
+# FastAPI app + uvicorn --uds $workspace/memory/vault_index/indexer.sock 入口。
 # 5 个端点：POST /search, POST /index, POST /delete, POST /rebuild, GET /status
 # indexer 进程内 import；gateway 进程不加载本文件。
 
@@ -318,7 +318,7 @@ def run_server() -> FastAPI:
     from .... import workspace  # everlingo.mem.vault.search → everlingo
 
     db_path = workspace.index_db_path()
-    memory_root = workspace.memory_dir()
+    memory_root = workspace.vault_dir()
     socket_path = workspace.indexer_socket_path()
     socket_path.parent.mkdir(parents=True, exist_ok=True)
     if socket_path.exists():

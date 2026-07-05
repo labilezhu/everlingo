@@ -50,11 +50,11 @@ from everlingo.mem.agents.mem_writer_tools import (
 
 @pytest.fixture
 def tmp_memory(monkeypatch, tmp_path):
-    """把 workspace.memory_dir() 重定向到 tmp_path/memory。"""
-    mem = tmp_path / "memory"
-    mem.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr("everlingo.workspace.memory_dir", lambda: mem)
-    return mem
+    """把 workspace.vault_dir() 重定向到 tmp_path/memory/vault。"""
+    vault = tmp_path / "memory" / "vault"
+    vault.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr("everlingo.workspace.vault_dir", lambda: vault)
+    return vault
 
 
 @pytest.fixture(autouse=True)

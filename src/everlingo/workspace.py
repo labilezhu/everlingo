@@ -87,6 +87,11 @@ def memory_dir() -> Path:
     return current_workspace() / "memory"
 
 
+def vault_dir() -> Path:
+    """返回当前 workspace 的 Memory Vault 文件目录路径（$ws/memory/vault）。"""
+    return current_workspace() / "memory" / "vault"
+
+
 def user_doc_path() -> Path:
     """返回当前 workspace 的 USER.md 路径（自由文本偏好笔记）。"""
     return memory_dir() / "USER.md"
@@ -113,14 +118,14 @@ def index_dir() -> Path:
     包含 memory.sqlite（SQLite+FTS5 索引）与 indexer.sock（IPC unix socket）。
     不负责创建；调用方在需要时自行 mkdir(parents=True)。
     """
-    return current_workspace() / "index"
+    return current_workspace() / "memory" / "vault_index"
 
 
 def index_db_path() -> Path:
-    """返回 SQLite DB 文件路径 ($workspace/index/memory.sqlite)。"""
+    """返回 SQLite DB 文件路径 ($workspace/memory/vault_index/memory.sqlite)。"""
     return index_dir() / "memory.sqlite"
 
 
 def indexer_socket_path() -> Path:
-    """返回 indexer IPC unix socket 路径 ($workspace/index/indexer.sock)。"""
+    """返回 indexer IPC unix socket 路径 ($workspace/memory/vault_index/indexer.sock)。"""
     return index_dir() / "indexer.sock"

@@ -75,6 +75,18 @@ def test_user_doc_path_under_memory_dir(reset_workspace_state):
     assert workspace.user_doc_path() == workspace.WORKSPACE_ROOT / "ws_b" / "memory" / "USER.md"
 
 
+def test_vault_dir_under_memory_dir(reset_workspace_state):
+    """vault_dir 应位于 $ws/memory/vault。"""
+    workspace.init_workspace("ws_vault")
+    assert workspace.vault_dir() == workspace.WORKSPACE_ROOT / "ws_vault" / "memory" / "vault"
+
+
+def test_index_dir_under_memory_dir(reset_workspace_state):
+    """index_dir 应位于 $ws/memory/vault_index。"""
+    workspace.init_workspace("ws_idx")
+    assert workspace.index_dir() == workspace.WORKSPACE_ROOT / "ws_idx" / "memory" / "vault_index"
+
+
 def test_log_path_under_current_workspace(reset_workspace_state):
     """log_path 应位于 $ws/logs/everlingo.log。"""
     workspace.init_workspace("ws_c")
@@ -96,6 +108,8 @@ def test_accessors_follow_init_changes(reset_workspace_state):
     assert workspace.setting_path().parent.name == "ws_y"
     assert workspace.user_doc_path().parent.parent.name == "ws_y"
     assert workspace.log_path().parent.parent.name == "ws_y"
+    assert workspace.vault_dir().parent.parent.name == "ws_y"
+    assert workspace.index_dir().parent.parent.name == "ws_y"
 
 
 def test_init_workspace_dir_overrides_name(reset_workspace_state):
@@ -145,3 +159,5 @@ def test_accessors_follow_init_dir(reset_workspace_state):
     assert workspace.user_doc_path() == Path("/tmp/my_ws/memory/USER.md")
     assert workspace.log_path() == Path("/tmp/my_ws/logs/everlingo.log")
     assert workspace.plugins_dir() == Path("/tmp/my_ws/plugins")
+    assert workspace.vault_dir() == Path("/tmp/my_ws/memory/vault")
+    assert workspace.index_dir() == Path("/tmp/my_ws/memory/vault_index")

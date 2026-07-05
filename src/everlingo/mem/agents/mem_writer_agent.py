@@ -124,12 +124,12 @@ memory vault 中的 markdown 文件正文，主要语言必须使用 entry 的 `
 术语——应使用 `目标学习语言` 本身书写，不要翻译成界面语言。
 
 ## 工具的沙箱规则（强制）
-所有 mem_* 工具**只能使用相对 path**，相对于 `$workspace/memory/`。
-工具层会强制校验：解析后的绝对路径不能逃出 memory_dir，否则直接报错。
+所有 mem_* 工具**只能使用相对 path**，相对于 `$workspace/memory/vault/`。
+工具层会强制校验：解析后的绝对路径不能逃出 vault_dir，否则直接报错。
 这意味着：
 - 不允许使用绝对路径（如 `/etc/passwd`）。
 - 不允许使用 `..` 跳出（如 `../foo`）。
-- 不需要写 `memory/` 前缀（路径默认就在 memory_dir 之下）。
+- 不需要写 `memory/vault/` 前缀（路径默认就在 vault_dir 之下）。
 
 ## 单个 entry 处理流程
 
@@ -233,7 +233,7 @@ def _append_event(entry: MemoryEntry) -> None:
     让 indexer 即时拿到新追加的 event 段。失败时静默吞掉（fire-and-forget）。
     """
     rel = _events_rel_path(entry)
-    abs_path = (workspace.memory_dir() / rel).resolve()
+    abs_path = (workspace.vault_dir() / rel).resolve()
     abs_path.parent.mkdir(parents=True, exist_ok=True)
 
     created = False

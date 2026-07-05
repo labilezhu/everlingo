@@ -250,6 +250,8 @@ Extract LLM call 异常或结构化输出解析失败时：
 可用对话样例观察：
 - 「记住 ambiguous 这个词」→ 触发"用户明确要求记住知识点"
 - 「I goes to school」被纠正 → 触发"纠正事项"
+- 我是个 Software engineer. 有人问我： aren't you a software engineer? 我回答了： No, I'm not
+- 记住 god 这个单词
 - If I will see him, I'll tell him.
 - 正常查词/翻译 → 应被跳过（无 entries 日志）
 - 同一段纠正历史在后续闲聊轮中不再被抽取（因后续轮 `new_messages` 不含该历史，仅作 `context_messages` 背景）

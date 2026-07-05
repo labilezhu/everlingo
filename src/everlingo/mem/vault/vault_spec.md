@@ -2,8 +2,6 @@
 
 由 markdown 文件、结构化目录组成的 memory vault。 用于记录用户的语言学习事件，语言知识点。
 
-Memory Vault 位于 $workspace/memory/ 目录下。
-
 目录结构示例：
 ```bash
 en/ # 目标学习语言

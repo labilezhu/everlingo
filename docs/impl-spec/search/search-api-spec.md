@@ -40,7 +40,7 @@ limit: 搜索返回结果数限制
 
 ```bash
 # 搜索含 "god" mode: hybrid
-curl --unix-socket $workspace/index/indexer.sock http://localhost/search \
+curl --unix-socket $workspace/memory/vault_index/indexer.sock http://localhost/search \
   -H 'Content-Type: application/json' \
   -d '{"q":"god","mode":"hybrid","limit":4}' | jq -r 
 ```
@@ -50,7 +50,7 @@ curl --unix-socket $workspace/index/indexer.sock http://localhost/search \
 
 ##### 示例 1 - 全文搜索含 "god" 的词语
 ```bash
-curl --unix-socket $workspace/index/indexer.sock http://localhost/search \
+curl --unix-socket $workspace/memory/vault_index/indexer.sock http://localhost/search \
   -H 'Content-Type: application/json' \
   -d '{"q":"god","kind":"item", "item_type":"vocab","mode":"exact","limit":4}' | jq -r
 ```
@@ -96,7 +96,7 @@ count： 搜索结果数
 ##### 示例 2 - 语义搜索 god
 
 ```bash
-curl --unix-socket $workspace/index/indexer.sock http://localhost/search \
+curl --unix-socket $workspace/memory/vault_index/indexer.sock http://localhost/search \
   -H 'Content-Type: application/json' \
   -d '{"q":"上帝","kind":"item","mode":"semantic","limit":4}' | jq -r
 ```
@@ -165,7 +165,7 @@ hits: 搜索结果（字段意义同 示例 1，以下补充其它字段）
 hybrid 混合搜索。混合了 全文搜索 和 语义搜索 的结果。
 
 ```bash
-curl --unix-socket $workspace/index/indexer.sock http://localhost/search \
+curl --unix-socket $workspace/memory/vault_index/indexer.sock http://localhost/search \
   -H 'Content-Type: application/json' \
   -d '{"q":"god","kind":"item","mode":"hybrid","limit":4}' | jq -r
 ```
@@ -219,7 +219,7 @@ Response body:
 
 ```bash
 # 状态
-curl --unix-socket $workspace/index/indexer.sock http://localhost/status
+curl --unix-socket $workspace/memory/vault_index/indexer.sock http://localhost/status
 ```  
 
 ### POST /index
@@ -229,7 +229,7 @@ Writer 投递索引请求
 
 ```bash
 # Writer 投递索引请求
-curl --unix-socket $workspace/index/indexer.sock http://localhost/index \
+curl --unix-socket $workspace/memory/vault_index/indexer.sock http://localhost/index \
   -H 'Content-Type: application/json' \
   -d '{"path":"ja/items/vocab/aimai--01JZABD123.md"}'
 ```  
@@ -241,5 +241,5 @@ curl --unix-socket $workspace/index/indexer.sock http://localhost/index \
 
 ```bash
 # 全量重建
-curl --unix-socket $workspace/index/indexer.sock -X POST http://localhost/rebuild
+curl --unix-socket $workspace/memory/vault_index/indexer.sock -X POST http://localhost/rebuild
 ```  

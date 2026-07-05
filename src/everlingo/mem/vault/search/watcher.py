@@ -1,5 +1,5 @@
 # ref: docs/impl-spec/search/memory-vault-search-spec.md — 文件监听
-# watchdog 监听 $workspace/memory/ 下的 .md 增删改，事件路由到 indexer。
+# watchdog 监听 $workspace/memory/vault/ 下的 .md 增删改，事件路由到 indexer。
 # 300ms 去抖，ulid 幂等 upsert。
 #
 # 实现：
