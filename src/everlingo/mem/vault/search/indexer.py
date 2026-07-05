@@ -48,8 +48,8 @@ class ParsedDoc:
     slug: str | None
     headword: str | None
     title: str | None
-    intro_in_interface_lang: str | None
-    intro_in_target_lang: str | None
+    description: str | None
+    description_in_target_lang: str | None
     aliases: str | None  # '\n' 连接
     related: str | None
     tags: str | None  # ' ' 连接
@@ -124,8 +124,8 @@ def parse_file(absolute: Path, memory_root: Path, lang: str) -> ParsedDoc:
             slug=None,
             headword=None,
             title=fm.get("title") or f"events {evt.date}",
-            intro_in_interface_lang=fm.get("intro_in_interface_lang"),
-            intro_in_target_lang=fm.get("intro_in_target_lang"),
+            description=fm.get("description"),
+            description_in_target_lang=fm.get("description_in_target_lang"),
             aliases=_join_newline(fm.get("aliases")),
             related=_join_newline(fm.get("related")),
             tags=_join_space(fm.get("tags")),
@@ -156,8 +156,8 @@ def parse_file(absolute: Path, memory_root: Path, lang: str) -> ParsedDoc:
         slug=fm.get("slug"),
         headword=fm.get("headword"),
         title=fm.get("title"),
-        intro_in_interface_lang=fm.get("intro_in_interface_lang"),
-        intro_in_target_lang=fm.get("intro_in_target_lang"),
+        description=fm.get("description"),
+        description_in_target_lang=fm.get("description_in_target_lang"),
         aliases=_join_newline(fm.get("aliases")),
         related=_join_newline(fm.get("related")),
         tags=_join_space(fm.get("tags")),
@@ -173,15 +173,15 @@ def parse_file(absolute: Path, memory_root: Path, lang: str) -> ParsedDoc:
 
 # ── frontmatter chunks（仅 kind='item'）─────────────────────────────
 # 每个文本内容 frontmatter 字段（headword / title /
-# intro_in_interface_lang / intro_in_target_lang）生成一个 chunk，
+# description / description_in_target_lang）生成一个 chunk，
 # 供向量检索命中。数组字段（aliases/related/tags）跳过。
 # 顺序固定，空值/缺失跳过；chunk_index 排在 body chunks 之前。
 
 _FRONTMATTER_CHUNK_FIELDS: list[tuple[str, str | None]] = [
     ("headword", "headword"),
     ("title", "title"),
-    ("intro_in_interface_lang", "intro_in_interface_lang"),
-    ("intro_in_target_lang", "intro_in_target_lang"),
+    ("description", "description"),
+    ("description_in_target_lang", "description_in_target_lang"),
 ]
 
 
@@ -376,7 +376,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(schema)
     # 写分词器版本
     _set_meta(conn, "tokenizer_version", tokenizer_version())
-    _set_meta(conn, "schema_version", "1")
+    _set_meta(conn, "schema_version", "2")
     conn.commit()
 
 
@@ -427,7 +427,7 @@ def index_file(
             """
             INSERT INTO documents(
                 ulid, kind, item_type, file_path, slug, headword, title,
-                intro_in_interface_lang, intro_in_target_lang,
+                description, description_in_target_lang,
                 aliases, related, tags,
                 first_seen, last_seen, seen_count, schema_version,
                 body, content_hash, file_mtime, indexed_at
@@ -441,8 +441,8 @@ def index_file(
                 parsed.slug,
                 parsed.headword,
                 parsed.title,
-                parsed.intro_in_interface_lang,
-                parsed.intro_in_target_lang,
+                parsed.description,
+                parsed.description_in_target_lang,
                 parsed.aliases,
                 parsed.related,
                 parsed.tags,
@@ -488,7 +488,7 @@ def index_file(
             """
             UPDATE documents SET
                 kind=?, item_type=?, file_path=?, slug=?, headword=?, title=?,
-                intro_in_interface_lang=?, intro_in_target_lang=?,
+                description=?, description_in_target_lang=?,
                 aliases=?, related=?, tags=?,
                 first_seen=?, last_seen=?, seen_count=?, schema_version=?,
                 body=?, content_hash=?, file_mtime=?, indexed_at=?
@@ -501,8 +501,8 @@ def index_file(
                 parsed.slug,
                 parsed.headword,
                 parsed.title,
-                parsed.intro_in_interface_lang,
-                parsed.intro_in_target_lang,
+                parsed.description,
+                parsed.description_in_target_lang,
                 parsed.aliases,
                 parsed.related,
                 parsed.tags,
@@ -524,8 +524,8 @@ def index_file(
     # FTS 行
     fts_headword = _fts_text(parsed.headword)
     fts_title = _fts_text(parsed.title)
-    fts_intro_iface = _fts_text(parsed.intro_in_interface_lang)
-    fts_intro_target = _fts_text(parsed.intro_in_target_lang)
+    fts_description = _fts_text(parsed.description)
+    fts_description_target = _fts_text(parsed.description_in_target_lang)
     fts_aliases = _fts_text(parsed.aliases.replace("\n", " ") if parsed.aliases else "")
     fts_related = _fts_text(parsed.related.replace("\n", " ") if parsed.related else "")
     fts_tags = parsed.tags or ""
@@ -534,7 +534,7 @@ def index_file(
         """
         INSERT INTO documents_fts(
             rowid, headword, title,
-            intro_in_interface_lang, intro_in_target_lang,
+            description, description_in_target_lang,
             aliases, related, tags, body, body_raw
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
@@ -542,8 +542,8 @@ def index_file(
             rowid,
             fts_headword,
             fts_title,
-            fts_intro_iface,
-            fts_intro_target,
+            fts_description,
+            fts_description_target,
             fts_aliases,
             fts_related,
             fts_tags,
@@ -630,23 +630,23 @@ def rebuild_fts(conn: sqlite3.Connection) -> int:
     indexed = 0
     for rowid, body in rows:
         meta_row = conn.execute(
-            "SELECT headword, title, intro_in_interface_lang, intro_in_target_lang, "
+            "SELECT headword, title, description, description_in_target_lang, "
             "aliases, related, tags, kind FROM documents WHERE rowid=?",
             (rowid,),
         ).fetchone()
         if meta_row is None:
             continue
-        headword, title, intro_iface, intro_target, aliases, related, tags, kind = meta_row
+        headword, title, description, description_target, aliases, related, tags, kind = meta_row
         conn.execute(
-            "INSERT INTO documents_fts(rowid, headword, title, intro_in_interface_lang, "
-            "intro_in_target_lang, aliases, related, tags, body, body_raw) "
+            "INSERT INTO documents_fts(rowid, headword, title, description, "
+            "description_in_target_lang, aliases, related, tags, body, body_raw) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 rowid,
                 _fts_text(headword),
                 _fts_text(title),
-                _fts_text(intro_iface),
-                _fts_text(intro_target),
+                _fts_text(description),
+                _fts_text(description_target),
                 _fts_text((aliases or "").replace("\n", " ")),
                 _fts_text((related or "").replace("\n", " ")),
                 tags or "",
@@ -656,8 +656,8 @@ def rebuild_fts(conn: sqlite3.Connection) -> int:
         )
     # chunks 重建
     fm_fields = [(headword, "headword"), (title, "title"),
-                 (intro_iface, "intro_in_interface_lang"),
-                 (intro_target, "intro_in_target_lang")]
+                 (description, "description"),
+                 (description_target, "description_in_target_lang")]
     fm_chunks: list[Chunk] = []
     if kind == "item":
         idx = 0

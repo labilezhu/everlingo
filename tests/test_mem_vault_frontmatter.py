@@ -60,29 +60,29 @@ def test_tolerant_title_with_embedded_quotes():
 
 
 def test_tolerant_intro_with_colon_in_value():
-    """`intro_in_target_lang: ... "for" and "since": duration vs point in time`"""
+    """`description_in_target_lang: ... "for" and "since": duration vs point in time`"""
     raw = (
         'ulid: 01KWBS\n'
-        'intro_in_target_lang: The difference between "for" and "since": '
+        'description_in_target_lang: The difference between "for" and "since": '
         "duration vs point in time"
     )
     data = tolerant_parse(raw)
     assert data["ulid"] == "01KWBS"
-    assert data["intro_in_target_lang"] == (
+    assert data["description_in_target_lang"] == (
         'The difference between "for" and "since": duration vs point in time'
     )
 
 
 def test_tolerant_intro_with_colon_before_quotes():
-    """`intro_in_target_lang: Subject-verb agreement: "I" takes the base form`"""
+    """`description_in_target_lang: Subject-verb agreement: "I" takes the base form`"""
     raw = (
         "ulid: 01KWB7\n"
-        'intro_in_target_lang: Subject-verb agreement: "I" takes the base form '
+        'description_in_target_lang: Subject-verb agreement: "I" takes the base form '
         "of the verb"
     )
     data = tolerant_parse(raw)
     assert data["ulid"] == "01KWB7"
-    assert data["intro_in_target_lang"] == (
+    assert data["description_in_target_lang"] == (
         'Subject-verb agreement: "I" takes the base form of the verb'
     )
 
@@ -134,7 +134,7 @@ def test_normalize_produces_valid_yaml_for_malformed_fm():
         'type: vocab\n'
         'headword: god\n'
         'title: "god" 释义\n'
-        'intro_in_target_lang: The difference between "for" and "since": '
+        'description_in_target_lang: The difference between "for" and "since": '
         "duration vs point in time\n"
         "tags: []\n"
         "aliases:\n"
@@ -150,7 +150,7 @@ def test_normalize_produces_valid_yaml_for_malformed_fm():
     data = yaml.safe_load(fm_text)
     assert data["ulid"] == "01KWDV"
     assert data["title"] == '"god" 释义'
-    assert data["intro_in_target_lang"] == (
+    assert data["description_in_target_lang"] == (
         'The difference between "for" and "since": duration vs point in time'
     )
     assert data["seen_count"] == 1

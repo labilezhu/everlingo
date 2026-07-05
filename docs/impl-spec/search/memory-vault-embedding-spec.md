@@ -20,7 +20,7 @@
 | `protocol.py` SearchHit/ChunkRef/SearchRequest | FTS spec「查询 API」 |
 | `sync.open_db` / `reconcile` | FTS spec「同步策略」 |
 | `tokenizer.py` | FTS spec（向量侧不使用分词，但 hybrid 路径的 FTS 召回复用） |
-| frontmatter 字段 chunk | FTS spec「Chunk 切分策略」：`headword`/`title`/`intro_in_interface_lang`/`intro_in_target_lang` 各生成一个 `section_kind='frontmatter'` 的 chunk，参与向量检索 |
+| frontmatter 字段 chunk | FTS spec「Chunk 切分策略」：`headword`/`title`/`description`/`description_in_target_lang` 各生成一个 `section_kind='frontmatter'` 的 chunk，参与向量检索 |
 
 ## 技术选型
 

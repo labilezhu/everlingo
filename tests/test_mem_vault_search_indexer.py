@@ -69,7 +69,7 @@ def test_init_db_creates_tables(conn: sqlite3.Connection):
 
 def test_init_db_sets_meta(conn: sqlite3.Connection):
     assert get_meta(conn, "tokenizer_version") is not None
-    assert get_meta(conn, "schema_version") == "1"
+    assert get_meta(conn, "schema_version") == "2"
 
 
 def test_set_meta_overwrites(conn: sqlite3.Connection):
@@ -396,37 +396,37 @@ def test_parse_file_tolerates_title_with_embedded_quotes(memory_root: Path):
 
 
 def test_parse_file_tolerates_intro_with_colon_in_value(memory_root: Path):
-    """log 真实 case: `intro_in_target_lang: ... "for" and "since": duration vs point in time`"""
+    """log 真实 case: `description_in_target_lang: ... "for" and "since": duration vs point in time`"""
     p = _write_kb_item_raw(
         memory_root,
         "x--01KWBS.md",
         (
             "ulid: 01KWBS\n"
             "type: grammar\n"
-            'intro_in_target_lang: The difference between "for" and "since": '
+            'description_in_target_lang: The difference between "for" and "since": '
             "duration vs point in time"
         ),
     )
     parsed = parse_file(p, memory_root, "en")
     assert parsed.ulid == "01KWBS"
-    assert "duration vs point in time" in parsed.intro_in_target_lang
+    assert "duration vs point in time" in parsed.description_in_target_lang
 
 
 def test_parse_file_tolerates_intro_with_colon_before_quotes(memory_root: Path):
-    """log 真实 case: `intro_in_target_lang: Subject-verb agreement: "I" takes ...`"""
+    """log 真实 case: `description_in_target_lang: Subject-verb agreement: "I" takes ...`"""
     p = _write_kb_item_raw(
         memory_root,
         "y--01KWB7.md",
         (
             "ulid: 01KWB7\n"
             "type: grammar\n"
-            'intro_in_target_lang: Subject-verb agreement: "I" takes the base '
+            'description_in_target_lang: Subject-verb agreement: "I" takes the base '
             "form of the verb"
         ),
     )
     parsed = parse_file(p, memory_root, "en")
     assert parsed.ulid == "01KWB7"
-    assert parsed.intro_in_target_lang == (
+    assert parsed.description_in_target_lang == (
         'Subject-verb agreement: "I" takes the base form of the verb'
     )
 
@@ -438,17 +438,17 @@ from everlingo.mem.vault.search.indexer import _frontmatter_chunks, Chunk
 
 
 def test_frontmatter_chunks_kind_item():
-    """kind='item' 时 headword/title/intro_*/intro_* 各生成一个 chunk。"""
+    """kind='item' 时 headword/title/description/description_in_target_lang 各生成一个 chunk。"""
     parsed = _make_parsed_doc(
         kind="item",
         headword="曖昧",
         title='"曖昧" 释义',
-        intro_in_interface_lang='"曖昧" 释义',
-        intro_in_target_lang="「曖昧」の定義",
+        description='"曖昧" 释义',
+        description_in_target_lang="「曖昧」の定義",
     )
     chunks = _frontmatter_chunks(parsed)
     labels = [c.section_title for c in chunks]
-    assert labels == ["headword", "title", "intro_in_interface_lang", "intro_in_target_lang"]
+    assert labels == ["headword", "title", "description", "description_in_target_lang"]
     for c in chunks:
         assert c.section_kind == "frontmatter"
         assert c.char_offset is None
@@ -461,8 +461,8 @@ def test_frontmatter_chunks_empty_fields_skipped():
         kind="item",
         headword=None,
         title="语用学解释",
-        intro_in_interface_lang="语用学解释",
-        intro_in_target_lang="pragmatics explanation",
+        description="语用学解释",
+        description_in_target_lang="pragmatics explanation",
     )
     chunks = _frontmatter_chunks(parsed)
     labels = [c.section_title for c in chunks]
@@ -487,8 +487,8 @@ def test_index_file_frontmatter_chunks_prepended(conn: sqlite3.Connection, memor
             "type": "vocab",
             "headword": "曖昧",
             "title": "曖昧释义",
-            "intro_in_interface_lang": "曖昧释义",
-            "intro_in_target_lang": "aimai definition",
+            "description": "曖昧释义",
+            "description_in_target_lang": "aimai definition",
         },
         body="## 例句\nこれは例です。\n\n## 解释\n説明。",
     )
@@ -561,8 +561,8 @@ def test_rebuild_fts_includes_frontmatter_chunks(conn: sqlite3.Connection, memor
             "type": "vocab",
             "headword": "foo",
             "title": "bar",
-            "intro_in_interface_lang": "bar",
-            "intro_in_target_lang": "bar target",
+            "description": "bar",
+            "description_in_target_lang": "bar target",
         },
         body="## 例句\nexample",
     )
@@ -587,8 +587,8 @@ def _make_parsed_doc(
     kind: str,
     headword=None,
     title=None,
-    intro_in_interface_lang=None,
-    intro_in_target_lang=None,
+    description=None,
+    description_in_target_lang=None,
     item_type=None,
 ):
     """构造最小 ParsedDoc 用于 _frontmatter_chunks 测试。"""
@@ -601,8 +601,8 @@ def _make_parsed_doc(
         slug=None,
         headword=headword,
         title=title,
-        intro_in_interface_lang=intro_in_interface_lang,
-        intro_in_target_lang=intro_in_target_lang,
+        description=description,
+        description_in_target_lang=description_in_target_lang,
         aliases=None,
         related=None,
         tags=None,

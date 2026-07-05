@@ -2,7 +2,7 @@
 # Memory vault 的 .md 文件以 YAML frontmatter 开头（`---\n...\n---\n`）。
 # frontmatter 实际由 LLM Writer 手写（mem_writer_agent），LLM 常产出近似 YAML
 # 但在含内嵌引号/冒号的值上写坏（如 `title: "god" 释义`、
-# `intro_in_target_lang: ...: duration vs point in time`）。
+# `description_in_target_lang: ...: duration vs point in time`）。
 #
 # 本模块提供：
 #   - split_frontmatter: 拆出 raw frontmatter 文本 + body

@@ -24,9 +24,9 @@ from .tokenizer import tokenize_for_fts_query
 logger = logging.getLogger(__name__)
 
 
-# bm25 权重：headword, title, intro_iface, intro_target, aliases, related, tags, body
-# 索引列顺序对应 documents_fts 定义：headword=1, title=2, intro_in_interface_lang=3,
-# intro_in_target_lang=4, aliases=5, related=6, tags=7, body=8, body_raw=9(UNINDEXED)
+# bm25 权重：headword, title, description, description_in_target_lang, aliases, related, tags, body
+# 索引列顺序对应 documents_fts 定义：headword=1, title=2, description=3,
+# description_in_target_lang=4, aliases=5, related=6, tags=7, body=8, body_raw=9(UNINDEXED)
 # FTS5 bm25 多个权重用逗号分隔。
 _BM25_WEIGHTS = "10.0, 10.0, 4.0, 4.0, 2.0, 2.0, 2.0, 1.0"
 

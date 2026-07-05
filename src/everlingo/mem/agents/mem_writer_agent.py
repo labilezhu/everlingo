@@ -150,7 +150,7 @@ memory vault 中的 markdown 文件正文，主要语言必须使用 entry 的 `
    2. 在内存中合并：
       - 在文件末尾的「## 遇到记录」追加新一行（格式：`- <YYYY-MM-DD>：<conversation_context>`）。
       - 更新 frontmatter：`last_seen` = 本次 timestamp（ISO 8601 GMT+8）；
-        `seen_count` += 1；`updated_at` = 当前时间。
+         `seen_count` += 1；`timestamp` = 当前时间。
       - 必要时根据 kb_items_spec 中对应 item_type 的模板补充正文内容
         （例如新发现的相关用法 / 常见错误等）。
    3. `mem_write_file(file_path, new_content)` 写入一次（**整轮不超过一次**）。
@@ -160,7 +160,7 @@ memory vault 中的 markdown 文件正文，主要语言必须使用 entry 的 `
       空格替换为下划线。例如 `曖昧` → `曖昧`、`take for granted` → `take_for_granted`。
    3. 文件名 = `{main_file_name}--{ulid}.md`。
    4. 按 kb_items_spec 中对应 item_type 的模板构造 frontmatter + 正文。
-      `first_seen` / `last_seen` / `created_at` / `updated_at` 都用本次 timestamp（ISO 8601 GMT+8）。
+         `first_seen` / `last_seen` / `created_at` / `timestamp` 都用本次 timestamp（ISO 8601 GMT+8）。
       `seen_count` = 1。
    5. `mem_write_file(file_path, content)` 创建并写入文件。
 

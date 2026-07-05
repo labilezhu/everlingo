@@ -26,28 +26,34 @@
 
 ## 增加 Markdown Frontmatter 字段
 
-在 [vault_spec.md](/src/everlingo/mem/vault/vault_spec.md) 的 “Markdown Frontmatter 通用字段” 基础上，增加几个**必选字段**
+所有 kb item frontmatter 字段（**必选**）：
 
 字段示例：
 ```yaml
 ulid: 01JZABD123
 slug: pragmatically-answering-yes-or-no-can-easily-lead-to-confusion
-tags:
 type: pragmatics
+title: 语用学上，回答 Yes 或 No 时容易混淆
+description: 语用学上，回答 Yes 或 No 时容易混淆
+description_in_target_lang: 'Pragmatically, answering "Yes" or "No" can easily lead to confusion.'
+created_at: 2026-06-22T18:08:00+08:00
+timestamp: 2026-06-26T09:15:00+08:00
+schema_version: 1
 first_seen: 2026-06-22T18:08:00+08:00
 last_seen: 2026-06-26T09:15:00+08:00
 seen_count: 4
-title: 语用学上，回答 Yes 或 No 时容易混淆
-intro_in_interface_lang: 语用学上，回答 Yes 或 No 时容易混淆
-intro_in_target_lang: 'Pragmatically, answering "Yes" or "No" can easily lead to confusion.'
+tags:
 ```
 
 字段说明：
-ulid: 同文件命名格式中的 `ulid`。保证稳定唯一；
+ulid: 同文件命名格式中的 `ulid`。保证稳定唯一。
 title: 使用`界面语言`，限一句话，描述本文件的知识点。用于语义搜索和 full text search。
-intro_in_interface_lang: 同 title
-intro_in_target_lang: 使用`目标学习语言`，限一句话，描述本文件的知识点。用于 full text search 。
-slug: 下文中每类知识点，都有自己的 slug 提取说明
+description: 同 title。OKF `description` 标准槽位，单句摘要。
+description_in_target_lang: 使用`目标学习语言`，限一句话，描述本文件的知识点。vault 扩展键（OKF 无对应字段）。用于 full text search。
+created_at: 创建时间，ISO 8601。
+timestamp: update time，使用格式 ISO 8601。OKF `timestamp` 标准槽位。
+schema_version: int。当前 frontmatter schema 版本。
+slug: 下文中每类知识点，都有自己的 slug 提取说明。
 
 ## 文件命名
 
@@ -121,17 +127,19 @@ type: vocab
 headword: 曖昧
 slug: aimai
 title: '"曖昧" 释义'
-intro_in_interface_lang: '"曖昧" 释义'
-intro_in_target_lang: 「曖昧」の定義
+description: '"曖昧" 释义'
+description_in_target_lang: 「曖昧」の定義
+created_at: 2026-06-22T18:08:00+08:00
+timestamp: 2026-06-26T09:15:00+08:00
+first_seen: 2026-06-22T18:08:00+08:00
+last_seen: 2026-06-26T09:15:00+08:00
+seen_count: 4
 aliases:
   - あいまい
   - ambiguous
 tags:
   - adjective
   - confusing
-first_seen: 2026-06-22T18:08:00+08:00
-last_seen: 2026-06-26T09:15:00+08:00
-seen_count: 4
 related:
   - 明確
   - はっきり
@@ -206,9 +214,11 @@ ulid: 01JZABC789
 type: phrase
 headword: take for granted
 slug: take-for-granted
-intro_in_interface_lang: '"take for granted" 词汇'
-intro_in_target_lang: 'The phrase "take for granted"'
 title: '"take for granted" 词汇'
+description: '"take for granted" 词汇'
+description_in_target_lang: 'The phrase "take for granted"'
+created_at: 2026-06-20T21:00:00+08:00
+timestamp: 2026-06-26T08:30:00+08:00
 aliases:
   - taken for granted
 tags:
@@ -276,8 +286,10 @@ type: grammar
 title: TE形 语法
 headword: TE形
 slug: te-form
-intro_in_interface_lang: TE形 语法
-intro_in_target_lang: 「て」形の文法
+description: TE形 语法
+description_in_target_lang: 「て」形の文法
+created_at: 2026-06-24T10:00:00+08:00
+timestamp: 2026-06-26T10:10:00+08:00
 seen_count: 1
 tags:
 first_seen: 2026-06-24T10:00:00+08:00
@@ -327,17 +339,19 @@ ulid: 01JZABE001
 slug: pragmatically-answering-yes-or-no-can-easily-lead-to-confusion
 tags:
 type: pragmatics
+created_at: 2026-06-22T18:08:00+08:00
+timestamp: 2026-06-26T09:15:00+08:00
 first_seen: 2026-06-22T18:08:00+08:00
 last_seen: 2026-06-26T09:15:00+08:00
 seen_count: 4
 title: 语用学上，回答 Yes 或 No 时容易混淆
-intro_in_interface_lang: 语用学上，回答 Yes 或 No 时容易混淆
-intro_in_target_lang: 'Pragmatically, answering "Yes" or "No" can easily lead to confusion.'
+description: 语用学上，回答 Yes 或 No 时容易混淆
+description_in_target_lang: 'Pragmatically, answering "Yes" or "No" can easily lead to confusion.'
 ```
 
 字段说明：
 slug: 
-    源于 `intro_in_interface_lang`。最后注意按照 “slug 基础规则” 说明处理
+    源于 `description`。最后注意按照 “slug 基础规则” 说明处理
 
 #### markdown 主体内容
 
@@ -377,18 +391,20 @@ ulid: 01JZABD123
 slug: take-off
 tags:
 type: others
+created_at: 2026-06-22T18:08:00+08:00
+timestamp: 2026-06-26T09:15:00+08:00
 first_seen: 2026-06-22T18:08:00+08:00
 last_seen: 2026-06-26T09:15:00+08:00
 seen_count: 4
 title: 表示「离开」 Take off
-intro_in_interface_lang: 表示「离开」 Take off
-intro_in_target_lang: To express "leaving" - Take off
+description: 表示「离开」 Take off
+description_in_target_lang: To express "leaving" - Take off
 schema_version: 1
 ```
 
 字段说明：
 slug: 
-    源于 `intro_in_interface_lang`。最后注意按照 “slug 基础规则” 说明处理
+    源于 `description`。最后注意按照 “slug 基础规则” 说明处理
 
 #### markdown 主体内容
 

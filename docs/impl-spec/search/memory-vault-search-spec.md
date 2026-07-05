@@ -117,8 +117,8 @@ CREATE TABLE documents (
   slug TEXT,
   headword TEXT,
   title TEXT,
-  intro_in_interface_lang TEXT,
-  intro_in_target_lang TEXT,
+  description TEXT,
+  description_in_target_lang TEXT,
   aliases TEXT,                           -- '\n' 连接
   related TEXT,                           -- '\n' 连接
   tags TEXT,                              -- ' ' 连接，便于过滤
@@ -138,7 +138,7 @@ CREATE INDEX idx_doc_kind ON documents(kind);
 -- 各列存「分词后空格连接」文本；body_raw 存原文供 snippet() 干净高亮
 CREATE VIRTUAL TABLE documents_fts USING fts5(
   headword, title,
-  intro_in_interface_lang, intro_in_target_lang,
+  description, description_in_target_lang,
   aliases, related, tags, body,
   body_raw UNINDEXED,                     -- 原文，仅给 snippet() 用，不索引
   tokenize='unicode61'
@@ -207,7 +207,7 @@ tokenize(text):
   合并所有 token，空格连接成字符串
 ```
 
-- `intro_in_target_lang` 等纯单语字段也走同一调度器（脚本能正确分发，无需按字段特殊处理）。
+- `description_in_target_lang` 等纯单语字段也走同一调度器（脚本能正确分发，无需按字段特殊处理）。
 - 词典选型：**unidic**（粒度细、现代项目主流）。
 - 仅 indexer 进程加载 tokenizer；gateway 不加载。
 
@@ -241,7 +241,7 @@ jieba 词典更新、unidic 版本变化会导致 token 集变化，需触发重
 - 单 chunk 超阈值 **800 字符**时按段落/句号二次切，子 chunk 继承 `section_title`。
 - `char_offset` 记 body 内起点，命中后用于前端滚动定位；frontmatter chunk 的 `char_offset` 为 `NULL`（不在 body 内）。
 - `chunks.text` 保留**原文**（向量嵌入用原文，不分词），不受分词器版本影响。
-- **frontmatter 字段 chunk**（仅 `kind='item'`）：`headword` / `title` / `intro_in_interface_lang` / `intro_in_target_lang` 四个文本内容字段各生成一个 chunk，`section_kind='frontmatter'`，`section_title=<字段名>`，`text` 格式为 `"{key}: {value}"`，`chunk_index` 排在 body chunk 之前。数组字段（`aliases`/`related`/`tags`）不生成 chunk。详见 `indexer.py` `_frontmatter_chunks`。
+- **frontmatter 字段 chunk**（仅 `kind='item'`）：`headword` / `title` / `description` / `description_in_target_lang` 四个文本内容字段各生成一个 chunk，`section_kind='frontmatter'`，`section_title=<字段名>`，`text` 格式为 `"{key}: {value}"`，`chunk_index` 排在 body chunk 之前。数组字段（`aliases`/`related`/`tags`）不生成 chunk。详见 `indexer.py` `_frontmatter_chunks`。
 
 ## Search API
 

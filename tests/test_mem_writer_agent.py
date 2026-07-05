@@ -190,7 +190,7 @@ class TestMemWriteRead:
             "type: vocab\n"
             "headword: god\n"
             'title: "god" 释义\n'
-            'intro_in_target_lang: The difference between "for" and "since": '
+            'description_in_target_lang: The difference between "for" and "since": '
             "duration vs point in time\n"
             "tags: []\n"
             "aliases:\n"
@@ -210,7 +210,7 @@ class TestMemWriteRead:
         data = yaml.safe_load(fm)
         assert data["ulid"] == "01KWDV"
         assert data["title"] == '"god" 释义'
-        assert data["intro_in_target_lang"] == (
+        assert data["description_in_target_lang"] == (
             'The difference between "for" and "since": duration vs point in time'
         )
         # body 段不变
@@ -456,12 +456,12 @@ class TestWriterSystemPrompt:
         """注入的 spec markdown 标题应 +2 平移，嵌套于外层 h2 父标题之下。
 
         - mem_entry_spec.md 的 `# 记忆实体…` → `### 记忆实体…`
-        - vault_spec.md 的 `# Memory Vault Runtime Spec` → `### Memory Vault Runtime Spec`
+        - vault_spec.md 的 `# 单语言 Memory Vault Spec` → `### 单语言 Memory Vault Spec`
         原始 h1（行首单个 `# `）不应出现，避免与外层 ## 父标题冲突。
         """
         prompt = _build_writer_system_prompt()
         assert "### 记忆实体" in prompt
-        assert "### Memory Vault Runtime Spec" in prompt
+        assert "### 单语言 Memory Vault Spec" in prompt
         # 行首的 h1（单个 # 后空格）不应出现；用换行前缀避免子串误匹配
         # （"### X" 含子串 "# X"，故不能直接用 "# X" not in prompt）
         for line in prompt.splitlines():
@@ -469,7 +469,7 @@ class TestWriterSystemPrompt:
             assert not stripped.startswith("# 记忆实体"), (
                 f"未平移的 h1 仍存在: {line!r}"
             )
-            assert not stripped.startswith("# Memory Vault Runtime Spec"), (
+            assert not stripped.startswith("# 单语言 Memory Vault Spec"), (
                 f"未平移的 h1 仍存在: {line!r}"
             )
         # 父标题仍为 h2
@@ -613,7 +613,7 @@ class TestWriterLangSandbox:
                     "type: vocab\n"
                     "headword: ambiguous\n"
                     "title: 'ambiguous' 释义\n"
-                    "intro_in_target_lang: ...\n"
+                    "description_in_target_lang: ...\n"
                     "tags: []\n"
                     "aliases: []\n"
                     "related: []\n"
