@@ -15,7 +15,7 @@ workspace_b/
 
 ### Workspace 目录结构
 
-每个 workspace 的结构示例如下：
+当前实现，每个 workspace 的结构示例如下：
 ```bash
 /everlingo.yaml
 /logs
@@ -28,9 +28,84 @@ workspace_b/
          /credentials  
 /memory
     USER.md
+    /vault_index
+       memory.sqlite
+       indexer.sock
     /vault
+      en/ # 目标学习语言
+         events/
+            2026/
+               06/
+               2026-06-26.md
+         items/ # 知识点类 memory items
+            vocab/
+               gcc--01JZABC123.md
+               ambiguous--01JZABC456.md
+            phrase/
+               take-for-granted--01JZABC789.md
+            grammar/
+               present-perfect--01JZABD001.md
+            pragmatics/ # 语用
+            others/ # 其它分类
+
+      ja/ # 目标学习语言
+         events/
+            2026/
+               06/
+               2026-06-26.md
+         items/ # 知识点类 memory items
+            vocab/
+               aimai--01JZABD123.md
+         ...
+
+      tmp/ #程序内容使用的临时文件，没有用户数据价值。
+
     /vault_index 
 ```
+
+现在要重构 workspace 的目录结构示例如下：
+```bash
+/everlingo.yaml
+/logs
+    everlingo.log
+    indexer.log
+
+/plugins
+   channels/
+      wechat_channel/
+         credentials/
+
+indexer.sock
+
+/memory
+    USER.md
+    languages/
+      en/ # 目标学习语言
+         index/
+            memory.sqlite
+         vault/
+            events/
+               2026/
+                  06/
+                  2026-06-26.md
+            items/ # 知识点类 memory items
+               vocab/
+                  gcc--01JZABC123.md
+                  ambiguous--01JZABC456.md
+               phrase/
+                  take-for-granted--01JZABC789.md
+               grammar/
+                  present-perfect--01JZABD001.md
+               pragmatics/ # 语用
+               others/ # 其它分类
+
+      ja/ # 目标学习语言  
+```
+变化概述：每个语言独立一个 vault，独立一个 sqlite db 。但共享 indexer 进程 和 indexer.sock 文件。处理是本文搜索和语义搜索可以避免多语言互相影响。 将来，vault 的 schema 也可以不同。
+变化列表： 
+- vault 的位置： $workspace/memory/vault -> $workspace/memory/languages/$lang/vault 。 每个语言独立一个 vault
+- memory.sqlite 位置: $workspace/memory/vault_index/memory.sqlite ->  $workspace/memory/languages/$lang/index/memory.sqlite。 每个语言独立一个 sqlite db
+- indexer.sock 位置： workspace/memory/vault_index/indexer.sock -> $workspace/indexer.sock
 
 ## Workspace 选择机制
 

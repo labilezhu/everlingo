@@ -38,7 +38,7 @@ class SearchHit(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ulid: str
-    kind: Literal["item", "event", "user"]
+    kind: Literal["item", "event"]  # type: ignore[assignment]
     lang: str | None = None
     item_type: str | None = None
     file_path: str
@@ -61,7 +61,7 @@ class SearchRequest(BaseModel):
     lang: str | None = None
     item_type: str | None = None
     tags: list[str] | None = None
-    kind: Literal["item", "event", "user"] | None = None
+    kind: Literal["item", "event"] | None = None
     mode: Literal["exact", "semantic", "hybrid"] = "exact"
     limit: int = Field(20, ge=1, le=100)
 

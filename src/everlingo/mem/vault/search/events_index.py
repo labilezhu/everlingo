@@ -20,8 +20,7 @@ _EVENTS_PATH_RE = re.compile(
     r"^(?P<lang>[a-z]{2}(?:-[A-Za-z0-9]+)?)/events/(?P<year>\d{4})/(?P<month>\d{2})/(?P<date>\d{4}-\d{2}-\d{2})\.md$"
 )
 
-# USER.md 固定名
-_USER_FILENAME = "USER.md"
+
 
 
 @dataclass(frozen=True)
@@ -68,10 +67,6 @@ def parse_event_path(rel_path: str) -> EventFileMeta | None:
         year=m.group("year"),
         month=m.group("month"),
     )
-
-
-def is_user_file(rel_path: str) -> bool:
-    return rel_path.replace("\\", "/").endswith(_USER_FILENAME)
 
 
 def make_event_ulid(lang: str, date: str) -> str:

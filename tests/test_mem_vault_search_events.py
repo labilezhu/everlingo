@@ -6,7 +6,6 @@ import pytest
 
 from everlingo.mem.vault.search import events_index
 from everlingo.mem.vault.search.events_index import (
-    is_user_file,
     make_event_ulid,
     parse_event_path,
     split_event_sections,
@@ -27,11 +26,6 @@ def test_parse_event_path_invalid_returns_none():
     assert parse_event_path("en/events/2026/06/wrong.md") is None
     assert parse_event_path("en/events/2026/06/2026-06-26.txt") is None
 
-
-def test_is_user_file():
-    assert is_user_file("USER.md")
-    assert is_user_file("en/USER.md") is True
-    assert is_user_file("en/items/vocab/foo--01JZ.md") is False
 
 
 def test_make_event_ulid():

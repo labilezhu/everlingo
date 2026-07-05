@@ -1,7 +1,7 @@
 # ref: docs/impl-spec/search/memory-vault-search-spec.md — Schema DDL / indexer
 # 核心流程：
 #   - init_db 建表 + 写 meta
-#   - parse_file frontmatter / events / USER.md 路径分发
+#   - parse_file frontmatter / events 路径分发
 #   - index_file 幂等 upsert（FTS 字段化分词入列，body_raw 原文）
 #   - split_chunks：## section 切分 + 800 字符二次切
 #   - delete_file / delete_by_ulid
@@ -165,13 +165,6 @@ def test_parse_file_events(memory_root: Path):
     assert parsed.ulid == "event:en:2026-06-26"
     assert parsed.lang == "en"
 
-
-def test_parse_file_user(memory_root: Path):
-    p = memory_root / "USER.md"
-    p.write_text("# USER\n\nname: alice\n", encoding="utf-8")
-    parsed = parse_file(p, memory_root)
-    assert parsed.kind == "user"
-    assert parsed.ulid == "user:root"
 
 
 # ── index_file: 幂等 upsert / FTS / chunks ─────────────────────
@@ -518,10 +511,6 @@ def test_frontmatter_chunks_not_for_events():
     parsed = _make_parsed_doc(kind="event")
     assert _frontmatter_chunks(parsed) == []
 
-
-def test_frontmatter_chunks_not_for_user():
-    parsed = _make_parsed_doc(kind="user")
-    assert _frontmatter_chunks(parsed) == []
 
 
 def test_index_file_frontmatter_chunks_prepended(conn: sqlite3.Connection, memory_root: Path):

@@ -25,10 +25,9 @@ lang:       匹配过滤条件：目标学习语言。如 en,ja,zh-CN
 kind:       匹配过滤条件：memory vault 文档分类。取值包括： 
     item : 知识类文档
     event ： 事件类文档
-    user ： 用户偏好类文档
 item_type:  匹配过滤条件：知识类型 。取值包括： 
     kind=item 时，取值包括： vocab/phrase/grammar/pragmatics/others
-    kind=event/user 为 NULL
+    kind=event 为 NULL
 mode: 搜索模式。一般情况下，优先使用 hybrid 混合搜索： `"mode":"hybrid"`。取值包括： 
     exact ： 全文精确搜索
     semantic ： 语义搜索
@@ -83,10 +82,9 @@ hits: 搜索结果
     kind: 匹配过滤条件：memory vault 文档分类。取值包括： 
         item : 知识类文档
         event ： 事件类文档
-        user ： 用户偏好类文档
     item_type:  匹配过滤条件：知识类型 。取值包括： 
         kind=item 时，取值包括： vocab/phrase/grammar/pragmatics/others
-        kind=event/user 为 NULL
+        kind=event 为 NULL
     file_path： 文件路径，Memory Vault 相对路径。 可以使用 `mem_read_file` `mem_write_file` 等 mem 工具读写。
     snippet: 匹配到的块文本
 

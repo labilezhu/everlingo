@@ -5,10 +5,9 @@
 ## 目标与定位
 
 - 对 `$workspace/memory/vault/` 下的 markdown vault 提供全文检索。
-- 索引对象分三类：
+- 索引对象分两类：
   - **kb items**（`$lang/items/{type}/{slug}--{ulid}.md`）：字段化最强，主要检索对象。
   - **events**（`$lang/events/YYYY/MM/YYYY-MM-DD.md`）：按天聚合的多事件文件，次要检索对象。
-  - `USER.md`：单文件、短文本、Agent 频繁重写，优先级最低。
 - 全文检索（FTS）≠ 语义检索。本文仅覆盖 FTS；语义检索见上。
 
 ## 技术选型
@@ -103,9 +102,9 @@ src/everlingo/mem/vault/search/
 CREATE TABLE documents (
   rowid INTEGER PRIMARY KEY,
   ulid TEXT UNIQUE,                       -- kb item 的 ulid；event 用合成键 'event:{lang}:{date}'
-  kind TEXT NOT NULL,                     -- 'item' | 'event' | 'user'
+  kind TEXT NOT NULL,                     -- 'item' | 'event'
   lang TEXT,                              -- en / ja / ...；来源：vault 文件路径前缀 {lang}/，不来自 frontmatter
-  item_type TEXT,                         -- vocab/phrase/grammar/pragmatics/others；event/user 为 NULL
+  item_type TEXT,                         -- vocab/phrase/grammar/pragmatics/others；event 为 NULL
   file_path TEXT NOT NULL UNIQUE,         -- 相对 $workspace/memory/vault 的路径
   slug TEXT,
   headword TEXT,
