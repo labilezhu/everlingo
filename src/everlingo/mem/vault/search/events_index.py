@@ -6,7 +6,8 @@
 #   - FTS 层：整文件一行入库，kind='event'，ulid 用合成键 'event:{lang}:{date}'
 #   - chunks 层：按 ## Event 拆成多行，每行 section_kind='event'
 #
-# 文件路径示例：en/events/2026/06/2026-06-26.md
+# 新布局：每个语言独立 vault，文件路径相对 $workspace/memory/languages/$lang/vault/。
+# 路径示例：events/2026/06/2026-06-26.md（不含 {lang}/ 前缀）
 
 from __future__ import annotations
 
@@ -15,12 +16,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-# 路径 pattern：{lang}/events/{YYYY}/{MM}/{YYYY-MM-DD}.md
-_EVENTS_PATH_RE = re.compile(
-    r"^(?P<lang>[a-z]{2}(?:-[A-Za-z0-9]+)?)/events/(?P<year>\d{4})/(?P<month>\d{2})/(?P<date>\d{4}-\d{2}-\d{2})\.md$"
+# 新路径 pattern：events/{YYYY}/{MM}/{YYYY-MM-DD}.md（相对 lang vault）
+_EVENT_PATH_RE = re.compile(
+    r"^events/(?P<year>\d{4})/(?P<month>\d{2})/(?P<date>\d{4}-\d{2}-\d{2})\.md$"
 )
-
-
 
 
 @dataclass(frozen=True)
@@ -31,9 +30,9 @@ class EventFileMeta:
     month: str
 
 
-# 路径 pattern：{lang}/items/{item_type}/{slug}--{ulid}.md
+# 新路径 pattern：items/{item_type}/{slug}--{ulid}.md（相对 lang vault）
 _KB_ITEM_PATH_RE = re.compile(
-    r"^(?P<lang>[a-z]{2}(?:-[A-Za-z0-9]+)?)/items/(?P<item_type>[^/]+)/(?P<filename>[^/]+\.md)$"
+    r"^items/(?P<item_type>[^/]+)/(?P<filename>[^/]+\.md)$"
 )
 
 
@@ -43,26 +42,29 @@ class KbItemFileMeta:
     item_type: str  # 路径段，仅用于 lang 推导；documents.item_type 仍取 frontmatter type
 
 
-def parse_kb_item_path(rel_path: str) -> KbItemFileMeta | None:
+def parse_kb_item_path(rel_path: str, lang: str) -> KbItemFileMeta | None:
     """解析 kb item 文件路径，返回 KbItemFileMeta；非 kb item 路径返回 None。
 
-    lang 编码在路径前缀 {lang}/items/... 中，不来自 frontmatter。
+    lang 编码由调用方传入（per-lang DB 上下文），不来自路径。
     """
     p = rel_path.replace("\\", "/")
     m = _KB_ITEM_PATH_RE.match(p)
     if m is None:
         return None
-    return KbItemFileMeta(lang=m.group("lang"), item_type=m.group("item_type"))
+    return KbItemFileMeta(lang=lang, item_type=m.group("item_type"))
 
 
-def parse_event_path(rel_path: str) -> EventFileMeta | None:
-    """解析 events 文件路径，返回 EventFileMeta；非 events 文件返回 None。"""
+def parse_event_path(rel_path: str, lang: str) -> EventFileMeta | None:
+    """解析 events 文件路径，返回 EventFileMeta；非 events 文件返回 None。
+
+    lang 编码由调用方传入（per-lang DB 上下文），不来自路径。
+    """
     p = rel_path.replace("\\", "/")
-    m = _EVENTS_PATH_RE.match(p)
+    m = _EVENT_PATH_RE.match(p)
     if m is None:
         return None
     return EventFileMeta(
-        lang=m.group("lang"),
+        lang=lang,
         date=m.group("date"),
         year=m.group("year"),
         month=m.group("month"),

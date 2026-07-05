@@ -50,10 +50,13 @@ from everlingo.mem.agents.mem_writer_tools import (
 
 @pytest.fixture
 def tmp_memory(monkeypatch, tmp_path):
-    """把 workspace.vault_dir() 重定向到 tmp_path/memory/vault。"""
-    vault = tmp_path / "memory" / "vault"
+    """把 workspace.vault_dir() 和 workspace.lang_vault_dir() 重定向到新布局。"""
+    from everlingo.mem.agents import mem_writer_tools
+    mem_writer_tools.set_current_lang("en")
+    vault = tmp_path / "memory" / "languages" / "en" / "vault"
     vault.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr("everlingo.workspace.vault_dir", lambda: vault)
+    monkeypatch.setattr("everlingo.workspace.vault_dir", lambda: tmp_path / "memory" / "vault")
+    monkeypatch.setattr("everlingo.workspace.lang_vault_dir", lambda lang: vault)
     return vault
 
 
@@ -198,9 +201,9 @@ class TestMemWriteRead:
             "# god\n\n`god` 是英语名词。\n"
         )
         mem_write_file.invoke(
-            {"path": "en/items/vocab/god--01KWDV.md", "content": content}
+            {"path": "items/vocab/god--01KWDV.md", "content": content}
         )
-        p = tmp_memory / "en" / "items" / "vocab" / "god--01KWDV.md"
+        p = tmp_memory / "items" / "vocab" / "god--01KWDV.md"
         text = p.read_text(encoding="utf-8")
         # 归一化后 frontmatter 严格 yaml.safe_load 必须成功
         fm = text.split("---", 2)[1]
@@ -316,11 +319,11 @@ class TestBuildMemWriterTools:
 class TestEventsRelPath:
     def test_path_shape(self):
         e = _entry(timestamp="2026-11-21 14:58:56", lang="en")
-        assert _events_rel_path(e) == "en/events/2026/11/2026-11-21.md"
+        assert _events_rel_path(e) == "events/2026/11/2026-11-21.md"
 
     def test_path_handles_japanese_lang(self):
         e = _entry(timestamp="2026-11-21 14:58:56", lang="ja")
-        assert _events_rel_path(e).startswith("ja/events/2026/11/")
+        assert _events_rel_path(e).startswith("events/2026/11/")
 
 
 class TestFormatEventSection:
@@ -357,7 +360,7 @@ class TestAppendEvent:
         import logging as _logging
         with caplog.at_level(_logging.INFO, logger="everlingo"):
             _append_event(_entry(timestamp="2026-11-21 14:58:56", lang="en"))
-        f = tmp_memory / "en/events/2026/11/2026-11-21.md"
+        f = tmp_memory / "events/2026/11/2026-11-21.md"
         assert f.exists()
         text = f.read_text(encoding="utf-8")
         # preamble 出现
@@ -381,7 +384,7 @@ class TestAppendEvent:
                 lang="en",
                 headword="kernel",
             ))
-        f = tmp_memory / "en/events/2026/11/2026-11-21.md"
+        f = tmp_memory / "events/2026/11/2026-11-21.md"
         text = f.read_text(encoding="utf-8")
         # 两条 entry 的 ## Event 段都应在文件中
         assert text.count("## Event") == 2
@@ -503,7 +506,7 @@ class TestWriterAgentSync:
         ]
         agent._process_batch(entries)
 
-        events_file = tmp_memory / "en/events/2026/11/2026-11-21.md"
+        events_file = tmp_memory / "events/2026/11/2026-11-21.md"
         assert events_file.exists()
         text = events_file.read_text(encoding="utf-8")
         assert "gcc" in text
@@ -561,12 +564,103 @@ class TestWriterAgentSync:
         # 第二次 invoke 应被调用
         assert mock_agent.invoke.call_count == 2
         # events 写入：两条都尝试（即使 kb item 失败）
-        events_file = tmp_memory / "en/events/2026/11/2026-11-21.md"
+        events_file = tmp_memory / "events/2026/11/2026-11-21.md"
         text = events_file.read_text(encoding="utf-8")
         assert "gcc" in text
         assert "kernel" in text
         # error 日志
         assert any("kb item write failed" in r.message for r in caplog.records)
+
+
+# ── _write_kb_item lang sandbox 注入回归测试 ──────────────────────
+# ref: docs/impl-spec/worksplace/workspace.md — per-lang vault
+# 回归保护：修复「kb item 错误写到 $workspace/memory/vault/$lang/items/...」
+# 此类 bug 的两个根因——(1) _write_kb_item 未注入 set_current_lang；
+# (2) system prompt 误让 LLM 写 `$lang/items/` 路径。
+# 这里不依赖 tmp_memory fixture（fixture 提前 set_current_lang 会
+# 掩盖 Bug #1），而是直接观察 _write_kb_item 是否把 lang 注入
+# 工具层 + LLM 是否收到不带 $lang/ 前缀的 system prompt。
+
+
+class TestWriterLangSandbox:
+    def test_write_kb_item_injects_current_lang_into_tools(self, tmp_path, monkeypatch):
+        """_write_kb_item 必须在调 LLM 前后设置/重置 _current_lang，
+        这样 mem_write_file 的 sandbox 根解析到 entry.lang 对应的
+        lang vault（$workspace/memory/languages/$lang/vault/）。"""
+        from everlingo.mem.agents import mem_writer_tools
+        from everlingo.mem.agents.mem_writer_agent import MemoryWriterAgent
+
+        # 准备 per-lang vault 目录
+        en_vault = tmp_path / "memory" / "languages" / "en" / "vault"
+        en_vault.mkdir(parents=True, exist_ok=True)
+        old_vault = tmp_path / "memory" / "vault"
+        # monkeypatch workspace 函数返回新布局
+        monkeypatch.setattr(workspace, "vault_dir", lambda: old_vault)
+        monkeypatch.setattr(workspace, "lang_vault_dir", lambda lang: en_vault)
+
+        # mock agent.invoke：模拟 LLM 直接调 mem_write_file 工具，
+        # 写入 items/vocab/<slug>--<ulid>.md（按正确 spec 的相对路径）
+        captured: dict = {}
+
+        def fake_invoke(payload):
+            captured["messages"] = payload["messages"]
+            # 模拟 LLM 工具调用：写 vocab 条目
+            mem_writer_tools.mem_write_file.invoke({
+                "path": "items/vocab/ambiguous--01KWRSB203ZXACYRGHSF1TXS0S.md",
+                "content": (
+                    "---\n"
+                    "ulid: 01KWRSB203ZXACYRGHSF1TXS0S\n"
+                    "type: vocab\n"
+                    "headword: ambiguous\n"
+                    "title: 'ambiguous' 释义\n"
+                    "intro_in_target_lang: ...\n"
+                    "tags: []\n"
+                    "aliases: []\n"
+                    "related: []\n"
+                    "seen_count: 1\n"
+                    "schema_version: 1\n"
+                    "---\n\n"
+                    "# ambiguous\n"
+                ),
+            })
+            return {"messages": [AIMessage(content="done")]}
+
+        # 构造 agent，绕开 create_agent，直接塞一个 mock
+        with patch(
+            "everlingo.mem.agents.mem_writer_agent.create_agent",
+            return_value=MagicMock(invoke=fake_invoke),
+        ):
+            agent = MemoryWriterAgent()
+            agent._agent = MagicMock(invoke=fake_invoke)  # 双保险
+        # 强制重置 lang 状态，确保 fixture 残留不会影响
+        mem_writer_tools.set_current_lang(None)
+
+        # 模拟 MemoryEntry
+        entry = _entry(headword="ambiguous", lang="en")
+        agent._write_kb_item(entry)
+
+        # 关键断言 1：文件落到 per-lang vault 根下（lang 注入成功）
+        expected = en_vault / "items" / "vocab" / "ambiguous--01KWRSB203ZXACYRGHSF1TXS0S.md"
+        assert expected.exists(), f"expected {expected}, but it doesn't exist"
+        # 关键断言 2：旧布局 memory/vault/en/items/vocab/... 不能有文件
+        wrong = old_vault / "en" / "items" / "vocab" / "ambiguous--01KWRSB203ZXACYRGHSF1TXS0S.md"
+        assert not wrong.exists(), f"file leaked to old layout: {wrong}"
+        # 关键断言 3：调用后 lang 被重置，避免跨 entry 状态泄漏
+        assert mem_writer_tools._current_lang is None
+
+    def test_write_kb_item_system_prompt_does_not_instruct_lang_prefix(self):
+        """system prompt 不能引导 LLM 写 `$lang/items/...` 路径——
+        sandbox 根已经是 lang vault，再加 $lang/ 前缀会写到
+        $workspace/memory/languages/$lang/vault/$lang/items/...。"""
+        prompt = _build_writer_system_prompt()
+        # 旧错误指引不应再出现
+        assert "$lang/items/" not in prompt
+        assert "$lang/events/" not in prompt
+        # 新的正确指引应出现
+        assert "items/<item_type>" in prompt
+        assert "items/vocab/" in prompt
+        # 沙箱根描述应为 per-lang vault
+        assert "memory/languages/$lang/vault" in prompt
 
 
 # ── MemoryWriterAgent 异步守护线程测试 ─────────────────────────────
@@ -613,7 +707,7 @@ class TestWriterAgentDaemon:
             time.sleep(0.01)
         assert mock_agent.invoke.call_count == 1
 
-        events_file = tmp_memory / "en/events/2026/11/2026-11-21.md"
+        events_file = tmp_memory / "events/2026/11/2026-11-21.md"
         deadline = time.time() + 1.0
         while time.time() < deadline and not events_file.exists():
             time.sleep(0.01)

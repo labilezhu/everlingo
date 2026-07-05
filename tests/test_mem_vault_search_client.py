@@ -16,7 +16,7 @@ def test_search_when_unreachable_returns_empty(tmp_path: Path, caplog):
     sock = tmp_path / "no-such.sock"
     c = SearchClient(sock)
     with caplog.at_level("WARNING"):
-        hits = c.search("hello")
+        hits = c.search("hello", lang="en")
     assert hits == []
 
 
@@ -24,14 +24,14 @@ def test_index_file_when_unreachable_returns_false(tmp_path: Path, caplog):
     sock = tmp_path / "no-such.sock"
     c = SearchClient(sock)
     with caplog.at_level("WARNING"):
-        ok = c.index_file("en/items/vocab/foo--01JZZ.md")
+        ok = c.index_file("en", "items/vocab/foo--01JZZ.md")
     assert ok is False
 
 
 def test_delete_file_when_unreachable_returns_false(tmp_path: Path):
     sock = tmp_path / "no-such.sock"
     c = SearchClient(sock)
-    assert c.delete_file("en/items/vocab/foo--01JZZ.md") is False
+    assert c.delete_file("en", "items/vocab/foo--01JZZ.md") is False
 
 
 def test_status_when_unreachable_returns_none(tmp_path: Path):
@@ -43,4 +43,4 @@ def test_status_when_unreachable_returns_none(tmp_path: Path):
 def test_rebuild_when_unreachable_returns_none(tmp_path: Path):
     sock = tmp_path / "no-such.sock"
     c = SearchClient(sock)
-    assert c.rebuild() is None
+    assert c.rebuild("en") is None

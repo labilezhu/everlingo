@@ -71,10 +71,11 @@ def conn(tmp_path: Path) -> sqlite3.Connection:
     c.close()
 
 
-def _write_item(memory_root: Path, name: str, ulid: str, type_: str, headword: str, title: str, body: str, lang: str = "en", tags: str = "") -> Path:
-    p = memory_root / lang / "items" / type_ / name
+def _write_item(memory_root: Path, name: str, ulid: str, type_: str, headword: str, title: str, body: str, tags: str = "") -> Path:
+    """写 kb item 文件。新布局：不含 {lang}/ 前缀。"""
+    p = memory_root / "items" / type_ / name
     p.parent.mkdir(parents=True, exist_ok=True)
-    fm = f"---\nulid: {ulid}\nslug: {name.split('--')[0]}\ntype: {type_}\nheadword: {headword}\ntitle: {title}\nlang: {lang}\n"
+    fm = f"---\nulid: {ulid}\nslug: {name.split('--')[0]}\ntype: {type_}\nheadword: {headword}\ntitle: {title}\n"
     if tags:
         fm += f"tags: {tags}\n"
     p.write_text(fm + f"---\n\n{body}", encoding="utf-8")
@@ -83,10 +84,9 @@ def _write_item(memory_root: Path, name: str, ulid: str, type_: str, headword: s
 
 def _index_and_embed(conn, memory_root, items):
     """index_file + 嵌入所有 chunks。"""
-    chunk_texts: list[tuple[int, str]] = []
-    for (name, ulid, type_, headword, title, body, lang) in items:
-        p = _write_item(memory_root, name, ulid, type_, headword, title, body, lang)
-        index_file(conn, parse_file(p, memory_root))
+    for (name, ulid, type_, headword, title, body) in items:
+        p = _write_item(memory_root, name, ulid, type_, headword, title, body)
+        index_file(conn, parse_file(p, memory_root, "en"))
     # 取所有 chunk
     rows = conn.execute("SELECT chunk_id, text FROM chunks").fetchall()
     chunk_texts = [(r[0], r[1]) for r in rows]
@@ -102,44 +102,33 @@ def _index_and_embed(conn, memory_root, items):
 def test_semantic_returns_vec_source_and_chunk(conn, memory_root):
     _index_and_embed(conn, memory_root, [
         ("a--01JZS0001.md", "01JZS0001", "vocab", "apple", "苹果",
-         "## 解释\nred fruit", "en"),
+         "## 解释\nred fruit"),
     ])
     emb = FakeEmbedder()
-    hits = do_search(conn, "apple", embedder=emb, mode="semantic", limit=10)
+    hits = do_search(conn, "apple", lang="en", embedder=emb, mode="semantic", limit=10)
     assert len(hits) >= 1
     for h in hits:
         assert h.source == "vec"
         assert h.chunk is not None
         assert h.chunk.text
         assert h.score > 0
+        assert h.lang == "en"
     # 全部来自同一文档
     assert all(h.ulid == hits[0].ulid for h in hits)
-
-
-def test_semantic_filter_by_lang(conn, memory_root):
-    _index_and_embed(conn, memory_root, [
-        ("a--01JZS0002.md", "01JZS0002", "vocab", "apple", "苹果", "fruit", "en"),
-        ("a--01JZS0003.md", "01JZS0003", "vocab", "apple", "りんご", "fruit", "ja"),
-    ])
-    emb = FakeEmbedder()
-    hits = do_search(conn, "apple", embedder=emb, mode="semantic", lang="ja", limit=10)
-    assert len(hits) >= 1
-    assert all(h.lang == "ja" for h in hits)
-    assert all(h.ulid == "01JZS0003" for h in hits)
 
 
 def test_semantic_no_embedder_returns_empty(conn, memory_root):
     """embedder=None 时 mode=semantic 返回空（不退化到 FTS）。"""
     _index_and_embed(conn, memory_root, [
-        ("a--01JZS0004.md", "01JZS0004", "vocab", "apple", "苹果", "fruit", "en"),
+        ("a--01JZS0004.md", "01JZS0004", "vocab", "apple", "苹果", "fruit"),
     ])
-    hits = do_search(conn, "apple", embedder=None, mode="semantic", limit=10)
+    hits = do_search(conn, "apple", lang="en", embedder=None, mode="semantic", limit=10)
     assert hits == []
 
 
 def test_semantic_empty_index_returns_empty(conn, memory_root):
     emb = FakeEmbedder()
-    hits = do_search(conn, "anything", embedder=emb, mode="semantic", limit=10)
+    hits = do_search(conn, "anything", lang="en", embedder=emb, mode="semantic", limit=10)
     assert hits == []
 
 
@@ -148,10 +137,10 @@ def test_semantic_empty_index_returns_empty(conn, memory_root):
 
 def test_hybrid_uses_rrf_and_marks_source(conn, memory_root):
     _index_and_embed(conn, memory_root, [
-        ("a--01JZH0001.md", "01JZH0001", "vocab", "apple", "苹果", "fruit", "en"),
+        ("a--01JZH0001.md", "01JZH0001", "vocab", "apple", "苹果", "fruit"),
     ])
     emb = FakeEmbedder()
-    hits = do_search(conn, "apple", embedder=emb, mode="hybrid", limit=10)
+    hits = do_search(conn, "apple", lang="en", embedder=emb, mode="hybrid", limit=10)
     assert len(hits) >= 1
     # 全部标 source='hybrid'
     assert all(h.source == "hybrid" for h in hits)
@@ -162,10 +151,10 @@ def test_hybrid_uses_rrf_and_marks_source(conn, memory_root):
 def test_hybrid_rrf_dedups_within_each_source(conn, memory_root):
     """同源内 RRF 去重：FTS ulid 唯一，vec (ulid, chunk_id) 唯一。"""
     _index_and_embed(conn, memory_root, [
-        ("a--01JZH0002.md", "01JZH0002", "vocab", "apple", "苹果", "fruit", "en"),
+        ("a--01JZH0002.md", "01JZH0002", "vocab", "apple", "苹果", "fruit"),
     ])
     emb = FakeEmbedder()
-    hits = do_search(conn, "apple", embedder=emb, mode="hybrid", limit=10)
+    hits = do_search(conn, "apple", lang="en", embedder=emb, mode="hybrid", limit=10)
     # FTS 来源：1 条（ulid=01JZH0002）
     fts_hits = [h for h in hits if h.chunk is None]
     assert len(fts_hits) == 1
@@ -180,9 +169,10 @@ def test_hybrid_rrf_dedups_within_each_source(conn, memory_root):
 def test_hybrid_no_embedder_falls_back_to_fts(conn, memory_root):
     """hybrid + embedder=None → 退化为 exact 路径。"""
     _index_and_embed(conn, memory_root, [
-        ("a--01JZH0004.md", "01JZH0004", "vocab", "apple", "苹果", "fruit", "en"),
+        ("a--01JZH0004.md", "01JZH0004", "vocab", "apple", "苹果", "fruit"),
     ])
-    hits = do_search(conn, "apple", embedder=None, mode="hybrid", limit=10)
+    hits = do_search(conn, "apple", lang="en", embedder=None, mode="hybrid", limit=10)
     assert len(hits) == 1
     # 退化到 FTS，但走的是 hybrid 入口 → source 应为 'fts'（_fts_recall 填的）
     assert hits[0].source == "fts"
+    assert hits[0].lang == "en"

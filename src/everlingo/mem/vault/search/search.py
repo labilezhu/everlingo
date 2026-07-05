@@ -38,15 +38,15 @@ def search(
     conn: sqlite3.Connection,
     query: str,
     *,
+    lang: str,  # 必填，用于 SearchHit.lang 回填
     embedder: store.Embedder | None = None,
-    lang: str | None = None,
     item_type: str | None = None,
     tags: list[str] | None = None,
     kind: str | None = None,
     mode: Literal["exact", "semantic", "hybrid"] = "exact",
     limit: int = 20,
 ) -> list[SearchHit]:
-    """三模式搜索入口。"""
+    """三模式搜索入口。lang 必填（per-lang DB 隐含）。"""
     start = time.perf_counter()
     if mode == "exact":
         return _fts_recall(conn, query, lang, item_type, tags, kind, limit)
@@ -72,7 +72,7 @@ def search(
 def _fts_recall(
     conn: sqlite3.Connection,
     query: str,
-    lang: str | None,
+    lang: str,
     item_type: str | None,
     tags: list[str] | None,
     kind: str | None,
@@ -85,9 +85,6 @@ def _fts_recall(
     where_clauses = ["documents_fts MATCH ?"]
     where_params: list = [fts_q]
 
-    if lang is not None:
-        where_clauses.append("d.lang = ?")
-        where_params.append(lang)
     if item_type is not None:
         where_clauses.append("d.item_type = ?")
         where_params.append(item_type)
@@ -100,7 +97,7 @@ def _fts_recall(
             where_params.append(f"%{t}%")
 
     sql = f"""
-        SELECT d.rowid, d.ulid, d.kind, d.lang, d.item_type, d.file_path, d.title,
+        SELECT d.rowid, d.ulid, d.kind, d.item_type, d.file_path, d.title,
                snippet(documents_fts, 8, '【', '】', '…', 12) AS body_snippet,
                bm25(documents_fts, {_BM25_WEIGHTS}) AS rank_score
         FROM documents_fts f
@@ -119,12 +116,12 @@ def _fts_recall(
 
     hits: list[SearchHit] = []
     for r in rows:
-        rowid, ulid, kind_v, lang_v, item_type_v, file_path, title, snippet, score = r
+        rowid, ulid, kind_v, item_type_v, file_path, title, snippet, score = r
         hits.append(
             SearchHit(
                 ulid=ulid,
                 kind=kind_v,
-                lang=lang_v,
+                lang=lang,
                 item_type=item_type_v,
                 file_path=file_path,
                 title=title,
@@ -144,7 +141,7 @@ def _vec_recall(
     conn: sqlite3.Connection,
     embedder: store.Embedder,
     query: str,
-    lang: str | None,
+    lang: str,
     item_type: str | None,
     tags: list[str] | None,
     kind: str | None,
@@ -160,7 +157,7 @@ def _vec_recall(
         return []
 
     knn = store.knn_with_filter(
-        conn, qvec, k=limit, lang=lang, item_type=item_type, kind=kind, tags=tags
+        conn, qvec, k=limit, item_type=item_type, kind=kind, tags=tags
     )
     if not knn:
         return []
@@ -171,7 +168,7 @@ def _vec_recall(
     rows = conn.execute(
         f"""
         SELECT c.chunk_id, c.section_title, c.section_kind, c.char_offset, c.text,
-               d.ulid, d.kind, d.lang, d.item_type, d.file_path, d.title
+               d.ulid, d.kind, d.item_type, d.file_path, d.title
         FROM chunks c JOIN documents d ON d.rowid = c.doc_rowid
         WHERE c.chunk_id IN ({placeholders})
         """,
@@ -192,7 +189,6 @@ def _vec_recall(
             text,
             ulid,
             kind_v,
-            lang_v,
             item_type_v,
             file_path,
             title,
@@ -203,7 +199,7 @@ def _vec_recall(
             SearchHit(
                 ulid=ulid,
                 kind=kind_v,
-                lang=lang_v,
+                lang=lang,
                 item_type=item_type_v,
                 file_path=file_path,
                 title=title,
@@ -229,7 +225,7 @@ def _hybrid_recall(
     conn: sqlite3.Connection,
     embedder: store.Embedder,
     query: str,
-    lang: str | None,
+    lang: str,
     item_type: str | None,
     tags: list[str] | None,
     kind: str | None,

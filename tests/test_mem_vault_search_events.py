@@ -13,7 +13,7 @@ from everlingo.mem.vault.search.events_index import (
 
 
 def test_parse_event_path_valid():
-    meta = parse_event_path("en/events/2026/06/2026-06-26.md")
+    meta = parse_event_path("events/2026/06/2026-06-26.md", "en")
     assert meta is not None
     assert meta.lang == "en"
     assert meta.date == "2026-06-26"
@@ -22,9 +22,9 @@ def test_parse_event_path_valid():
 
 
 def test_parse_event_path_invalid_returns_none():
-    assert parse_event_path("en/items/vocab/foo--01JZ.md") is None
-    assert parse_event_path("en/events/2026/06/wrong.md") is None
-    assert parse_event_path("en/events/2026/06/2026-06-26.txt") is None
+    assert parse_event_path("items/vocab/foo--01JZ.md", "en") is None
+    assert parse_event_path("events/2026/06/wrong.md", "en") is None
+    assert parse_event_path("events/2026/06/2026-06-26.txt", "en") is None
 
 
 

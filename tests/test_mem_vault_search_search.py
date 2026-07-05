@@ -35,9 +35,10 @@ def conn(tmp_path: Path) -> sqlite3.Connection:
 
 
 def _write_item(memory_root: Path, name: str, ulid: str, type_: str, headword: str, title: str, body: str, lang: str = "en", tags: str = "") -> Path:
-    p = memory_root / lang / "items" / type_ / name
+    """写 kb item 文件。新布局：不含 {lang}/ 前缀。"""
+    p = memory_root / "items" / type_ / name
     p.parent.mkdir(parents=True, exist_ok=True)
-    fm = f"---\nulid: {ulid}\nslug: {name.split('--')[0]}\ntype: {type_}\nheadword: {headword}\ntitle: {title}\nlang: {lang}\n"
+    fm = f"---\nulid: {ulid}\nslug: {name.split('--')[0]}\ntype: {type_}\nheadword: {headword}\ntitle: {title}\n"
     if tags:
         fm += f"tags: {tags}\n"
     p.write_text(fm + f"---\n\n{body}", encoding="utf-8")
@@ -49,40 +50,31 @@ def test_search_exact_hit(conn: sqlite3.Connection, memory_root: Path):
         memory_root, "computer--01JZA0001.md", "01JZA0001", "vocab", "computer", "计算机",
         "## 例句\nThis is a computer.\n## 解释\n硬件设备。",
     )
-    index_file(conn, parse_file(p, memory_root))
-    hits = do_search(conn, "computer", limit=10)
+    index_file(conn, parse_file(p, memory_root, "en"))
+    hits = do_search(conn, "computer", lang="en", limit=10)
     assert len(hits) == 1
     assert hits[0].ulid == "01JZA0001"
     assert hits[0].source == "fts"
     assert hits[0].score != 0.0
     # snippet 干净原文（包含原字符）
     assert "computer" in hits[0].snippet or "computer" in hits[0].title.lower() or "computer" in hits[0].title
-
-
-def test_search_field_filter_lang(conn: sqlite3.Connection, memory_root: Path):
-    p1 = _write_item(memory_root, "a--01JZA0002.md", "01JZA0002", "vocab", "apple", "苹果", "fruit", lang="en")
-    p2 = _write_item(memory_root, "a--01JZA0003.md", "01JZA0003", "vocab", "apple", "りんご", "fruit", lang="ja")
-    index_file(conn, parse_file(p1, memory_root))
-    index_file(conn, parse_file(p2, memory_root))
-    hits = do_search(conn, "apple", lang="ja", limit=10)
-    assert len(hits) == 1
-    assert hits[0].ulid == "01JZA0003"
+    assert hits[0].lang == "en"
 
 
 def test_search_field_filter_item_type(conn: sqlite3.Connection, memory_root: Path):
     p1 = _write_item(memory_root, "b--01JZA0004.md", "01JZA0004", "vocab", "banana", "香蕉", "fruit")
     p2 = _write_item(memory_root, "b--01JZA0005.md", "01JZA0005", "phrase", "banana republic", "香蕉共和国", "phrase")
-    index_file(conn, parse_file(p1, memory_root))
-    index_file(conn, parse_file(p2, memory_root))
-    hits = do_search(conn, "banana", item_type="phrase", limit=10)
+    index_file(conn, parse_file(p1, memory_root, "en"))
+    index_file(conn, parse_file(p2, memory_root, "en"))
+    hits = do_search(conn, "banana", lang="en", item_type="phrase", limit=10)
     assert len(hits) == 1
     assert hits[0].ulid == "01JZA0005"
 
 
 def test_search_no_match_returns_empty(conn: sqlite3.Connection, memory_root: Path):
     p = _write_item(memory_root, "c--01JZA0006.md", "01JZA0006", "vocab", "cherry", "樱桃", "fruit")
-    index_file(conn, parse_file(p, memory_root))
-    hits = do_search(conn, "zzz_no_such_word", limit=10)
+    index_file(conn, parse_file(p, memory_root, "en"))
+    hits = do_search(conn, "zzz_no_such_word", lang="en", limit=10)
     assert hits == []
 
 
@@ -92,8 +84,8 @@ def test_search_query_tokenize_consistency_zh(conn: sqlite3.Connection, memory_r
         memory_root, "d--01JZA0007.md", "01JZA0007", "vocab", "自然", "自然语言处理",
         "## 解释\n研究语言与计算的学科。",
     )
-    index_file(conn, parse_file(p, memory_root))
-    hits = do_search(conn, "自然语言处理", limit=10)
+    index_file(conn, parse_file(p, memory_root, "en"))
+    hits = do_search(conn, "自然语言处理", lang="en", limit=10)
     assert len(hits) >= 1
     assert hits[0].ulid == "01JZA0007"
 
@@ -101,15 +93,16 @@ def test_search_query_tokenize_consistency_zh(conn: sqlite3.Connection, memory_r
 def test_search_kind_filter_event(conn: sqlite3.Connection, memory_root: Path):
     # 加一个 item
     p1 = _write_item(memory_root, "e--01JZA0008.md", "01JZA0008", "vocab", "event", "事件", "x")
-    index_file(conn, parse_file(p1, memory_root))
-    # 加一个 events 文件
-    p2 = memory_root / "en" / "events" / "2026" / "06" / "2026-06-26.md"
+    index_file(conn, parse_file(p1, memory_root, "en"))
+    # 加一个 events 文件（新布局：不含 {lang}/ 前缀）
+    p2 = memory_root / "events" / "2026" / "06" / "2026-06-26.md"
     p2.parent.mkdir(parents=True, exist_ok=True)
     p2.write_text(
-        "# 当天事件\n\n## Event\n- timestamp: 2026-06-26 10:00:00\n- lang: en\n- headword: foo\n",
+        "# 当天事件\n\n## Event\n- timestamp: 2026-06-26 10:00:00\n- headword: foo\n",
         encoding="utf-8",
     )
-    index_file(conn, parse_file(p2, memory_root))
-    hits = do_search(conn, "foo", kind="event", limit=10)
+    index_file(conn, parse_file(p2, memory_root, "en"))
+    hits = do_search(conn, "foo", lang="en", kind="event", limit=10)
     assert len(hits) >= 1
     assert hits[0].kind == "event"
+    assert hits[0].lang == "en"

@@ -8,6 +8,7 @@
 - 新增向量索引（sqlite-vec vec0）与 embedding 计算（OpenRouter text-embedding-3-small，经 `AIEmbedding`）。
 - 查询三模式：`exact`（FTS spec）、`semantic`（本文）、`hybrid`（本文）。
 - 嵌入在 indexer 进程内后台 worker 异步完成；未嵌入的 chunk 暂不参与向量召回（最终一致）。
+- **per-lang DB**：FTS spec 的 per-lang SQLite DB 同样适用于向量层——每个 lang DB 各自维护 `chunk_embeddings` / `chunk_vec` / `meta`，各 lang DB 的 `meta.embedding_model_id` 与 `embedding_dim` 可不同。这为将来按语言选型 embedding 模型留出空间（如英文用 text-embedding-3-small、日文用 bge-m3-ja）。
 
 ## 与 FTS spec 的关系
 
@@ -60,10 +61,12 @@ USING vec0(chunk_id INTEGER PRIMARY KEY, embedding FLOAT[:dim])
 
 ### meta 新增键
 
+`meta` 表为 per-lang DB 独立（每 lang 一份），各 lang 可用不同 embedding 模型：
+
 | key | 示例值 | 用途 |
 |---|---|---|
-| `embedding_model_id` | `openai/text-embedding-3-small:1536` | 换模型时作废旧 embedding + 重建 vec0 |
-| `embedding_dim` | `1536` | 动态建 vec0 虚表 |
+| `embedding_model_id` | `openai/text-embedding-3-small:1536` | 换模型时作废旧 embedding + 重建 vec0；各 lang DB 可不同 |
+| `embedding_dim` | `1536` | 动态建 vec0 虚表；各 lang DB 可不同 |
 | `embedding_schema_version` | `1` | vec0 schema 变更时重建 |
 
 ## chunk_id 稳定化（前置改动）
@@ -78,89 +81,92 @@ USING vec0(chunk_id INTEGER PRIMARY KEY, embedding FLOAT[:dim])
 src/everlingo/mem/vault/search/
   embedding/
     ai_embedding.py    # 既有：AIEmbedding（embed_query / embed_documents）
-    worker.py          # 新增：EmbeddingWorker 后台线程
-    store.py           # 新增：embedding 读写 + vec0 同步 + KNN 查询
-  indexer.py           # 改：index_file 增 content_hash 短路
-  search.py            # 改：_vec_recall / _fuse / mode 路由
-  sync.py              # 改：open_db 加载 sqlite-vec；reconcile 后启动 worker
-  server.py            # 改：/status 增 embedding 计数；POST /embed 端点
-  cli.py               # 改：everlingo mem embed 子命令
-  protocol.py          # 改：StatusResponse 增 embedded_chunks / embedding_model_id
+    worker.py          # 新增：EmbeddingWorker 后台线程，单 worker 轮询 N 个 lang DB
+    store.py           # 新增：embedding 读写 + vec0 同步 + KNN 查询（per-lang conn）
+  indexer.py           # 改：index_file 增 content_hash 短路；按 lang 路由 conn
+  search.py            # 改：_vec_recall / _fuse / mode 路由；按 lang 取 conn
+  sync.py              # 改：open_db 加载 sqlite-vec；对每个 lang reconcile 后启动 worker
+  server.py            # 改：/status 增 per-lang embedding 计数；POST /{lang}/embed 端点
+  cli.py               # 改：everlingo mem embed [LANG] 子命令
+  protocol.py          # 改：StatusResponse 增 per-lang embedded_chunks / embedding_model_id
 ```
 
 ## Embedding worker
 
-`embedding/worker.py`：
+`embedding/worker.py`：单 worker 实例轮询 N 个 lang DB 的 pending chunks。
 
 ```python
 class EmbeddingWorker:
-    def __init__(self, conn, embedder, *, interval=2.0, batch=64): ...
+    def __init__(self, conns: dict[str, Connection], embedders: dict[str, AIEmbedding], *, interval=2.0, batch=64): ...
+        # conns: lang -> SQLite 连接（per-lang DB）
+        # embedders: lang -> AIEmbedding（按该 lang DB 的 meta.embedding_model_id 创建；可为多 lang 共享同一 embedder 实例）
     def start(self) -> None     # 守护线程
     def stop(self) -> None
-    def wake(self) -> None      # watcher / index_file 后唤醒
+    def wake(self, lang: str | None = None) -> None  # watcher / index_file 后唤醒；lang=None 唤醒所有
 ```
 
-- **触发时机**：indexer 启动 reconcile 完成后 `start()` 补嵌存量；`index_file` 写新 chunks 后 `wake()`；`rebuild` 后全量重嵌。
-- **pending 选择**：`SELECT chunk_id, text FROM chunks WHERE chunk_id NOT IN (SELECT chunk_id FROM chunk_embeddings WHERE model_id=:cur) LIMIT :batch`。
-- **批量嵌入**：`embedder.embed_documents([text...])` → 事务写入 `chunk_embeddings` + `chunk_vec`。串行批次。
+- **触发时机**：indexer 启动对每个 lang reconcile 完成后 `start()` 补嵌存量；某 lang 的 `index_file` 写新 chunks 后 `wake(lang)`；某 lang `rebuild` 后全量重嵌该 lang。
+- **轮询策略**：单线程按 lang 依次轮询，对每个 lang DB 执行 `SELECT chunk_id, text FROM chunks WHERE chunk_id NOT IN (SELECT chunk_id FROM chunk_embeddings WHERE model_id=:cur_model_id_of_lang) LIMIT :batch`，使用该 lang 对应的 embedder 嵌入，事务写回该 lang DB 的 `chunk_embeddings` + `chunk_vec`。单线程避免多 lang 并发争用同一 OpenRouter 客户端。
+- **批量嵌入**：`embedder.embed_documents([text...])` → 事务写入 `chunk_embeddings` + `chunk_vec`。串行批次、串行 lang。
 - **失败重试**：指数退避 3 次；失败 chunk 留待下轮。
-- **降级**：`AIEmbedding.create()` 抛 `ValueError`（未配 `OPENAI_EMBEDDING_MODEL`）→ worker 不启动，log info，向量功能关闭。
+- **降级**：某 lang 的 `AIEmbedding.create()` 抛 `ValueError`（未配 `OPENAI_EMBEDDING_MODEL`）→ 该 lang 的 worker 路径不启动，log info，向量功能对该 lang 关闭；其它 lang 不受影响。
 - **content_hash 跳过**：由 chunk_id 稳定（content_hash 短路）保证，worker 不再算 hash。
 
 ## Embedding store
 
-`embedding/store.py`：
+`embedding/store.py`（所有函数作用于传入的单个 lang DB conn，lang 由调用方提供）：
 
 ```python
-def ensure_vec_table(conn, dim: int) -> None        # 建/重建 chunk_vec
-def batch_upsert(conn, items, embedder) -> int      # 批量写 chunk_embeddings + chunk_vec
-def knn(conn, query_vec, *, k, lang, item_type, kind, tags) -> list[tuple[int, float]]
-def rebuild_for_model(conn, new_model_id, dim) -> None # drop vec0 + 旧 embedding + 重建
+def ensure_vec_table(conn, dim: int) -> None        # 建/重建该 lang DB 的 chunk_vec
+def batch_upsert(conn, items, embedder) -> int      # 批量写该 lang DB 的 chunk_embeddings + chunk_vec
+def knn(conn, query_vec, *, k, item_type, kind, tags) -> list[tuple[int, float]]
+def rebuild_for_model(conn, new_model_id, dim) -> None # drop 该 lang DB 的 vec0 + 旧 embedding + 重建
 ```
 
-- **过滤策略**：vec0 不支持复杂 WHERE。先取 `k * 3` 候选，再 join `chunks`+`documents` 按 lang/item_type/kind/tags post-filter，取 top-k。无过滤时直接 top-k。
-- **模型作废**：换模型时 `DELETE FROM chunk_embeddings` + `DROP TABLE chunk_vec` + 用新 dim `ensure_vec_table` + 全量重嵌。
+- **过滤策略**：vec0 不支持复杂 WHERE。先取 `k * 3` 候选，再 join `chunks`+`documents` 按 item_type/kind/tags post-filter，取 top-k。无过滤时直接 top-k。lang 过滤已隐含于 DB，不再需要。
+- **模型作废**：换某 lang 模型时对该 lang DB `DELETE FROM chunk_embeddings` + `DROP TABLE chunk_vec` + 用新 dim `ensure_vec_table` + 全量重嵌该 lang。其它 lang DB 不受影响。
 
 ## 查询路由
 
-`search.py`：
+`search.py`（接收 `lang` 参数，路由到对应 lang DB 的 conn）：
 
 ```python
-def search(query, ..., mode='exact', limit=20) -> list[SearchHit]:
-    if mode == 'exact':    return _fts_recall(...) # FTS spec
-    if mode == 'semantic': return _vec_recall(query, ..., limit)
-    if mode == 'hybrid':   return _fuse(_fts_recall(...), _vec_recall(...), limit)
+def search(query, lang, ..., mode='exact', limit=20) -> list[SearchHit]:
+    conn = conns[lang]   # per-lang DB 连接
+    if mode == 'exact':    return _fts_recall(conn, ...) # FTS spec
+    if mode == 'semantic': return _vec_recall(conn, query, ..., limit)
+    if mode == 'hybrid':   return _fuse(_fts_recall(conn, ...), _vec_recall(conn, ...), limit)
 ```
 
-- **`_vec_recall`**：`AIEmbedding.create().embed_query([query])` → `store.knn(...)` → join chunks + documents → `SearchHit(source='vec', chunk=ChunkRef, snippet=chunk.text[:N])`。
-- **`_fuse`（RRF）**：两路各自按 score 排序；`score = Σ 1/(60 + rank_i)`；FTS 文件级 hit（无 chunk）按 ulid 去重，vec hit 按 (ulid, chunk_id) 去重；合并取 top-limit，`source='hybrid'`。
-- lang/item_type/kind/tags 过滤两路都应用。
+- **`_vec_recall`**：用该 lang 对应的 embedder `AIEmbedding.create(model_id=...).embed_query([query])` → `store.knn(conn, ...)` → join chunks + documents → `SearchHit(source='vec', lang=lang, chunk=ChunkRef, snippet=chunk.text[:N])`。
+- **`_fuse`（RRF）**：两路各自按 score 排序；`score = Σ 1/(60 + rank_i)`；FTS 文件级 hit（无 chunk）按 ulid 去重，vec hit 按 (ulid, chunk_id) 去重；合并取 top-limit，`source='hybrid'`。RRF 在单 lang DB 内融合，不涉及跨 lang score 比较。
+- item_type/kind/tags 过滤两路都应用。lang 已隐含于 DB，不再作为过滤参数。
 
 ## Search API
 [Search API](/docs/impl-spec/search/memory-vault-search-spec.md) 中 “## Search API” 一节。
 
 ## CLI
 
-- 新增 `everlingo mem embed`：经 HTTP `POST /embed` 触发 worker 跑一轮；`--rebuild` 先 drop 再全量重嵌；`--status` 报 embedded_chunks / total_chunks / model_id。
-- `GET /status` 响应增 `embedded_chunks`、`embedding_model_id`。
+- 新增 `everlingo mem embed [LANG] [--rebuild] [--status]`：经 HTTP `POST /{lang}/embed` 触发该 lang worker 跑一轮；`--rebuild` 先 drop 再全量重嵌该 lang；`--status` 报该 lang 的 embedded_chunks / total_chunks / model_id。LANG 省略时对所有 lang 依次执行。
+- `GET /status` 响应增 per-lang `embedded_chunks`、`embedding_model_id`（聚合所有 lang DB）。
 
 ## 降级与边界
 
 | 场景 | 行为 |
 |---|---|
-| `OPENAI_EMBEDDING_MODEL` 未配 | worker 不启动；`semantic`/`hybrid` 返回 `[]` + warning；FTS / `exact` 正常 |
-| sqlite-vec 扩展加载失败 | indexer log error；向量功能关闭；FTS 正常 |
+| 某 lang 的 `OPENAI_EMBEDDING_MODEL` 未配 | 该 lang worker 路径不启动；该 lang 的 `semantic`/`hybrid` 返回 `[]` + warning；该 lang 的 FTS / `exact` 正常；其它 lang 不受影响 |
+| 某 lang DB 的 sqlite-vec 扩展加载失败 | indexer log error；该 lang 向量功能关闭；该 lang 的 FTS 正常；其它 lang 不受影响 |
 | OpenRouter 调用失败 | worker 重试退避；失败 chunk 下轮再试；查询用已有 embedding 子集做 KNN |
-| chunk 尚未嵌入 | 不参与向量召回（最终一致）；hybrid 模式 FTS 路仍能命中 |
-| 换 embedding 模型 | worker 检测 `model_id` 变化 → drop vec0 + 旧 embedding → 新 dim 重建 → 全量重嵌 |
+| 某 lang 的 chunk 尚未嵌入 | 不参与该 lang 向量召回（最终一致）；该 lang hybrid 模式 FTS 路仍能命中 |
+| 某 lang 换 embedding 模型 | 该 lang worker 检测 `model_id` 变化 → drop 该 lang vec0 + 旧 embedding → 新 dim 重建 → 全量重嵌该 lang；其它 lang 不受影响 |
 
 ## 测试策略
 
-- `store.py`：fake embedder（确定性向量）测 upsert / knn / 模型作废 / 过滤。
-- `worker.py`：pending 选择、批量、失败重试、wake 触发（fake embedder + in-memory sqlite+vec）。
+- `store.py`：fake embedder（确定性向量）测 upsert / knn / 模型作废 / 过滤（per-lang in-memory sqlite+vec）。
+- `worker.py`：单 worker 轮询多 lang DB 的 pending 选择、批量、失败重试、wake 触发（fake embedder + 多个 in-memory sqlite+vec）。
 - `indexer.test_index_file_content_hash_shortcircuit`：touch 未变内容，断言 chunk_id 不变、embedding 行不丢。
-- `search.test_vec_recall_hybrid`：mock embedder，测 mode 路由、RRF 去重、source 字段。
-- 集成：`rebuild` + worker → 断言 embedded_chunks == chunks 总数。
+- `search.test_vec_recall_hybrid`：mock embedder，测 mode 路由、RRF 去重、source 字段、lang 路由到对应 conn。
+- 集成：某 lang `rebuild` + worker → 断言该 lang embedded_chunks == 该 lang chunks 总数。
 
 ## 与现有架构的契合
 

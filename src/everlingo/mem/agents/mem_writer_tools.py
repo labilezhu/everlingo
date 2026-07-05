@@ -1,8 +1,10 @@
 # ref: docs/impl-spec/memory-writer-agent-spec.md — Agent tools
 # ref: docs/impl-spec/search/memory-vault-search-spec.md — Writer 集成
 # Memory Writer Agent 的 mem_* 工具沙箱。
-# 所有工具强制使用相对于 workspace.vault_dir() 的 path，并在工具层校验
-# 解析后路径不能逃出 vault_dir（防 ../），否则 LLM 一次幻觉就会写到 workspace 外。
+# 所有工具强制使用相对于 $workspace/memory/languages/$lang/vault 的 path，
+# 并在工具层校验解析后路径不能逃出 lang vault（防 ../），否则 LLM 一次幻觉
+# 就会写到 workspace 外。
+# lang 由 Writer Agent 会话中的目标学习语言确定，通过 set_current_lang() 注入。
 # 此外，对写操作（create_tmp / write / append / remove）在成功后记录 info 日志，
 # 描述写了什么文件、什么内容。
 
@@ -28,26 +30,34 @@ logger = logging.getLogger(__name__)
 
 # ── 写后索引钩子（gateway 进程设置） ────────────────────────────────
 # ref: docs/impl-spec/search/memory-vault-search-spec.md — Writer 集成
-# Writer 写完 .md 后调 SearchClient.index_file(path) fire-and-forget。
+# Writer 写完 .md 后调 SearchClient.index_file(lang, path) fire-and-forget。
 # 工具层不直接 import SearchClient（gateway 侧才用）—— 改用回调注入。
 # 单元测试可设置 _post_write_hook 为 spy / noop。
-_post_write_hook: Callable[[str, str], None] | None = None
+# hook 签名：hook(lang, path, op) -> None
+_post_write_hook: Callable[[str, str, str], None] | None = None
+_current_lang: str | None = None
 
 
-def set_post_write_hook(hook: Callable[[str, str], None] | None) -> None:
-    """设置写后索引钩子。hook(path, op) -> None；op ∈ {'index','delete'}。"""
+def set_post_write_hook(hook: Callable[[str, str, str], None] | None) -> None:
+    """设置写后索引钩子。hook(lang, path, op) -> None；op ∈ {'index','delete'}。"""
     global _post_write_hook
     _post_write_hook = hook
 
 
-def _fire_post_write(rel: str, op: str) -> None:
+def set_current_lang(lang: str | None) -> None:
+    """设置当前会话的目标学习语言。lang 由 Writer Agent 会话提供。"""
+    global _current_lang
+    _current_lang = lang
+
+
+def _fire_post_write(lang: str, rel: str, op: str) -> None:
     """触发钩子。钩子不存在或抛异常时静默吞掉（fire-and-forget）。"""
     if _post_write_hook is None:
         return
     try:
-        _post_write_hook(rel, op)
+        _post_write_hook(lang, rel, op)
     except Exception as e:  # noqa: BLE001
-        logger.warning("post-write hook failed for %s: %s", rel, e)
+        logger.warning("post-write hook failed for %s/%s: %s", lang, rel, e)
 
 
 # ── ULID 生成 ──────────────────────────────────────────────────────────
@@ -83,8 +93,20 @@ class PathSandboxError(ValueError):
 
 
 def _memory_root() -> Path:
-    """当前 workspace 的 Memory Vault 目录（resolve 后绝对路径）。"""
-    return workspace.vault_dir().resolve()
+    """当前会话目标语言的 Memory Vault 目录（resolve 后绝对路径）。
+
+    lang 由 set_current_lang() 注入（Writer Agent 会话提供）。
+    未设置时直接抛错，不再静默回退到旧布局 vault_dir()——曾因静默回退
+    导致 kb item 被错误地写到 $workspace/memory/vault/$lang/items/...
+    而非 $workspace/memory/languages/$lang/vault/items/...。
+    """
+    lang = _current_lang
+    if lang is None:
+        raise RuntimeError(
+            "mem_writer_tools: current lang not set; "
+            "call set_current_lang(entry.lang) before invoking writer agent"
+        )
+    return workspace.lang_vault_dir(lang).resolve()
 
 
 def _resolve_safe(rel_path: str) -> Path:
@@ -168,7 +190,7 @@ def mem_write_file(path: str, content: str) -> str:
     """覆盖写入或新建文件。
 
     自动创建缺失的父目录。成功后 info 日志记录写了什么文件、什么内容。
-    写后通过 set_post_write_hook() 注入的钩子触发 SearchClient.index_file(path)，
+    写后通过 set_post_write_hook() 注入的钩子触发 SearchClient.index_file(lang, path)，
     失败/未设置钩子时静默吞掉（fire-and-forget）。
 
     如果 content 含 YAML frontmatter，会先归一化（tolerant parse + safe_dump），
@@ -179,7 +201,7 @@ def mem_write_file(path: str, content: str) -> str:
     content = normalize_frontmatter_text(content)
     abs_path.write_text(content, encoding="utf-8")
     logger.info("mem_write_file: wrote %s, content=%r", path, content)
-    _fire_post_write(path, "index")
+    _fire_post_write(_current_lang or "", path, "index")
     return f"ok: wrote {len(content)} chars to {path}"
 
 
@@ -189,14 +211,14 @@ def mem_append_file(path: str, content: str) -> str:
     """追加写入文件末尾；文件不存在则创建。
 
     自动创建缺失的父目录。成功后 info 日志记录追加的内容。
-    写后触发 SearchClient.index_file(path) fire-and-forget。
+    写后触发 SearchClient.index_file(lang, path) fire-and-forget。
     """
     abs_path = _resolve_safe(path)
     abs_path.parent.mkdir(parents=True, exist_ok=True)
     with abs_path.open("a", encoding="utf-8") as f:
         f.write(content)
     logger.info("mem_append_file: appended to %s, content=%r", path, content)
-    _fire_post_write(path, "index")
+    _fire_post_write(_current_lang or "", path, "index")
     return f"ok: appended {len(content)} chars to {path}"
 
 
@@ -209,7 +231,7 @@ def mem_remove_file(path: str) -> str:
         return f"error: file not found: {path}"
     abs_path.unlink()
     logger.info("mem_remove_file: removed %s", path)
-    _fire_post_write(path, "delete")
+    _fire_post_write(_current_lang or "", path, "delete")
     return f"ok: removed {path}"
 
 

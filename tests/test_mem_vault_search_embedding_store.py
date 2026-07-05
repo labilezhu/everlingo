@@ -75,18 +75,17 @@ def _insert_one_doc(
     ulid: str = "01JZBSTORE1",
     text: str = "hello world",
     *,
-    lang: str = "en",
     item_type: str = "vocab",
 ) -> int:
     """直接写一个 doc + 一个 chunk，返回 chunk_id。"""
     cur = conn.execute(
         """
         INSERT INTO documents(
-            ulid, kind, lang, item_type, file_path, slug, headword, title,
+            ulid, kind, item_type, file_path, slug, headword, title,
             body, content_hash, file_mtime, indexed_at
-        ) VALUES (?, 'item', ?, ?, ?, ?, ?, ?, ?, 'h1', '2026-01-01', '2026-01-01')
+        ) VALUES (?, 'item', ?, ?, ?, ?, ?, ?, 'h1', '2026-01-01', '2026-01-01')
         """,
-        (ulid, lang, item_type, f"en/items/vocab/x--{ulid}.md", "x", "x", "x", text),
+        (ulid, item_type, f"items/vocab/x--{ulid}.md", "x", "x", "x", text),
     )
     rowid = cur.lastrowid
     cur = conn.execute(
@@ -215,29 +214,29 @@ def test_knn_returns_closest_first(conn: sqlite3.Connection):
     assert all(d > 0 for _, d in knn[1:])
 
 
-def test_knn_with_filter_lang_and_item_type(conn: sqlite3.Connection):
+def test_knn_with_filter_item_type(conn: sqlite3.Connection):
+    """per-lang DB 内按 item_type 过滤（lang 过滤已隐含）。"""
     store.ensure_vec_table(conn, DIM)
     _set_model(conn)
     emb = FakeEmbedder()
-    c1 = _insert_one_doc(conn, ulid="01JZBF001", text="hello", lang="en", item_type="vocab")
-    c2 = _insert_one_doc(conn, ulid="01JZBF002", text="hello-ja", lang="ja", item_type="vocab")
-    c3 = _insert_one_doc(conn, ulid="01JZBF003", text="hello-grammar", lang="en", item_type="grammar")
+    c1 = _insert_one_doc(conn, ulid="01JZBF001", text="hello", item_type="vocab")
+    c2 = _insert_one_doc(conn, ulid="01JZBF002", text="hello-grammar", item_type="grammar")
     store.batch_upsert(
-        conn, [(c1, "hello"), (c2, "hello-ja"), (c3, "hello-grammar")],
+        conn, [(c1, "hello"), (c2, "hello-grammar")],
         emb, model_id="m", dim=DIM,
     )
     conn.commit()
-    # lang=ja + item_type=vocab
+    # item_type=vocab
     knn = store.knn_with_filter(
-        conn, emb.embed_query("hello"), k=10, lang="ja", item_type="vocab"
+        conn, emb.embed_query("hello"), k=10, item_type="vocab"
     )
     chunk_ids = [c for c, _ in knn]
-    assert chunk_ids == [c2]
-    # lang=en + item_type=vocab
+    assert chunk_ids == [c1]
+    # item_type=grammar
     knn2 = store.knn_with_filter(
-        conn, emb.embed_query("hello"), k=10, lang="en", item_type="vocab"
+        conn, emb.embed_query("hello"), k=10, item_type="grammar"
     )
-    assert [c for c, _ in knn2] == [c1]
+    assert [c for c, _ in knn2] == [c2]
 
 
 def test_knn_no_vec_table_returns_empty(conn: sqlite3.Connection):

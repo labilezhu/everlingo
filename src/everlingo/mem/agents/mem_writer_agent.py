@@ -20,7 +20,7 @@ from ... import workspace
 from ...llm import create_agent, create_mem_writer_llm
 from ...utils.md_prompt_compiler import PackageSource, compile_prompt, shift_headings
 from .mem_entries import MemoryEntry
-from .mem_writer_tools import build_mem_writer_tools
+from .mem_writer_tools import build_mem_writer_tools, set_current_lang
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +111,9 @@ conversation memory entries 异步转交给你，由你把每个 entry 合并或
 
 # memory vault 注意事项
 
-$lang/events/ 目录由代码直接追加，不由你处理；你只负责 $lang/items/ 知识库条目的写入。
+events/ 目录由代码直接追加，不由你处理；你只负责 items/ 知识库条目的写入。
+（sandbox 根已按 entry 的 `lang` 解析到该语言的 vault
+$workspace/memory/languages/$lang/vault/，路径中**不要**再带 $lang/ 前缀。）
 
 注意：所有写入 memory vault 里 markdown 文件的内容，均应该来源于 输入的 entry 信息。对于 memory vault 结构和示例文件的章节，如 entry 有对应内容就应该填上，如 entry 没有对应内容，注意不要自行生成填入。你的所有填入的信息，均应该来源于 entry。不应该自己生成信息填入。
 
@@ -124,18 +126,23 @@ memory vault 中的 markdown 文件正文，主要语言必须使用 entry 的 `
 术语——应使用 `目标学习语言` 本身书写，不要翻译成界面语言。
 
 ## 工具的沙箱规则（强制）
-所有 mem_* 工具**只能使用相对 path**，相对于 `$workspace/memory/vault/`。
-工具层会强制校验：解析后的绝对路径不能逃出 vault_dir，否则直接报错。
+所有 mem_* 工具**只能使用相对 path**，相对于
+`$workspace/memory/languages/$lang/vault/`（`$lang` 为 entry 的 `lang`
+字段对应的目标学习语言目录，由工具层按当前会话的 `lang` 自动解析）。
+工具层会强制校验：解析后的绝对路径不能逃出该 lang 的 vault_dir，
+否则直接报错。
 这意味着：
 - 不允许使用绝对路径（如 `/etc/passwd`）。
 - 不允许使用 `..` 跳出（如 `../foo`）。
-- 不需要写 `memory/vault/` 前缀（路径默认就在 vault_dir 之下）。
+- 不需要写 `memory/languages/$lang/vault/` 前缀（路径默认就在
+  lang vault 根之下），也**不要**再写 `$lang/` 前缀。
 
 ## 单个 entry 处理流程
 
 每次你会收到**一个** entry（JSON 格式），按下列步骤处理：
 
-1. **定位 items 目录**：`$lang/items/<item_type>/`（如 `en/items/vocab/`）。
+1. **定位 items 目录**：`items/<item_type>/`（如 `items/vocab/`）。
+   **不要**在路径前加 `$lang/`（sandbox 根已经是 lang vault）。
 2. **查找是否已有该 headword 的条目**：用 `mem_grep` 在上述目录递归搜索
    headword 文本。`mem_grep` 返回 `[{file_path, matched_text}]`。
 3. **如果命中**（条目已存在）：
@@ -182,10 +189,10 @@ memory vault 中的 markdown 文件正文，主要语言必须使用 entry 的 `
 
 
 def _events_rel_path(entry: MemoryEntry) -> str:
-    """构造当日 events 文件相对 path: <lang>/events/<YYYY>/<MM>/<YYYY-MM-DD>.md."""
+    """构造当日 events 文件相对 path: events/<YYYY>/<MM>/<YYYY-MM-DD>.md."""
     dt = datetime.strptime(entry.timestamp, _TIMESTAMP_FMT)
     return (
-        f"{entry.lang}/events/"
+        f"events/"
         f"{dt.year:04d}/{dt.month:02d}/"
         f"{dt.year:04d}-{dt.month:02d}-{dt.day:02d}.md"
     )
@@ -229,11 +236,11 @@ def _append_event(entry: MemoryEntry) -> None:
     的 markdown 文件，否则按 events_spec.md:34-54 追加一个 ## Event 段落。
 
     ref: docs/impl-spec/search/memory-vault-search-spec.md — Writer 集成
-    写后通过 mem_writer_tools 注入的钩子触发 SearchClient.index_file(rel)，
+    写后通过 mem_writer_tools 注入的钩子触发 SearchClient.index_file(lang, path)，
     让 indexer 即时拿到新追加的 event 段。失败时静默吞掉（fire-and-forget）。
     """
     rel = _events_rel_path(entry)
-    abs_path = (workspace.vault_dir() / rel).resolve()
+    abs_path = (workspace.lang_vault_dir(entry.lang) / rel).resolve()
     abs_path.parent.mkdir(parents=True, exist_ok=True)
 
     created = False
@@ -254,7 +261,7 @@ def _append_event(entry: MemoryEntry) -> None:
     # 触发索引钩子
     from .mem_writer_tools import _fire_post_write
 
-    _fire_post_write(rel, "index")
+    _fire_post_write(entry.lang, rel, "index")
 
 
 # ── kb item 写入（LLM 驱动）──────────────────────────────────────────
@@ -366,15 +373,24 @@ class MemoryWriterAgent:
         """对单个 entry 调一次 LLM agent，由 LLM 通过工具完成 grep/read/write。
 
         ref: memory-writer-agent-spec.md — 更新知识点类 memory items
+        ref: docs/impl-spec/worksplace/workspace.md — per-lang vault
+        在调 agent 之前 set_current_lang(entry.lang)，让 mem_* 工具的
+        sandbox 根解析到 entry 的目标学习语言 vault
+        ($workspace/memory/languages/$lang/vault/)。finally 里 reset，
+        避免跨 entry 状态泄漏（队列中下一条 entry 可能 lang 不同）。
         """
-        payload = _render_entry_payload(entry)
-        user_msg = (
-            "请将以下 entry 合并或写入 memory vault。\n\n"
-            f"```json\n{payload}\n```"
-        )
-        self._agent.invoke({
-            "messages": [
-                SystemMessage(content=self._system_prompt),
-                HumanMessage(content=user_msg),
-            ]
-        })
+        set_current_lang(entry.lang)
+        try:
+            payload = _render_entry_payload(entry)
+            user_msg = (
+                "请将以下 entry 合并或写入 memory vault。\n\n"
+                f"```json\n{payload}```"
+            )
+            self._agent.invoke({
+                "messages": [
+                    SystemMessage(content=self._system_prompt),
+                    HumanMessage(content=user_msg),
+                ]
+            })
+        finally:
+            set_current_lang(None)

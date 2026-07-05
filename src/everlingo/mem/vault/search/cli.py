@@ -4,8 +4,9 @@
 # 命令：
 #   indexer start            在当前进程前台启动 indexer（阻塞，Ctrl-C 退出）
 #   indexer status           GET /status
-#   reindex [PATH]           POST /index 批量投递
-#   reindex --rebuild        POST /rebuild
+#   reindex LANG [PATH]      POST /{lang}/index 批量投递
+#   reindex LANG --rebuild   POST /{lang}/rebuild
+#   embed [LANG]             POST /{lang}/embed
 #
 # Workspace 选择：--workspace-dir / -w/--workspace / EVERLINGO_WORKSPACE_DIR /
 # EVERLINGO_WORKSPACE / default；与 gateway 入口一致。
@@ -53,7 +54,8 @@ def cmd_indexer_start(args: argparse.Namespace) -> int:
         # 检查是否真的在跑
         s = _client().status()
         if s is not None:
-            print(f"indexer 已在运行: {socket_path} (docs={s.docs}, chunks={s.chunks})")
+            langs_info = ", ".join(f"{l.lang}={l.docs}docs" for l in s.langs)
+            print(f"indexer 已在运行: {socket_path} ({langs_info})")
             return 0
         # socket 文件存在但 indexer 不在 -> 清理
         try:
@@ -90,24 +92,46 @@ def cmd_embed(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 1
-    resp = client.embed(rebuild=args.rebuild, batch=args.batch, wait=not args.fire_and_forget)
-    if resp is None:
-        print("embed 调用失败", file=sys.stderr)
+
+    lang = getattr(args, "lang", None)
+    if lang:
+        resp = client.embed(lang, rebuild=args.rebuild, batch=args.batch, wait=not args.fire_and_forget)
+        if resp is None:
+            print("embed 调用失败", file=sys.stderr)
+            return 1
+        if not resp.ok:
+            print(
+                "embedder 未启用（OPENAI_EMBEDDING_MODEL 未配）；向量检索不可用",
+                file=sys.stderr,
+            )
+            return 1
+        if args.rebuild:
+            print(
+                f"[{lang}] rebuild 嵌入: total={resp.total_chunks} embedded={resp.embedded_chunks} "
+                f"model_id={resp.embedding_model_id} dim={resp.embedding_dim} took_ms={resp.took_ms:.1f}"
+            )
+        else:
+            print(
+                f"[{lang}] embed: total={resp.total_chunks} embedded={resp.embedded_chunks} "
+                f"model_id={resp.embedding_model_id} dim={resp.embedding_dim} took_ms={resp.took_ms:.1f}"
+            )
+        return 0
+
+    # 无 lang 参数：对所有 lang 依次执行
+    langs = workspace.lang_dirs()
+    if not langs:
+        print("workspace 下没有已配置的语言目录 (memory/languages/*/)", file=sys.stderr)
         return 1
-    if not resp.ok:
+    for l in langs:
+        resp = client.embed(l, rebuild=args.rebuild, batch=args.batch, wait=not args.fire_and_forget)
+        if resp is None:
+            print(f"[{l}] embed 调用失败", file=sys.stderr)
+            continue
+        if not resp.ok:
+            print(f"[{l}] embedder 未启用", file=sys.stderr)
+            continue
         print(
-            "embedder 未启用（OPENAI_EMBEDDING_MODEL 未配）；向量检索不可用",
-            file=sys.stderr,
-        )
-        return 1
-    if args.rebuild:
-        print(
-            f"rebuild 嵌入: total={resp.total_chunks} embedded={resp.embedded_chunks} "
-            f"model_id={resp.embedding_model_id} dim={resp.embedding_dim} took_ms={resp.took_ms:.1f}"
-        )
-    else:
-        print(
-            f"embed: total={resp.total_chunks} embedded={resp.embedded_chunks} "
+            f"[{l}] embed: total={resp.total_chunks} embedded={resp.embedded_chunks} "
             f"model_id={resp.embedding_model_id} dim={resp.embedding_dim} took_ms={resp.took_ms:.1f}"
         )
     return 0
@@ -123,31 +147,36 @@ def cmd_reindex(args: argparse.Namespace) -> int:
         )
         return 1
 
+    lang = args.lang
+
     if args.rebuild:
-        resp = client.rebuild()
+        resp = client.rebuild(lang)
         if resp is None:
-            print("rebuild 失败", file=sys.stderr)
+            print(f"[{lang}] rebuild 失败", file=sys.stderr)
             return 1
         print(
-            f"rebuild ok: indexed={resp.indexed} chunks={resp.chunks} took_ms={resp.took_ms:.1f}"
+            f"[{lang}] rebuild ok: indexed={resp.indexed} chunks={resp.chunks} took_ms={resp.took_ms:.1f}"
         )
         return 0
 
-    # 增量：扫描 PATH 或全 vault，逐个 POST /index
-    memory_root = workspace.vault_dir()
+    # 增量：扫描 PATH 或全 lang vault，逐个 POST /{lang}/index
+    memory_root = workspace.lang_vault_dir(lang)
     if not memory_root.exists():
-        print(f"memory 目录不存在: {memory_root}", file=sys.stderr)
+        print(f"语言 vault 目录不存在: {memory_root}", file=sys.stderr)
         return 1
 
     target = args.path
     if target is None:
         files = sorted(memory_root.rglob("*.md"))
+        # 排除 tmp/
+        files = [f for f in files if "tmp" not in f.relative_to(memory_root).parts]
     else:
         p = (memory_root / target).resolve() if not Path(target).is_absolute() else Path(target).resolve()
         if p.is_file() and p.suffix == ".md":
             files = [p]
         elif p.is_dir():
             files = sorted(p.rglob("*.md"))
+            files = [f for f in files if "tmp" not in f.relative_to(memory_root).parts]
         else:
             print(f"PATH 既不是文件也不是目录: {target}", file=sys.stderr)
             return 1
@@ -156,7 +185,7 @@ def cmd_reindex(args: argparse.Namespace) -> int:
     failed = 0
     for f in files:
         rel = f.resolve().relative_to(memory_root.resolve()).as_posix()
-        if client.index_file(rel):
+        if client.index_file(lang, rel):
             indexed += 1
             if args.verbose:
                 print(f"  indexed: {rel}")
@@ -164,7 +193,7 @@ def cmd_reindex(args: argparse.Namespace) -> int:
             failed += 1
             print(f"  FAILED: {rel}", file=sys.stderr)
 
-    print(f"reindex done: ok={indexed} failed={failed} total={len(files)}")
+    print(f"[{lang}] reindex done: ok={indexed} failed={failed} total={len(files)}")
     return 0 if failed == 0 else 1
 
 
@@ -190,12 +219,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_status.set_defaults(func=cmd_indexer_status)
 
     p_reindex = sub.add_parser("reindex", help="增量刷新或全量重建")
-    p_reindex.add_argument("path", nargs="?", default=None, help="文件或目录路径（相对 $workspace/memory）；省略=全 vault")
+    p_reindex.add_argument("lang", help="目标学习语言编码（如 en, ja）")
+    p_reindex.add_argument("path", nargs="?", default=None, help="文件或目录路径（相对 $workspace/memory/languages/$lang/vault）；省略=全 lang vault")
     p_reindex.add_argument("--rebuild", action="store_true", help="完全删除 index，从零重建")
     p_reindex.add_argument("-v", "--verbose", action="store_true", help="逐文件输出")
     p_reindex.set_defaults(func=cmd_reindex)
 
     p_embed = sub.add_parser("embed", help="补嵌/重建 embedding")
+    p_embed.add_argument("lang", nargs="?", default=None, help="目标学习语言编码；省略则对所有语言执行")
     p_embed.add_argument("--rebuild", action="store_true", help="drop 旧 vec0+embeddings，全量重嵌")
     p_embed.add_argument("--batch", type=int, default=64, help="每批嵌入 chunk 数（默认 64）")
     p_embed.add_argument(

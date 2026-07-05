@@ -24,7 +24,8 @@ def _wait_until(predicate, timeout: float = 5.0, interval: float = 0.05):
 
 
 def _write_item(memory_root: Path, name: str, ulid: str, body: str = "x") -> Path:
-    p = memory_root / "en" / "items" / "vocab" / name
+    """写 kb item 文件。新布局：不含 {lang}/ 前缀。"""
+    p = memory_root / "items" / "vocab" / name
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(f"---\nulid: {ulid}\nslug: {name.split('--')[0]}\ntype: vocab\n---\n\n{body}", encoding="utf-8")
     return p
@@ -39,7 +40,7 @@ def test_watcher_indexes_new_file(tmp_path: Path):
     conn = sqlite3.connect(str(db_path), check_same_thread=False)
     conn.execute("PRAGMA foreign_keys=ON")
     init_db(conn)
-    w = VaultWatcher(conn, memory_root)
+    w = VaultWatcher(conn, memory_root, "en")
     w.start()
     try:
         p = _write_item(memory_root, "a--01JZW0001.md", "01JZW0001")
@@ -59,7 +60,7 @@ def test_watcher_delete_removes_row(tmp_path: Path):
     conn = sqlite3.connect(str(db_path), check_same_thread=False)
     conn.execute("PRAGMA foreign_keys=ON")
     init_db(conn)
-    w = VaultWatcher(conn, memory_root)
+    w = VaultWatcher(conn, memory_root, "en")
     w.start()
     try:
         p = _write_item(memory_root, "a--01JZW0002.md", "01JZW0002")

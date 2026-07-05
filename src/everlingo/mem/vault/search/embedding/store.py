@@ -240,7 +240,6 @@ def knn_with_filter(
     query_vec: list[float],
     *,
     k: int,
-    lang: str | None = None,
     item_type: str | None = None,
     kind: str | None = None,
     tags: list[str] | None = None,
@@ -248,6 +247,7 @@ def knn_with_filter(
     """带过滤的 KNN：先取 k*3 候选，再 join chunks/documents 过滤。
 
     距离按 sqlite-vec cosine distance（0=同向，2=反向）。
+    lang 过滤已隐含于 per-lang DB，不再需要。
     """
     overfetch = max(k * 3, k)
     candidates = _vec0_knn(conn, query_vec, overfetch)
@@ -258,9 +258,6 @@ def knn_with_filter(
     placeholders = ",".join("?" * len(chunk_ids))
     params: list = list(chunk_ids)
     clauses = [f"c.chunk_id IN ({placeholders})"]
-    if lang is not None:
-        clauses.append("d.lang = ?")
-        params.append(lang)
     if item_type is not None:
         clauses.append("d.item_type = ?")
         params.append(item_type)

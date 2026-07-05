@@ -2,26 +2,35 @@
 
 搜索 Memory Vault 记忆知识库。支持全文精确搜索、语义搜索、混合搜索。
 
+IPC socket 路径：`$workspace/indexer.sock`（workspace 级共享，不随 lang 拆分）。
+
 ## REST 端点
 
 | 方法 路径 | 用途 | 请求 body | 响应 |
 |---|---|---|---|
-| `POST /search` | 全文检索 | `{q, lang?, item_type?, tags?, kind?, mode, limit}` | `{hits:[...], count, took_ms}` |
-| `POST /index` | Writer 投递索引请求 | `{path}` | `{ok}` |
-| `POST /delete` | 删除指定文件索引 | `{path}` | `{ok}` |
-| `POST /rebuild` | 全量重建 | `{}` | `{ok, indexed, chunks, took_ms}` |
-| `GET /status` | 查询状态 | — | `{running, tokenizer_version, docs, chunks, uptime_s}` |
+| `POST /{lang}/search` | 全文/语义/混合检索该 lang vault | `{q, item_type?, tags?, kind?, mode, limit}` | `{hits:[...], count, took_ms}` |
+| `POST /{lang}/index` | Writer 投递该 lang vault 的索引请求 | `{path}` | `{ok}` |
+| `POST /{lang}/delete` | 删除该 lang vault 中指定文件索引 | `{path}` | `{ok}` |
+| `POST /{lang}/rebuild` | 全量重建该 lang DB | `{}` | `{ok, indexed, chunks, took_ms}` |
+| `POST /{lang}/embed` | 触发该 lang embedding worker 跑一轮（见 [embedding-spec](/docs/impl-spec/search/memory-vault-embedding-spec.md)） | `{rebuild?}` | `{ok, embedded}` |
+| `GET /status` | 查询 indexer 状态（聚合所有 lang DB） | — | `{running, langs:[{lang, tokenizer_version, docs, chunks, embedded_chunks, embedding_model_id}], uptime_s}` |
 
-### POST /search
-搜索 vault
+注：
+- `lang` 为目标学习语言编码（en/ja/...），作为 path segment 的第一段。indexer 启动时按 `$workspace/memory/languages/*/` 确定可用 lang 集合，请求 lang 不在集合内返回 404 / 错误。
+- `GET /status` 不带 lang（workspace 级聚合），返回各 lang DB 的状态列表。
+
+### POST /{lang}/search
+搜索指定 lang 的 vault
+
+#### Request path
+- `lang`：目标学习语言编码（必填）。如 `en`、`ja`、`zh-CN`。
 
 #### Request body
-Request: {q, lang?, item_type?, tags?, kind?, mode, limit}
+Request: {q, item_type?, tags?, kind?, mode, limit}
 
 字段说明：
 
 q: 要搜索的文本或语义
-lang:       匹配过滤条件：目标学习语言。如 en,ja,zh-CN
 kind:       匹配过滤条件：memory vault 文档分类。取值包括： 
     item : 知识类文档
     event ： 事件类文档
@@ -39,7 +48,7 @@ limit: 搜索返回结果数限制
 
 ```bash
 # 搜索含 "god" mode: hybrid
-curl --unix-socket $workspace/memory/vault_index/indexer.sock http://localhost/search \
+curl --unix-socket $workspace/indexer.sock http://localhost/en/search \
   -H 'Content-Type: application/json' \
   -d '{"q":"god","mode":"hybrid","limit":4}' | jq -r 
 ```
@@ -49,7 +58,7 @@ curl --unix-socket $workspace/memory/vault_index/indexer.sock http://localhost/s
 
 ##### 示例 1 - 全文搜索含 "god" 的词语
 ```bash
-curl --unix-socket $workspace/memory/vault_index/indexer.sock http://localhost/search \
+curl --unix-socket $workspace/indexer.sock http://localhost/en/search \
   -H 'Content-Type: application/json' \
   -d '{"q":"god","kind":"item", "item_type":"vocab","mode":"exact","limit":4}' | jq -r
 ```
@@ -61,9 +70,9 @@ Response body:
     {
       "ulid": "01KWDVQ6GMWPNTMY4CBSNSCDBE",
       "kind": "item",
-      "lang": null,
+      "lang": "en",
       "item_type": "vocab",
-      "file_path": "en/items/vocab/god--01KWDVQ6GMWPNTMY4CBSNSCDBE.md",
+      "file_path": "items/vocab/god--01KWDVQ6GMWPNTMY4CBSNSCDBE.md",
       "title": "\"god\" 释义",
       "score": -2.062711172695435,
       "source": "fts",
@@ -85,7 +94,8 @@ hits: 搜索结果
     item_type:  匹配过滤条件：知识类型 。取值包括： 
         kind=item 时，取值包括： vocab/phrase/grammar/pragmatics/others
         kind=event 为 NULL
-    file_path： 文件路径，Memory Vault 相对路径。 可以使用 `mem_read_file` `mem_write_file` 等 mem 工具读写。
+    lang: 命中结果所属的目标学习语言。由 indexer 按请求 path 中的 lang 回填（不来自 documents 列）。
+    file_path： 文件路径，相对该语言 vault 根（`$workspace/memory/languages/$lang/vault/`）的路径，不含 `{lang}/` 前缀。 可以使用 `mem_read_file` `mem_write_file` 等 mem 工具读写（mem 工具内部会按 lang 解析到对应 vault）。
     snippet: 匹配到的块文本
 
 count： 搜索结果数
@@ -94,7 +104,7 @@ count： 搜索结果数
 ##### 示例 2 - 语义搜索 god
 
 ```bash
-curl --unix-socket $workspace/memory/vault_index/indexer.sock http://localhost/search \
+curl --unix-socket $workspace/indexer.sock http://localhost/en/search \
   -H 'Content-Type: application/json' \
   -d '{"q":"上帝","kind":"item","mode":"semantic","limit":4}' | jq -r
 ```
@@ -106,9 +116,9 @@ Response body:
     {
       "ulid": "01KWDVQ6GMWPNTMY4CBSNSCDBE",
       "kind": "item",
-      "lang": null,
+      "lang": "en",
       "item_type": "vocab",
-      "file_path": "en/items/vocab/god--01KWDVQ6GMWPNTMY4CBSNSCDBE.md",
+      "file_path": "items/vocab/god--01KWDVQ6GMWPNTMY4CBSNSCDBE.md",
       "title": "\"god\" 释义",
       "score": 0.8090759962797165,
       "source": "vec",
@@ -125,9 +135,9 @@ Response body:
     {
       "ulid": "01KWDVQ6GMWPNTMY4CBSNSCDBE",
       "kind": "item",
-      "lang": null,
+      "lang": "en",
       "item_type": "vocab",
-      "file_path": "en/items/vocab/god--01KWDVQ6GMWPNTMY4CBSNSCDBE.md",
+      "file_path": "items/vocab/god--01KWDVQ6GMWPNTMY4CBSNSCDBE.md",
       "title": "\"god\" 释义",
       "score": 0.7707621157169342,
       "source": "vec",
@@ -163,7 +173,7 @@ hits: 搜索结果（字段意义同 示例 1，以下补充其它字段）
 hybrid 混合搜索。混合了 全文搜索 和 语义搜索 的结果。
 
 ```bash
-curl --unix-socket $workspace/memory/vault_index/indexer.sock http://localhost/search \
+curl --unix-socket $workspace/indexer.sock http://localhost/en/search \
   -H 'Content-Type: application/json' \
   -d '{"q":"god","kind":"item","mode":"hybrid","limit":4}' | jq -r
 ```
@@ -175,9 +185,9 @@ Response body:
     {
       "ulid": "01KWDVQ6GMWPNTMY4CBSNSCDBE",
       "kind": "item",
-      "lang": null,
+      "lang": "en",
       "item_type": "vocab",
-      "file_path": "en/items/vocab/god--01KWDVQ6GMWPNTMY4CBSNSCDBE.md",
+      "file_path": "items/vocab/god--01KWDVQ6GMWPNTMY4CBSNSCDBE.md",
       "title": "\"god\" 释义",
       "score": 0.01639344262295082,
       "source": "hybrid",
@@ -187,9 +197,9 @@ Response body:
     {
       "ulid": "01KWDVQ6GMWPNTMY4CBSNSCDBE",
       "kind": "item",
-      "lang": null,
+      "lang": "en",
       "item_type": "vocab",
-      "file_path": "en/items/vocab/god--01KWDVQ6GMWPNTMY4CBSNSCDBE.md",
+      "file_path": "items/vocab/god--01KWDVQ6GMWPNTMY4CBSNSCDBE.md",
       "title": "\"god\" 释义",
       "score": 0.01639344262295082,
       "source": "hybrid",
@@ -216,28 +226,57 @@ Response body:
 #### curl 示例
 
 ```bash
-# 状态
-curl --unix-socket $workspace/memory/vault_index/indexer.sock http://localhost/status
+# 状态（聚合所有 lang DB）
+curl --unix-socket $workspace/indexer.sock http://localhost/status
 ```  
 
-### POST /index
-Writer 投递索引请求
+#### Response 示例
+
+```json
+{
+  "running": true,
+  "uptime_s": 3600,
+  "langs": [
+    {
+      "lang": "en",
+      "tokenizer_version": "jieba:0.42+fugashi:1.1+unidic:2024...",
+      "docs": 128,
+      "chunks": 412,
+      "embedded_chunks": 412,
+      "embedding_model_id": "openai/text-embedding-3-small:1536"
+    },
+    {
+      "lang": "ja",
+      "tokenizer_version": "jieba:0.42+fugashi:1.1+unidic:2024...",
+      "docs": 64,
+      "chunks": 201,
+      "embedded_chunks": 180,
+      "embedding_model_id": "openai/text-embedding-3-small:1536"
+    }
+  ]
+}
+```
+
+### POST /{lang}/index
+Writer 投递该 lang vault 的索引请求
 
 #### curl 示例
 
 ```bash
-# Writer 投递索引请求
-curl --unix-socket $workspace/memory/vault_index/indexer.sock http://localhost/index \
+# Writer 投递索引请求（ja lang vault）
+curl --unix-socket $workspace/indexer.sock http://localhost/ja/index \
   -H 'Content-Type: application/json' \
-  -d '{"path":"ja/items/vocab/aimai--01JZABD123.md"}'
-```  
+  -d '{"path":"items/vocab/aimai--01JZABD123.md"}'
+```
 
-### POST /rebuild
-全量重建
+注：`path` 相对 `$workspace/memory/languages/$lang/vault/`，不含 `{lang}/` 前缀。
+
+### POST /{lang}/rebuild
+全量重建该 lang DB
 
 #### curl 示例
 
 ```bash
-# 全量重建
-curl --unix-socket $workspace/memory/vault_index/indexer.sock -X POST http://localhost/rebuild
+# 全量重建 ja lang DB
+curl --unix-socket $workspace/indexer.sock -X POST http://localhost/ja/rebuild
 ```  

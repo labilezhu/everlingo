@@ -1,5 +1,5 @@
 # ref: docs/impl-spec/search/memory-vault-search-spec.md — 文件监听
-# watchdog 监听 $workspace/memory/vault/ 下的 .md 增删改，事件路由到 indexer。
+# watchdog 监听 $workspace/memory/languages/$lang/vault/ 下的 .md 增删改，事件路由到 indexer。
 # 300ms 去抖，ulid 幂等 upsert。
 #
 # 实现：
@@ -101,10 +101,12 @@ class VaultWatcher:
         self,
         conn: sqlite3.Connection,
         memory_root: Path,
+        lang: str,
         on_error: Callable[[BaseException], None] | None = None,
     ) -> None:
         self._conn = conn
         self._memory_root = memory_root.resolve()
+        self._lang = lang
         self._observer: Observer | None = None
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
@@ -175,7 +177,7 @@ class VaultWatcher:
             delete_file(self._conn, rel)
             return
         try:
-            parsed = parse_file(ev.abs_path, self._memory_root)
+            parsed = parse_file(ev.abs_path, self._memory_root, self._lang)
         except Exception as e:
             logger.warning("watcher: 解析失败 %s: %s", ev.abs_path, e)
             return

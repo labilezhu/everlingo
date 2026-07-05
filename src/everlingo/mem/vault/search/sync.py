@@ -72,8 +72,8 @@ def open_db(db_path: Path) -> sqlite3.Connection:
     return conn
 
 
-def reconcile(conn: sqlite3.Connection, memory_root: Path) -> ReconcileResult:
-    """全量对账。memory_root 已 resolve 过的绝对路径。"""
+def reconcile(conn: sqlite3.Connection, memory_root: Path, lang: str) -> ReconcileResult:
+    """全量对账。memory_root 为该语言 vault 的绝对路径，lang 为语言编码。"""
     start = time.perf_counter()
     indexed = 0
     skipped = 0
@@ -90,12 +90,15 @@ def reconcile(conn: sqlite3.Connection, memory_root: Path) -> ReconcileResult:
     set_meta(conn, "tokenizer_version", current_ver)
 
     # 2) 扫 vault：每文件 -> 比对 ulid/合成键 查 (rowid, content_hash)
+    # 排除 tmp/ 子目录
     seen_paths: set[str] = set()
     for abs_path in memory_root.rglob("*.md"):
         if not abs_path.is_file():
             continue
+        if "tmp" in abs_path.relative_to(memory_root).parts:
+            continue
         try:
-            parsed = parse_file(abs_path, memory_root)
+            parsed = parse_file(abs_path, memory_root, lang)
         except Exception as e:
             logger.warning("解析失败，跳过 %s: %s", abs_path, e)
             continue
@@ -118,8 +121,9 @@ def reconcile(conn: sqlite3.Connection, memory_root: Path) -> ReconcileResult:
 
     took_ms = (time.perf_counter() - start) * 1000.0
     logger.info(
-        "reconcile: indexed=%d skipped=%d orphans=%d fts_rebuilt=%s took=%.2fms "
+        "reconcile [%s]: indexed=%d skipped=%d orphans=%d fts_rebuilt=%s took=%.2fms "
         "docs=%d chunks=%d",
+        lang,
         indexed,
         skipped,
         orphans,

@@ -88,8 +88,20 @@ def memory_dir() -> Path:
 
 
 def vault_dir() -> Path:
-    """返回当前 workspace 的 Memory Vault 文件目录路径（$ws/memory/vault）。"""
+    """返回当前 workspace 的 Memory Vault 文件目录路径（旧布局兼容）。
+
+    新代码应使用 lang_vault_dir(lang) 按语言获取 vault 路径。
+    """
     return current_workspace() / "memory" / "vault"
+
+
+def lang_vault_dir(lang: str) -> Path:
+    """返回指定语言的 vault 目录路径。
+
+    ref: docs/impl-spec/worksplace/workspace.md — Workspace 目录结构
+    $workspace/memory/languages/$lang/vault
+    """
+    return current_workspace() / "memory" / "languages" / lang / "vault"
 
 
 def user_doc_path() -> Path:
@@ -112,20 +124,54 @@ def plugins_dir() -> Path:
 
 
 def index_dir() -> Path:
-    """返回当前 workspace 的 search index 目录路径。
+    """返回当前 workspace 的 search index 目录路径（旧布局兼容）。
 
     ref: docs/impl-spec/search/memory-vault-search-spec.md — DB 文件位置
-    包含 memory.sqlite（SQLite+FTS5 索引）与 indexer.sock（IPC unix socket）。
-    不负责创建；调用方在需要时自行 mkdir(parents=True)。
+    新代码应使用 lang_index_dir(lang) 按语言获取索引目录路径。
     """
     return current_workspace() / "memory" / "vault_index"
 
 
-def index_db_path() -> Path:
-    """返回 SQLite DB 文件路径 ($workspace/memory/vault_index/memory.sqlite)。"""
+def lang_index_dir(lang: str) -> Path:
+    """返回指定语言的索引目录路径。
+
+    ref: docs/impl-spec/worksplace/workspace.md — Workspace 目录结构
+    $workspace/memory/languages/$lang/index
+    """
+    return current_workspace() / "memory" / "languages" / lang / "index"
+
+
+def index_db_path(lang: str | None = None) -> Path:
+    """返回指定语言的 SQLite DB 文件路径。
+
+    lang 不传时回退到旧布局路径（向后兼容）。
+    ref: docs/impl-spec/search/memory-vault-search-spec.md — DB 文件位置
+    """
+    if lang is not None:
+        return lang_index_dir(lang) / "memory.sqlite"
     return index_dir() / "memory.sqlite"
 
 
 def indexer_socket_path() -> Path:
-    """返回 indexer IPC unix socket 路径 ($workspace/memory/vault_index/indexer.sock)。"""
-    return index_dir() / "indexer.sock"
+    """返回 indexer IPC unix socket 路径（workspace 级共享）。
+
+    ref: docs/impl-spec/search/memory-vault-search-spec.md — DB 文件位置
+    $workspace/indexer.sock
+    """
+    return current_workspace() / "indexer.sock"
+
+
+def lang_dirs() -> list[str]:
+    """枚举当前 workspace 下已存在的语言目录。
+
+    扫描 $workspace/memory/languages/*/ ，返回语言编码列表。
+    目录不存在时返回空列表。
+    """
+    languages_dir = current_workspace() / "memory" / "languages"
+    if not languages_dir.is_dir():
+        return []
+    return sorted(
+        entry.name
+        for entry in languages_dir.iterdir()
+        if entry.is_dir() and (entry / "vault").is_dir()
+    )

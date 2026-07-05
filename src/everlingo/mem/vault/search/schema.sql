@@ -1,18 +1,19 @@
 -- ref: docs/impl-spec/search/memory-vault-search-spec.md — Schema DDL
 -- memory vault search schema (SQLite + FTS5)
+-- 每个目标学习语言独立一份 DB（$workspace/memory/languages/$lang/index/memory.sqlite）。
+-- lang 已隐含于 DB，不作为 documents 列存储。
 -- - documents: file-level 元数据 + body
 -- - documents_fts: 字段化 FTS5 索引（unicode61 + Python 预分词）
--- - chunks: 段级文本（向量作用层，本期建表不写 embedding）
--- - chunk_embeddings: 嵌入表（本期建表不写数据）
--- - meta: 分词器版本 / schema 版本
+-- - chunks: 段级文本（向量作用层）
+-- - chunk_embeddings: 嵌入表（embedding worker 管理读写）
+-- - meta: 分词器版本 / schema 版本 / embedding 模型配置
 
 CREATE TABLE documents (
   rowid INTEGER PRIMARY KEY,
-  ulid TEXT UNIQUE,
-  kind TEXT NOT NULL,
-  lang TEXT,
-  item_type TEXT,
-  file_path TEXT NOT NULL UNIQUE,
+  ulid TEXT UNIQUE,                       -- kb item 的 ulid；event 用合成键 'event:{lang}:{date}'
+  kind TEXT NOT NULL,                     -- 'item' | 'event'
+  item_type TEXT,                         -- vocab/phrase/grammar/pragmatics/others；event 为 NULL
+  file_path TEXT NOT NULL UNIQUE,         -- 相对 $workspace/memory/languages/$lang/vault 的路径
   slug TEXT,
   headword TEXT,
   title TEXT,
@@ -30,7 +31,7 @@ CREATE TABLE documents (
   file_mtime TEXT NOT NULL,
   indexed_at TEXT NOT NULL
 );
-CREATE INDEX idx_doc_lang_type ON documents(lang, item_type);
+CREATE INDEX idx_doc_type ON documents(item_type);
 CREATE INDEX idx_doc_kind ON documents(kind);
 
 CREATE VIRTUAL TABLE documents_fts USING fts5(

@@ -2,8 +2,8 @@
 # SearchHit / ChunkRef pydantic 模型，供 gateway 与 indexer 共享。
 # gateway 侧只需 import 此文件 + client.py，不加载 jieba/fugashi/SQLite。
 #
-# mode / source / chunk 字段为混合检索（vec / hybrid）预留；本期只产出
-# mode='exact' + source='fts'。
+# mode / source / chunk 字段为混合检索（vec / hybrid）预留。
+# lang 字段由 indexer 按请求 lang 回填（不来自 documents 列，per-lang DB 隐含）。
 
 from __future__ import annotations
 
@@ -30,16 +30,17 @@ class ChunkRef(BaseModel):
 class SearchHit(BaseModel):
     """单条搜索结果。
 
-    source 标识命中来源（fts/vec/hybrid），本期固定 'fts'；
+    source 标识命中来源（fts/vec/hybrid）；
     chunk 在文件级 FTS 命中时为 None，段级命中时填入。
     snippet 为 FTS snippet() 或 chunk.text 片段。
+    lang 由 indexer 按请求 path 中的 lang 回填（不来自 documents 列）。
     """
 
     model_config = ConfigDict(extra="forbid")
 
     ulid: str
     kind: Literal["item", "event"]  # type: ignore[assignment]
-    lang: str | None = None
+    lang: str
     item_type: str | None = None
     file_path: str
     title: str | None = None
@@ -53,12 +54,11 @@ class SearchHit(BaseModel):
 
 
 class SearchRequest(BaseModel):
-    """POST /search 请求体。"""
+    """POST /{lang}/search 请求体。lang 已在 path 中，不在 body 中。"""
 
     model_config = ConfigDict(extra="forbid")
 
     q: str = Field(..., description="查询字符串（indexer 侧会先 tokenize）")
-    lang: str | None = None
     item_type: str | None = None
     tags: list[str] | None = None
     kind: Literal["item", "event"] | None = None
@@ -67,7 +67,7 @@ class SearchRequest(BaseModel):
 
 
 class SearchResponse(BaseModel):
-    """POST /search 响应体。"""
+    """POST /{lang}/search 响应体。"""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -77,15 +77,15 @@ class SearchResponse(BaseModel):
 
 
 class IndexRequest(BaseModel):
-    """POST /index / POST /delete 请求体（path 相对 $workspace/memory）。"""
+    """POST /{lang}/index / POST /{lang}/delete 请求体（path 相对 lang vault）。"""
 
     model_config = ConfigDict(extra="forbid")
 
-    path: str = Field(..., description="相对 $workspace/memory 的 .md 路径")
+    path: str = Field(..., description="相对 $workspace/memory/languages/$lang/vault 的 .md 路径")
 
 
 class OkResponse(BaseModel):
-    """POST /index / POST /delete 通用响应。"""
+    """POST /{lang}/index / POST /{lang}/delete 通用响应。"""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -93,7 +93,7 @@ class OkResponse(BaseModel):
 
 
 class RebuildResponse(BaseModel):
-    """POST /rebuild 响应。"""
+    """POST /{lang}/rebuild 响应。"""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -104,7 +104,7 @@ class RebuildResponse(BaseModel):
 
 
 class EmbedRequest(BaseModel):
-    """POST /embed 请求体。"""
+    """POST /{lang}/embed 请求体。"""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -114,7 +114,7 @@ class EmbedRequest(BaseModel):
 
 
 class EmbedResponse(BaseModel):
-    """POST /embed 响应。"""
+    """POST /{lang}/embed 响应。"""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -127,16 +127,24 @@ class EmbedResponse(BaseModel):
     took_ms: float = 0.0
 
 
+class LangStatus(BaseModel):
+    """GET /status 中单个语言的状态信息。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    lang: str
+    tokenizer_version: str
+    docs: int
+    chunks: int
+    embedded_chunks: int
+    embedding_model_id: str | None = None
+
+
 class StatusResponse(BaseModel):
-    """GET /status 响应。"""
+    """GET /status 响应（聚合所有 lang DB）。"""
 
     model_config = ConfigDict(extra="forbid")
 
     running: bool
-    tokenizer_version: str
-    docs: int
-    chunks: int
     uptime_s: float
-    embedding_model_id: str | None = None
-    embedding_dim: int | None = None
-    embedded_chunks: int = 0
+    langs: list[LangStatus]

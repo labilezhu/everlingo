@@ -42,9 +42,8 @@ MAX_CHUNK_CHARS = 800  # spec §Chunk 切分策略：单 chunk 超阈值二次�
 @dataclass
 class ParsedDoc:
     kind: str  # 'item' / 'event'
-    lang: str | None
     item_type: str | None
-    file_path: str  # 相对 memory_dir
+    file_path: str  # 相对 lang vault 根（不含 {lang}/ 前缀）
     ulid: str
     slug: str | None
     headword: str | None
@@ -103,8 +102,8 @@ def _resolve_rel(absolute: Path, memory_root: Path) -> str:
 # ── 解析入口 ─────────────────────────────────────────────────────────
 
 
-def parse_file(absolute: Path, memory_root: Path) -> ParsedDoc:
-    """解析单个 .md 文件为 ParsedDoc。"""
+def parse_file(absolute: Path, memory_root: Path, lang: str) -> ParsedDoc:
+    """解析单个 .md 文件为 ParsedDoc。lang 为 per-lang vault 的语言编码。"""
     rel = _resolve_rel(absolute, memory_root)
     stat = absolute.stat()
     text = absolute.read_text(encoding="utf-8")
@@ -112,14 +111,13 @@ def parse_file(absolute: Path, memory_root: Path) -> ParsedDoc:
     content_hash = _hash_content(text)
 
     # events 文件特殊处理
-    evt = events_index.parse_event_path(rel)
+    evt = events_index.parse_event_path(rel, lang)
     if evt is not None:
         # 整文件做 body；frontmatter 仍然解析（events 文件通常无 frontmatter）
         fm, body = parse_frontmatter(text)
         ulid = events_index.make_event_ulid(evt.lang, evt.date)
         return ParsedDoc(
             kind="event",
-            lang=evt.lang,
             item_type=None,
             file_path=rel,
             ulid=ulid,
@@ -147,12 +145,11 @@ def parse_file(absolute: Path, memory_root: Path) -> ParsedDoc:
     ulid = fm.get("ulid")
     if not ulid:
         raise ValueError(f"kb item 缺少 ulid frontmatter: {rel}")
-    kb = parse_kb_item_path(rel)
+    kb = parse_kb_item_path(rel, lang)
     if kb is None:
-        logger.warning("kb item 路径不匹配 {lang}/items/{type}/... 格式: %s", rel)
+        logger.warning("kb item 路径不匹配 items/{type}/... 格式: %s", rel)
     return ParsedDoc(
         kind="item",
-        lang=kb.lang if kb else None,
         item_type=fm.get("type"),
         file_path=rel,
         ulid=str(ulid),
@@ -429,17 +426,16 @@ def index_file(
         cur = conn.execute(
             """
             INSERT INTO documents(
-                ulid, kind, lang, item_type, file_path, slug, headword, title,
+                ulid, kind, item_type, file_path, slug, headword, title,
                 intro_in_interface_lang, intro_in_target_lang,
                 aliases, related, tags,
                 first_seen, last_seen, seen_count, schema_version,
                 body, content_hash, file_mtime, indexed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 parsed.ulid,
                 parsed.kind,
-                parsed.lang,
                 parsed.item_type,
                 parsed.file_path,
                 parsed.slug,
@@ -491,7 +487,7 @@ def index_file(
         conn.execute(
             """
             UPDATE documents SET
-                kind=?, lang=?, item_type=?, file_path=?, slug=?, headword=?, title=?,
+                kind=?, item_type=?, file_path=?, slug=?, headword=?, title=?,
                 intro_in_interface_lang=?, intro_in_target_lang=?,
                 aliases=?, related=?, tags=?,
                 first_seen=?, last_seen=?, seen_count=?, schema_version=?,
@@ -500,7 +496,6 @@ def index_file(
             """,
             (
                 parsed.kind,
-                parsed.lang,
                 parsed.item_type,
                 parsed.file_path,
                 parsed.slug,
@@ -618,9 +613,9 @@ def count_chunks(conn: sqlite3.Connection) -> int:
 
 
 def walk_vault(memory_root: Path) -> Iterable[Path]:
-    """递归产出 memory_root 下所有 .md 文件。"""
+    """递归产出 memory_root 下所有 .md 文件（排除 tmp/ 子目录）。"""
     for p in memory_root.rglob("*.md"):
-        if p.is_file():
+        if p.is_file() and "tmp" not in p.parts:
             yield p
 
 
