@@ -1,5 +1,5 @@
-# ref: docs/impl-spec/vault-mcp/valut-mcp-spec.md — VALUT_SPEC.md 不入索引
-# is_excluded_vault_file 统一排除 tmp/ 子目录与 VALUT_SPEC.md。
+# ref: docs/impl-spec/vault-mcp/vault-mcp-spec.md — VAULT_SPEC.md 不入索引
+# is_excluded_vault_file 统一排除 tmp/ 子目录与 VAULT_SPEC.md。
 # walk_vault / sync.reconcile / watcher._dispatch 都通过该 helper 收口。
 
 from __future__ import annotations
@@ -24,22 +24,22 @@ def test_excludes_tmp_subdirectory(tmp_path: Path) -> None:
     assert "draft.md" not in paths
 
 
-def test_excludes_valut_spec_md(tmp_path: Path) -> None:
+def test_excludes_vault_spec_md(tmp_path: Path) -> None:
     memory_root = tmp_path
     _touch(memory_root / "items" / "vocab" / "a--01JZH0002.md")
-    _touch(memory_root / "VALUT_SPEC.md", "# spec\n")
+    _touch(memory_root / "VAULT_SPEC.md", "# spec\n")
     paths = [p.name for p in walk_vault(memory_root)]
     assert "a--01JZH0002.md" in paths
-    assert "VALUT_SPEC.md" not in paths
+    assert "VAULT_SPEC.md" not in paths
 
 
-def test_excludes_valut_spec_md_in_nested_subdir(tmp_path: Path) -> None:
-    """VALUT_SPEC.md 即便出现在 items/ 之类子目录也应被排除（按 basename 排除）。"""
+def test_excludes_vault_spec_md_in_nested_subdir(tmp_path: Path) -> None:
+    """VAULT_SPEC.md 即便出现在 items/ 之类子目录也应被排除（按 basename 排除）。"""
     memory_root = tmp_path
     _touch(memory_root / "items" / "vocab" / "a--01JZH0003.md")
-    _touch(memory_root / "items" / "vocab" / "VALUT_SPEC.md", "noise")
+    _touch(memory_root / "items" / "vocab" / "VAULT_SPEC.md", "noise")
     assert is_excluded_vault_file(
-        memory_root / "items" / "vocab" / "VALUT_SPEC.md", memory_root
+        memory_root / "items" / "vocab" / "VAULT_SPEC.md", memory_root
     )
     assert not is_excluded_vault_file(
         memory_root / "items" / "vocab" / "a--01JZH0003.md", memory_root

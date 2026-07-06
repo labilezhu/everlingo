@@ -32,15 +32,15 @@ tools:
     title: Create vault
     description: |
       Create and initialize a new target-learning-language vault directory at
-      $workspace/memory/languages/$lang/vault/ and seed it with VALUT_SPEC.md
+      $workspace/memory/languages/$lang/vault/ and seed it with VAULT_SPEC.md
       (synthesized from vault_spec.md with includes expanded via
       everlingo.utils.md_prompt_compiler.compile_prompt + PackageSource,
       matching the same approach as mem_writer_agent.py:67 but without
-      shift_headings — VALUT_SPEC.md is a standalone top-level document).
+      shift_headings — VAULT_SPEC.md is a standalone top-level document).
       After creation, synchronously registers the lang with the indexer's
       LangState via state._open_lang(lang) (same entry point as
       LangDiscoveryWatcher / lazy open). Idempotent: if the vault directory
-      already exists, VALUT_SPEC.md is not overwritten and re-registration
+      already exists, VAULT_SPEC.md is not overwritten and re-registration
       is a no-op (open_lang is itself idempotent under AppState._lock).
       Workspace-level tool: does NOT require session.configure.
     inputSchema:
@@ -76,8 +76,8 @@ tools:
         spec_written:
           type: boolean
           description: |
-            true = 本次调用写入了 VALUT_SPEC.md；
-            false = VALUT_SPEC.md 已存在，本次未覆盖。
+            true = 本次调用写入了 VAULT_SPEC.md；
+            false = VAULT_SPEC.md 已存在，本次未覆盖。
         registered:
           type: boolean
           description: |
@@ -119,8 +119,9 @@ tools:
           description: |
             目标学习语言代码 (en / ja / zh-CN / ...)。
             后续 fs 工具的 vault 根、search 工具的 lang 默认值均取此。
-            必须是 workspace 已存在的 lang（indexer 启动时按
-            $workspace/memory/languages/*/ 确定可用 lang 集合；请求 lang 不在集合内返回错误）。
+            若 workspace 不存在该 lang vault，session.configure 内部自动调
+            create_vault 创建；非法 lang 名（含路径分隔符 /、\、点号 .、..、空、NUL）
+            返回错误。
         interface_language:
           type: string
           description: |
@@ -575,7 +576,7 @@ tools:
             "snippet":"# god\n\n## 给我的解释\n..."}],
            "count":2,"took_ms":1056.8}
 
-      完整示例（含 chunk 字段）见 valut-mcp-spec.md「示例」节。
+      完整示例（含 chunk 字段）见 vault-mcp-spec.md「示例」节。
 
     inputSchema:
       type: object

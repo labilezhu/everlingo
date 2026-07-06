@@ -469,8 +469,8 @@ def _run_indexer(log_level: str = "info", log_path: Path | None = None) -> int:
 
     进程内并发模型：主线程跑 FastAPI UDS REST server；另起 daemon 子线程
     跑 MCP Streamable HTTP server（共享同一 AppState）。MCP URL 写
-    $workspace/indexer.mcp.url（见 valut-mcp-spec.md「部署形态」）。
-    ref: docs/impl-spec/vault-mcp/valut-mcp-spec.md
+    $workspace/indexer.mcp.url（见 vault-mcp-spec.md「部署形态」）。
+    ref: docs/impl-spec/vault-mcp/vault-mcp-spec.md
     """
     import logging.config
     import threading

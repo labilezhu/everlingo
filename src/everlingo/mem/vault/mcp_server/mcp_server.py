@@ -1,10 +1,11 @@
-# ref: docs/impl-spec/vault-mcp/valut-mcp-spec.md — MCP 2025-11-25 Server
-# ref: docs/impl-spec/vault-mcp/valut-mcp-spec-tools.yaml — 工具定义
+# ref: docs/impl-spec/vault-mcp/vault-mcp-spec.md — MCP 2025-11-25 Server
+# ref: docs/impl-spec/vault-mcp/vault-mcp-spec-tools.yaml — 工具定义
 # 嵌入式 FastMCP Streamable HTTP server，挂在 indexer 进程内子线程。
 # 工具：
 #   - list_vaults / create_vault：workspace 级 vault 管理，豁免 session.configure
 #   - session.configure：设定会话默认 lang + interface_language（stream 级）
-#   - 9 个 fs 工具（ls/read/write/append/grep/find/stat/mkdir/delete/tree）
+#   - 9 个 fs 工具（ls/read/write/append/grep/find/stat/mkdir/delete/tree）；
+#     write 工具在落盘前调 normalize_frontmatter_text 归一化 frontmatter。
 #   - search：进程内直调 search.search(conn, ...)
 # 所有 fs/search 工具在未 configure 时返回 isError=true + 固定文案；
 # state 按 MCP stream/session id 索引，stream 关闭即丢弃（不落盘）。
@@ -13,6 +14,8 @@ from __future__ import annotations
 
 import datetime
 import fnmatch
+import functools
+import inspect
 import logging
 import re
 import threading
@@ -24,6 +27,7 @@ import uvicorn
 from fastmcp import Context, FastMCP
 
 from everlingo import workspace
+from everlingo.mem.vault.frontmatter import normalize_frontmatter_text
 from everlingo.mem.vault.search.protocol import SearchHit
 from everlingo.mem.vault.search.search import search as do_search
 from everlingo.mem.vault.search.server import AppState
@@ -36,7 +40,7 @@ logger = logging.getLogger(__name__)
 _SESSION_NOT_CONFIGURED_MSG = "session not configured: call session.configure first"
 
 # 服务器级使用说明：通过 MCP initialize.instructions 暴露给 agent。
-# 内容契约见 docs/impl-spec/vault-mcp/valut-mcp-spec.md「Server Instructions」节。
+# 内容契约见 docs/impl-spec/vault-mcp/vault-mcp-spec.md「Server Instructions」节。
 _SERVER_INSTRUCTIONS: str = """\
 Everlingo Memory Vault MCP Server
 
@@ -52,10 +56,10 @@ Vault 按学习语言分目录：$workspace/memory/languages/$lang/vault/（lang
 工作流：
 1. 大部分工具（fs 9 个 + `search`）必须先调 `session.configure(lang="<lang>")` 设会话 lang；否则返回错误 `session not configured: call session.configure first`。
 2. 例外：`list_vaults` 与 `create_vault` 是 workspace 级工具，不绑特定 lang，不需要也不接受 session.configure。
-3. `lang` 必须是 workspace 已存在的语言目录（$workspace/memory/languages/*/）；不在集合内返回错误。
-4. 会话内可重调 `session.configure` 切换 lang，无需重连 MCP stream。
-5. fs 工具的 `path` 参数相对会话 lang vault 根解析；禁止 `../` 逃逸，越界会被拒绝。
-6. 想学新语言时，先调 `list_vaults` 看现有 langs；若不存在，调 `create_vault(lang="<lang>")` 建新 vault（写 $lang/vault/VALUT_SPEC.md 并同步注册到 indexer），再 `session.configure(lang="<lang>")`。
+ 3. `lang` 若 workspace 不存在该 lang vault，`session.configure` 会自动调 `create_vault` 创建（写 $lang/vault/VAULT_SPEC.md 并同步注册到 indexer）；非法 lang 名（含路径分隔符 `/`、`\\`、点号 `.`、`..`、空、NUL 字符）仍返回错误。
+ 4. 会话内可重调 `session.configure` 切换 lang，无需重连 MCP stream。
+ 5. fs 工具的 `path` 参数相对会话 lang vault 根解析；禁止 `../` 逃逸，越界会被拒绝。
+ 6. 想学新语言时，先调 `list_vaults` 看现有 langs；若不存在，直接调 `session.configure(lang="<lang>")` 即可（内部自动创建 vault），也可显式调 `create_vault(lang="<lang>")` 建新 vault。
 
 search 要点：
 - 默认 `mode=hybrid`（推荐，混合全文 + 语义）。
@@ -68,9 +72,9 @@ search 要点：
 - 会话状态按 MCP stream 生命周期存活，stream 关闭即丢弃；无持久化。
 
 vault 目录结构规范和各类文件格式说明：
-可以调用 read(path="VALUT_SPEC.md") 工具，返回的 content 为 vault 目录结构规范和各类文件格式说明。调用 search / fs 工具 前，先学习规范和 vault 的知识。
+可以调用 read(path="VAULT_SPEC.md") 工具，返回的 content 为 vault 目录结构规范和各类文件格式说明。调用 search / fs 工具 前，先学习规范和 vault 的知识。
 
-典型用法：`list_vaults` → `create_vault(lang="en")` → `session.configure(lang="en")`  → `read(path="VALUT_SPEC.md")` → `search(q="...", mode="hybrid")` → `read(path=<hit.file_path>)` → `append(path=..., content=...)`。
+典型用法：`list_vaults` → `create_vault(lang="en")` → `session.configure(lang="en")`  → `read(path="VAULT_SPEC.md")` → `search(q="...", mode="hybrid")` → `read(path=<hit.file_path>)` → `append(path=..., content=...)`。
 """
 
 # Lang 合法性校验缓存：避免每次 session.configure 都 walk filesystem
@@ -135,7 +139,7 @@ class PathEscapeError(ValueError):
 def resolve_vault_path(lang: str, rel: str) -> Path:
     """把 rel 解析为 lang vault 目录下的绝对路径；逃逸抛 PathEscapeError。
 
-    ref: docs/impl-spec/vault-mcp/valut-mcp-spec.md — fs 工具 path 安全
+    ref: docs/impl-spec/vault-mcp/vault-mcp-spec.md — fs 工具 path 安全
     """
     vault_root = workspace.lang_vault_dir(lang).resolve()
     if not rel:
@@ -164,6 +168,47 @@ def _require_session(state: SessionRegistry, ctx: Context) -> SessionState:
     return sess
 
 
+# ── 工具 debug 日志装饰器 ─────────────────────────────────────────────
+
+
+def _format_tool_params(
+    func,
+    args: tuple[object, ...],
+    kwargs: dict[str, object],
+) -> str:
+    """Bind args/kwargs to func signature, return `name=value` pairs (skip `ctx`)."""
+    sig = inspect.signature(func)
+    bound = sig.bind(*args, **kwargs)
+    bound.apply_defaults()
+    parts: list[str] = []
+    for name, value in bound.arguments.items():
+        if name == "ctx":
+            continue
+        parts.append(f"{name}={value!r}")
+    return ", ".join(parts)
+
+
+def _log_mcp_tool(tool_name: str):
+    """Decorator: log tool_name + input on entry, log return or error on exit."""
+    def decorator(func):
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            params = _format_tool_params(func, args, kwargs)
+            logger.debug("tool_name: %s , parameters: %s", tool_name, params)
+            try:
+                result = await func(*args, **kwargs)
+            except BaseException as e:
+                logger.debug(
+                    "tool_name: %s , parameters: %s , error: %s: %s",
+                    tool_name, params, type(e).__name__, e,
+                )
+                raise
+            logger.debug("tool_name: %s , return: %s", tool_name, result)
+            return result
+        return wrapper
+    return decorator
+
+
 # ── FastMCP app ──────────────────────────────────────────────────────
 
 
@@ -189,6 +234,7 @@ def create_mcp_app(state: AppState) -> FastMCP:
             "This is a workspace-level tool and does NOT require session.configure."
         ),
     )
+    @_log_mcp_tool("list_vaults")
     async def list_vaults_tool() -> dict[str, Any]:
         langs = workspace.lang_dirs()
         return {"vaults": langs, "count": len(langs)}
@@ -199,15 +245,16 @@ def create_mcp_app(state: AppState) -> FastMCP:
         description=(
             "Create and initialize a new target-learning-language vault directory "
             "at $workspace/memory/languages/$lang/vault/ and seed it with "
-            "VALUT_SPEC.md (synthesized from vault_spec.md with includes expanded). "
+            "VAULT_SPEC.md (synthesized from vault_spec.md with includes expanded). "
             "After creation, the lang is synchronously registered with the indexer's "
             "LangState so subsequent session.configure(lang=$lang) + search works "
             "immediately. "
-            "Idempotent: if the vault directory already exists, VALUT_SPEC.md is "
+            "Idempotent: if the vault directory already exists, VAULT_SPEC.md is "
             "not overwritten and re-registration is a no-op. "
             "This is a workspace-level tool and does NOT require session.configure."
         ),
     )
+    @_log_mcp_tool("create_vault")
     async def create_vault_tool(lang: str) -> dict[str, Any]:
         # 校验 lang 名：防路径注入 / 逃逸
         if (
@@ -224,11 +271,11 @@ def create_mcp_app(state: AppState) -> FastMCP:
         vault_root = workspace.lang_vault_dir(lang)
         already_existed = vault_root.is_dir()
         vault_root.mkdir(parents=True, exist_ok=True)
-        # 幂等写 VALUT_SPEC.md（不覆盖）
-        spec_path = vault_root / "VALUT_SPEC.md"
+        # 幂等写 VAULT_SPEC.md（不覆盖）
+        spec_path = vault_root / "VAULT_SPEC.md"
         spec_written = False
         if not spec_path.exists():
-            # ref: docs/impl-spec/vault-mcp/valut-mcp-spec.md — VALUT_SPEC.md
+            # ref: docs/impl-spec/vault-mcp/vault-mcp-spec.md — VAULT_SPEC.md
             # 合成方式与 src/everlingo/mem/agents/mem_writer_agent.py:67 的
             # vault_spec.md 合成一致，但不 shift_headings（这是独立顶级文档，
             # 保留 # 单语言 Memory Vault Spec 顶层 h1）。
@@ -278,6 +325,7 @@ def create_mcp_app(state: AppState) -> FastMCP:
             "stream discards it (no persistence)."
         ),
     )
+    @_log_mcp_tool("session.configure")
     async def session_configure(
         lang: str | None = None,
         interface_language: str | None = None,
@@ -287,12 +335,21 @@ def create_mcp_app(state: AppState) -> FastMCP:
             raise RuntimeError("MCP context unavailable")
         if lang is None:
             raise RuntimeError("lang is required by session.configure")
-        # 校验 lang 在 workspace 已存在（spec 「lang 合法性」）
+        # lang 不在 workspace 时自动调 create_vault 创建（spec 变更：原「不在集合内返回错误」
+        # 改为「自动创建」）；非法 lang 名由 create_vault_tool 校验并抛 RuntimeError。
         valid_langs = workspace.lang_dirs()
         if lang not in valid_langs:
-            raise RuntimeError(
-                f"lang not found in workspace: {lang} (available: {valid_langs})"
-            )
+            try:
+                await create_vault_tool(lang=lang)
+            except RuntimeError as e:
+                raise RuntimeError(
+                    f"auto-create vault failed for lang {lang!r}: {e}"
+                ) from e
+            # 防御性复查：确保 create_vault 确实把 vault 目录建好了
+            if lang not in workspace.lang_dirs():
+                raise RuntimeError(
+                    f"auto-create vault returned ok but lang still not found: {lang!r}"
+                )
         sid = ctx.session_id or "_default"
         sess = registry.get_or_create(sid)
         sess.lang = lang
@@ -314,6 +371,7 @@ def create_mcp_app(state: AppState) -> FastMCP:
             "Only paths inside the vault are allowed."
         ),
     )
+    @_log_mcp_tool("ls")
     async def ls_tool(
         path: str = "",
         recursive: bool = False,
@@ -367,6 +425,7 @@ def create_mcp_app(state: AppState) -> FastMCP:
         title="Read file",
         description="Read a markdown file from the vault.",
     )
+    @_log_mcp_tool("read")
     async def read_tool(path: str, ctx: Context | None = None) -> dict[str, Any]:
         if ctx is None:
             raise RuntimeError("MCP context unavailable")
@@ -387,6 +446,7 @@ def create_mcp_app(state: AppState) -> FastMCP:
         title="Write file",
         description="Create or overwrite a markdown file.",
     )
+    @_log_mcp_tool("write")
     async def write_tool(
         path: str, content: str, ctx: Context | None = None
     ) -> dict[str, Any]:
@@ -399,6 +459,10 @@ def create_mcp_app(state: AppState) -> FastMCP:
         except PathEscapeError as e:
             raise RuntimeError(str(e)) from e
         abs_path.parent.mkdir(parents=True, exist_ok=True)
+        # ref: docs/impl-spec/memory-writer-agent-spec.md — write 工具归一化
+        # frontmatter，避免 LLM 偶尔写坏 YAML（内嵌引号/冒号）导致下游解析失败。
+        # 纯字符串函数，不影响非 frontmatter 文件（无 frontmatter 时原样返回）。
+        content = normalize_frontmatter_text(content)
         data = content.encode("utf-8")
         abs_path.write_bytes(data)
         return {"ok": True, "path": path, "bytes_written": len(data)}
@@ -408,6 +472,7 @@ def create_mcp_app(state: AppState) -> FastMCP:
         title="Append file",
         description="Append content to the end of an existing markdown file.",
     )
+    @_log_mcp_tool("append")
     async def append_tool(
         path: str, content: str, ctx: Context | None = None
     ) -> dict[str, Any]:
@@ -437,6 +502,7 @@ def create_mcp_app(state: AppState) -> FastMCP:
         title="Search text",
         description="Search file contents.",
     )
+    @_log_mcp_tool("grep")
     async def grep_tool(
         query: str,
         path: str = "",
@@ -485,6 +551,7 @@ def create_mcp_app(state: AppState) -> FastMCP:
         title="Find files",
         description="Find files by filename pattern (glob).",
     )
+    @_log_mcp_tool("find")
     async def find_tool(
         pattern: str, path: str = "", ctx: Context | None = None
     ) -> dict[str, Any]:
@@ -520,6 +587,7 @@ def create_mcp_app(state: AppState) -> FastMCP:
         title="File metadata",
         description="Return file metadata.",
     )
+    @_log_mcp_tool("stat")
     async def stat_tool(path: str, ctx: Context | None = None) -> dict[str, Any]:
         if ctx is None:
             raise RuntimeError("MCP context unavailable")
@@ -557,6 +625,7 @@ def create_mcp_app(state: AppState) -> FastMCP:
         title="Create directory",
         description="Create directory recursively.",
     )
+    @_log_mcp_tool("mkdir")
     async def mkdir_tool(path: str, ctx: Context | None = None) -> dict[str, Any]:
         if ctx is None:
             raise RuntimeError("MCP context unavailable")
@@ -574,6 +643,7 @@ def create_mcp_app(state: AppState) -> FastMCP:
         title="Delete file",
         description="Delete a file.",
     )
+    @_log_mcp_tool("delete")
     async def delete_tool(path: str, ctx: Context | None = None) -> dict[str, Any]:
         if ctx is None:
             raise RuntimeError("MCP context unavailable")
@@ -592,6 +662,7 @@ def create_mcp_app(state: AppState) -> FastMCP:
         title="Directory tree",
         description="Render a recursive directory tree of the vault.",
     )
+    @_log_mcp_tool("tree")
     async def tree_tool(
         path: str = "", depth: int = 2, ctx: Context | None = None
     ) -> dict[str, Any]:
@@ -644,6 +715,7 @@ def create_mcp_app(state: AppState) -> FastMCP:
             "lang parameter overrides session lang if provided; omit to use session lang."
         ),
     )
+    @_log_mcp_tool("search")
     async def search_tool(
         q: str,
         lang: str | None = None,

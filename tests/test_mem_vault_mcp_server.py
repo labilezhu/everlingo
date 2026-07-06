@@ -1,4 +1,4 @@
-# ref: docs/impl-spec/vault-mcp/valut-mcp-spec.md — MCP Server
+# ref: docs/impl-spec/vault-mcp/vault-mcp-spec.md — MCP Server
 # 用 FastMCP in-memory Client 驱动 12 个工具（session.configure + 9 fs + search）。
 # 覆盖：未 configure 报错 / invalid lang / configure+fs / 路径逃逸 / hybrid search /
 # lang 参数覆盖会话 / 重调切换 / text==structuredContent。
@@ -187,17 +187,58 @@ def test_session_not_configured_returns_error(mcp_client):
 # ── 2. session.configure 非法 lang ──────────────────────────────────
 
 
-def test_session_configure_invalid_lang(mcp_client):
-    """lang 不在 workspace → isError=true。"""
+def test_session_configure_invalid_lang(empty_mcp_client):
+    """非法 lang 名（含路径分隔符）被 create_vault 校验拒绝。"""
 
     async def body(c: Client) -> None:
         r = await c.call_tool(
-            "session.configure", {"lang": "xx"}, raise_on_error=False
+            "session.configure", {"lang": "a/b"}, raise_on_error=False
         )
         assert r.is_error is True
-        assert "lang not found" in r.content[0].text
+        assert "auto-create vault failed" in r.content[0].text
+        assert "invalid lang" in r.content[0].text
 
-    with mcp_client(body):
+
+# ── 2b. session.configure 自动创建缺失的 vault ─────────────────────
+
+def test_session_configure_auto_creates_vault(fresh_workspace):
+    """lang 在 workspace 不存在 → session.configure 内部调 create_vault，
+    vault 目录 + VAULT_SPEC.md 落盘，session 正常设 lang。"""
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("session.configure", {"lang": "fr"})
+        assert r.is_error is False
+        assert r.data == {"ok": True, "lang": "fr", "interface_language": None}
+
+        # vault 目录和 VAULT_SPEC.md 已落盘
+        import os
+        vault = workspace.lang_vault_dir("fr")
+        assert vault.is_dir()
+        spec = vault / "VAULT_SPEC.md"
+        assert spec.is_file()
+
+        # 后续 fs 工具可用
+        r = await c.call_tool("ls", {"path": ""})
+        assert r.is_error is False
+
+    factory = fresh_workspace[0]
+    with factory(body):
+        pass
+
+
+def test_session_configure_auto_create_failure_propagates(empty_mcp_client):
+    """非法 lang 名（"."）经 create_vault 校验 → configure 返回 isError=true。"""
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool(
+            "session.configure", {"lang": "."}, raise_on_error=False
+        )
+        assert r.is_error is True
+        text = r.content[0].text
+        assert "auto-create vault failed" in text
+        assert "invalid lang" in text
+
+    with empty_mcp_client(body):
         pass
 
 
@@ -234,6 +275,47 @@ def test_session_configure_then_ls_read_write(mcp_client, memory_root: Path):
 
     with mcp_client(body):
         pass
+
+
+# ── 3b. write 工具归一化 frontmatter ──────────────────────────────────
+
+
+def test_write_normalizes_frontmatter(mcp_client, memory_root: Path):
+    """写含坏 frontmatter（裸冒号 / 缺引号等）的内容；落盘后 yaml.safe_load 仍可解析。"""
+    import yaml
+
+    rel = "items/vocab/bad-fm--01JZDMC99.md"
+    # 故意写坏：headword 值含冒号但未加引号；多出 : 的键
+    bad_content = (
+        "---\n"
+        "ulid: 01JZDMC99\n"
+        "headword: take for granted:  期望被当默认值\n"
+        "type: vocab\n"
+        "---\n\n"
+        "# take for granted\n\n正文。\n"
+    )
+
+    async def body(c: Client) -> None:
+        await c.call_tool("session.configure", {"lang": "en"})
+        r = await c.call_tool("write", {"path": rel, "content": bad_content})
+        assert r.is_error is False
+        assert r.data["ok"] is True
+
+    with mcp_client(body):
+        pass
+
+    on_disk = (memory_root / rel).read_text(encoding="utf-8")
+    # 落盘 frontmatter 仍可被 yaml.safe_load 解析（归一化后）
+    raw, _ = on_disk.split("---\n", 2)[1:3]  # 形如 "---\n<fm>---\n<body>"
+    parsed = yaml.safe_load(raw)
+    assert isinstance(parsed, dict)
+    assert parsed["ulid"] == "01JZDMC99"
+    assert parsed["type"] == "vocab"
+    # 含冒号的值仍能 round-trip（被引号化或正确转义）
+    assert "take for granted" in str(parsed["headword"])
+    # 正文原样保留
+    assert "# take for granted" in on_disk
+    assert "正文。" in on_disk
 
 
 # ── 4. 路径逃逸拒绝 ────────────────────────────────────────────────
@@ -320,9 +402,8 @@ def test_search_lang_param_overrides_session(mcp_client, tmp_path: Path, monkeyp
 
 
 def test_session_reconfigure_switches_lang(mcp_client, memory_root: Path):
-    """configure en 后 write 走 en vault；再 configure ja 走 ja vault。"""
-    ja_vault = memory_root.parent.parent / "ja" / "vault"
-    ja_vault.mkdir(parents=True, exist_ok=True)
+    """configure en 后 write 走 en vault；再 configure ja 走 ja vault
+    （ja vault 不存在，由 session.configure 自动创建）。"""
 
     async def body(c: Client) -> None:
         r = await c.call_tool("session.configure", {"lang": "en"})
@@ -339,6 +420,7 @@ def test_session_reconfigure_switches_lang(mcp_client, memory_root: Path):
             "write", {"path": "ja-file--01JZDMC05.md", "content": "ja"}
         )
         assert r.is_error is False
+        ja_vault = workspace.lang_vault_dir("ja")
         assert (ja_vault / "ja-file--01JZDMC05.md").exists()
         assert not (memory_root / "ja-file--01JZDMC05.md").exists()
 
@@ -447,7 +529,7 @@ def test_list_vaults_no_configure_required(fresh_workspace):
 
 
 def test_create_vault_creates_dir_and_spec(fresh_workspace):
-    """新 lang：vault 目录 + VALUT_SPEC.md 创建，AppState 注册成功。"""
+    """新 lang：vault 目录 + VAULT_SPEC.md 创建，AppState 注册成功。"""
     factory, state, tmp_path = fresh_workspace
     target_lang = "fr"
     expected_vault = tmp_path / "memory" / "languages" / "fr" / "vault"
@@ -463,7 +545,7 @@ def test_create_vault_creates_dir_and_spec(fresh_workspace):
         assert r.data["registered"] is True
         # 文件系统副作用
         assert expected_vault.is_dir()
-        spec = expected_vault / "VALUT_SPEC.md"
+        spec = expected_vault / "VAULT_SPEC.md"
         assert spec.is_file()
         content = spec.read_text(encoding="utf-8")
         # 合成结果含 vault_spec.md 顶层 h1
@@ -480,11 +562,11 @@ def test_create_vault_creates_dir_and_spec(fresh_workspace):
 
 
 def test_create_vault_idempotent(fresh_workspace):
-    """重复调用 create_vault 不覆盖 VALUT_SPEC.md、不重建目录。"""
+    """重复调用 create_vault 不覆盖 VAULT_SPEC.md、不重建目录。"""
     factory, state, tmp_path = fresh_workspace
     target_lang = "de"
     expected_vault = tmp_path / "memory" / "languages" / "de" / "vault"
-    expected_spec = expected_vault / "VALUT_SPEC.md"
+    expected_spec = expected_vault / "VAULT_SPEC.md"
 
     async def body(c: Client) -> None:
         # 第一次：新建
@@ -493,7 +575,7 @@ def test_create_vault_idempotent(fresh_workspace):
         assert r1.data["created"] is True
         assert r1.data["spec_written"] is True
         original_content = (expected_spec).read_text(encoding="utf-8")
-        # 修改 VALUT_SPEC.md（模拟用户/外部编辑）
+        # 修改 VAULT_SPEC.md（模拟用户/外部编辑）
         expected_spec.write_text("USER EDITED\n", encoding="utf-8")
         # 第二次：幂等
         r2 = await c.call_tool("create_vault", {"lang": target_lang})

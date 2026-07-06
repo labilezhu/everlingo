@@ -91,7 +91,7 @@ def reconcile(conn: sqlite3.Connection, memory_root: Path, lang: str) -> Reconci
     set_meta(conn, "tokenizer_version", current_ver)
 
     # 2) 扫 vault：每文件 -> 比对 ulid/合成键 查 (rowid, content_hash)
-    # 排除 tmp/ 子目录与 vault 元文件（VALUT_SPEC.md 等）
+    # 排除 tmp/ 子目录与 vault 元文件（VAULT_SPEC.md 等）
     seen_paths: set[str] = set()
     for abs_path in memory_root.rglob("*.md"):
         if not abs_path.is_file():

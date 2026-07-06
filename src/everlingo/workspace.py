@@ -164,7 +164,7 @@ def indexer_socket_path() -> Path:
 def indexer_mcp_url_path() -> Path:
     """返回 indexer MCP Streamable HTTP URL 文件路径（workspace 级共享）。
 
-    ref: docs/impl-spec/vault-mcp/valut-mcp-spec.md — 部署形态
+    ref: docs/impl-spec/vault-mcp/vault-mcp-spec.md — 部署形态
     indexer 启动时把 MCP Streamable HTTP URL 写入该文件（形如
     `http://127.0.0.1:{port}/mcp`），MCP 客户端据此连接。
     $workspace/indexer.mcp.url

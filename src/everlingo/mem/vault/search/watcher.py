@@ -177,7 +177,7 @@ class VaultWatcher:
                 return
             delete_file(self._conn, rel)
             return
-        # 排除 vault 元文件（VALUT_SPEC.md 等），不触发 parse_file
+        # 排除 vault 元文件（VAULT_SPEC.md 等），不触发 parse_file
         if is_excluded_vault_file(ev.abs_path, self._memory_root):
             return
         try:

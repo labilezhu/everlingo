@@ -74,8 +74,8 @@ def test_watcher_delete_removes_row(tmp_path: Path):
         conn.close()
 
 
-def test_watcher_skips_valut_spec_md(tmp_path: Path):
-    """VALUT_SPEC.md（vault 元文件）写入不触发 watcher 索引。"""
+def test_watcher_skips_vault_spec_md(tmp_path: Path):
+    """VAULT_SPEC.md（vault 元文件）写入不触发 watcher 索引。"""
     db_path = tmp_path / "index" / "memory.sqlite"
     db_path.parent.mkdir(parents=True, exist_ok=True)
     memory_root = tmp_path / "memory"
@@ -87,7 +87,7 @@ def test_watcher_skips_valut_spec_md(tmp_path: Path):
     w = VaultWatcher(conn, memory_root, "en")
     w.start()
     try:
-        spec_p = memory_root / "VALUT_SPEC.md"
+        spec_p = memory_root / "VAULT_SPEC.md"
         spec_p.write_text("# spec\n", encoding="utf-8")
         # 给 watcher 充足时间触发 on_created 并尝试 parse_file
         assert _wait_until(lambda: count_docs(conn) == 0, timeout=DEBOUNCE_SECONDS + 2.0)

@@ -55,48 +55,6 @@ class _MemoryWriterProxy:
 memory_writer = _MemoryWriterProxy()
 
 
-# ── Search Client 单例（进程级）───────────────────────────────────
-# ref: docs/impl-spec/search/memory-vault-search-spec.md — gateway 侧接口
-# gateway 进程持有一个 SearchClient 单例；Writer 写完 .md 后通过
-# mem_writer_tools._post_write_hook(lang, path, op) 触发
-# index_file(lang, path) / delete_file(lang, path) fire-and-forget。
-# indexer 不可达时 SearchClient.search() / index_file() 自身降级。
-
-search_client: "SearchClient"  # type: ignore[type-arg]
-
-
-class _SearchClientProxy:
-    """延迟构造的 SearchClient 代理；indexer 不可达时方法返回 []/False。"""
-
-    def __init__(self) -> None:
-        self._client: object | None = None
-
-    def _ensure(self):
-        if self._client is None:
-            from ..mem.vault.search.client import SearchClient
-            from .. import workspace
-
-            self._client = SearchClient(workspace.indexer_socket_path())
-            # 安装 Writer 写后钩子：每次 mem_* 写/删都 fire-and-forget 投递索引
-            from ..mem.agents import mem_writer_tools
-
-            def _hook(lang: str, path: str, op: str) -> None:
-                if op == "delete":
-                    self._client.delete_file(lang, path)  # type: ignore[union-attr]
-                else:
-                    self._client.index_file(lang, path)  # type: ignore[union-attr]
-
-            mem_writer_tools.set_post_write_hook(_hook)
-            logger.info("search_client initialized, post-write hook installed")
-        return self._client
-
-    def __getattr__(self, name: str):
-        return getattr(self._ensure(), name)
-
-
-search_client = _SearchClientProxy()
-
-
 # ── Profile 初始化向导（从 chat.py 迁入） ────────────────────────────────────
 
 def _prompt_language_selection(prompt: str, exclude: str = "") -> str:

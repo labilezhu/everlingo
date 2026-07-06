@@ -27,7 +27,7 @@ workspace_b/
          credentials/
 
 indexer.sock
-indexer.mcp.url      # indexer 启动时写入的 MCP Streamable HTTP URL，供 MCP 客户端连接（见 valut-mcp-spec.md「部署形态」）
+indexer.mcp.url      # indexer 启动时写入的 MCP Streamable HTTP URL，供 MCP 客户端连接（见 vault-mcp-spec.md「部署形态」）
 
 /memory # Memory Spec
     USER.md

@@ -620,9 +620,9 @@ def walk_vault(memory_root: Path) -> Iterable[Path]:
 
 
 # vault 元文件（不索引、不入 FTS/vec）。
-# ref: docs/impl-spec/vault-mcp/valut-mcp-spec.md — VALUT_SPEC.md
+# ref: docs/impl-spec/vault-mcp/vault-mcp-spec.md — VAULT_SPEC.md
 # 由 MCP `create_vault` 工具写入，承载 vault_spec.md 展开 include 后的规范说明。
-_EXCLUDED_VAULT_FILENAMES: frozenset[str] = frozenset({"VALUT_SPEC.md"})
+_EXCLUDED_VAULT_FILENAMES: frozenset[str] = frozenset({"VAULT_SPEC.md"})
 
 
 def is_excluded_vault_file(abs_path: Path, memory_root: Path) -> bool:

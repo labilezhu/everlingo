@@ -105,10 +105,10 @@ def test_reconcile_skips_tmp_directory(db_path: Path, memory_root: Path):
     assert conn.execute("SELECT ulid FROM documents").fetchone()[0] == "01JZB0007"
 
 
-def test_reconcile_skips_valut_spec_md(db_path: Path, memory_root: Path):
-    """VALUT_SPEC.md（vault 元文件）不应被索引。"""
+def test_reconcile_skips_vault_spec_md(db_path: Path, memory_root: Path):
+    """VAULT_SPEC.md（vault 元文件）不应被索引。"""
     _write_item(memory_root, "a--01JZB0009.md", "01JZB0009")
-    spec_p = memory_root / "VALUT_SPEC.md"
+    spec_p = memory_root / "VAULT_SPEC.md"
     spec_p.write_text("# 单语言 Memory Vault Spec\n\n正文\n", encoding="utf-8")
     conn = open_db(db_path)
     result = reconcile(conn, memory_root, "en")
@@ -116,4 +116,4 @@ def test_reconcile_skips_valut_spec_md(db_path: Path, memory_root: Path):
     assert count_docs(conn) == 1
     assert conn.execute("SELECT ulid FROM documents").fetchone()[0] == "01JZB0009"
     rows = conn.execute("SELECT file_path FROM documents").fetchall()
-    assert all(not r[0].endswith("VALUT_SPEC.md") for r in rows)
+    assert all(not r[0].endswith("VAULT_SPEC.md") for r in rows)

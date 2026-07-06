@@ -3,24 +3,31 @@
 # 全局单例：模块级实例位于 gateway.gateway.memory_writer。
 # 独立 daemon Thread + queue.Queue：因单线程顺序消费，没有并发写文件问题。
 # 队列内容不持久化，可接受进程非法结束导致的丢失（与 Extract Agent 一致）。
+#
+# ── 改造说明（2026-07 起：迁移到 Vault MCP Server）──
+# 原 mem_* 工具已全部删除。所有 fs/search 操作改走 Vault MCP Server
+# （由 indexer 进程内嵌的 FastMCP Streamable HTTP server 提供）。
+# 客户端适配见 mem_writer_mcp_client.py：
+#   - mcp_vault_connection(lang): per-entry 异步上下文，yield (session, tools)
+#   - mem_gen_id: 客户端 ULID 生成工具（MCP server 不含此工具）
+# 写入由 indexer 的 watcher 自动重新索引，无需手动 index_file。
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import queue
 import threading
 from datetime import datetime
-from pathlib import Path
 from typing import Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from ... import workspace
 from ...llm import create_agent, create_mem_writer_llm
 from ...utils.md_prompt_compiler import PackageSource, compile_prompt, shift_headings
 from .mem_entries import MemoryEntry
-from .mem_writer_tools import build_mem_writer_tools, set_current_lang
+from .mem_writer_mcp_client import IndexerOfflineError, mcp_vault_connection
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +62,9 @@ def _build_writer_system_prompt() -> str:
     注入前对两份 spec 文档整体 shift_headings(+2)，使其最浅标题 h1 → h3，
     嵌套于外层 `## 输入 entry 结构` / `## memory vault 结构` (h2) 之下。
     与 chat-agent-spec.md「*.md 注入需降级标题」约定一致。
+
+    工具名约定（2026-07 迁移后）：使用 Vault MCP Server 暴露的 fs 工具
+    原名（`read` / `write` / `grep` / ...）+ 客户端工具 `mem_gen_id`。
     """
     entry_spec_doc = shift_headings(
         compile_prompt(
@@ -107,6 +117,7 @@ conversation memory entries 异步转交给你，由你把每个 entry 合并或
 """
     suffix = """
 
+
 ---
 
 # memory vault 注意事项
@@ -126,7 +137,7 @@ memory vault 中的 markdown 文件正文，主要语言必须使用 entry 的 `
 术语——应使用 `目标学习语言` 本身书写，不要翻译成界面语言。
 
 ## 工具的沙箱规则（强制）
-所有 mem_* 工具**只能使用相对 path**，相对于
+所有 fs 工具**只能使用相对 path**，相对于
 `$workspace/memory/languages/$lang/vault/`（`$lang` 为 entry 的 `lang`
 字段对应的目标学习语言目录，由工具层按当前会话的 `lang` 自动解析）。
 工具层会强制校验：解析后的绝对路径不能逃出该 lang 的 vault_dir，
@@ -136,6 +147,25 @@ memory vault 中的 markdown 文件正文，主要语言必须使用 entry 的 `
 - 不允许使用 `..` 跳出（如 `../foo`）。
 - 不需要写 `memory/languages/$lang/vault/` 前缀（路径默认就在
   lang vault 根之下），也**不要**再写 `$lang/` 前缀。
+- 会话 lang 由宿主代码在每次 entry 开始时通过 `session.configure`
+  自动设置，你**不**需要、也**不**应该主动调用 `session.configure`。
+  直接使用 `read` / `write` / `grep` 等工具即可。
+
+## 工具清单（Vault MCP Server fs 工具 + 客户端工具）
+
+你只能使用下列工具操作 memory vault：
+
+- `read(path)`：读取相对 path 指向的 markdown 文件全文。
+- `write(path, content)`：覆盖写入或新建文件；frontmatter 会被服务端
+  自动归一化（保证 YAML 合法）。
+- `append(path, content)`：追加到文件末尾；文件不存在则报错（events
+  流程的首次创建由代码用 `write` 完成，你不需要用 `append` 写首次）。
+- `delete(path)`：删除文件。
+- `ls(path, recursive=False)`：列出目录下子项。
+- `find(pattern, path="")`：按文件名 glob 搜索，目录递归。
+- `grep(query, path="", ignoreCase=True)`：按内容正则搜索，目录递归。
+- `mem_gen_id()`：客户端 ULID 生成（**不**走 MCP server）。仅在
+  新建 kb item 时调用 1 次，返回 26 字符 ULID 字符串。
 
 ## 单个 entry 处理流程
 
@@ -143,17 +173,17 @@ memory vault 中的 markdown 文件正文，主要语言必须使用 entry 的 `
 
 1. **定位 items 目录**：`items/<item_type>/`（如 `items/vocab/`）。
    **不要**在路径前加 `$lang/`（sandbox 根已经是 lang vault）。
-2. **查找是否已有该 headword 的条目**：用 `mem_grep` 在上述目录递归搜索
-   headword 文本。`mem_grep` 返回 `[{file_path, matched_text}]`。
+2. **查找是否已有该 headword 的条目**：用 `grep` 在上述目录递归搜索
+   headword 文本。`grep` 返回 `[{file_path, matched_text, line_number}]`。
 3. **如果命中**（条目已存在）：
-   1. `mem_read_file(file_path)` 读取一次（**整轮不超过一次**）。
+   1. `read(file_path)` 读取一次（**整轮不超过一次**）。
    2. 在内存中合并：
       - 在文件末尾的「## 遇到记录」追加新一行（格式：`- <YYYY-MM-DD>：<conversation_context>`）。
       - 更新 frontmatter：`last_seen` = 本次 timestamp（ISO 8601 GMT+8）；
          `seen_count` += 1；`timestamp` = 当前时间。
       - 必要时根据 kb_items_spec 中对应 item_type 的模板补充正文内容
         （例如新发现的相关用法 / 常见错误等）。
-   3. `mem_write_file(file_path, new_content)` 写入一次（**整轮不超过一次**）。
+   3. `write(file_path, new_content)` 写入一次（**整轮不超过一次**）。
 4. **如果未命中**（新建条目）：
    1. `mem_gen_id()` 取一个 ULID（26 字符）作为 frontmatter `id` 与文件名 ulid 部分。
    2. 构造 main_file_name：从 headword 派生，去掉 url/操作系统不安全字符，
@@ -162,19 +192,24 @@ memory vault 中的 markdown 文件正文，主要语言必须使用 entry 的 `
    4. 按 kb_items_spec 中对应 item_type 的模板构造 frontmatter + 正文。
          `first_seen` / `last_seen` / `created_at` / `timestamp` 都用本次 timestamp（ISO 8601 GMT+8）。
       `seen_count` = 1。
-   5. `mem_write_file(file_path, content)` 创建并写入文件。
+   5. `write(file_path, content)` 创建并写入文件。
+
+如需在 `tmp/` 目录下创建临时文件（例如先写一个临时草稿再合并），用
+`write(path="tmp/tmp_<mem_gen_id()>.md", content="...")`；但通常
+直接写目标文件即可，不需要 tmp 步骤。
 
 ## 工具调用约束
 
-- 对**目标 markdown 文件**：`mem_read_file` 至多 1 次、`mem_write_file` 至多 1 次。
-- `mem_grep` 用于查找，可调用多次直到定位目标。
+- 对**目标 markdown 文件**：`read` 至多 1 次、`write` 至多 1 次。
+- `grep` 用于查找，可调用多次直到定位目标。
 - `mem_gen_id` 仅在新建条目时调用 1 次。
 - 不要创建 `tmp/` 下的临时文件（除非确有需要）；最终结果直接写入目标 kb item 文件。
 
 
 ## 日志
 
-你不需要主动写日志；工具层会自动记录每次写入的文件路径与内容。
+你不需要主动写日志；写入由代码/MCP 工具层自动记录（gateway 侧
+logger 与 indexer 侧 logger 都会输出写文件信息）。
 """
     return (
         prefix
@@ -185,7 +220,7 @@ memory vault 中的 markdown 文件正文，主要语言必须使用 entry 的 `
     )
 
 
-# ── events/ 写入（纯代码，无 LLM）──────────────────────────────────
+# ── events/ 写入（纯代码，无 LLM；走 MCP）─────────────────────────
 
 
 def _events_rel_path(entry: MemoryEntry) -> str:
@@ -228,40 +263,55 @@ def _format_event_section(entry: MemoryEntry) -> str:
     )
 
 
-def _append_event(entry: MemoryEntry) -> None:
-    """把单条 entry 追加到当日 events 文件。
+async def _append_event_async(entry: MemoryEntry) -> None:
+    """把单条 entry 追加到当日 events 文件（通过 MCP fs 工具）。
 
     ref: memory-writer-agent-spec.md — 记录 events 的实现
-    events/ 追加不该走 LLM：按日期拼路径，文件不存在则创建带「文件前置内容」
-    的 markdown 文件，否则按 events_spec.md:34-54 追加一个 ## Event 段落。
+    events/ 追加不该走 LLM：按日期拼路径，通过 MCP `stat` 判断文件
+    是否存在 → 不存在则 `write` 写「文件前置内容」，存在则
+    `append` 追加 `## Event` 段落。
 
-    ref: docs/impl-spec/search/memory-vault-search-spec.md — Writer 集成
-    写后通过 mem_writer_tools 注入的钩子触发 SearchClient.index_file(lang, path)，
-    让 indexer 即时拿到新追加的 event 段。失败时静默吞掉（fire-and-forget）。
+    MCP 写入由 indexer watcher 自动入索引；不再走 gateway 侧的
+    `SearchClient.index_file` 钩子（钩子链路已删除）。
     """
     rel = _events_rel_path(entry)
-    abs_path = (workspace.lang_vault_dir(entry.lang) / rel).resolve()
-    abs_path.parent.mkdir(parents=True, exist_ok=True)
-
-    created = False
-    if not abs_path.exists():
-        abs_path.write_text(_EVENT_FILE_PREAMBLE, encoding="utf-8")
-        created = True
-
     section = _format_event_section(entry)
-    with abs_path.open("a", encoding="utf-8") as f:
-        f.write(section + "\n")
+
+    async with mcp_vault_connection(entry.lang) as (session, _tools):
+        stat_result = await session.call_tool("stat", {"path": rel})
+        if stat_result.isError:
+            raise RuntimeError(
+                f"events stat failed: {stat_result.content[0].text}"
+            )
+        exists = bool(
+            (stat_result.structuredContent or {}).get("exists", False)
+        )
+
+        if not exists:
+            write_result = await session.call_tool(
+                "write", {"path": rel, "content": _EVENT_FILE_PREAMBLE}
+            )
+            if write_result.isError:
+                raise RuntimeError(
+                    f"events write preamble failed: "
+                    f"{write_result.content[0].text}"
+                )
+            action = "created"
+        else:
+            action = "appended"
+
+        append_result = await session.call_tool(
+            "append", {"path": rel, "content": section + "\n"}
+        )
+        if append_result.isError:
+            raise RuntimeError(
+                f"events append failed: {append_result.content[0].text}"
+            )
 
     logger.info(
-        "events: %s %s, content=%s",
-        "created" if created else "appended",
-        rel,
-        section,
+        "events: %s %s/%s, content=%s",
+        action, entry.lang, rel, section,
     )
-    # 触发索引钩子
-    from .mem_writer_tools import _fire_post_write
-
-    _fire_post_write(entry.lang, rel, "index")
 
 
 # ── kb item 写入（LLM 驱动）──────────────────────────────────────────
@@ -284,6 +334,8 @@ class MemoryWriterAgent:
     - `enqueue(entries)` 仅入队、不阻塞，由 Extract Agent 调用。
     - daemon 线程顺序消费 entries 列表，先写 events（代码），再写 kb item（LLM）。
     - 单线程顺序执行 → 没有并发写文件问题。
+    - 所有 fs/search 操作走 Vault MCP Server（per-entry stream）。
+      indexer 离线 → 丢弃 entry + logger.error 告警（不重试、不阻塞队列）。
     """
 
     def __init__(self) -> None:
@@ -291,15 +343,11 @@ class MemoryWriterAgent:
         self._thread: Optional[threading.Thread] = None
 
         # ref: memory-writer-agent-spec.md — 用 langchain 的 agent 框架
-        # LLM 工厂使用 create_mem_writer_llm()（temperature=0），kb items 正文（释义/例句/
-        # 记忆钩子）需要自然语言写作。文件结构操作靠 system prompt 约束 + 工具沙箱保证。
-        self._tools = build_mem_writer_tools()
+        # LLM 工厂使用 create_mem_writer_llm()（temperature=0），
+        # kb items 正文（释义/例句/记忆钩子）需要自然语言写作。
+        # 工具集 per-entry 重建（依赖 mcp_vault_connection session）。
         self._system_prompt = _build_writer_system_prompt()
-        self._agent = create_agent(
-            create_mem_writer_llm(),
-            tools=self._tools,
-            system_prompt=self._system_prompt,
-        )
+        self._llm = create_mem_writer_llm()
 
     # ── 生命周期 ────────────────────────────────────────────────
 
@@ -348,11 +396,20 @@ class MemoryWriterAgent:
         """对一批 entries 顺序执行：先 events（代码）→ 再 kb item（LLM）。
 
         ref: memory-writer-agent-spec.md — 处理 conversation memory entries
+        events 与 kb item 写入均通过 MCP server。
+        indexer 离线（IndexerOfflineError）→ 丢弃该 entry + logger.error ，
+        不阻塞队列继续消费后续 entry。
         """
         # 1. events 追加：纯代码，无 LLM
         for entry in entries:
             try:
-                _append_event(entry)
+                asyncio.run(_append_event_async(entry))
+            except IndexerOfflineError as e:
+                logger.error(
+                    "events append dropped (indexer offline): entry_id=%s "
+                    "headword=%s err=%s",
+                    entry.entry_id, entry.headword, e,
+                )
             except Exception:
                 logger.exception(
                     "events append failed for entry_id=%s headword=%s",
@@ -362,35 +419,41 @@ class MemoryWriterAgent:
         # 2. kb item 写入：逐 entry 调一次 LLM agent
         for entry in entries:
             try:
-                self._write_kb_item(entry)
+                asyncio.run(self._write_kb_item_async(entry))
+            except IndexerOfflineError as e:
+                logger.error(
+                    "kb item write dropped (indexer offline): entry_id=%s "
+                    "headword=%s err=%s",
+                    entry.entry_id, entry.headword, e,
+                )
             except Exception:
                 logger.exception(
                     "kb item write failed for entry_id=%s headword=%s",
                     entry.entry_id, entry.headword,
                 )
 
-    def _write_kb_item(self, entry: MemoryEntry) -> None:
-        """对单个 entry 调一次 LLM agent，由 LLM 通过工具完成 grep/read/write。
+    async def _write_kb_item_async(self, entry: MemoryEntry) -> None:
+        """对单个 entry 调一次 LLM agent，由 LLM 通过 MCP fs 工具完成写。
 
         ref: memory-writer-agent-spec.md — 更新知识点类 memory items
-        ref: docs/impl-spec/worksplace/workspace.md — per-lang vault
-        在调 agent 之前 set_current_lang(entry.lang)，让 mem_* 工具的
-        sandbox 根解析到 entry 的目标学习语言 vault
-        ($workspace/memory/languages/$lang/vault/)。finally 里 reset，
-        避免跨 entry 状态泄漏（队列中下一条 entry 可能 lang 不同）。
+        per-entry 打开一条 MCP stream，调用 session.configure 设定 lang，
+        加载过滤后的 fs 工具 + mem_gen_id 工具，构建 langchain agent，
+        调 ainvoke。整个流程跑在 daemon thread 的 asyncio.run 内。
         """
-        set_current_lang(entry.lang)
-        try:
-            payload = _render_entry_payload(entry)
-            user_msg = (
-                "请将以下 entry 合并或写入 memory vault。\n\n"
-                f"```json\n{payload}```"
+        payload = _render_entry_payload(entry)
+        user_msg = (
+            "请将以下 entry 合并或写入 memory vault。\n\n"
+            f"```json\n{payload}```"
+        )
+        async with mcp_vault_connection(entry.lang) as (_session, tools):
+            agent = create_agent(
+                self._llm,
+                tools=tools,
+                system_prompt=self._system_prompt,
             )
-            self._agent.invoke({
+            await agent.ainvoke({
                 "messages": [
                     SystemMessage(content=self._system_prompt),
                     HumanMessage(content=user_msg),
                 ]
             })
-        finally:
-            set_current_lang(None)

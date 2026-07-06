@@ -20,7 +20,7 @@ docs/impl-spec/worksplace/workspace.md 中 “### Workspace 目录结构” 中 
 ---
 
 我设计 indexer 的 MCP Server 服务。打算：
-- `search` 工具： 把 docs/impl-spec/search/search-api-spec.md 中 “##### 示例 3 - hybrid 混合搜索”  加到 docs/impl-spec/vault-mcp/valut-mcp-spec.md 引用的 docs/impl-spec/vault-mcp/valut-mcp-spec-tools.yaml 中的 `search` 工具。
+- `search` 工具： 把 docs/impl-spec/search/search-api-spec.md 中 “##### 示例 3 - hybrid 混合搜索”  加到 docs/impl-spec/vault-mcp/vault-mcp-spec.md 引用的 docs/impl-spec/vault-mcp/vault-mcp-spec-tools.yaml 中的 `search` 工具。
 
 请分析这样做的合理性，以及架构上的计划
 
@@ -48,23 +48,55 @@ docs/impl-spec/worksplace/workspace.md 中 “### Workspace 目录结构” 中 
 
 ---
 
-讨论一下。我计划为现有的 [Valut MCP](docs/impl-spec/vault-mcp/valut-mcp-spec.md) 加入一个 Agent 可以获取 [完整的 Valut 结构说明](src/everlingo/mem/vault/vault_spec.md) 的 tool/resource 。
+讨论一下。我计划为现有的 [Vault MCP](docs/impl-spec/vault-mcp/vault-mcp-spec.md) 加入一个 Agent 可以获取 [完整的 Vault 结构说明](src/everlingo/mem/vault/vault_spec.md) 的 tool/resource 。
 
 ---
 
 评估合理和架构可行性：
-为 [Valut MCP](docs/impl-spec/vault-mcp/valut-mcp-spec.md) 加入两个 tools:
-- list valuts
-  - 工具说明：列出当前 workspace 里所有的 valut。 
-  - 返回：已经建立目录的，`目标学习语言`代码，即 valut 名，也就是 目录名。$workspace/memory/languages/ 下的目录列表。
-- create valut
-  - 工具说明：新建和初始化一个指定 `目标学习语言` 的 valut 目录。 
+为 [Vault MCP](docs/impl-spec/vault-mcp/vault-mcp-spec.md) 加入两个 tools:
+- list vaults
+  - 工具说明：列出当前 workspace 里所有的 vault。 
+  - 返回：已经建立目录的，`目标学习语言`代码，即 vault 名，也就是 目录名。$workspace/memory/languages/ 下的目录列表。
+- create vault
+  - 工具说明：新建和初始化一个指定 `目标学习语言` 的 vault 目录。 
   - 实现说明： 
     1. 新建立 $workspace/memory/languages/$lang 目录
-    2. 写入 $workspace/memory/languages/$lang/VALUT_SPEC.md:
+    2. 写入 $workspace/memory/languages/$lang/VAULT_SPEC.md:
         - 文件内容运行时合成。来源于 src/everlingo/mem/vault/vault_spec.md 和 被里面 include 的文件 。合成的方法参考  src/everlingo/mem/agents/mem_writer_agent.py:67
   - 返回： 失败时返回文本的失败原因
 
 ---
 讨论一下合理性和可行性：
-[Memory Agent Writer](docs/impl-spec/memory-writer-agent-spec.md) 现在是直接用本地 tools 读、写、grep、 find 操作 Vault 。 修改成用 [MCP Server](docs/impl-spec/vault-mcp/valut-mcp-spec.md) 。 MCP server url 发现在 `$workspace/indexer.mcp.url` 文件。
+[Memory Agent Writer](docs/impl-spec/memory-writer-agent-spec.md) 现在是直接用本地 tools 读、写、grep、 find 操作 Vault 。 修改成用 [MCP Server](docs/impl-spec/vault-mcp/vault-mcp-spec.md) 。 MCP server url 发现在 `$workspace/indexer.mcp.url` 文件。
+
+----
+
+我实测时，[Memory Writer Agent](docs/impl-spec/memory-writer-agent-spec.md) 在没有调用过 [MCP Server](docs/impl-spec/vault-mcp/vault-mcp-spec.md)  的 `session_configure` tool 设置 lang 前，就 调用了 MCP Server 的 grep tool。 
+造成 Indexer 在执行 grep 时报错：
+ValueError: session not configured: call session.configure first
+应该是 Memory Writer Agent 忘记调用 `session_configure` tool 初始化
+
+---
+
+[MCP Server](docs/impl-spec/vault-mcp/vault-mcp-spec.md) 的 `session.configure` 工具在发现 lang vault 不存在时，应该自动内部调用 create_vault_tool 创建 vault 。 在创建失败时，返回失败。
+
+---
+
+Bug 排查:
+Indexer 报错： Error calling tool 'grep' RuntimeError: path not found: 'items/vocab' ：
+```
+                    │ /home/labile/everlingo/src/everlingo/mem/vault/mcp_server/mcp_server.py:470 in    │
+                    │ grep_tool                                                                         │
+                    │                                                                                   │
+                    │   467 │   │   except PathEscapeError as e:                                        │
+                    │   468 │   │   │   raise RuntimeError(str(e)) from e                               │
+                    │   469 │   │   if not root.exists():                                               │
+                    │ ❱ 470 │   │   │   raise RuntimeError(f"path not found: {path!r}")                 │
+                    │   471 │   │   if root.is_file():                                                  │
+                    │   472 │   │   │   files = [root]                                                  │
+                    │   473 │   │   else:                                                               │
+                    ╰───────────────────────────────────────────────────────────────────────────────────╯
+                    RuntimeError: path not found: 'items/vocab'  
+```
+
+ /home/labile/.everlingo/workspaces/default/memory/languages/en/vault/items/vocab/ambiguous--01KWVVP9XE7P4ETXHA77BJ4PR5.md 文件存在
