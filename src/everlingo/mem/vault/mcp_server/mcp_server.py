@@ -33,6 +33,37 @@ logger = logging.getLogger(__name__)
 # 错误文案固定串（spec 强制）
 _SESSION_NOT_CONFIGURED_MSG = "session not configured: call session.configure first"
 
+# 服务器级使用说明：通过 MCP initialize.instructions 暴露给 agent。
+# 内容契约见 docs/impl-spec/vault-mcp/valut-mcp-spec.md「Server Instructions」节。
+_SERVER_INSTRUCTIONS: str = """\
+Everlingo Memory Vault MCP Server
+
+这是 Everlingo 个人语言学习笔记库（按学习语言分目录的 markdown 知识库）的 MCP 接口。
+Vault 按学习语言分目录：$workspace/memory/languages/$lang/vault/（lang = en / ja / ...）。
+
+工具分组（共 12 个）：
+- `session.configure` —— 设置会话级默认 lang（必须先调用）。
+- fs 工具（9 个）—— `ls` / `read` / `write` / `append` / `grep` / `find` / `stat` / `mkdir` / `delete` / `tree`，操作 vault 下的 markdown 文件。
+- `search` —— 全文 / 语义 / 混合搜索 vault 文档（默认 mode=hybrid）。
+
+工作流：
+1. 必须先调 `session.configure(lang="<lang>")` 设会话 lang，再调任何 fs / `search` 工具；否则返回错误 `session not configured: call session.configure first`。
+2. `lang` 必须是 workspace 已存在的语言目录（$workspace/memory/languages/*/）；不在集合内返回错误。
+3. 会话内可重调 `session.configure` 切换 lang，无需重连 MCP stream。
+4. fs 工具的 `path` 参数相对会话 lang vault 根解析；禁止 `../` 逃逸，越界会被拒绝。
+
+search 要点：
+- 默认 `mode=hybrid`（推荐，混合全文 + 语义）。
+- `lang` 参数可省略（取会话 lang）；显式传入可覆盖会话 lang 跨 lang 检索。
+- 命中结果的 `file_path` 相对当前 lang vault 根，可直接喂给 `read` / `write` 等 fs 工具。
+
+副作用与生命周期：
+- 写入 / 删除 / 改目录的文件变更由 indexer 的 watcher 自动重新索引；**不需要**也**无法**手动触发 index。
+- 会话状态按 MCP stream 生命周期存活，stream 关闭即丢弃；无持久化。
+
+典型用法：`session.configure(lang="en")` → `search(q="...", mode="hybrid")` → `read(path=<hit.file_path>)` → `append(path=..., content=...)`。
+"""
+
 # Lang 合法性校验缓存：避免每次 session.configure 都 walk filesystem
 # 进程级不变量：workspace 启动时确定；运行时新 lang 发现由 LangDiscoveryWatcher 处理，
 # 调用方（agent）通常应在写入文件后等待 watcher 触发新 lang 出现，再 configure。
@@ -135,7 +166,7 @@ def create_mcp_app(state: AppState) -> FastMCP:
     - 失败：raise RuntimeError(msg) → FastMCP 设 isError=true + content[0].text=msg
     """
     registry = SessionRegistry()
-    mcp = FastMCP(name="everlingo-vault")
+    mcp = FastMCP(name="everlingo-vault", instructions=_SERVER_INSTRUCTIONS)
 
     # ── session.configure ────────────────────────────────────────────
 

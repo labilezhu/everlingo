@@ -325,3 +325,28 @@ def test_structured_content_equals_text(mcp_client, memory_root: Path):
 
     with mcp_client(body):
         pass
+
+
+# ── 9. initialize.instructions 暴露总览说明 ────────────────────────
+
+
+def test_initialize_exposes_instructions(open_state: AppState):
+    """spec「Server Instructions」：initialize 返回的 instructions 非空且
+    覆盖最小契约清单的关键词（session.configure / hybrid / vault / watcher）。"""
+
+    mcp = create_mcp_app(open_state)
+
+    async def body(c: Client) -> None:
+        init = await c.initialize()
+        # 客户端的 initialize 已被 _McpClientContext 进入时触发；这里再次显式
+        # 触发拿结果，便于断言（fastmcp 内部会幂等返回）。
+        text = init.instructions or ""
+        assert text, "initialize.instructions 应非空"
+        # 最小契约关键词
+        assert "session.configure" in text
+        assert "hybrid" in text
+        assert "vault" in text.lower()
+        assert "watcher" in text  # 副作用说明关键词
+
+    with _McpClientContext(mcp, body):
+        pass

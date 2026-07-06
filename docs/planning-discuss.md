@@ -52,6 +52,7 @@ docs/impl-spec/worksplace/workspace.md 中 “### Workspace 目录结构” 中 
 
 ---
 
+评估合理和架构可行性：
 为 [Valut MCP](docs/impl-spec/vault-mcp/valut-mcp-spec.md) 加入两个 tools:
 - list valuts
   - 工具说明：列出当前 workspace 里所有的 valut。 
@@ -60,4 +61,6 @@ docs/impl-spec/worksplace/workspace.md 中 “### Workspace 目录结构” 中 
   - 工具说明：新建和初始化一个指定 `目标学习语言` 的 valut 目录。 
   - 实现说明： 
     1. 新建立 $workspace/memory/languages/$lang 目录
-    2.  src/everlingo/mem/vault/vault_spec.md src/everlingo/mem/agents/mem_writer_agent.py
+    2. 写入 $workspace/memory/languages/$lang/VALUT_SPEC.md:
+        - 文件内容运行时合成。来源于 src/everlingo/mem/vault/vault_spec.md 和 被里面 include 的文件 。合成的方法参考  src/everlingo/mem/agents/mem_writer_agent.py:67
+  - 返回： 失败时返回文本的失败原因

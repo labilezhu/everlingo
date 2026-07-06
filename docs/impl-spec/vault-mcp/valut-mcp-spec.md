@@ -198,6 +198,27 @@ curl --unix-socket $workspace/indexer.sock http://localhost/en/search \
 （待补充）
 
 
+## Server Instructions
+
+MCP server 在 `initialize` 响应里通过 `instructions` 字段（[MCP 2025-11-25 Initialize](https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/initialization) `InitializeResult.instructions`）向 agent 暴露一段**总览使用说明**，是 agent 拿到工具清单之前/同时可见的「服务器自述」。FastMCP 通过 `FastMCP(name=..., instructions=...)` 构造器参数注册；实现位于 `src/everlingo/mem/vault/mcp_server/mcp_server.py` 的模块级常量 `_SERVER_INSTRUCTIONS`。
+
+**契约**：实现方维护的实际文本可调整措辞与排版，但**必须覆盖**以下最小内容清单（缺一即视为违反 spec）：
+
+1. **服务器定位**——说明这是 Everlingo memory vault 的 MCP 接口、vault 是按学习语言分目录的 markdown 知识库。
+2. **工具分组**——点明 `session.configure` / fs 工具集（9 个）/ `search` 三个分组。
+3. **强约束工作流**——
+   - 调用任何 fs / `search` 工具前**必须**先调 `session.configure(lang=...)`；否则返回固定错误文案 `session not configured: call session.configure first`。
+   - `lang` 必须是 workspace 已存在的语言目录（`$workspace/memory/languages/*/`）。
+   - 会话内可重调 `session.configure` 切换 lang，无需重连。
+4. **路径语义**——fs 工具的 `path` 参数相对会话 lang vault 根 `$workspace/memory/languages/$lang/vault/` 解析；`../` 越界被拒绝。
+5. **search 要点**——默认 `mode=hybrid`（推荐）；`lang` 参数可省略或显式覆盖以跨 lang 检索；命中 `file_path` 可直接喂给 fs 工具。
+6. **副作用说明**——文件变更由 indexer watcher 自动重新索引，agent **不需要**也**无法**手动触发 index。
+7. **会话生命周期**——session 状态按 MCP stream 生命周期存活，stream 关闭即丢弃；无持久化。
+8. **典型用法序列**——示例 `session.configure → search → read → append`，给 agent 一条参考路径。
+
+实现方在修改实际文本时，必须保证上述 8 项要点均仍可从文本中检索到对应关键词或同义表述；如需变更要点本身，须同步更新本 spec 节。
+
+
 ## 实现细节（增量）
 
 下面是当前 `src/everlingo/mem/vault/mcp_server/` 实现与本 spec 的具体绑定方式，spec 本身只约束契约（工具名 / 入参 / 出参 / 错误形态），以下为实现层选择：
