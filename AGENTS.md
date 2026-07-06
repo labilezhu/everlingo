@@ -1,6 +1,12 @@
 
 # Agent Instructions
 
+## Test / lint
+
+- Tests: `uv run pytest tests/<file>::<name> -v` (单文件 / 单用例) 或 `uv run pytest tests/` (全量)。
+- 项目**未**配置 ruff / mypy / black；纯 Python + pytest 即可。变更源码后跑相关单测即可，无需跑全量。
+- venv 路径：`.venv/`，由 `uv` 自动管理；如缺失 `uv sync`。
+
 Before making changes, make sure read following documentations:
 
 文档说明：

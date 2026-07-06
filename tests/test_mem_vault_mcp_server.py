@@ -95,6 +95,49 @@ def mcp_client(open_state: AppState):
     return _Factory()
 
 
+@pytest.fixture
+def empty_state(tmp_path: Path, monkeypatch) -> AppState:
+    """空 workspace 的 AppState（不预 open en lang；list_vaults 应返空）。
+    同时清掉其他测试可能残留的 _current_ws_dir / _current_ws_name。
+    """
+    monkeypatch.setattr(workspace, "_current_ws_dir", tmp_path, raising=False)
+    monkeypatch.setattr(workspace, "_current_ws_name", None, raising=False)
+    socket_path = tmp_path / "indexer.sock"
+    return AppState(socket_path=socket_path, langs=[])
+
+
+@pytest.fixture
+def empty_mcp_client(empty_state: AppState):
+    """配合 empty_state 的 MCP client 工厂。"""
+    mcp = create_mcp_app(empty_state)
+
+    class _Factory:
+        def __call__(self, body: Any) -> _McpClientContext:
+            return _McpClientContext(mcp, body)
+
+    return _Factory()
+
+
+@pytest.fixture
+def fresh_workspace(tmp_path: Path, monkeypatch):
+    """完全自定义 workspace（不依赖 memory_root / open_state）→ 适用 vault 管理工具测试。"""
+    monkeypatch.setattr(workspace, "_current_ws_dir", tmp_path, raising=False)
+    monkeypatch.setattr(workspace, "_current_ws_name", None, raising=False)
+    socket_path = tmp_path / "indexer.sock"
+    state = AppState(socket_path=socket_path, langs=[])
+    state.open()
+    try:
+        mcp = create_mcp_app(state)
+
+        class _Factory:
+            def __call__(self, body: Any) -> _McpClientContext:
+                return _McpClientContext(mcp, body)
+
+        yield _Factory(), state, tmp_path
+    finally:
+        state.close()
+
+
 def _write_kb_item(memory_root: Path, name: str, ulid: str, body: str) -> Path:
     p = memory_root / "items" / "vocab" / name
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -347,6 +390,174 @@ def test_initialize_exposes_instructions(open_state: AppState):
         assert "hybrid" in text
         assert "vault" in text.lower()
         assert "watcher" in text  # 副作用说明关键词
+        # vault 管理工具分组（14 个工具）
+        assert "list_vaults" in text
+        assert "create_vault" in text
 
     with _McpClientContext(mcp, body):
+        pass
+
+
+# ── 10. list_vaults（workspace 级，豁免 configure）───────────────────
+
+
+def test_list_vaults_empty_workspace(empty_mcp_client):
+    """空 workspace → vaults=[] count=0。"""
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("list_vaults", {})
+        assert r.is_error is False
+        assert r.data == {"vaults": [], "count": 0}
+
+    with empty_mcp_client(body):
+        pass
+
+
+def test_list_vaults_returns_existing(fresh_workspace):
+    """含 en / ja 两个 lang vault → 返回该列表（按字典序）。"""
+    factory, state, tmp_path = fresh_workspace
+    (tmp_path / "memory" / "languages" / "en" / "vault").mkdir(parents=True)
+    (tmp_path / "memory" / "languages" / "ja" / "vault").mkdir(parents=True)
+    # 一个没有 vault/ 子目录的 lang 目录应被忽略
+    (tmp_path / "memory" / "languages" / "no-vault-yet").mkdir(parents=True)
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("list_vaults", {})
+        assert r.is_error is False
+        assert r.data == {"vaults": ["en", "ja"], "count": 2}
+
+    with factory(body):
+        pass
+
+
+def test_list_vaults_no_configure_required(fresh_workspace):
+    """未调 session.configure 也能直接调 list_vaults。"""
+    factory, state, tmp_path = fresh_workspace
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("list_vaults", {}, raise_on_error=False)
+        assert r.is_error is False
+        assert "vaults" in r.data
+
+    with factory(body):
+        pass
+
+
+# ── 11. create_vault（workspace 级，豁免 configure）──────────────────
+
+
+def test_create_vault_creates_dir_and_spec(fresh_workspace):
+    """新 lang：vault 目录 + VALUT_SPEC.md 创建，AppState 注册成功。"""
+    factory, state, tmp_path = fresh_workspace
+    target_lang = "fr"
+    expected_vault = tmp_path / "memory" / "languages" / "fr" / "vault"
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("create_vault", {"lang": target_lang})
+        assert r.is_error is False
+        assert r.data["ok"] is True
+        assert r.data["lang"] == target_lang
+        assert r.data["vault_path"] == f"memory/languages/{target_lang}/vault"
+        assert r.data["created"] is True
+        assert r.data["spec_written"] is True
+        assert r.data["registered"] is True
+        # 文件系统副作用
+        assert expected_vault.is_dir()
+        spec = expected_vault / "VALUT_SPEC.md"
+        assert spec.is_file()
+        content = spec.read_text(encoding="utf-8")
+        # 合成结果含 vault_spec.md 顶层 h1
+        assert "# 单语言 Memory Vault Spec" in content
+        # 合成结果含展开后的 events_spec / kb_items_spec
+        assert "事件类" in content
+        assert "知识点类 memory items" in content
+
+    with factory(body):
+        pass
+
+    # AppState._lang_states 已注册（与 open_lang 同一入口）
+    assert target_lang in state._lang_states
+
+
+def test_create_vault_idempotent(fresh_workspace):
+    """重复调用 create_vault 不覆盖 VALUT_SPEC.md、不重建目录。"""
+    factory, state, tmp_path = fresh_workspace
+    target_lang = "de"
+    expected_vault = tmp_path / "memory" / "languages" / "de" / "vault"
+    expected_spec = expected_vault / "VALUT_SPEC.md"
+
+    async def body(c: Client) -> None:
+        # 第一次：新建
+        r1 = await c.call_tool("create_vault", {"lang": target_lang})
+        assert r1.is_error is False
+        assert r1.data["created"] is True
+        assert r1.data["spec_written"] is True
+        original_content = (expected_spec).read_text(encoding="utf-8")
+        # 修改 VALUT_SPEC.md（模拟用户/外部编辑）
+        expected_spec.write_text("USER EDITED\n", encoding="utf-8")
+        # 第二次：幂等
+        r2 = await c.call_tool("create_vault", {"lang": target_lang})
+        assert r2.is_error is False
+        assert r2.data["created"] is False
+        assert r2.data["spec_written"] is False
+        assert r2.data["registered"] is True
+        # 第二次未覆盖文件
+        assert expected_spec.read_text(encoding="utf-8") == "USER EDITED\n"
+        # 第一次的内容
+        assert original_content.startswith("# 单语言 Memory Vault Spec")
+
+    with factory(body):
+        pass
+
+
+def test_create_vault_rejects_invalid_lang(empty_mcp_client):
+    """非法 lang 名（路径分隔符 / 点号 / 空 / NUL）→ isError=true。"""
+    invalid = ["", "a/b", "a\\b", ".", "..", "a\0b"]
+
+    async def body(c: Client) -> None:
+        for bad in invalid:
+            r = await c.call_tool(
+                "create_vault", {"lang": bad}, raise_on_error=False
+            )
+            assert r.is_error is True, f"expected isError for lang={bad!r}"
+            assert "invalid lang" in r.content[0].text
+
+    with empty_mcp_client(body):
+        pass
+
+
+def test_create_vault_no_configure_required(fresh_workspace):
+    """未调 session.configure 也能直接调 create_vault。"""
+    factory, state, tmp_path = fresh_workspace
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("create_vault", {"lang": "it"}, raise_on_error=False)
+        assert r.is_error is False
+        assert r.data["ok"] is True
+
+    with factory(body):
+        pass
+
+
+def test_create_vault_then_configure_and_search(fresh_workspace):
+    """端到端：create_vault 后 session.configure + search 不报错。"""
+    factory, state, tmp_path = fresh_workspace
+    target_lang = "ko"
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("create_vault", {"lang": target_lang})
+        assert r.is_error is False
+        # 此时 session.configure(lang=ko) 应成功（vault 目录已建）
+        r = await c.call_tool("session.configure", {"lang": target_lang})
+        assert r.is_error is False
+        assert r.data["lang"] == target_lang
+        # 空 vault 调 search 不报错（返回空 hits）
+        r = await c.call_tool(
+            "search", {"q": "anything", "mode": "exact"}, raise_on_error=False
+        )
+        assert r.is_error is False
+        assert r.data["count"] == 0
+        assert r.data["hits"] == []
+
+    with factory(body):
         pass

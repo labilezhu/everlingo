@@ -21,6 +21,7 @@ from .indexer import (
     get_meta,
     index_file,
     init_db,
+    is_excluded_vault_file,
     parse_file,
     rebuild_fts,
     set_meta,
@@ -90,12 +91,12 @@ def reconcile(conn: sqlite3.Connection, memory_root: Path, lang: str) -> Reconci
     set_meta(conn, "tokenizer_version", current_ver)
 
     # 2) 扫 vault：每文件 -> 比对 ulid/合成键 查 (rowid, content_hash)
-    # 排除 tmp/ 子目录
+    # 排除 tmp/ 子目录与 vault 元文件（VALUT_SPEC.md 等）
     seen_paths: set[str] = set()
     for abs_path in memory_root.rglob("*.md"):
         if not abs_path.is_file():
             continue
-        if "tmp" in abs_path.relative_to(memory_root).parts:
+        if is_excluded_vault_file(abs_path, memory_root):
             continue
         try:
             parsed = parse_file(abs_path, memory_root, lang)

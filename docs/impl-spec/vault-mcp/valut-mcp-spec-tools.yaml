@@ -1,11 +1,105 @@
 tools:
 
+########### Vault 管理（workspace 级，豁免 session.configure）###########
+
+  - name: list_vaults
+    title: List vaults
+    description: |
+      List all target learning language vaults present in the current workspace.
+      Returns the lang codes (directory names) under
+      $workspace/memory/languages/ that already have a vault/ subdirectory.
+      Workspace-level tool: does NOT require session.configure.
+    inputSchema:
+      type: object
+      properties: {}
+    outputSchema:
+      type: object
+      properties:
+        vaults:
+          type: array
+          description: |
+            lang 列表（已存在 vault/ 子目录的目标学习语言代码，按字典序排序）。
+          items:
+            type: string
+        count:
+          type: integer
+          description: vaults 数组长度（== len(vaults)）。
+      required:
+        - vaults
+        - count
+
+  - name: create_vault
+    title: Create vault
+    description: |
+      Create and initialize a new target-learning-language vault directory at
+      $workspace/memory/languages/$lang/vault/ and seed it with VALUT_SPEC.md
+      (synthesized from vault_spec.md with includes expanded via
+      everlingo.utils.md_prompt_compiler.compile_prompt + PackageSource,
+      matching the same approach as mem_writer_agent.py:67 but without
+      shift_headings — VALUT_SPEC.md is a standalone top-level document).
+      After creation, synchronously registers the lang with the indexer's
+      LangState via state._open_lang(lang) (same entry point as
+      LangDiscoveryWatcher / lazy open). Idempotent: if the vault directory
+      already exists, VALUT_SPEC.md is not overwritten and re-registration
+      is a no-op (open_lang is itself idempotent under AppState._lock).
+      Workspace-level tool: does NOT require session.configure.
+    inputSchema:
+      type: object
+      properties:
+        lang:
+          type: string
+          description: |
+            目标学习语言代码 (en / ja / zh-CN / ...)。
+            禁止包含路径分隔符 (/、\)、点号（.、..）、空字符串、NUL 字符，
+            否则返回 isError=true。
+      required:
+        - lang
+    outputSchema:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          description: 固定 true；执行错误（如非法 lang 名）返回 isError=true。
+        lang:
+          type: string
+          description: 回显的 lang 参数。
+        vault_path:
+          type: string
+          description: |
+            相对当前 workspace 根的 vault 目录路径（形如
+            "memory/languages/$lang/vault/"）。
+        created:
+          type: boolean
+          description: |
+            true = 本次调用新建了 vault 目录；
+            false = vault 目录已存在，本次未创建。
+        spec_written:
+          type: boolean
+          description: |
+            true = 本次调用写入了 VALUT_SPEC.md；
+            false = VALUT_SPEC.md 已存在，本次未覆盖。
+        registered:
+          type: boolean
+          description: |
+            true = 已通过 state._open_lang 同步注册到 indexer；
+            false = 注册失败（vault 目录/文件已落盘，后续 watcher
+            或显式 configure 仍可触发懒加载）。
+      required:
+        - ok
+        - lang
+        - vault_path
+        - created
+        - spec_written
+        - registered
+
 ########### Session ################
 # 所有工具（fs + search）的 path 解析默认相对「会话 lang vault 根」
 # ($workspace/memory/languages/$lang/vault/)。会话 lang 由 session.configure
 # 工具设定；未调用 session.configure 时所有工具返回错误
 # "session not configured: call session.configure first"。
 # session.configure 设置的状态按 MCP stream 生命周期存活，stream 关闭即丢弃。
+# 例外：list_vaults / create_vault 是 workspace 级工具，不绑特定 lang，
+# 不需要也不接受 session.configure。
 
   - name: session.configure
     title: Configure session defaults

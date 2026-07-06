@@ -31,6 +31,7 @@ from .indexer import (
     delete_file,
     get_by_ulid,
     index_file,
+    is_excluded_vault_file,
     parse_file,
 )
 
@@ -175,6 +176,9 @@ class VaultWatcher:
             except ValueError:
                 return
             delete_file(self._conn, rel)
+            return
+        # 排除 vault 元文件（VALUT_SPEC.md 等），不触发 parse_file
+        if is_excluded_vault_file(ev.abs_path, self._memory_root):
             return
         try:
             parsed = parse_file(ev.abs_path, self._memory_root, self._lang)

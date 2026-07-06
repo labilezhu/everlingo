@@ -64,3 +64,7 @@ docs/impl-spec/worksplace/workspace.md 中 “### Workspace 目录结构” 中 
     2. 写入 $workspace/memory/languages/$lang/VALUT_SPEC.md:
         - 文件内容运行时合成。来源于 src/everlingo/mem/vault/vault_spec.md 和 被里面 include 的文件 。合成的方法参考  src/everlingo/mem/agents/mem_writer_agent.py:67
   - 返回： 失败时返回文本的失败原因
+
+---
+讨论一下合理性和可行性：
+[Memory Agent Writer](docs/impl-spec/memory-writer-agent-spec.md) 现在是直接用本地 tools 读、写、grep、 find 操作 Vault 。 修改成用 [MCP Server](docs/impl-spec/vault-mcp/valut-mcp-spec.md) 。 MCP server url 发现在 `$workspace/indexer.mcp.url` 文件。

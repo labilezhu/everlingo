@@ -613,10 +613,33 @@ def count_chunks(conn: sqlite3.Connection) -> int:
 
 
 def walk_vault(memory_root: Path) -> Iterable[Path]:
-    """递归产出 memory_root 下所有 .md 文件（排除 tmp/ 子目录）。"""
+    """递归产出 memory_root 下所有 .md 文件（排除 tmp/ 与 vault 元文件）。"""
     for p in memory_root.rglob("*.md"):
-        if p.is_file() and "tmp" not in p.parts:
+        if p.is_file() and not is_excluded_vault_file(p, memory_root):
             yield p
+
+
+# vault 元文件（不索引、不入 FTS/vec）。
+# ref: docs/impl-spec/vault-mcp/valut-mcp-spec.md — VALUT_SPEC.md
+# 由 MCP `create_vault` 工具写入，承载 vault_spec.md 展开 include 后的规范说明。
+_EXCLUDED_VAULT_FILENAMES: frozenset[str] = frozenset({"VALUT_SPEC.md"})
+
+
+def is_excluded_vault_file(abs_path: Path, memory_root: Path) -> bool:
+    """vault 元文件 / tmp/ 子目录 → 不索引。
+
+    供 walk_vault / sync.reconcile / watcher._dispatch 统一收口，
+    避免在三个调用点各自重复排除规则。
+    """
+    try:
+        rel_parts = abs_path.resolve().relative_to(memory_root.resolve()).parts
+    except ValueError:
+        return True
+    if "tmp" in rel_parts:
+        return True
+    if abs_path.name in _EXCLUDED_VAULT_FILENAMES:
+        return True
+    return False
 
 
 def rebuild_fts(conn: sqlite3.Connection) -> int:
