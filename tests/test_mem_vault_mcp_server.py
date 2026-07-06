@@ -643,3 +643,78 @@ def test_create_vault_then_configure_and_search(fresh_workspace):
 
     with factory(body):
         pass
+
+
+# ── 12. grep / find 返回空而非报错当路径不存在 ─────────────────────
+
+
+def test_grep_returns_empty_when_path_missing(mcp_client):
+    """目录 items/vocab 不存在时 grep 返回空 matches，不报 isError。"""
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("session.configure", {"lang": "en"})
+        assert r.is_error is False
+
+        r = await c.call_tool(
+            "grep", {"query": "ambiguous", "path": "items/vocab"},
+            raise_on_error=False,
+        )
+        assert r.is_error is False, f"grep 不应报错：{r.content[0].text}"
+        assert r.data["matches"] == []
+
+    with mcp_client(body):
+        pass
+
+
+def test_find_returns_empty_when_path_missing(mcp_client):
+    """目录不存在时 find 返回空 files，不报 isError。"""
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("session.configure", {"lang": "en"})
+        assert r.is_error is False
+
+        r = await c.call_tool(
+            "find", {"pattern": "*.md", "path": "items/vocab"},
+            raise_on_error=False,
+        )
+        assert r.is_error is False, f"find 不应报错：{r.content[0].text}"
+        assert r.data["files"] == []
+
+    with mcp_client(body):
+        pass
+
+
+def test_grep_still_errors_on_path_escape(mcp_client):
+    """路径逃逸校验仍应报错（搜索类工具只降级"不存在"，不降级逃逸）。"""
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("session.configure", {"lang": "en"})
+        assert r.is_error is False
+
+        r = await c.call_tool(
+            "grep", {"query": "x", "path": "../escape.md"},
+            raise_on_error=False,
+        )
+        assert r.is_error is True
+        assert "escape" in r.content[0].text.lower()
+
+    with mcp_client(body):
+        pass
+
+
+def test_find_still_errors_on_path_escape(mcp_client):
+    """find 的路径逃逸校验仍应报错。"""
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("session.configure", {"lang": "en"})
+        assert r.is_error is False
+
+        r = await c.call_tool(
+            "find", {"pattern": "*.md", "path": ".."},
+            raise_on_error=False,
+        )
+        assert r.is_error is True
+        assert "escape" in r.content[0].text.lower()
+
+    with mcp_client(body):
+        pass

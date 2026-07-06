@@ -531,6 +531,9 @@ def _run_indexer(log_level: str = "info", log_path: Path | None = None) -> int:
                 },
                 "root": {"handlers": ["file"], "level": log_level.upper()},
                 "loggers": {
+                    "everlingo.mem.vault.mcp_server": {
+                        "handlers": ["file"], "level": "DEBUG", "propagate": False,
+                    },
                     "uvicorn": {"handlers": ["file"], "level": log_level.upper(), "propagate": False},
                     "uvicorn.error": {"handlers": ["file"], "level": log_level.upper(), "propagate": False},
                     "uvicorn.access": {"handlers": ["file"], "level": log_level.upper(), "propagate": False},

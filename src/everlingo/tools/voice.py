@@ -7,6 +7,8 @@ from typing import Any
 from langchain_core.tools import StructuredTool, tool
 from pydantic import BaseModel, Field
 
+from . import log_tool_call
+
 from ..tts import get_tts_provider
 
 logger = logging.getLogger(__name__)
@@ -44,6 +46,7 @@ def make_voice_speak_tool(channel: Any) -> StructuredTool:
     """
 
     @tool("voice_speak", args_schema=_VoiceSpeakArgs)
+    @log_tool_call("voice_speak")
     def voice_speak(text: str) -> str:
         """向用户发送该段文本的语音朗读。
 

@@ -27,6 +27,10 @@ def search(query: str) -> str:
 tool_name: xyz , parameters: argName1=argValue1,... , return: xyz
 ```
 
+- **logger**：`everlingo.tools`（`src/everlingo/tools/__init__.py` 的 `log_tool_call` 装饰器），经 `everlingo` 父 logger propagate 到 gateway 进程的 FileHandler，写入 `$workspace/logs/everlingo.log`。
+- **默认 level**：依赖 `sys_setting.logging_setting.log_level`，默认 `debug`；用户可在 `everlingo.yaml` 调高到 info/warn/error，此时 debug 日志被过滤（行为预期，非 bug）。
+- **装饰器位置**：`src/everlingo/tools/__init__.py:log_tool_call`，应应用于所有 toolset 工具的每个公开函数。`voice_speak` 为工厂函数 `make_voice_speak_tool` 生成的 inner function，同样需 `@log_tool_call("voice_speak")`。
+
 
 # Toolsets(工具集)
 

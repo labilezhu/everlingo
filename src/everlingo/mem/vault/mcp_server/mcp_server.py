@@ -33,7 +33,7 @@ from everlingo.mem.vault.search.search import search as do_search
 from everlingo.mem.vault.search.server import AppState
 from everlingo.utils.md_prompt_compiler import PackageSource, compile_prompt
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("everlingo.mem.vault.mcp_server")
 
 
 # 错误文案固定串（spec 强制）
@@ -517,8 +517,9 @@ def create_mcp_app(state: AppState) -> FastMCP:
             root = resolve_vault_path(sess.lang, path)
         except PathEscapeError as e:
             raise RuntimeError(str(e)) from e
+        # 搜索类工具：路径不存在时返回空匹配，不报错
         if not root.exists():
-            raise RuntimeError(f"path not found: {path!r}")
+            return {"query": query, "path": path, "matches": []}
         if root.is_file():
             files = [root]
         else:
@@ -563,8 +564,9 @@ def create_mcp_app(state: AppState) -> FastMCP:
             root = resolve_vault_path(sess.lang, path)
         except PathEscapeError as e:
             raise RuntimeError(str(e)) from e
+        # 搜索类工具：路径不存在时返回空文件列表，不报错
         if not root.exists():
-            raise RuntimeError(f"path not found: {path!r}")
+            return {"pattern": pattern, "path": path, "files": []}
         if root.is_file():
             files = [root]
             dirs = []

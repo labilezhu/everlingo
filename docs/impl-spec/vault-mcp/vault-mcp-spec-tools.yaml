@@ -299,6 +299,7 @@ tools:
     title: Search text
     description: |
       Search file contents.
+      When `path` does not exist, returns empty `matches` (not an error).
 
     inputSchema:
       type: object
@@ -348,6 +349,7 @@ tools:
     title: Find files
     description: |
       Find files by filename pattern.
+      When `path` does not exist, returns empty `files` (not an error).
 
     inputSchema:
       type: object
