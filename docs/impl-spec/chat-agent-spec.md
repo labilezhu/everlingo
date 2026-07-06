@@ -103,6 +103,16 @@ AIMessage(content="")                                                   # 最终
 ## Memory Extract
 每个 Chat Agent 实例，均有自己专属的 [Memory Extract Agent](/docs/impl-spec/memory-extract-agent-spec.md) 实例。用户从对话中提炼要记忆的对象。见 [Memory Extract Agent](/docs/impl-spec/memory-extract-agent-spec.md) 中的 “## 输入规范” 。
 
+### 用户要求记住某知识点时的行为契约
+
+当用户表达"记住 / 记下 / 帮我记"某 `target_lang` 知识点（单词/短语/语法点/语用）时，Chat Agent **必须先在本轮回复中产出该知识点的实际内容**（释义/解释/用法/举例，按上文「查单词」「翻译」要求用 `dest_lang` 给出），**然后**再附"已提交笔记请求"提示。
+
+**为什么不能只回"已提交笔记请求"**：
+
+Memory Extract Agent 的 `mean_summary` 真实性约束要求事实必须来自 `new_messages` 里的 `ToolMessage` 或 `AIMessage.content`（见 [memory-extract-agent-spec.md「mean_summary 真实性约束」](/docs/impl-spec/memory-extract-agent-spec.md#mean_summary-真实性约束)）。当前实现没有查词工具，释义完全由 LLM 在 `AIMessage.content` 中产出。如果 Chat Agent 只回"已提交笔记请求"而不产出释义，`new_messages` 中关于该知识点没有任何事实内容，下游要么抽不到，要么被迫自造（违反真实性约束）。两类失败都是同一根因的两种表现。
+
+纠正事项（用户写错被纠正）的场景天然满足事实来源（用户原句 + Agent 纠正都在本轮对话里），无需额外动作。
+
 ## Agent tools
 
 参考： [chat-agent-tools-spec.md](/docs/impl-spec/chat-agent-tools-spec.md)

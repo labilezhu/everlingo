@@ -316,6 +316,34 @@ def test_system_prompt_user_doc_whitespace_only_omitted(zh_en_profile, default_c
     assert "## 个性化偏好 (USER.md)" not in prompt
 
 
+def test_system_prompt_instructs_produce_content_before_ack(zh_en_profile, default_channel_metadata):
+    """当用户要求"记住"某 target_lang 知识点时，system prompt 必须引导 LLM
+    先在本轮回复中产出该知识点的实际内容（释义/解释），再附"已提交笔记请求"提示，
+    而非只回元信息。
+
+    原因：Memory Extract Agent 的 mean_summary 真实性约束要求事实必须来自
+    new_messages 中的 ToolMessage 或 AIMessage.content。当前实现没有查词工具，
+    释义完全由 LLM 在 AIMessage.content 中产出；若 Chat Agent 只回
+    "已提交笔记请求"而不产出释义，下游 Extract Agent 既无事实可依、又会因
+    约束过严而抽不到。
+    """
+    prompt = _build_system_prompt(zh_en_profile, "", default_channel_metadata)
+
+    # 必须明确要求"先产出"知识内容
+    assert "必须先在本轮回复中产出" in prompt
+    # 必须包含约定的提示文案
+    assert "已提交笔记请求" in prompt
+    # 必须明确禁止只回元信息
+    assert "不能" in prompt and "已提交笔记请求" in prompt
+    # 解释 must 在 ack 之前（行序约束）
+    must_idx = prompt.find("必须先在本轮回复中产出")
+    ack_idx = prompt.find("已提交笔记请求")
+    assert 0 <= must_idx < ack_idx, (
+        "释义产出要求应出现在「已提交笔记请求」提示之前，"
+        "确保 LLM 读到指令时先产出内容再附加提示"
+    )
+
+
 @pytest.mark.integration
 def test_multi_turn_conversation(agent_zh_en):
     """测试多轮会话：第二轮引用第一轮的上下文"""
