@@ -26,6 +26,7 @@ dependencies = [
     "unidic>=1.1.0",
     "httpx>=0.27.0",
     "sqlite-vec>=0.1.0",
+    "fastmcp>=2.0",
 ]
 
 [project.scripts]

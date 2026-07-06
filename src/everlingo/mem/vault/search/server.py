@@ -466,49 +466,81 @@ def _run_indexer(log_level: str = "info", log_path: Path | None = None) -> int:
     在调用前 init）。log_path 传入时把 uvicorn 日志重定向到该文件
     （$workspace/logs/indexer.log）；不传则走 uvicorn 默认 stderr。
     阻塞直至收到信号退出。返回 0。
+
+    进程内并发模型：主线程跑 FastAPI UDS REST server；另起 daemon 子线程
+    跑 MCP Streamable HTTP server（共享同一 AppState）。MCP URL 写
+    $workspace/indexer.mcp.url（见 valut-mcp-spec.md「部署形态」）。
+    ref: docs/impl-spec/vault-mcp/valut-mcp-spec.md
     """
     import logging.config
+    import threading
 
     import uvicorn as _uvicorn
 
     from .... import workspace
+    from ...vault.mcp_server import pick_free_port, run_mcp_server
 
     socket_path = workspace.indexer_socket_path()
     socket_path.parent.mkdir(parents=True, exist_ok=True)
     if socket_path.exists():
         socket_path.unlink()
-    app = run_server()
-    kwargs: dict = dict(
-        uds=str(socket_path),
-        log_level=log_level,
-        access_log=False,
-        lifespan="on",
+    mcp_port = pick_free_port("127.0.0.1")
+    mcp_url = f"http://127.0.0.1:{mcp_port}/mcp"
+    mcp_url_path = workspace.indexer_mcp_url_path()
+    mcp_url_path.parent.mkdir(parents=True, exist_ok=True)
+    mcp_url_path.write_text(mcp_url, encoding="utf-8")
+    logger.info("MCP server URL written: %s -> %s", mcp_url_path, mcp_url)
+
+    state = AppState(socket_path=socket_path)
+    app = create_app(state)
+
+    # 启动 MCP server 子线程（daemon=True，随主进程退出）
+    mcp_thread = threading.Thread(
+        target=run_mcp_server,
+        args=(state, "127.0.0.1", mcp_port),
+        name="mcp-server",
+        daemon=True,
     )
-    if log_path is not None:
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        kwargs["log_config"] = {
-            "version": 1,
-            "disable_existing_loggers": False,
-            "formatters": {
-                "default": {
-                    "format": "%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    mcp_thread.start()
+
+    try:
+        kwargs: dict = dict(
+            uds=str(socket_path),
+            log_level=log_level,
+            access_log=False,
+            lifespan="on",
+        )
+        if log_path is not None:
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            kwargs["log_config"] = {
+                "version": 1,
+                "disable_existing_loggers": False,
+                "formatters": {
+                    "default": {
+                        "format": "%(asctime)s %(levelname)s [%(name)s] %(message)s",
+                    },
                 },
-            },
-            "handlers": {
-                "file": {
-                    "class": "logging.FileHandler",
-                    "formatter": "default",
-                    "filename": str(log_path),
-                    "mode": "a",
-                    "encoding": "utf-8",
+                "handlers": {
+                    "file": {
+                        "class": "logging.FileHandler",
+                        "formatter": "default",
+                        "filename": str(log_path),
+                        "mode": "a",
+                        "encoding": "utf-8",
+                    },
                 },
-            },
-            "root": {"handlers": ["file"], "level": log_level.upper()},
-            "loggers": {
-                "uvicorn": {"handlers": ["file"], "level": log_level.upper(), "propagate": False},
-                "uvicorn.error": {"handlers": ["file"], "level": log_level.upper(), "propagate": False},
-                "uvicorn.access": {"handlers": ["file"], "level": log_level.upper(), "propagate": False},
-            },
-        }
-    _uvicorn.run(app, **kwargs)
+                "root": {"handlers": ["file"], "level": log_level.upper()},
+                "loggers": {
+                    "uvicorn": {"handlers": ["file"], "level": log_level.upper(), "propagate": False},
+                    "uvicorn.error": {"handlers": ["file"], "level": log_level.upper(), "propagate": False},
+                    "uvicorn.access": {"handlers": ["file"], "level": log_level.upper(), "propagate": False},
+                },
+            }
+        _uvicorn.run(app, **kwargs)
+    finally:
+        # 清理 mcp.url 文件（子线程 daemon 会随进程退出）
+        try:
+            mcp_url_path.unlink(missing_ok=True)
+        except Exception as e:  # noqa: BLE001
+            logger.debug("清理 mcp.url 失败: %s", e)
     return 0

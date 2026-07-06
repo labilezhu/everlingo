@@ -1,0 +1,621 @@
+tools:
+
+########### Session ################
+# 所有工具（fs + search）的 path 解析默认相对「会话 lang vault 根」
+# ($workspace/memory/languages/$lang/vault/)。会话 lang 由 session.configure
+# 工具设定；未调用 session.configure 时所有工具返回错误
+# "session not configured: call session.configure first"。
+# session.configure 设置的状态按 MCP stream 生命周期存活，stream 关闭即丢弃。
+
+  - name: session.configure
+    title: Configure session defaults
+    description: |
+      Set session-level defaults for subsequent tool calls in this MCP session.
+      MUST be called before any fs tool (ls/read/write/grep/find/stat/mkdir/
+      delete/tree) and the search tool, otherwise those tools return error
+      "session not configured: call session.configure first".
+      Re-callable to switch defaults (e.g. switch lang mid-session).
+      Session state lives for the lifetime of this MCP stream; closing the
+      stream discards it (no persistence).
+    inputSchema:
+      type: object
+      properties:
+        lang:
+          type: string
+          description: |
+            目标学习语言代码 (en / ja / zh-CN / ...)。
+            后续 fs 工具的 vault 根、search 工具的 lang 默认值均取此。
+            必须是 workspace 已存在的 lang（indexer 启动时按
+            $workspace/memory/languages/*/ 确定可用 lang 集合；请求 lang 不在集合内返回错误）。
+        interface_language:
+          type: string
+          description: |
+            界面语言代码 (zh-CN / en / ...)，表示用户界面使用的语言。
+            供将来 prompt / 工具描述本地化使用。
+      required: []
+    outputSchema:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          description: 固定 true；configure 失败时返回 isError=true + 错误文本。
+        lang:
+          type: string
+          description: 实际生效的会话 lang（回显）。
+        interface_language:
+          type: string
+          description: 实际生效的会话界面语言（若传入则回显，否则回显上一次 configure 值或 null）。
+      required:
+        - ok
+        - lang
+
+########### Filesystem ################
+
+  - name: ls
+    title: List directory
+    description: |
+      List files and directories under a vault directory.
+      Only paths inside the vault are allowed.
+
+    inputSchema:
+      type: object
+      properties:
+        path:
+          type: string
+          description: |
+            Relative directory path.
+            Examples:
+              ""
+              items
+              items/vocab
+              events/2026
+        recursive:
+          type: boolean
+          default: false
+      required:
+        - path
+    outputSchema:
+      type: object
+      properties:
+        path:
+          type: string
+          description: 请求的目录相对路径（回显）。
+        entries:
+          type: array
+          description: 目录直接子项列表（recursive=false 时不递归；recursive=true 时为扁平化的所有后代路径）。
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                description: 文件或目录名（不含目录前缀）。
+              path:
+                type: string
+                description: 相对会话 lang vault 根的路径。
+              type:
+                type: string
+                enum: [file, dir]
+              size_bytes:
+                type: integer
+                description: 文件字节数；目录为 null。
+            required:
+              - name
+              - path
+              - type
+      required:
+        - path
+        - entries
+
+  - name: read
+    title: Read file
+    description: |
+      Read a markdown file from the vault.
+
+    inputSchema:
+      type: object
+      properties:
+        path:
+          type: string
+          description: Relative markdown file path.
+      required:
+        - path
+    outputSchema:
+      type: object
+      properties:
+        path:
+          type: string
+          description: 读取的文件相对路径（回显）。
+        content:
+          type: string
+          description: 文件全文文本。文件不存在时 isError=true + 错误文本，content 为空串。
+        size_bytes:
+          type: integer
+          description: 文件字节数。
+      required:
+        - path
+        - content
+
+  - name: write
+    title: Write file
+    description: |
+      Create or overwrite a markdown file.
+
+    inputSchema:
+      type: object
+      properties:
+        path:
+          type: string
+        content:
+          type: string
+      required:
+        - path
+        - content
+    outputSchema:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          description: 写入是否成功。
+        path:
+          type: string
+          description: 写入的文件相对路径（回显）。
+        bytes_written:
+          type: integer
+          description: 实际写入字节数。
+      required:
+        - ok
+        - path
+
+  - name: append
+    title: Append file
+    description: |
+      Append content to the end of an existing markdown file.
+
+    inputSchema:
+      type: object
+      properties:
+        path:
+          type: string
+        content:
+          type: string
+      required:
+        - path
+        - content
+    outputSchema:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          description: 追加是否成功。
+        path:
+          type: string
+          description: 追加的文件相对路径（回显）。
+        bytes_appended:
+          type: integer
+          description: 实际追加字节数。
+        new_size_bytes:
+          type: integer
+          description: 追加后文件总字节数。
+      required:
+        - ok
+        - path
+
+  - name: grep
+    title: Search text
+    description: |
+      Search file contents.
+
+    inputSchema:
+      type: object
+      properties:
+        query:
+          type: string
+        path:
+          type: string
+          default: ""
+        ignoreCase:
+          type: boolean
+          default: true
+      required:
+        - query
+    outputSchema:
+      type: object
+      properties:
+        query:
+          type: string
+          description: 查询正则（回显）。
+        path:
+          type: string
+          description: 搜索根目录相对路径（回显）。
+        matches:
+          type: array
+          description: 命中列表。
+          items:
+            type: object
+            properties:
+              file_path:
+                type: string
+                description: 命中文件相对会话 lang vault 根的路径。
+              matched_text:
+                type: string
+                description: 命中的文本片段。
+              line_number:
+                type: integer
+                description: 命中行号（1-indexed）。
+            required:
+              - file_path
+              - matched_text
+      required:
+        - query
+        - matches
+
+  - name: find
+    title: Find files
+    description: |
+      Find files by filename pattern.
+
+    inputSchema:
+      type: object
+      properties:
+        pattern:
+          type: string
+          description: |
+            Glob pattern.
+            Examples:
+              *.md
+              *ambiguous*
+              present-*
+        path:
+          type: string
+          default: ""
+      required:
+        - pattern
+    outputSchema:
+      type: object
+      properties:
+        pattern:
+          type: string
+          description: glob 模式（回显）。
+        path:
+          type: string
+          description: 搜索根目录相对路径（回显）。
+        files:
+          type: array
+          description: 命中文件列表（目录递归）。
+          items:
+            type: object
+            properties:
+              file_path:
+                type: string
+                description: 命中文件相对会话 lang vault 根的路径。
+              is_dir:
+                type: boolean
+                description: true=目录，false=文件。
+            required:
+              - file_path
+              - is_dir
+      required:
+        - pattern
+        - files
+
+  - name: stat
+    title: File metadata
+    description: |
+      Return file metadata.
+
+    inputSchema:
+      type: object
+      properties:
+        path:
+          type: string
+      required:
+        - path
+    outputSchema:
+      type: object
+      properties:
+        path:
+          type: string
+          description: 文件相对路径（回显）。
+        exists:
+          type: boolean
+          description: 文件是否存在。
+        is_dir:
+          type: boolean
+          description: true=目录，false=文件；不存在时为 null。
+        size_bytes:
+          type: integer
+          description: 字节数；目录或不存在时为 null。
+        create_time:
+          type: string
+          description: 创建时间，格式 `YYYY-MM-DD HH:MM:SS`；不存在时为 null。
+        modify_time:
+          type: string
+          description: 修改时间，格式 `YYYY-MM-DD HH:MM:SS`；不存在时为 null。
+      required:
+        - path
+        - exists
+
+  - name: mkdir
+    title: Create directory
+    description: |
+      Create directory recursively.
+
+    inputSchema:
+      type: object
+      properties:
+        path:
+          type: string
+      required:
+        - path
+    outputSchema:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          description: 创建是否成功（目录已存在视为成功）。
+        path:
+          type: string
+          description: 创建的目录相对路径（回显）。
+      required:
+        - ok
+        - path
+
+  - name: delete
+    title: Delete file
+    description: |
+      Delete a file.
+
+    inputSchema:
+      type: object
+      properties:
+        path:
+          type: string
+      required:
+        - path
+    outputSchema:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          description: 删除是否成功（文件不存在视为成功）。
+        path:
+          type: string
+          description: 删除的文件相对路径（回显）。
+      required:
+        - ok
+        - path
+
+  - name: tree
+    title: Directory tree
+
+    inputSchema:
+      type: object
+      properties:
+        path:
+          type: string
+          default: ""
+        depth:
+          type: integer
+          default: 2        
+    outputSchema:
+      type: object
+      properties:
+        path:
+          type: string
+          description: 根目录相对路径（回显）。
+        depth:
+          type: integer
+          description: 实际渲染的最大深度（回显）。
+        entries:
+          type: array
+          description: 目录树（递归嵌套）。
+          items:
+            $ref: "#/$defs/TreeEntry"
+      required:
+        - path
+        - entries
+      $defs:
+        TreeEntry:
+          type: object
+          properties:
+            name:
+              type: string
+              description: 文件或目录名。
+            path:
+              type: string
+              description: 相对会话 lang vault 根的路径。
+            type:
+              type: string
+              enum: [file, dir]
+            size_bytes:
+              type: integer
+              description: 文件字节数；目录为 null。
+            children:
+              type: array
+              description: 子项（仅 type=dir 且未达 depth 时非空）。
+              items:
+                $ref: "#/$defs/TreeEntry"
+          required:
+            - name
+            - path
+            - type
+
+######################################
+
+  - name: search
+    title: hybrid search (full-text + embedding)
+    description: |
+      Search the memory vault. Supports exact (full-text) / semantic
+      (embedding) / hybrid (mixed) modes; default mode=hybrid (recommended,
+      see search-api-spec.md「一般情况下，优先使用 hybrid 混合搜索」).
+
+      搜索代理到 indexer 进程内 `search.py:do_search(conn, ...)`，按 lang
+      取对应 lang 的 SQLite RW 连接（与 HTTP `POST /{lang}/search` 端点
+      同源，但因 MCP server 与 indexer 同进程，走进程内直调不经 HTTP/UDS）。
+
+      输入 q 先经同 `tokenize()` 处理再拼 MATCH 表达式（FTS 侧分词一致）。
+
+      响应 hits 字段：
+        - ulid: 文档 ULID
+        - kind: item | event（匹配过滤条件回显）
+        - lang: 命中结果所属目标学习语言（由 indexer 按会话 lang 回填）
+        - item_type: kind=item 时 vocab/phrase/grammar/pragmatics/others；kind=event 为 null
+        - file_path: 相对该语言 vault 根的路径，不含 {lang}/ 前缀（可用
+          read/write 等 fs 工具读写）
+        - title: 文档标题
+        - score: 相关性分数（exact=BM25 负值，semantic=余弦相似度 0~1，hybrid=归一化融合分）
+        - source: "fts" | "vec" | "hybrid"
+        - chunk: 匹配到的块说明（exact 模式为 null）
+            - chunk_id / section_title / section_kind(frontmatter|其它)
+            - char_offset: 匹配块在 markdown 文件主体(不含 frontmatter)中的字符 offset
+            - text: 匹配块文本
+        - snippet: 匹配块文本
+
+      精简示例（hybrid）:
+        request:
+          {"q":"god","kind":"item","mode":"hybrid","limit":4}
+        response (节选):
+          {"hits":[{"ulid":"01K...","kind":"item","lang":"en",
+            "item_type":"vocab","file_path":"items/vocab/god--01K....md",
+            "title":"\"god\" 释义","score":0.0164,"source":"hybrid","chunk":null,
+            "snippet":"# god\n\n## 给我的解释\n..."}],
+           "count":2,"took_ms":1056.8}
+
+      完整示例（含 chunk 字段）见 valut-mcp-spec.md「示例」节。
+
+    inputSchema:
+      type: object
+      properties:
+        q:
+          type: string
+          description: 要搜索的文本或语义。
+        lang:
+          type: string
+          description: |
+            目标学习语言代码 (en/ja/...)。省略 = 取 session.configure 设定的会话 lang。
+            显式传入可覆盖会话 lang（跨 lang 检索）。
+        kind:
+          type: string
+          enum: [item, event]
+          description: |
+            匹配过滤条件：memory vault 文档分类。
+              - item : 知识类文档
+              - event : 事件类文档
+        item_type:
+          type: string
+          enum: [vocab, phrase, grammar, pragmatics, others]
+          description: |
+            匹配过滤条件：知识类型。仅 kind=item 时有效；kind=event 时为 null。
+        tags:
+          type: array
+          items:
+            type: string
+          description: 匹配过滤条件：按 frontmatter tags 过滤。
+        mode:
+          type: string
+          enum: [exact, semantic, hybrid]
+          default: hybrid
+          description: |
+            搜索模式：
+              - exact    : 全文精确搜索
+              - semantic : 语义搜索
+              - hybrid   : 混合搜索（默认，混合以上两种搜索的结果）
+        limit:
+          type: integer
+          default: 10
+          description: 搜索返回结果数限制。
+      required:
+        - q
+    outputSchema:
+      type: object
+      properties:
+        hits:
+          type: array
+          description: 搜索命中结果列表，按 score 排序。
+          items:
+            type: object
+            properties:
+              ulid:
+                type: string
+                description: 文档 ULID。
+              kind:
+                type: string
+                enum: [item, event]
+                description: 匹配过滤条件回显。
+              lang:
+                type: string
+                description: 命中结果所属目标学习语言（由 indexer 按会话 lang 回填，不来自 documents 列）。
+              item_type:
+                type: string
+                enum: [vocab, phrase, grammar, pragmatics, others]
+                description: 知识类型。kind=item 时取上述值；kind=event 为 null。
+              file_path:
+                type: string
+                description: 相对该语言 vault 根的路径，不含 {lang}/ 前缀。
+              title:
+                type: string
+                description: 文档标题。
+              score:
+                type: number
+                description: |
+                  相关性分数。不同 mode 下分值范围/含义不同：
+                  exact=BM25 负值（越小越相关），semantic=余弦相似度 0~1（越大越相关），
+                  hybrid=归一化融合分（0~1，越大越相关）。
+              source:
+                type: string
+                enum: [fts, vec, hybrid]
+                description: 命中来源。exact 模式="fts"，semantic="vec"，hybrid="hybrid"。
+              chunk:
+                description: |
+                  匹配到的块说明。exact 模式固定为 null；semantic / hybrid 模式可能为 null 或块对象。
+                oneOf:
+                  - type: "null"
+                  - type: object
+                    properties:
+                      chunk_id:
+                        type: integer
+                        description: chunk 在该文档内的序号。
+                      section_title:
+                        type: string
+                        description: 块所属小节标题。
+                      section_kind:
+                        type: string
+                        description: |
+                          块所属小节类型。
+                          frontmatter=markdown 文件的 frontmatter；其它=markdown 文件主体的小节。
+                      char_offset:
+                        type: integer
+                        description: |
+                          匹配块在 markdown 文件主体（不含 frontmatter）中的字符 offset。
+                          section_kind=frontmatter 时总为 0。
+                      text:
+                        type: string
+                        description: 匹配块文本。
+                    required:
+                      - chunk_id
+                      - section_title
+                      - section_kind
+                      - char_offset
+                      - text
+              snippet:
+                type: string
+                description: 匹配到的块文本（与 chunk.text 同源；exact 无 chunk 时取整文件摘要）。
+            required:
+              - ulid
+              - kind
+              - lang
+              - file_path
+              - title
+              - score
+              - source
+              - snippet
+        count:
+          type: integer
+          description: hits 数量（== len(hits)）。
+        took_ms:
+          type: number
+          description: 搜索耗时（毫秒）。
+      required:
+        - hits
+        - count
+        - took_ms

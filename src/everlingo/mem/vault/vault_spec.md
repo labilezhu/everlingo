@@ -18,7 +18,7 @@ items/ # 知识点类 memory items
     present-perfect--01JZABD001.md
   pragmatics/ # 语用
   others/ # 其它分类
-tmp/ # 程序内部使用的临时文件，没有用户数据价值。watcher 不索引此目录（见 search-spec）
+tmp/ # 程序内部使用的临时文件，没有用户数据价值。不索引此目录
 ```
 
 ## Markdown 文件使用什么语言编写

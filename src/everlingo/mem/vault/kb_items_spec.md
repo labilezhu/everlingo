@@ -24,9 +24,9 @@
 ### slug 基础规则
 用于将来生成 wiki 静态网站时作为人类友好的 url 部分。使用 url 安全的英文字符集(所以必要时需要翻译成英文)。但不能使用各操作系统或 url 要转义或不安全的文件名字符，如有，去掉之。空格变为"-"。
 
-## 增加 Markdown Frontmatter 字段
+## Markdown Frontmatter 字段
 
-所有 kb item frontmatter 字段（**必选**）：
+所有 frontmatter 字段（**必选**）：
 
 字段示例：
 ```yaml
@@ -47,13 +47,19 @@ tags:
 
 字段说明：
 ulid: 同文件命名格式中的 `ulid`。保证稳定唯一。
-title: 使用`界面语言`，限一句话，描述本文件的知识点。用于语义搜索和 full text search。
-description: 同 title。OKF `description` 标准槽位，单句摘要。
+title: 使用`界面语言`，限一句话，描述本文件的知识点。用于语义搜索和 full text search。 OKF `title` 标准槽位，单句摘要。
+description: 使用`界面语言`，限最多两句话，描述本文件的知识点。用于语义搜索和 full text search。 OKF `description` 标准槽位，单句摘要。
 description_in_target_lang: 使用`目标学习语言`，限一句话，描述本文件的知识点。vault 扩展键（OKF 无对应字段）。用于 full text search。
 created_at: 创建时间，ISO 8601。
 timestamp: update time，使用格式 ISO 8601。OKF `timestamp` 标准槽位。
 schema_version: int。当前 frontmatter schema 版本。
-slug: 下文中每类知识点，都有自己的 slug 提取说明。
+slug: 下文中每类知识点，都有自己的 slug 说明。
+type: 知识类型(item type): 对应不同子目录
+- vocab
+- phrase
+- grammar
+- pragmatics
+- others
 
 ## 文件命名
 
@@ -73,8 +79,8 @@ te-form--01JZABE001.md
 
 注意：
 
-- `slug` 文件名主体部分，方便人类找到文件。同 “Markdown Frontmatter 字段” 的 `slug`。
-- `ulid` 保证稳定唯一；。同 “Markdown Frontmatter 字段” 的 `ulid`。
+- `slug` 文件名主体部分，方便人类找到文件。
+- `ulid` 保证稳定唯一。
   - 文件名改变时也能通过 `ulid` 追踪；
   - 避免同名词条冲突。
 
@@ -105,12 +111,13 @@ related:
 
 ## 知识类型说明
 
-知识类型 item types: 对应不同子目录
+知识类型(`type` Markdown Frontmatter): 对应不同子目录
 - vocab
 - phrase
 - grammar
 - pragmatics
 - others
+
 
 ### vocab 文件 vocab/
 
