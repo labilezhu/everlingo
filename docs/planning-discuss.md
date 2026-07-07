@@ -100,3 +100,13 @@ Indexer 报错： Error calling tool 'grep' RuntimeError: path not found: 'items
 ```
 
  /home/labile/.everlingo/workspaces/default/memory/languages/en/vault/items/vocab/ambiguous--01KWVVP9XE7P4ETXHA77BJ4PR5.md 文件存在
+
+ ---
+
+Workspace: Everlingo 的工作空间。当前运行的 Everlingo 实例只有一个 workspace 。是一个文件系统的目录。 这个目录以下以 $workspace 指代。
+Memory vault : Everlingo 个人语言学习笔记库，以语言知识点 markdown 文件组成的，有规范目录结构和文件结构组成的目录。一个每个 Memory vault 只保存一种指定的 `目标学习语言` 的知识。 目录位于 $workspace/memory/languages/$lang/vault 。其中 $lang 的定义在下文。
+
+1. **定位 items 目录**：`items/<type>/`（如 `items/vocab/`）。
+
+---
+

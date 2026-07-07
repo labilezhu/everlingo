@@ -79,7 +79,7 @@ def mem_gen_id() -> str:
 # MCP server 共 14 个工具；writer 只需要 fs 子集（不含 search/stat/tree/mkdir）。
 # load_mcp_tools 加载全部 14 个后按名称过滤。
 WANTED_TOOLS: frozenset[str] = frozenset(
-    {"read", "write", "append", "delete", "ls", "find", "grep"}
+    {"vault_mcp_read", "vault_mcp_write", "vault_mcp_append", "vault_mcp_delete", "vault_mcp_ls", "vault_mcp_find", "vault_mcp_search", "vault_mcp_grep"}
 )
 
 
@@ -130,10 +130,10 @@ async def mcp_vault_connection(
     """
     url = _read_mcp_url()
     client = MultiServerMCPClient(
-        {"vault": {"transport": "http", "url": url}}
+        {"vault_mcp": {"transport": "http", "url": url}}
     )
     try:
-        async with client.session("vault") as session:
+        async with client.session("vault_mcp") as session:
             cfg_result = await session.call_tool(
                 "session.configure", {"lang": lang}
             )
@@ -146,7 +146,7 @@ async def mcp_vault_connection(
                 raise IndexerOfflineError(
                     f"session.configure failed: {err_text}"
                 )
-            all_tools = await load_mcp_tools(session)
+            all_tools = await load_mcp_tools(session=session, server_name="vault_mcp", tool_name_prefix=True)
             tools = [t for t in all_tools if t.name in WANTED_TOOLS] + [
                 mem_gen_id
             ]

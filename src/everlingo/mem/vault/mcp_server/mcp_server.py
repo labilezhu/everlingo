@@ -67,14 +67,12 @@ search 要点：
 - 命中结果的 `file_path` 相对当前 lang vault 根，可直接喂给 `read` / `write` 等 fs 工具。
 
 副作用与生命周期：
-- 写入 / 删除 / 改目录的文件变更由 indexer 的 watcher 自动重新索引；**不需要**也**无法**手动触发 index。
-- 同步触发的：create_vault 完成后会同步把该 lang 注册到 indexer 的 LangState。
 - 会话状态按 MCP stream 生命周期存活，stream 关闭即丢弃；无持久化。
 
 vault 目录结构规范和各类文件格式说明：
 可以调用 read(path="VAULT_SPEC.md") 工具，返回的 content 为 vault 目录结构规范和各类文件格式说明。调用 search / fs 工具 前，先学习规范和 vault 的知识。
 
-典型用法：`list_vaults` → `create_vault(lang="en")` → `session.configure(lang="en")`  → `read(path="VAULT_SPEC.md")` → `search(q="...", mode="hybrid")` → `read(path=<hit.file_path>)` → `append(path=..., content=...)`。
+典型用法：`list_vaults` → `create_vault(lang="en")` → `session.configure(lang="en")`  → `read(path="VAULT_SPEC.md")` → `search(q="...", mode="hybrid")` → `read(path=<hit.file_path>)` → `write(path=..., content=...)`。
 """
 
 # Lang 合法性校验缓存：避免每次 session.configure 都 walk filesystem

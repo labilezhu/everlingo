@@ -26,6 +26,19 @@
             "justMyCode": true
         },
         {
+            "name": "indexer",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "everlingo",
+            "args": ["mem", "indexer", "start"],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },        
+        {
             "name": "gateway --channel_wechat",
             "type": "debugpy",
             "request": "launch",
