@@ -4,7 +4,7 @@
 # 工具：
 #   - list_vaults / create_vault：workspace 级 vault 管理，豁免 session.configure
 #   - session.configure：设定会话默认 lang + interface_language（stream 级）
-#   - 9 个 fs 工具（ls/read/write/append/grep/find/stat/mkdir/delete/tree）；
+#   - 10 个 fs 工具（ls/read/write/append/grep/find/stat/mkdir/delete/tree）；
 #     write 工具在落盘前调 normalize_frontmatter_text 归一化 frontmatter。
 #   - search：进程内直调 search.search(conn, ...)
 # 所有 fs/search 工具在未 configure 时返回 isError=true + 固定文案；
@@ -47,11 +47,12 @@ Everlingo Memory Vault MCP Server
 这是 Everlingo 个人语言学习笔记库（按学习语言分目录的 markdown 知识库）的 MCP 接口。
 Vault 按学习语言分目录：$workspace/memory/languages/$lang/vault/（lang = en / ja / ...）。
 
-工具分组（共 14 个）：
+工具分组（共 15 个）：
 - `session.configure` —— 设置会话级默认 lang（必须先调用）。
-- fs 工具（9 个）—— `ls` / `read` / `write` / `append` / `grep` / `find` / `stat` / `mkdir` / `delete` / `tree`，操作 vault 下的 markdown 文件。
+- fs 工具（10 个）—— `ls` / `read` / `write` / `append` / `grep` / `find` / `stat` / `mkdir` / `delete` / `tree`，操作 vault 下的 markdown 文件。
 - `search` —— 全文 / 语义 / 混合搜索 vault 文档（默认 mode=hybrid）。
 - vault 管理（2 个）—— `list_vaults` / `create_vault`，workspace 级工具，**不需要**先调 session.configure。
+- Utility（1 个）—— `gen_id`，生成 26 字符 ULID 随机 id。workspace 级，**不需要**先调 session configure。
 
 工作流：
 1. 大部分工具（fs 9 个 + `search`）必须先调 `session.configure(lang="<lang>")` 设会话 lang；否则返回错误 `session not configured: call session.configure first`。
@@ -68,6 +69,7 @@ search 要点：
 
 副作用与生命周期：
 - 会话状态按 MCP stream 生命周期存活，stream 关闭即丢弃；无持久化。
+- 文件变更由 indexer watcher 自动重新索引，agent 不需要也**无法**手动触发 index。
 
 vault 目录结构规范和各类文件格式说明：
 可以调用 read(path="VAULT_SPEC.md") 工具，返回的 content 为 vault 目录结构规范和各类文件格式说明。调用 search / fs 工具 前，先学习规范和 vault 的知识。
@@ -207,11 +209,34 @@ def _log_mcp_tool(tool_name: str):
     return decorator
 
 
+# ── ULID 生成 ─────────────────────────────────────────────────────────
+
+# ref: Crockford base32（移除 4 个元音 ILOU 避免拼出英文单词）
+_CROCKFORD_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+
+
+def _gen_ulid() -> str:
+    """生成标准 26 字符 ULID。前 10 字符 = ms 时间戳，后 16 字符 = 随机。"""
+    import os, time
+
+    ts_ms = int(time.time() * 1000) & 0xFFFFFFFFFFFF
+    rand80 = int.from_bytes(os.urandom(10), "big")
+
+    def _encode(num: int, length: int) -> str:
+        chars = []
+        for _ in range(length):
+            chars.append(_CROCKFORD_ALPHABET[num & 0x1F])
+            num >>= 5
+        return "".join(reversed(chars))
+
+    return _encode(ts_ms, 10) + _encode(rand80, 16)
+
+
 # ── FastMCP app ──────────────────────────────────────────────────────
 
 
 def create_mcp_app(state: AppState) -> FastMCP:
-    """注册 14 个工具，挂载到共享的 AppState。
+    """注册 15 个工具，挂载到共享的 AppState。
 
     工具实现约定：
     - 成功：返回 dict（FastMCP 自动包成 content+structuredContent）
@@ -307,6 +332,22 @@ def create_mcp_app(state: AppState) -> FastMCP:
             "spec_written": spec_written,
             "registered": registered,
         }
+
+    # ── Utility（workspace 级纯计算，豁免 session.configure）─────────
+
+    @mcp.tool(
+        name="gen_id",
+        title="Generate ULID",
+        description=(
+            "Generate a 26-character Crockford base32 ULID. "
+            "First 10 chars = millisecond timestamp, last 16 chars = random. "
+            "Pure computation, no vault access. "
+            "Workspace-level tool: does NOT require session.configure."
+        ),
+    )
+    @_log_mcp_tool("gen_id")
+    async def gen_id_tool() -> dict[str, Any]:
+        return {"ulid": _gen_ulid()}
 
     # ── session.configure ────────────────────────────────────────────
 

@@ -9,7 +9,7 @@
 # （由 indexer 进程内嵌的 FastMCP Streamable HTTP server 提供）。
 # 客户端适配见 mem_writer_mcp_client.py：
 #   - mcp_vault_connection(lang): per-entry 异步上下文，yield (session, tools)
-#   - mem_gen_id: 客户端 ULID 生成工具（MCP server 不含此工具）
+#   - vault_mcp_gen_id: ULID 生成工具（MCP server gen_id 工具经前缀加载）
 # 写入由 indexer 的 watcher 自动重新索引，无需手动 index_file。
 
 from __future__ import annotations
@@ -64,7 +64,7 @@ def _build_writer_system_prompt() -> str:
     与 chat-agent-spec.md「*.md 注入需降级标题」约定一致。
 
     工具名约定：使用 Vault MCP Server 暴露的 fs 工具
-    原名（`vault_mcp_read` / `vault_mcp_write` / `vault_mcp_search` / ...）+ 客户端工具 `mem_gen_id`。
+    原名（`vault_mcp_read` / `vault_mcp_write` / `vault_mcp_search` / ...）+ Utility 工具 `vault_mcp_gen_id`。
     """
     entry_spec_doc = shift_headings(
         compile_prompt(
@@ -142,7 +142,7 @@ memory vault 中的 markdown 文件正文，主要语言必须使用 entry 的 `
 
 ## 工具说明
 
-### 工具清单（Vault MCP Server fs 工具 + 客户端工具）
+### 工具清单（Vault MCP Server fs 工具 + Utility 工具）
 
 你只能使用下列工具操作 memory vault：
 
@@ -157,8 +157,8 @@ memory vault 中的 markdown 文件正文，主要语言必须使用 entry 的 `
 
 注意，文件操作类工具的参数 path 。均只能使用相对于 Memory Vault 的路径，如 `items/vocab` 。
 
-本地调用类：
-- mem_gen_id(简称 gen_id)
+Utility 工具：
+- vault_mcp_gen_id(简称 gen_id)
 
 Memory Vault 搜索类：
 - vault_mcp_search(简称 search)
@@ -186,7 +186,7 @@ vault 目录结构规范和各类文件格式说明：
 ### 工具调用约束
 
 - 对**目标 markdown 文件**：`read` 至多 1 次、`write` 至多 1 次。
-- `mem_gen_id` 仅在新建条目时调用 1 次。
+- `vault_mcp_gen_id` 仅在新建条目时调用 1 次。
 - 不要创建 `tmp/` 下的临时文件（除非确有需要）
 
 ## 单个 entry 处理流程
@@ -199,14 +199,14 @@ vault 目录结构规范和各类文件格式说明：
    2. 按 memory vault 结构要求，在内存中合并 entry 的内容到条目文件。
    3. `write(file_path, new_content)` 写入。
 3. **如果未命中**（新建条目）：
-   1. `mem_gen_id()` 取一个 ULID（26 字符）作为 frontmatter `ulid` 与文件名 ulid 部分。
+    1. `vault_mcp_gen_id()` 取一个 ULID（26 字符）作为 frontmatter `ulid` 与文件名 ulid 部分。
    2. 按 memory vault 结构要求，构造 slug。
-   3. 文件名 = `{slug}--{ulid}.md`。
+   3. 文件名按 memory vault 结构要求。
    4. 按 memory vault 结构 中对应 type 的模板构造 frontmatter + 正文。
    5. `write(file_path, content)` 创建并写入文件。
 
 如需在 `tmp/` 目录下创建临时文件（例如先写一个临时草稿再合并），用
-`write(path="tmp/tmp_<mem_gen_id()>.md", content="...")`；但通常
+`write(path="tmp/tmp_<vault_mcp_gen_id()>.md", content="...")`；但通常
 直接写目标文件即可，不需要 tmp 步骤。
 
 
@@ -437,7 +437,7 @@ class MemoryWriterAgent:
 
         ref: memory-writer-agent-spec.md — 更新知识点类 memory items
         per-entry 打开一条 MCP stream，调用 session.configure 设定 lang，
-        加载过滤后的 fs 工具 + mem_gen_id 工具，构建 langchain agent，
+        加载过滤后的 fs 工具 + vault_mcp_gen_id 工具，构建 langchain agent，
         调 ainvoke。整个流程跑在 daemon thread 的 asyncio.run 内。
         """
         payload = _render_entry_payload(entry)

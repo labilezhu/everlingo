@@ -133,11 +133,11 @@ def mcp_inmem_server(tmp_mcp_workspace: Path):
                     await c.call_tool(
                         "session.configure", {"lang": lang}
                     )
-                    all_tools = await load_mcp_tools(c.session)
+                    all_tools = await load_mcp_tools(c.session, server_name="vault_mcp", tool_name_prefix=True)
                     tools = [
                         t for t in all_tools
                         if t.name in mem_writer_mcp_client.WANTED_TOOLS
-                    ] + [mem_writer_mcp_client.mem_gen_id]
+                    ]
                     yield c.session, tools
 
             with patch(

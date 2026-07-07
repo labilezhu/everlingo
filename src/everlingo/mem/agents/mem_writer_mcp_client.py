@@ -5,13 +5,13 @@
 # 用 langchain-mcp-adapters 的 MultiServerMCPClient 驱动 Streamable HTTP
 # transport，按 per-entry 打开 stream，调用 session.configure 后
 # 加载过滤后的 fs 工具供 LLM agent 使用。
+# ulid 生成走 MCP Server 的 gen_id 工具（workspace 级，豁免 configure）。
 #
 # 工具清单：
 #   - mcp_vault_connection(lang): 异步上下文管理器，yield (session, tools)。
 #     - session: 供代码直接 call_tool（events 写入流程）。
 #     - tools: 供 langchain agent（kb item 写入流程），
-#       内容为 WANTED_TOOLS 子集 + mem_gen_id。
-#   - mem_gen_id: 客户端纯计算 ULID 工具（MCP server spec 无此工具）。
+#       内容为 WANTED_TOOLS 子集（含 vault_mcp_gen_id）。
 #
 # 错误约定：
 #   - IndexerOfflineError: indexer 未启动 / URL 文件不存在 / 连不上 MCP server。
@@ -20,12 +20,9 @@
 from __future__ import annotations
 
 import logging
-import os
-import time
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator
 
-from langchain_core.tools import tool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.tools import load_mcp_tools
 from mcp import ClientSession
@@ -33,12 +30,6 @@ from mcp import ClientSession
 from ... import workspace
 
 logger = logging.getLogger(__name__)
-
-
-# ref: memory-writer-agent-spec.md — mem_gen_id · 类似 01JZABD123 格式
-# 标准 ULID: 26 字符 Crockford base32 = 48-bit ms 时间戳 + 80-bit 随机数。
-# 客户端纯计算，不经 MCP server（MCP spec tools.yaml 无此工具）。
-_CROCKFORD_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
 
 class IndexerOfflineError(RuntimeError):
@@ -49,37 +40,11 @@ class IndexerOfflineError(RuntimeError):
     """
 
 
-def _gen_ulid() -> str:
-    """生成标准 26 字符 ULID。前 10 字符 = ms 时间戳，后 16 字符 = 随机。"""
-    ts_ms = int(time.time() * 1000) & 0xFFFFFFFFFFFF
-    rand80 = int.from_bytes(os.urandom(10), "big")
-
-    def _encode(num: int, length: int) -> str:
-        chars = []
-        for _ in range(length):
-            chars.append(_CROCKFORD_ALPHABET[num & 0x1F])
-            num >>= 5
-        return "".join(reversed(chars))
-
-    return _encode(ts_ms, 10) + _encode(rand80, 16)
-
-
-@tool("mem_gen_id", parse_docstring=True)
-def mem_gen_id() -> str:
-    """生成一个 26 字符 ULID 格式的随机 id。
-
-    用于新创建的 kb item markdown 文件名与 frontmatter id 字段，
-    形如 '01JZABD123ABCDEFGHJKMNPQR'。前 10 字符 = ms 时间戳，
-    后 16 字符 = 随机数。客户端纯计算，不经 MCP server。
-    """
-    return _gen_ulid()
-
-
 # ref: memory-writer-agent-spec.md — writer 实际使用的工具子集
-# MCP server 共 14 个工具；writer 只需要 fs 子集（不含 search/stat/tree/mkdir）。
-# load_mcp_tools 加载全部 14 个后按名称过滤。
+# MCP server 共 15 个工具；writer 只需要 fs 子集 + gen_id。
+# load_mcp_tools 加载全部 15 个后按名称过滤。
 WANTED_TOOLS: frozenset[str] = frozenset(
-    {"vault_mcp_read", "vault_mcp_write", "vault_mcp_append", "vault_mcp_delete", "vault_mcp_ls", "vault_mcp_find", "vault_mcp_search", "vault_mcp_grep"}
+    {"vault_mcp_read", "vault_mcp_write", "vault_mcp_append", "vault_mcp_delete", "vault_mcp_ls", "vault_mcp_find", "vault_mcp_search", "vault_mcp_grep", "vault_mcp_gen_id"}
 )
 
 
@@ -121,8 +86,8 @@ async def mcp_vault_connection(
         4. call_tool("session.configure", {"lang": lang})；检查 isError，
            失败抛 IndexerOfflineError（携带服务端错误文案，如
            "lang not found in workspace: xx"），不再 yield。
-        5. load_mcp_tools(session) → 过滤到 WANTED_TOOLS 子集 + mem_gen_id。
-        6. yield (session, tools)。
+         5. load_mcp_tools(session) → 过滤到 WANTED_TOOLS 子集（含 vault_mcp_gen_id）。
+         6. yield (session, tools)。
         7. 退出 with → stream 关闭。
 
     异常：连接失败 / 会话出错 / session.configure 失败 → 抛 IndexerOfflineError，
@@ -147,9 +112,7 @@ async def mcp_vault_connection(
                     f"session.configure failed: {err_text}"
                 )
             all_tools = await load_mcp_tools(session=session, server_name="vault_mcp", tool_name_prefix=True)
-            tools = [t for t in all_tools if t.name in WANTED_TOOLS] + [
-                mem_gen_id
-            ]
+            tools = [t for t in all_tools if t.name in WANTED_TOOLS]
             yield session, tools
     except IndexerOfflineError:
         raise

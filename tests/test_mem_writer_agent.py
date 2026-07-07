@@ -38,7 +38,6 @@ from everlingo.mem.agents.mem_writer_agent import (
 )
 from everlingo.mem.agents.mem_writer_mcp_client import (
     IndexerOfflineError,
-    _gen_ulid,
 )
 
 
@@ -78,26 +77,6 @@ def _entry(
 def tmp_vault(tmp_mcp_workspace: Path) -> Path:
     """返回 en lang vault 根（用于断言写入落盘位置）。"""
     return tmp_mcp_workspace / "memory" / "languages" / "en" / "vault"
-
-
-# ── ULID ────────────────────────────────────────────────────────
-
-
-class TestUlidGen:
-    def test_format_is_26_crockford_base32(self):
-        ulid = _gen_ulid()
-        assert len(ulid) == 26
-        alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-        for c in ulid:
-            assert c in alphabet
-
-    def test_first_two_chars_indicate_year(self):
-        ulid = _gen_ulid()
-        assert ulid[0] in "01234567"
-
-    def test_unique_across_calls(self):
-        ids = {_gen_ulid() for _ in range(100)}
-        assert len(ids) == 100
 
 
 # ── events 写入（纯函数 + MCP 流程）───────────────────────────
@@ -206,7 +185,7 @@ class TestWriterSystemPrompt:
         """迁移后 system prompt 必须用 MCP 工具名（read/write/grep/...）。"""
         prompt = _build_writer_system_prompt()
         for name in ("read(", "write(", "append(", "delete(",
-                     "ls(", "find(", "grep(", "mem_gen_id("):
+                     "ls(", "find(", "grep(", "vault_mcp_gen_id("):
             assert name in prompt, f"missing tool: {name}"
         # 旧名不应再出现
         for old in (

@@ -1,5 +1,5 @@
 # ref: docs/impl-spec/vault-mcp/vault-mcp-spec.md — MCP Server
-# 用 FastMCP in-memory Client 驱动 12 个工具（session.configure + 9 fs + search）。
+# 用 FastMCP in-memory Client 驱动 15 个工具（session.configure + 10 fs + search + vault 管理 2 个 + Utility）。
 # 覆盖：未 configure 报错 / invalid lang / configure+fs / 路径逃逸 / hybrid search /
 # lang 参数覆盖会话 / 重调切换 / text==structuredContent。
 #
@@ -472,9 +472,10 @@ def test_initialize_exposes_instructions(open_state: AppState):
         assert "hybrid" in text
         assert "vault" in text.lower()
         assert "watcher" in text  # 副作用说明关键词
-        # vault 管理工具分组（14 个工具）
+        # vault 管理工具分组 & Utility（15 个工具）
         assert "list_vaults" in text
         assert "create_vault" in text
+        assert "gen_id" in text
 
     with _McpClientContext(mcp, body):
         pass
@@ -640,6 +641,68 @@ def test_create_vault_then_configure_and_search(fresh_workspace):
         assert r.is_error is False
         assert r.data["count"] == 0
         assert r.data["hits"] == []
+
+    with factory(body):
+        pass
+
+
+# ── 13. gen_id（workspace 级 Utility，豁免 configure）────────────────
+
+
+def test_gen_id_returns_ulid(fresh_workspace):
+    """gen_id 返回 26 字符 Crockford base32 ULID。"""
+    factory = fresh_workspace[0]
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("gen_id", {})
+        assert r.is_error is False
+        ulid = r.data["ulid"]
+        assert isinstance(ulid, str)
+        assert len(ulid) == 26
+        # Crockford base32: 0-9 A-H J-K M-N P-T V-Z (excl I, L, O, U)
+        import re
+        assert re.match(r"^[0-9A-HJKMNP-TV-Z]{26}$", ulid), f"invalid ULID: {ulid}"
+
+    with factory(body):
+        pass
+
+
+def test_gen_id_content_matches_structured_content(fresh_workspace):
+    """spec 强制：content[0].text == json.dumps(structured_content)。"""
+    factory = fresh_workspace[0]
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("gen_id", {})
+        text = r.content[0].text
+        sc = r.structured_content
+        assert text == json.dumps(sc, ensure_ascii=False, separators=(",", ":"))
+
+    with factory(body):
+        pass
+
+
+def test_gen_id_each_call_unique(fresh_workspace):
+    """两次连续调用 gen_id 返回不同的 ULID。"""
+    factory = fresh_workspace[0]
+
+    async def body(c: Client) -> None:
+        r1 = await c.call_tool("gen_id", {})
+        r2 = await c.call_tool("gen_id", {})
+        assert r1.data["ulid"] != r2.data["ulid"]
+
+    with factory(body):
+        pass
+
+
+def test_gen_id_does_not_require_configure(fresh_workspace):
+    """未调 session.configure 也能直接调 gen_id。"""
+    factory = fresh_workspace[0]
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("gen_id", {}, raise_on_error=False)
+        assert r.is_error is False
+        assert "ulid" in r.data
+        assert len(r.data["ulid"]) == 26
 
     with factory(body):
         pass

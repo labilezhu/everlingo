@@ -92,6 +92,34 @@ tools:
         - spec_written
         - registered
 
+########### Utility ################
+# 纯计算工具，不绑特定 lang，豁免 session.configure。
+# 不需要权限校验（纯计算，无副作用，无文件访问）。
+
+  - name: gen_id
+    title: Generate ULID
+    description: |
+      Generate a 26-character Crockford base32 ULID.
+      First 10 characters = millisecond timestamp,
+      last 16 characters = random bits (os.urandom).
+      Pure computation, no vault access.
+      Workspace-level tool: does NOT require session.configure.
+    inputSchema:
+      type: object
+      properties: {}
+    outputSchema:
+      type: object
+      properties:
+        ulid:
+          type: string
+          description: |
+            26 字符 Crockford base32 ULID。
+            形如 "01JZABD123ABCDEFGHJKMNPQR"。
+            前 10 字符 = ms 时间戳（48-bit），后 16 字符 = 随机（80-bit）。
+            字母表排除 I、L、O、U 以避免拼写英文单词。
+      required:
+        - ulid
+
 ########### Session ################
 # 所有工具（fs + search）的 path 解析默认相对「会话 lang vault 根」
 # ($workspace/memory/languages/$lang/vault/)。会话 lang 由 session.configure
