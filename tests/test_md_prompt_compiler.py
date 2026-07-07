@@ -229,10 +229,10 @@ def test_package_source_resolves_to_real_pkg_file() -> None:
     assert "知识点类 memory items" in out
     assert "事件类" in out
     # heading promotion: vault_spec h1 stays h1, child h1 under "## items/" -> h3
-    # kb_items_spec starts with "# 知识点类 memory items"
+    # kb_items_spec starts with "# 知识点 memory vault 结构"
     # include is under "## items/ 知识点类 memory items" (level 2 in vault_spec)
-    # so child's "# 知识点类" -> "### 知识点类"
-    assert "### 知识点类 memory items" in out
+    # so child's "# 知识点" -> "### 知识点"
+    assert "### 知识点 memory vault 结构" in out
     # events_spec starts with "# 事件类"; under "## events/ 事件类" -> "### 事件类"
     assert "### 事件类" in out
     # the include directive itself is gone

@@ -122,9 +122,12 @@ src/everlingo/mem/vault/mcp_server/mcp_server.py
 
 ---
 
-设计一下 [Chat Agent](docs/impl-spec/chat-agent-spec.md) LLM 自己分析用户上下文，是否有明显的要查询知识库，或记忆的意向。在需要时 search / read [Memory Vault](src/everlingo/mem/vault/vault_spec.md) 。 然后用查询到的信息整理一下，回复用户。 
+分析一下架构设计上的可行性:
 
-Chat Agent 通过调用 [Memory Vault MCP](docs/impl-spec/vault-mcp/vault-mcp-spec.md) search 和 read 。 实现方案和 src/everlingo/mem/agents/mem_writer_agent.py 类似，复用 src/everlingo/mem/agents/mem_writer_mcp_client.py 。 
+功能设计：
+[Chat Agent](docs/impl-spec/chat-agent-spec.md) Agent LLM 自己分析用户上下文，是否有明显的要查询知识库，或记忆的意向。在需要时 search / read [Memory Vault](src/everlingo/mem/vault/vault_spec.md) 。 然后用查询到的信息整理一下，回复用户。 
 
- 文件(见 docs/impl-spec/memory-writer-agent-spec.md 中的Agent tools) 是否在用户明确要查询知识库时，可以提供信息。分析一下产品设计上的可选性，以及架构设计上的可行性
+架构设计：
+Chat Agent 调用 [Memory Vault MCP](docs/impl-spec/vault-mcp/vault-mcp-spec.md) search 和 read 。 实现方案和 src/everlingo/mem/agents/mem_writer_agent.py 类似。 尽量少加内容入 Chat Agent 的 system prompt 。 VAULT SPEC 的加载是运行时，调用 mcp read(path="VAULT_SPEC.md") 工具， 与 mem_writer_agent.py 类似。 mcp client复用 src/everlingo/mem/agents/mem_writer_mcp_client.py 。 
+
 
