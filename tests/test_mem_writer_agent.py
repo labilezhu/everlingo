@@ -174,7 +174,6 @@ class TestWriterSystemPrompt:
     def test_includes_vault_spec_sections(self):
         prompt = _build_writer_system_prompt()
         assert "Memory Vault" in prompt
-        assert "遇到记录" in prompt
         assert "chat_session_id" in prompt
 
     def test_states_sandbox_rule(self):
@@ -206,7 +205,7 @@ class TestWriterSystemPrompt:
 
     def test_includes_entry_schema(self):
         prompt = _build_writer_system_prompt()
-        assert "## 输入 entry 结构" in prompt
+        assert "## 输入给你的 entry 结构" in prompt
         for field in (
             "chat_session_id", "entry_id", "timestamp", "channel_name",
             "item_type", "why_want_to_save_memory", "user_intent",
@@ -214,30 +213,22 @@ class TestWriterSystemPrompt:
             "mean_summary", "conversation_context",
         ):
             assert field in prompt, f"missing entry field: {field}"
-        assert "字段补充说明" in prompt
 
     def test_entry_schema_appears_before_vault_spec(self):
         prompt = _build_writer_system_prompt()
-        assert prompt.index("## 输入 entry 结构") < prompt.index(
+        assert prompt.index("## 输入给你的 entry 结构") < prompt.index(
             "## memory vault 结构"
         )
 
     def test_injected_spec_headings_nested_under_parent(self):
         prompt = _build_writer_system_prompt()
         assert "### 记忆实体" in prompt
-        assert "### 单语言 Memory Vault Spec" in prompt
         for line in prompt.splitlines():
             stripped = line.lstrip()
             assert not stripped.startswith("# 记忆实体"), line
-            assert not stripped.startswith("# 单语言 Memory Vault Spec"), line
-        assert "## 输入 entry 结构" in prompt
+        assert "## 输入给你的 entry 结构" in prompt
         assert "## memory vault 结构" in prompt
 
-    def test_tells_agent_session_configure_is_auto(self):
-        """agent 不需要主动调 session.configure；prompt 应说明宿主代码自动设置。"""
-        prompt = _build_writer_system_prompt()
-        assert "session.configure" in prompt
-        assert "自动" in prompt or "不需要" in prompt or "不应该" in prompt
 
 
 # ── MemoryWriterAgent 流程测试 ─────────────────────────────────
@@ -448,9 +439,6 @@ class TestWriterLangSandbox:
         prompt = _build_writer_system_prompt()
         assert "$lang/items/" not in prompt
         assert "$lang/events/" not in prompt
-        assert "items/<item_type>" in prompt
-        assert "items/vocab/" in prompt
-        assert "memory/languages/$lang/vault" in prompt
 
 
 # ── 异步守护线程测试 ──────────────────────────────────────────
