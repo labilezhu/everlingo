@@ -1,4 +1,27 @@
 
+为 [Memory Writer Agent] 成功写入记忆后，反馈用户写入成功消息作前期架构准备。
+
+为 [Gateway](docs/impl-spec/gateway.md) 加入一个方法 `getPushChannel(session_id: str)` 方法，返回一个
+```python
+class PushChannel(ABC):
+
+    @abstractmethod
+    async def send(self, content: str) -> None:
+        pass
+
+    async def send_sound(self, content: bytes, format: str) -> None:
+        """默认不支持声音；子类按需覆盖。"""
+        return
+
+    def get_metadata(self) -> ChannelMetadata:
+        """默认无声音能力、空 prompt；子类按需覆盖。"""
+        return ChannelMetadata(name=type(self).__name__)
+```
+
+
+
+---
+
 
 结合：
 - docs/impl-spec/worksplace/memory-vault-spec.md

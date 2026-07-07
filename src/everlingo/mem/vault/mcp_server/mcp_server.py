@@ -140,11 +140,17 @@ def resolve_vault_path(lang: str, rel: str) -> Path:
     """把 rel 解析为 lang vault 目录下的绝对路径；逃逸抛 PathEscapeError。
 
     ref: docs/impl-spec/vault-mcp/vault-mcp-spec.md — fs 工具 path 安全
+
+    前导 ``/`` / ``\\`` 视为相对 vault 根（兼容 LLM 常见的 Unix 风格写法）：
+    ``ls /`` → vault 根，``ls /items`` → vault 根下 ``items/``。
     """
     vault_root = workspace.lang_vault_dir(lang).resolve()
     if not rel:
         return vault_root
-    # 不允许绝对路径：以 rel 拼接；resolve() 后 is_relative_to 校验
+    # 前导 / 与 \ 视为相对 vault 根的路径，而非绝对路径。
+    rel = rel.lstrip("/\\")
+    if not rel:
+        return vault_root
     candidate = (vault_root / rel).resolve()
     if not candidate.is_relative_to(vault_root):
         raise PathEscapeError(

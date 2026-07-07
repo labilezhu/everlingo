@@ -122,9 +122,10 @@ tools:
 
 ########### Session ################
 # 所有工具（fs + search）的 path 解析默认相对「会话 lang vault 根」
-# ($workspace/memory/languages/$lang/vault/)。会话 lang 由 session.configure
-# 工具设定；未调用 session.configure 时所有工具返回错误
-# "session not configured: call session.configure first"。
+# ($workspace/memory/languages/$lang/vault/)。以 / 或 \ 开头的 path 视为
+# 相对 vault 根的路径，前导分隔符会被忽略（如 ls / 等价于 ls ""）。
+# 会话 lang 由 session.configure 工具设定；未调用 session.configure 时
+# 所有工具返回错误 "session not configured: call session.configure first"。
 # session.configure 设置的状态按 MCP stream 生命周期存活，stream 关闭即丢弃。
 # 例外：list_vaults / create_vault 是 workspace 级工具，不绑特定 lang，
 # 不需要也不接受 session.configure。
@@ -185,13 +186,15 @@ tools:
       properties:
         path:
           type: string
-          description: |
-            Relative directory path.
-            Examples:
-              ""
-              items
-              items/vocab
-              events/2026
+description: |
+              Relative directory path (leading ``/`` or ``\`` treated as relative to vault root).
+              Examples:
+                ""
+                /
+                /items
+                items
+                items/vocab
+                events/2026
         recursive:
           type: boolean
           default: false
@@ -239,7 +242,7 @@ tools:
       properties:
         path:
           type: string
-          description: Relative markdown file path.
+          description: Relative markdown file path (leading ``/`` or ``\`` treated as relative to vault root).
       required:
         - path
     outputSchema:

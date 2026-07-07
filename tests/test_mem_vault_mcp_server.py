@@ -318,6 +318,74 @@ def test_write_normalizes_frontmatter(mcp_client, memory_root: Path):
     assert "正文。" in on_disk
 
 
+# ── 3c. 前导斜杠视为 vault 根 ────────────────────────────────────────
+
+
+def test_leading_slash_treated_as_vault_root(mcp_client, memory_root: Path):
+    """ls "/" 等价于 ls ""；read "/a.md" 等价于 read "a.md"。"""
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("session.configure", {"lang": "en"})
+        assert r.is_error is False
+
+        # 写一个文件
+        r = await c.call_tool("write", {"path": "a.md", "content": "# A\n"})
+        assert r.is_error is False
+
+        # ls "" 与 ls "/" 结果一致
+        r1 = await c.call_tool("ls", {"path": ""})
+        assert r1.is_error is False
+        r2 = await c.call_tool("ls", {"path": "/"})
+        assert r2.is_error is False
+        names1 = {e["name"] for e in r1.data["entries"]}
+        names2 = {e["name"] for e in r2.data["entries"]}
+        assert names1 == names2
+        assert "a.md" in names1
+
+        # read "a.md" 与 read "/a.md" 内容一致
+        r3 = await c.call_tool("read", {"path": "a.md"})
+        r4 = await c.call_tool("read", {"path": "/a.md"})
+        assert r3.is_error is False
+        assert r4.is_error is False
+        assert r3.data["content"] == r4.data["content"]
+
+        # read "//a.md" 多个前导斜杠也兼容
+        r5 = await c.call_tool("read", {"path": "//a.md"})
+        assert r5.is_error is False
+        assert r5.data["content"] == "# A\n"
+
+        # ls "/items" 访问子目录
+        r = await c.call_tool(
+            "mkdir", {"path": "/items"}
+        )
+        assert r.is_error is False
+        r = await c.call_tool("write", {"path": "items/b.md", "content": "# B\n"})
+        assert r.is_error is False
+        r6 = await c.call_tool("ls", {"path": "/items"})
+        assert r6.is_error is False
+        names6 = [e["name"] for e in r6.data["entries"]]
+        assert "b.md" in names6
+
+    with mcp_client(body):
+        pass
+
+
+def test_leading_slash_still_rejects_escape(mcp_client):
+    """前导 / strip 后 ../ 仍逃逸 → isError=true。"""
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("session.configure", {"lang": "en"})
+        assert r.is_error is False
+        r = await c.call_tool(
+            "read", {"path": "/../escape.md"}, raise_on_error=False
+        )
+        assert r.is_error is True
+        assert "escape" in r.content[0].text.lower()
+
+    with mcp_client(body):
+        pass
+
+
 # ── 4. 路径逃逸拒绝 ────────────────────────────────────────────────
 
 
