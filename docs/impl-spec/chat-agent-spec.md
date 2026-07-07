@@ -18,6 +18,11 @@ agent = create_agent("openai:gpt-5.5", tools=tools)
 Agent 的`用户意图分析` 与 `用户意图的执行与回复响应` 见 Agent 的 system prompt:
 `src/everlingo/agents/agent.py` 中的 `_build_system_prompt()`
 
+### invoke -> ainvoke
+
+`MainAgent.invoke` 为 async 方法 `ainvoke`，因为 MCP 工具（vault 只读）需要异步 session。
+`Session.run` 用 `await self.agent.ainvoke(...)` 调用。
+
 
 
 ## system prompt 构造
@@ -100,6 +105,34 @@ AIMessage(content="")                                                   # 最终
 
 `Session.run()` 对返回列表逐条调用 `channel.send()`，形成多个消息气泡。
 
+## Memory Vault 只读访问
+
+Chat Agent 可以查询用户的记忆库（Memory Vault）以提供更准确的回复。实现方案：
+
+- **MCP 长连接**：MainAgent 维护一条到 Vault MCP Server 的长连接 Stream（`mcp_vault_connection`），在 `__init__` 后首次 `ainvoke` 时懒加载打开。
+- **lang 自动绑定**：`session.configure(lang=profile.target_language)`，与 Chat Agent 当前 `target_language` 一致；配置变更时重建 agent 并重开 stream。
+- **只读工具子集**：Chat Agent 只加载 5 个只读工具：
+  - `vault_mcp_search`, `vault_mcp_read`, `vault_mcp_ls`, `vault_mcp_find`, `vault_mcp_grep`
+- **运行时学习 vault 结构**：System prompt 只注入简短说明，不写 VAULT_SPEC.md 全文。LLM 在需要时通过 `vault_mcp_read(path="VAULT_SPEC.md")` 了解 vault 结构规范。
+- **离线圈降级**：Indexer 离线（MCP 连不上）时 Chat Agent 仍可正常回复，只是没有 vault 工具。system prompt 注入「记忆库暂不可用」提示。
+
+### system prompt 注入
+
+system prompt 新增简短一节（仅 vault 在线时）：
+
+```
+## 记忆库只读访问
+当用户明显要查询过往笔记/记忆时（如「我记过 xxx 吗」「查我笔记」），可使用 vault 工具。
+不了解 vault 结构时先 vault_mcp_read(path="VAULT_SPEC.md") 学习规范。
+你只读不写；写入由 Memory Extract Agent 异步完成。
+```
+
+vault 离线时改为：
+```
+## 记忆库访问
+记忆库暂不可用，请告知用户稍后再试。
+```
+
 ## Memory Extract
 每个 Chat Agent 实例，均有自己专属的 [Memory Extract Agent](/docs/impl-spec/memory-extract-agent-spec.md) 实例。用户从对话中提炼要记忆的对象。见 [Memory Extract Agent](/docs/impl-spec/memory-extract-agent-spec.md) 中的 “## 输入规范” 。
 
@@ -116,6 +149,11 @@ Memory Extract Agent 的 `mean_summary` 真实性约束要求事实必须来自 
 ## Agent tools
 
 参考： [chat-agent-tools-spec.md](/docs/impl-spec/chat-agent-tools-spec.md)
+
+### vault 工具（只读）
+
+见 [chat-agent-tools-spec.md](/docs/impl-spec/chat-agent-tools-spec.md) 中 [vault 工具集](#vault-记忆库只读) 节。
+通过 Vault MCP Server 提供（[vault-mcp-spec.md](/docs/impl-spec/vault-mcp/vault-mcp-spec.md)），复用 `mem_writer_mcp_client.mcp_vault_connection`，过滤为只读子集。
 
 ## Observability
 所有发给 LLM 的请求都写入日志文件。见 [observability.md](/docs/impl-spec/observability.md) 。 日志 level 是 debug 。

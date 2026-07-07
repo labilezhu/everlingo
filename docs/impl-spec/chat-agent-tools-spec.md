@@ -154,3 +154,35 @@ returns: string 。固定返回 `"voice scheduled"`。
 - 当前使用 `EdgeTTSProvider`（基于 `edge-tts` 库）
 - 接口 `TTSProvider.synthesize(text, fmt="mp3") -> bytes`
 - 未来可扩展 OpenAI / OpenRouter 等 TTS provider
+
+## vault 记忆库（只读）
+
+toolset name: vault_mcp
+toolset description: 只读查询用户的记忆库（Memory Vault）。含搜索与文件系统操作。
+
+### 实现方式
+
+由 Vault MCP Server（[vault-mcp-spec.md](/docs/impl-spec/vault-mcp/vault-mcp-spec.md)）提供该工具集。Chat Agent 通过 `mcp_vault_connection`（`mem_writer_mcp_client.py`）打开长连接，加载 `CHAT_AGENT_WANTED_TOOLS` 子集（只读）。工具前缀 `vault_mcp`。
+
+共 5 个只读工具。非 MCP Streamable-Transport 工具（不依赖 MCP 进程也可测试的）除外，本工具集均依赖 MCP Server 进程。
+
+### tools
+
+工具的原型/入参/出参和 vault-mcp-spec 中定义的 fs 工具与 search 工具完全一致，前缀映射如下：
+
+| Chat Agent 工具名 | 映射到 Vault MCP 工具 | 功能 |
+|---|---|---|
+| `vault_mcp_search` | `search` | 混合搜索（hybrid = 全文 + 语义），默认 `mode=hybrid` |
+| `vault_mcp_read` | `read` | 读取 vault 文件内容（支持 `VAULT_SPEC.md`） |
+| `vault_mcp_ls` | `ls` | 列出 vault 目录 |
+| `vault_mcp_find` | `find` | 按 glob 模式查找 vault 文件 |
+| `vault_mcp_grep` | `grep` | 全文搜索正文 |
+
+详见 [vault-mcp-spec-tools.yaml](/docs/impl-spec/vault-mcp/vault-mcp-spec-tools.yaml) 中对应工具的 `inputSchema` / `outputSchema`。
+
+### 工具使用准则
+
+- 所有 path 参数均为相对 vault 根的路径（如 `items/vocab`）。
+- `search`：建议默认 `mode=hybrid`，`lang` 不传（自动绑定到会话 lang）。
+- 首次使用前可先 `vault_mcp_read(path="VAULT_SPEC.md")` 了解 vault 目录结构与文件规范。
+- 仅读不写；写入由 Memory Extract Agent + Memory Writer Agent 异步完成。

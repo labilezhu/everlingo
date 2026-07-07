@@ -10,8 +10,9 @@ TEST_STYLE 要求：核心流程相关测试 + 边缘用户输入场景；
 
 from __future__ import annotations
 
+import asyncio
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
@@ -408,14 +409,14 @@ class TestExtractSync:
 # ── MainAgent 接入测试 ────────────────────────────────────────────────
 
 
-def _make_main_agent(zh_en_profile, mock_inner_agent):
-    """用 mock 替换 create_llm / create_agent / build_tools / extract agent 创建 MainAgent。"""
+def _make_main_agent(zh_en_profile):
+    """用 mock 替换 create_llm / build_tools / MCP stream / extract agent 创建 MainAgent。"""
     from everlingo.gateway.channels.channel import ChannelMetadata as _CM
     mock_channel = MagicMock()
     mock_metadata = _CM(name="StdioChannel")
     with patch("everlingo.agents.agent.create_llm", return_value=MagicMock()), \
          patch("everlingo.agents.agent.build_tools", return_value=[]), \
-         patch("everlingo.agents.agent.create_agent", return_value=mock_inner_agent), \
+         patch.object(MainAgent, '_ensure_mcp_stream', AsyncMock()), \
          patch("everlingo.agents.agent.MemoryExtractAgent") as mock_extract_cls:
         mock_extract_inst = MagicMock()
         mock_extract_cls.return_value = mock_extract_inst
@@ -431,25 +432,29 @@ def _make_main_agent(zh_en_profile, mock_inner_agent):
 class TestMainAgentWiring:
     def test_main_agent_creates_extract_agent_in_init(self, zh_en_profile):
         """MainAgent.__init__ 应创建并 start 一个 ExtractAgent。"""
-        mock_inner = MagicMock()
-        agent, mock_extract_inst = _make_main_agent(zh_en_profile, mock_inner)
+        agent, mock_extract_inst = _make_main_agent(zh_en_profile)
         mock_extract_inst.start.assert_called_once()
 
     def test_invoke_submits_extract_input_with_correct_intent_mode(
         self, zh_en_profile, mock_agent_response
     ):
-        """invoke() 应在返回 replies 前 submit 一个 ExtractInput，
+        """ainvoke() 应在返回 replies 前 submit 一个 ExtractInput，
         intent_mode 与当前 self._intent_mode 一致，且 new/context 切片正确。
         """
         mock_inner = MagicMock()
-        mock_inner.invoke.return_value = mock_agent_response
-        agent, mock_extract_inst = _make_main_agent(zh_en_profile, mock_inner)
+        mock_inner.ainvoke = AsyncMock(return_value=mock_agent_response)
+        agent, mock_extract_inst = _make_main_agent(zh_en_profile)
 
         # 设置为 dict 模式
-        agent.invoke(MessageEvent(text="/dict"))
+        asyncio.run(agent.ainvoke(MessageEvent(text="/dict")))
         # 真实对话触发 submit
-        agent.invoke(MessageEvent(text="hello"))
-        agent.invoke(MessageEvent(text="world"))
+        with patch("everlingo.agents.agent.create_agent", return_value=mock_inner), \
+             patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+             patch("everlingo.agents.agent.load_user_doc", return_value=""), \
+             patch("everlingo.agents.agent.get_config_version", return_value=999), \
+             patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0):
+            asyncio.run(agent.ainvoke(MessageEvent(text="hello")))
+            asyncio.run(agent.ainvoke(MessageEvent(text="world")))
 
         # submit 应被调用 2 次（不含命令路径）
         assert mock_extract_inst.submit.call_count == 2
@@ -481,12 +486,17 @@ class TestMainAgentWiring:
     ):
         """ref: spec — 抽取边界硬约束：同一段历史不应在后续轮被放入 new_messages。"""
         mock_inner = MagicMock()
-        mock_inner.invoke.return_value = mock_agent_response
-        agent, mock_extract_inst = _make_main_agent(zh_en_profile, mock_inner)
+        mock_inner.ainvoke = AsyncMock(return_value=mock_agent_response)
+        agent, mock_extract_inst = _make_main_agent(zh_en_profile)
 
-        agent.invoke(MessageEvent(text="turn1"))
-        agent.invoke(MessageEvent(text="turn2"))
-        agent.invoke(MessageEvent(text="turn3"))
+        with patch("everlingo.agents.agent.create_agent", return_value=mock_inner), \
+             patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+             patch("everlingo.agents.agent.load_user_doc", return_value=""), \
+             patch("everlingo.agents.agent.get_config_version", return_value=999), \
+             patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0):
+            asyncio.run(agent.ainvoke(MessageEvent(text="turn1")))
+            asyncio.run(agent.ainvoke(MessageEvent(text="turn2")))
+            asyncio.run(agent.ainvoke(MessageEvent(text="turn3")))
 
         # 三轮后，最新一轮的 new_messages 只应含 "turn3"，前两轮只能在 context
         latest = mock_extract_inst.submit.call_args_list[2][0][0]
@@ -501,21 +511,18 @@ class TestMainAgentWiring:
 
     def test_command_path_does_not_submit(self, zh_en_profile, mock_agent_response):
         """/dict 等命令路径不应触发 submit。"""
-        mock_inner = MagicMock()
-        mock_inner.invoke.return_value = mock_agent_response
-        agent, mock_extract_inst = _make_main_agent(zh_en_profile, mock_inner)
+        agent, mock_extract_inst = _make_main_agent(zh_en_profile)
 
-        agent.invoke(MessageEvent(text="/dict"))
-        agent.invoke(MessageEvent(text="/help"))
+        asyncio.run(agent.ainvoke(MessageEvent(text="/dict")))
+        asyncio.run(agent.ainvoke(MessageEvent(text="/help")))
 
         mock_extract_inst.submit.assert_not_called()
 
     def test_extract_agent_uses_session_id_and_channel_name(self, zh_en_profile):
         """Extract Agent 构造时应传入 session_id 与 channel_name（来自 channel_metadata）。"""
-        mock_inner = MagicMock()
         with patch("everlingo.agents.agent.create_llm", return_value=MagicMock()), \
              patch("everlingo.agents.agent.build_tools", return_value=[]), \
-             patch("everlingo.agents.agent.create_agent", return_value=mock_inner), \
+             patch.object(MainAgent, '_ensure_mcp_stream', AsyncMock()), \
              patch("everlingo.agents.agent.MemoryExtractAgent") as mock_cls:
             mock_extract_inst = MagicMock()
             mock_cls.return_value = mock_extract_inst
@@ -536,10 +543,9 @@ class TestMainAgentWiring:
 
     def test_session_id_none_falls_back_to_placeholder(self, zh_en_profile):
         """session_id 为 None 时不应让 Extract Agent 收到空字符串。"""
-        mock_inner = MagicMock()
         with patch("everlingo.agents.agent.create_llm", return_value=MagicMock()), \
              patch("everlingo.agents.agent.build_tools", return_value=[]), \
-             patch("everlingo.agents.agent.create_agent", return_value=mock_inner), \
+             patch.object(MainAgent, '_ensure_mcp_stream', AsyncMock()), \
              patch("everlingo.agents.agent.MemoryExtractAgent") as mock_cls:
             mock_extract_inst = MagicMock()
             mock_cls.return_value = mock_extract_inst

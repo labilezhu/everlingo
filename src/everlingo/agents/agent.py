@@ -13,6 +13,11 @@ from ..gateway.channels.channel import ChannelMetadata
 from ..llm import create_agent, create_llm
 from ..mem.agents.mem_entries import ExtractInput
 from ..mem.agents.mem_extract_agent import MemoryExtractAgent
+from ..mem.agents.mem_writer_mcp_client import (
+    CHAT_AGENT_WANTED_TOOLS,
+    IndexerOfflineError,
+    mcp_vault_connection,
+)
 from ..models import LANGUAGES, UserProfile
 from ..setting import load_profile, load_user_doc, prompt_input_mtime
 from ..tools.conf_manager import get_config_version
@@ -91,7 +96,8 @@ def _tail_recent_turns(messages: list, limit: int = _CONTEXT_TURNS_LIMIT) -> lis
 
 
 def _build_system_prompt(
-    profile: UserProfile, user_doc: str = "", channel_metadata: ChannelMetadata | None = None
+    profile: UserProfile, user_doc: str = "", channel_metadata: ChannelMetadata | None = None,
+    vault_available: bool = False,
 ) -> str:
     """构建统一的 Agent system prompt，整合词典老师和翻译老师的功能。
 
@@ -327,6 +333,20 @@ OR
 当前对话通道不支持语音消息。若用户要求发送语音/朗读/发音，请用文字回复：「当前通道不支持语音，请在微信等支持语音的通道使用。」
 """
 
+    # 记忆库只读访问（vault 工具）
+    if vault_available:
+        prompt += """
+## 记忆库只读访问
+当用户明显要查询过往笔记/记忆时（如「我记过 xxx 吗」「查我笔记里关于 xxx 的」），可使用 vault 工具。
+不了解 vault 结构时先 vault_mcp_read(path="VAULT_SPEC.md") 学习规范。
+你只读不写；写入由 Memory Extract Agent 异步完成。
+"""
+    else:
+        prompt += """
+## 记忆库访问
+记忆库暂不可用，请告知用户稍后再试。
+"""
+
     return prompt
 
 
@@ -346,18 +366,22 @@ class MainAgent:
     ) -> None:
         self._channel_metadata = channel_metadata
         self._channel = channel
+        self._profile = profile
         self._llm = create_llm()
-        self._tools = build_tools(channel_metadata, channel)
-        user_doc = load_user_doc()
-        self._agent = create_agent(
-            self._llm,
-            tools=self._tools,
-            system_prompt=_build_system_prompt(profile, user_doc, channel_metadata),
-        )
+        self._target_lang = profile.language.target_language
+        # 基础工具（不含 vault），vault 工具在 _ensure_mcp_stream 后追加
+        self._tools_base = build_tools(channel_metadata, channel)
+        self._tools: list = []
+        # MCP 长连接管理
+        self._mcp_ctx: Any = None
+        self._mcp_session: Any = None
+        self._vault_tools: list = []
+        # Agent 懒创建；首次 ainvoke 时通过 _refresh_agent_if_needed 构建
+        self._agent: Any = None
         # 记录构建时的配置版本与文件 mtime，用于检测是否需要重建 agent
         # ref: chat-agent-spec.md — system prompt 维护
-        self._config_version = get_config_version()
-        self._prompt_mtime = prompt_input_mtime()
+        self._config_version: tuple = get_config_version()
+        self._prompt_mtime: tuple = prompt_input_mtime()
         # Agent 的消息历史，支持多轮会话
         self._messages: list = []
         # 用户显式意图模式: None=自动, "dict"=查词, "translate"=翻译
@@ -382,35 +406,89 @@ class MainAgent:
         )
         self._extract_agent.start()
 
-    def _refresh_agent_if_needed(self) -> None:
+    # ── MCP 长连接管理 ──────────────────────────────────────────
+
+    async def _ensure_mcp_stream(self) -> None:
+        """懒打开到 Vault MCP Server 的长连接，配置会话 lang，加载只读工具。
+
+        已打开时幂等。Indexer 离线等失败由内部 catch，设 _vault_tools=[]。
+        """
+        if self._mcp_ctx is not None:
+            return
+        try:
+            ctx = mcp_vault_connection(self._target_lang, wanted_tools=CHAT_AGENT_WANTED_TOOLS)
+            session, tools = await ctx.__aenter__()
+            self._mcp_ctx = ctx
+            self._mcp_session = session
+            self._vault_tools = tools
+            logger.info("vault MCP stream opened for lang=%s", self._target_lang)
+        except IndexerOfflineError as e:
+            logger.warning("vault MCP offline: %s", e)
+            self._vault_tools = []
+        except Exception as e:
+            logger.warning("vault MCP init failed: %s", e)
+            self._vault_tools = []
+
+    async def _close_mcp_stream(self) -> None:
+        """关闭 MCP 长连接。"""
+        if self._mcp_ctx is not None:
+            await self._mcp_ctx.__aexit__(None, None, None)
+            self._mcp_ctx = None
+            self._mcp_session = None
+        self._vault_tools = []
+
+    async def aclose(self) -> None:
+        """关闭 MCP 长连接（Session.run 退出时调用）。"""
+        await self._close_mcp_stream()
+
+    # ── Agent 重建 ──────────────────────────────────────────────
+
+    async def _refresh_agent_if_needed(self) -> None:
         """检查配置版本或依赖文件 mtime，若变化则重建 agent 以刷新 system prompt。
 
         触发条件（任一即可）：
+        - self._agent 尚为 None（首次 ainvoke）
         - prompt 版本号变化（set_config / user_doc_set 被调用过）
         - everlingo.yaml 或 USER.md 的 mtime 变化（外部编辑器修改）
+
+        同时管理 MCP 长连接：target_lang 变化时关闭旧 stream，下次 ainvoke
+        时 _ensure_mcp_stream 自动用新 lang 重开。
 
         ref: /docs/impl-spec/chat-agent-spec.md — _build_system_prompt 依赖配置
         """
         current_version = get_config_version()
         current_mtime = prompt_input_mtime()
-        if current_version == self._config_version and current_mtime == self._prompt_mtime:
+        if self._agent is not None and current_version == self._config_version and current_mtime == self._prompt_mtime:
             return
 
-        logger.info(
-            "system prompt refreshed: version %s->%s, mtime %s->%s",
-            self._config_version, current_version,
-            self._prompt_mtime, current_mtime,
-        )
         profile = load_profile()
+
+        # target_lang 变化 → 关闭旧 MCP stream（新 lang 由 _ensure_mcp_stream 自动使用）
+        if profile.language.target_language != self._target_lang:
+            await self._close_mcp_stream()
+            self._target_lang = profile.language.target_language
+
+        # 确保 MCP stream 已打开
+        await self._ensure_mcp_stream()
+
         user_doc = load_user_doc()
-        self._tools = build_tools(self._channel_metadata, self._channel)
+        self._tools = list(self._tools_base) + list(self._vault_tools)
         self._agent = create_agent(
             self._llm,
             tools=self._tools,
-            system_prompt=_build_system_prompt(profile, user_doc, self._channel_metadata),
+            system_prompt=_build_system_prompt(
+                profile, user_doc, self._channel_metadata,
+                vault_available=bool(self._vault_tools),
+            ),
         )
         self._config_version = current_version
         self._prompt_mtime = current_mtime
+
+        logger.info(
+            "agent %s: version %s, mtime %s, vault=%s",
+            "created" if self._agent is not None and self._mcp_ctx is not None else "refreshed",
+            current_version, current_mtime, bool(self._vault_tools),
+        )
 
     def _handle_command(self, text: str) -> list[MessageEvent]:
         """处理模式切换命令，直接返回回复（不经过 LLM）。
@@ -453,7 +531,7 @@ class MainAgent:
 
         return [MessageEvent(text=f"未知命令：{cmd}\n发送 /help 查看可用命令。")]
 
-    def invoke(self, input_msg: MessageEvent) -> list[MessageEvent]:
+    async def ainvoke(self, input_msg: MessageEvent) -> list[MessageEvent]:
         """处理用户消息，返回 Agent 的回复列表（每条对应一个消息气泡）。
 
         当 LLM 在工具调用循环中产生多个 AIMessage（例如「翻译并朗读」场景：
@@ -465,8 +543,9 @@ class MainAgent:
 
         ref: /docs/impl-spec/chat-agent-spec.md — 用户意图的执行与回复响应
         """
-        # 若配置被修改过，先重建 agent 以刷新 system prompt
-        self._refresh_agent_if_needed()
+        # 若 agent 尚未创建或配置被修改过，先重建 agent 以刷新 system prompt
+        # 同时确保 MCP 长连接已打开
+        await self._refresh_agent_if_needed()
 
         text = input_msg.text.strip()
 
@@ -491,9 +570,9 @@ class MainAgent:
 
         # ── 调用 LLM ──────────────────────────────────────────
         try:
-            response = self._agent.invoke({"messages": messages_for_llm})
+            response = await self._agent.ainvoke({"messages": messages_for_llm})
         except Exception as e:
-            logger.exception("agent.invoke failed")
+            logger.exception("agent.ainvoke failed")
             return [MessageEvent(text=f"处理请求时出错: {e}")]
 
         # 持久化 AI 回复（跳过 messages_for_llm 中注入的模式提示）

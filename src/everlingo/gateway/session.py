@@ -32,18 +32,22 @@ class Session:
 
         ref: /docs/impl-spec/gateway.md — Session
         循环直到 channel.recv() 返回 None（用户输入 /quit 或 EOF）。
+        退出时关闭 agent 的 MCP 长连接。
         """
         await self.channel.init()
 
-        while True:
-            text = await self.channel.recv()
-            if text is None:
-                break
+        try:
+            while True:
+                text = await self.channel.recv()
+                if text is None:
+                    break
 
-            self.update_time = datetime.now()
-            input_msg = MessageEvent(text=text)
-            await self.channel.send_typing_hint()
-            replies = self.agent.invoke(input_msg)
-            await self.channel.stop_typing_hint()
-            for r in replies:
-                await self.channel.send(r.text)
+                self.update_time = datetime.now()
+                input_msg = MessageEvent(text=text)
+                await self.channel.send_typing_hint()
+                replies = await self.agent.ainvoke(input_msg)
+                await self.channel.stop_typing_hint()
+                for r in replies:
+                    await self.channel.send(r.text)
+        finally:
+            await self.agent.aclose()

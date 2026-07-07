@@ -110,7 +110,8 @@ class TestSessionRun:
         )
 
         agent = MagicMock()
-        agent.invoke = MagicMock(return_value=[MessageEvent(text=agent_reply_text)])
+        agent.ainvoke = AsyncMock(return_value=[MessageEvent(text=agent_reply_text)])
+        agent.aclose = AsyncMock()
 
         with patch("everlingo.gateway.session.MainAgent", return_value=agent):
             session = Session(channel, profile)
@@ -121,8 +122,8 @@ class TestSessionRun:
         session, channel, agent = self._make_session(["hello", None])
         asyncio.run(session.run())
 
-        assert agent.invoke.call_count == 1
-        call_arg = agent.invoke.call_args[0][0]
+        assert agent.ainvoke.call_count == 1
+        call_arg = agent.ainvoke.call_args[0][0]
         assert call_arg.text == "hello"
 
     def test_run_sends_agent_reply_to_channel(self):
@@ -141,7 +142,7 @@ class TestSessionRun:
         session, channel, agent = self._make_session(["word1", "word2", None])
         asyncio.run(session.run())
 
-        assert agent.invoke.call_count == 2
+        assert agent.ainvoke.call_count == 2
         assert channel.send.call_count == 2
 
     def test_run_sends_multiple_replies_per_message(self):
@@ -150,7 +151,7 @@ class TestSessionRun:
             ["translate and read ufo", None],
             agent_reply_text="ignored",
         )
-        agent.invoke = MagicMock(return_value=[
+        agent.ainvoke = AsyncMock(return_value=[
             MessageEvent(text="UFO — 不明飞行物"),
             MessageEvent(text="已为你朗读"),
         ])
@@ -163,7 +164,7 @@ class TestSessionRun:
     def test_run_sends_no_message_when_replies_empty(self):
         """Agent 返回空列表时（如只调用了 voice_speak），不发任何消息。"""
         session, channel, agent = self._make_session(["read ufo", None])
-        agent.invoke = MagicMock(return_value=[])
+        agent.ainvoke = AsyncMock(return_value=[])
         asyncio.run(session.run())
 
         channel.send.assert_not_called()
@@ -238,7 +239,8 @@ class TestSessionAttributes:
         )
 
         agent = MagicMock()
-        agent.invoke = MagicMock(return_value=[MessageEvent(text="reply")])
+        agent.ainvoke = AsyncMock(return_value=[MessageEvent(text="reply")])
+        agent.aclose = AsyncMock()
 
         with patch("everlingo.gateway.session.MainAgent", return_value=agent):
             session = Session(channel, test_profile)

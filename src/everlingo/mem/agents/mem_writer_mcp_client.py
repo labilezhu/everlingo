@@ -48,6 +48,14 @@ WANTED_TOOLS: frozenset[str] = frozenset(
 )
 
 
+# ref: docs/impl-spec/chat-agent-spec.md — Chat Agent 只读工具子集
+# Chat Agent 不需要写 vault（由 Memory Extract Agent + Writer 异步完成），
+# 所以只加载 search / fs 只读工具子集 + grep / find 搜索。
+CHAT_AGENT_WANTED_TOOLS: frozenset[str] = frozenset(
+    {"vault_mcp_read", "vault_mcp_ls", "vault_mcp_find", "vault_mcp_search", "vault_mcp_grep"}
+)
+
+
 def _read_mcp_url() -> str:
     """读 $workspace/indexer.mcp.url 文件，返回 URL。
 
@@ -71,6 +79,7 @@ def _read_mcp_url() -> str:
 @asynccontextmanager
 async def mcp_vault_connection(
     lang: str,
+    wanted_tools: frozenset[str] | None = None,
 ) -> AsyncIterator[tuple[ClientSession, list[Any]]]:
     """per-entry MCP stream 上下文管理器。
 
@@ -78,6 +87,11 @@ async def mcp_vault_connection(
         async with mcp_vault_connection(entry.lang) as (session, tools):
             # session 供代码直接 call_tool（events 写入）
             # tools 供 langchain agent（kb item 写入）
+
+    参数：
+        lang: 目标语言代码。
+        wanted_tools: 要加载的工具名子集。默认 WANTED_TOOLS（writer 全功能）。
+            Chat Agent 传入 CHAT_AGENT_WANTED_TOOLS（只读子集）。
 
     流程：
         1. 读 $workspace/indexer.mcp.url（缺失 → IndexerOfflineError）。
@@ -112,7 +126,8 @@ async def mcp_vault_connection(
                     f"session.configure failed: {err_text}"
                 )
             all_tools = await load_mcp_tools(session=session, server_name="vault_mcp", tool_name_prefix=True)
-            tools = [t for t in all_tools if t.name in WANTED_TOOLS]
+            tool_filter = wanted_tools if wanted_tools is not None else WANTED_TOOLS
+            tools = [t for t in all_tools if t.name in tool_filter]
             yield session, tools
     except IndexerOfflineError:
         raise
