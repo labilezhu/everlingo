@@ -1,10 +1,33 @@
 
-为 [Memory Writer Agent] 成功写入记忆后，反馈用户写入成功消息作前期架构准备。
+评估以下功能产品设计、架构设计上的合理性和可行性：
+
+为 [Memory Writer Agent](docs/impl-spec/memory-writer-agent-spec.md) 成功写入记忆后，反馈用户写入成功消息。反馈的目标触发记忆事件的 [记忆实体(Memory Entry)](src/everlingo/mem/agents/mem_entry_spec.md) 中 chat_session_id 相关的 channel 。
+消息例子：
+```markdown
+笔记已保存。文件路径： items/vocab/god--01KWY2B68GY8BWGHDVNCS025QM.md 。 内容：
+````markdown
+# god
+
+## 给我的解释
+
+`god` 指神、神灵，首字母大写 God 特指上帝、造物主。
+
+## 遇到记录
+
+- 2026-07-07 18:35:10 ：用户在学习英语时要求记住单词 god。
+````
+```
+注意，去掉文件内容 Markdown Frontmatter 部分。
+
+
+## 实现设计
 
 为 [Gateway](docs/impl-spec/gateway.md) 加入一个方法 `getPushChannel(session_id: str)` 方法，返回一个
 ```python
 class PushChannel(ABC):
-
+    """
+    这是后台 push 消息用的 channel 接口 ，实现上是委托给 src/everlingo/gateway/channels/channel.py 。
+    """
     @abstractmethod
     async def send(self, content: str) -> None:
         pass
@@ -18,6 +41,7 @@ class PushChannel(ABC):
         return ChannelMetadata(name=type(self).__name__)
 ```
 
+Memory Writer Agent 在成功写入记忆后，调用 `getPushChannel` ，然后调用返回的 PushChannel.send() push 记忆成功写入消息给用户。
 
 
 ---
