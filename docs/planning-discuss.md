@@ -1,4 +1,40 @@
 
+请给出架构建议：
+
+现在的 [Session](docs/impl-spec/session.md) / [Chat Agent](docs/impl-spec/chat-agent-spec.md) ，只能有一个由用户输入触发的事件源驱动。我计划加入一种驱动的事件源。以方便以后后台异步系统任务让 Session/ Chat Agent 推送消息。例如，[Memory Writer Agent](docs/impl-spec/memory-writer-agent-spec.md) 成功写入记忆后，反馈用户写入成功消息。
+
+
+
+现在的 [Session](docs/impl-spec/session.md) 是 block 在 channel.recv() 上
+
+---
+
+
+评估以下功能产品设计、架构设计上的合理性和可行性：
+
+为 [Memory Writer Agent](docs/impl-spec/memory-writer-agent-spec.md) 成功写入记忆后，反馈用户写入成功消息。反馈的目标是触发记忆事件的 [记忆实体(Memory Entry)](src/everlingo/mem/agents/mem_entry_spec.md) 中 chat_session_id 相关的 [Chat Agent](docs/impl-spec/chat-agent-spec.md)。 Chat Agent 在收到反馈后，push 给用户 channel。
+`笔记更新消息` 例子：
+```markdown
+笔记已保存/更新：
+- 内容简述：（三句话说明保存或修改的内容）。
+- 文件路径：items/vocab/god--01KWY2B68GY8BWGHDVNCS025QM.md 。 
+```
+
+Memory Writer Agent 流程如下：
+1. 在 agent loop 中知道已经写了什么笔记文件。
+2. 生成 `笔记更新消息`
+3. 调用一个新的 local tool(非 MCP tool) 叫 push_mem_feedback(msg) 。这个 tools 负责 push 消息到 Chat Agent 。
+
+这样设计有几个考虑：
+- 记忆写了什么 Memory Writer Agent 自己最了解了。反馈给用户的消息内容，也由它经 LLM 在生成最合适 。
+- Memory Writer Agent 不直接 push message 到 channel ，而是发给 Chat Agent 。是想 Chat Agent 的 message history 中记下这个 feedback 消息。知道这个 feedback 消息的 Chat Agent 在和用户进一步交流时，就有上下文，知道发生了什么事了。
+
+
+
+
+
+---
+
 评估以下功能产品设计、架构设计上的合理性和可行性：
 
 为 [Memory Writer Agent](docs/impl-spec/memory-writer-agent-spec.md) 成功写入记忆后，反馈用户写入成功消息。反馈的目标触发记忆事件的 [记忆实体(Memory Entry)](src/everlingo/mem/agents/mem_entry_spec.md) 中 chat_session_id 相关的 channel 。
@@ -43,6 +79,7 @@ class PushChannel(ABC):
 
 Memory Writer Agent 在成功写入记忆后，调用 `getPushChannel` ，然后调用返回的 PushChannel.send() push 记忆成功写入消息给用户。
 
+Memory Writer Agent 在 agent loop 中知道已经写了什么。做一个 local tool(非 MCP tool) 叫 write_mem_feedback 给 Memory Writer Agent 调用，这个 tools 调用 channel.send() 。这样，记忆写了什么 Memory Writer Agent 自己最了解了。反馈给用户的消息内容，也由它经 LLM 在生成  。你觉得怎样？
 
 ---
 

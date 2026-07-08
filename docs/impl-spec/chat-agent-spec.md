@@ -155,6 +155,19 @@ Memory Extract Agent 的 `mean_summary` 真实性约束要求事实必须来自 
 见 [chat-agent-tools-spec.md](/docs/impl-spec/chat-agent-tools-spec.md) 中 [vault 工具集](#vault-记忆库只读) 节。
 通过 Vault MCP Server 提供（[vault-mcp-spec.md](/docs/impl-spec/vault-mcp/vault-mcp-spec.md)），复用 `mem_writer_mcp_client.mcp_vault_connection`，过滤为只读子集。
 
+## 系统事件处理
+
+`MainAgent.ahandle_system_notice(notice: SystemNotice)` 处理后台系统通知。
+
+通知以 `[系统通知]` 前缀的 HumanMessage 注入 `_messages`，走 LLM 决定是否告知用户。
+与用户消息处理分开，不触发 typing hint，跳过 Memory Extract（知识已被 Writer 写入）。
+
+System prompt 中有一节 `## 系统事件通知`，告知 LLM 收到通知后的决策规则。
+
+详见：
+- [session.md — 事件队列与通知处理](/docs/impl-spec/session.md)
+- `src/everlingo/gateway/session_events.py` — 事件类型定义
+
 ## Observability
 所有发给 LLM 的请求都写入日志文件。见 [observability.md](/docs/impl-spec/observability.md) 。 日志 level 是 debug 。
 

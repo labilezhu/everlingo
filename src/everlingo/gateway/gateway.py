@@ -11,6 +11,7 @@ from ..log_utils import setup_logging
 from ..models import LANGUAGES, UserProfile
 from ..setting import load_profile, save_profile
 from .session_acceptor import StdioSessionAcceptor, WechatSessionAcceptor
+from .session_events import SystemNotice
 from .web_acceptor import WebSessionAcceptor
 from .session import Session
 
@@ -39,11 +40,17 @@ class _MemoryWriterProxy:
 
     def __init__(self) -> None:
         self._agent: object | None = None
+        self._notice_sink: object | None = None
+
+    def set_notice_sink(self, sink: object) -> None:
+        self._notice_sink = sink
+        if self._agent is not None:
+            self._agent._notice_sink = sink
 
     def _ensure(self):
         if self._agent is None:
             from ..mem.agents.mem_writer_agent import MemoryWriterAgent
-            self._agent = MemoryWriterAgent()
+            self._agent = MemoryWriterAgent(notice_sink=self._notice_sink)
             self._agent.start()
             logger.info("memory_writer started")
         return self._agent
@@ -114,11 +121,47 @@ class Gateway:
     - 按启动参数要求，创建相应的 Session Acceptor
     - 维护和管理一个 Session 列表
     - 接收和处理来自 Session Acceptor 的 session 创建请求
+    - 接收后台 Agent（Memory Writer 等）的系统通知并路由到对应 Session
     """
 
     def __init__(self) -> None:
         self.sessions: dict[str, Session] = {}
         self._profile: UserProfile | None = None
+        # 注册为 NoticeSink（供 Memory Writer 跨线程推送通知）
+        memory_writer.set_notice_sink(self)
+
+    # ── NoticeSink ───────────────────────────────────────────────
+
+    def notify(
+        self,
+        *,
+        session_id: str,
+        source: str,
+        updated_files: list[str],
+        update_summary: str,
+        headword: str,
+        lang: str,
+    ) -> None:
+        """Implement NoticeSink Protocol：路由后台通知到对应 Session。
+
+        跨线程安全（由 Session.post_event 的 call_soon_threadsafe 保证）。
+        session 不存在时丢弃 + 日志警告（与 daemon "可接受丢失"语义一致）。
+        """
+        session = self.sessions.get(session_id)
+        if session is None:
+            logger.warning(
+                "notice for unknown session %s (%s=%s), dropped",
+                session_id, source, headword,
+            )
+            return
+        notice = SystemNotice(
+            source=source,
+            updated_files=updated_files,
+            update_summary=update_summary,
+            headword=headword,
+            lang=lang,
+        )
+        session.post_event(notice)
 
     async def accept_session(
         self, channel, session_id: str

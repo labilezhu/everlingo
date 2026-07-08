@@ -24,6 +24,7 @@ from typing import Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from ...gateway.session_events import NoticeSink
 from ...llm import create_agent, create_mem_writer_llm
 from ...utils.md_prompt_compiler import PackageSource, compile_prompt, shift_headings
 from .mem_entries import MemoryEntry
@@ -189,6 +190,23 @@ vault 目录结构规范和各类文件格式说明：
 - `vault_mcp_gen_id` 仅在新建条目时调用 1 次。
 - 不要创建 `tmp/` 下的临时文件（除非确有需要）
 
+## 写入完成确认
+
+完成所有文件写入后，你的**最终回复**（最后一条 AIMessage）必须是一个 JSON 对象，
+格式如下：
+
+```json
+{
+  "updated_files": ["items/vocab/ufo.md"],
+  "update_summary": "简要描述本次更新内容，如：新建词条 ufo，含释义与例句"
+}
+```
+
+- `updated_files`：本次写入/修改的所有 vault 文件相对路径列表
+- `update_summary`：一句话概述更新内容，使用 entry 的 interface_language
+
+不要在此回复中输出其他内容。若写入失败无需此确认，回复空内容即可。
+
 ## 单个 entry 处理流程
 
 每次你会收到**一个** entry（JSON 格式），按下列步骤处理：
@@ -322,6 +340,51 @@ def _render_entry_payload(entry: MemoryEntry) -> str:
     return json.dumps(entry.model_dump(), ensure_ascii=False, indent=2)
 
 
+def _parse_write_confirmation(messages: list) -> tuple[list[str] | None, str | None]:
+    """从 Writer agent 最终 AIMessage 解析写入确认 JSON。
+
+    Writer LLM 在完成写入后应在最终 AIMessage 输出如下 JSON：
+    {"updated_files": ["items/vocab/ufo.md"], "update_summary": "..."}
+
+    Returns:
+        (updated_files, update_summary) on success, (None, None) on failure.
+    """
+    import json
+    import re
+
+    for msg in reversed(messages):
+        if not hasattr(msg, "content") or not msg.content:
+            continue
+        content = msg.content.strip()
+
+        # Try fenced JSON block first
+        m = re.search(r"```(?:json)?\s*([\s\S]*?)```", content)
+        if m:
+            try:
+                data = json.loads(m.group(1))
+            except json.JSONDecodeError:
+                continue
+            files = data.get("updated_files")
+            summary = data.get("update_summary")
+            if isinstance(files, list) and isinstance(summary, str):
+                return files, summary
+
+        # Try plain JSON object in content
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError:
+            continue
+        files = data.get("updated_files")
+        summary = data.get("update_summary")
+        if isinstance(files, list) and isinstance(summary, str):
+            return files, summary
+
+        # Only inspect the final AIMessage
+        break
+
+    return None, None
+
+
 # ── 主类 ──────────────────────────────────────────────────────────────
 
 
@@ -338,7 +401,7 @@ class MemoryWriterAgent:
       indexer 离线 → 丢弃 entry + logger.error 告警（不重试、不阻塞队列）。
     """
 
-    def __init__(self) -> None:
+    def __init__(self, notice_sink: NoticeSink | None = None) -> None:
         self._queue: "queue.Queue[Optional[list[MemoryEntry]]]" = queue.Queue()
         self._thread: Optional[threading.Thread] = None
 
@@ -348,6 +411,7 @@ class MemoryWriterAgent:
         # 工具集 per-entry 重建（依赖 mcp_vault_connection session）。
         self._system_prompt = _build_writer_system_prompt()
         self._llm = create_mem_writer_llm()
+        self._notice_sink = notice_sink
 
     # ── 生命周期 ────────────────────────────────────────────────
 
@@ -438,7 +502,7 @@ class MemoryWriterAgent:
         ref: memory-writer-agent-spec.md — 更新知识点类 memory items
         per-entry 打开一条 MCP stream，调用 session.configure 设定 lang，
         加载过滤后的 fs 工具 + vault_mcp_gen_id 工具，构建 langchain agent，
-        调 ainvoke。整个流程跑在 daemon thread 的 asyncio.run 内。
+        调 ainvoke。若通知 sink 已注入，写成功后将写入确认发给对应 Session。
         """
         payload = _render_entry_payload(entry)
         user_msg = (
@@ -451,9 +515,30 @@ class MemoryWriterAgent:
                 tools=tools,
                 system_prompt=self._system_prompt,
             )
-            await agent.ainvoke({
+            response = await agent.ainvoke({
                 "messages": [
                     SystemMessage(content=self._system_prompt),
                     HumanMessage(content=user_msg),
                 ]
             })
+
+        # ── 解析写入确认并通知对应 Session ─────────────────
+        files, summary = _parse_write_confirmation(response["messages"])
+        if files is not None and self._notice_sink is not None:
+            self._notice_sink.notify(
+                session_id=entry.chat_session_id,
+                source="memory_writer",
+                updated_files=files,
+                update_summary=summary or "",
+                headword=entry.headword,
+                lang=entry.lang,
+            )
+            logger.info(
+                "notified session %s: written %s, files=%s, summary=%s",
+                entry.chat_session_id, entry.headword, files, summary,
+            )
+        elif files is None and self._notice_sink is not None:
+            logger.warning(
+                "writer did not emit confirmation for entry_id=%s headword=%s",
+                entry.entry_id, entry.headword,
+            )

@@ -10,6 +10,7 @@ from typing import Any, Optional
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from ..gateway.channels.channel import ChannelMetadata
+from ..gateway.session_events import SystemNotice
 from ..llm import create_agent, create_llm
 from ..mem.agents.mem_entries import ExtractInput
 from ..mem.agents.mem_extract_agent import MemoryExtractAgent
@@ -347,6 +348,25 @@ OR
 记忆库暂不可用，请告知用户稍后再试。
 """
 
+    # 系统事件通知
+    prompt += """
+## 系统事件通知
+偶尔你会收到以 `[系统通知]` 开头的 HumanMessage。这不是用户真实输入，
+不要按「用户意图分类」处理。请以本节的规则为准。
+
+### Memory Writer 通知
+当 Memory Writer 成功写入记忆库后会通知你，通知包含：
+- updated_files：本次更新的 vault 文件路径
+- update_summary：更新内容概述
+- headword：知识点关键词
+- lang：目标学习语言
+
+收到通知后，根据 USER.md 中用户的偏好判断：
+- 用户未表达过希望收到通知 → 回复空内容（静默，不发消息）
+- 用户希望收到通知 → 简短确认即可；如需详情可用 vault_mcp_read(path=文件路径) 读取文件
+回复使用界面语言。
+"""
+
     return prompt
 
 
@@ -603,5 +623,50 @@ class MainAgent:
             new_messages=new_messages,
             context_messages=context_messages,
         ))
+
+        return replies
+
+    async def ahandle_system_notice(self, notice: SystemNotice) -> list[MessageEvent]:
+        """处理系统事件通知（如 Memory Writer 写入确认），LLM 中介。
+
+        ref: session.md — 系统事件源
+        通知以 `[系统通知]` 前缀的 HumanMessage 注入，走 LLM 决定是否告知用户及详情程度。
+        跳过 extract（知识已被 Writer 写入，避免重复抽取）。
+        """
+        await self._refresh_agent_if_needed()
+
+        files_str = ", ".join(notice.updated_files)
+        notice_text = (
+            f"[系统通知] Memory Writer 已更新记忆库：\n"
+            f"- 知识点: {notice.headword} (lang={notice.lang})\n"
+            f"- 文件: {files_str}\n"
+            f"- 概要: {notice.update_summary}\n"
+            f"请根据用户偏好(USER.md)决定是否告知用户及详情程度。"
+            f"若需详情可用 vault_mcp_read(path=文件路径) 读取文件。"
+            f"若用户未表达希望收到通知，回复空内容。"
+        )
+
+        messages_for_llm = list(self._messages)
+        notice_msg = HumanMessage(content=notice_text)
+        messages_for_llm.append(notice_msg)
+        self._messages.append(notice_msg)
+
+        try:
+            response = await self._agent.ainvoke({"messages": messages_for_llm})
+        except Exception as e:
+            logger.exception("ahandle_system_notice failed")
+            return [MessageEvent(text=f"处理系统通知时出错: {e}")]
+
+        new_messages = response["messages"][len(messages_for_llm):]
+        self._messages.extend(new_messages)
+
+        replies = [
+            MessageEvent(text=m.content)
+            for m in new_messages
+            if isinstance(m, AIMessage) and m.content and m.content.strip()
+        ]
+
+        # 跳过 extract：知识已被 Writer 写入，重新抽取会重复
+        self._extract_cursor = len(self._messages)
 
         return replies
