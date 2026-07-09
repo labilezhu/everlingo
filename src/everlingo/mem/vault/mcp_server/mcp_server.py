@@ -310,7 +310,7 @@ def create_mcp_app(state: AppState) -> FastMCP:
             # 保留 # 单语言 Memory Vault Spec 顶层 h1）。
             content = compile_prompt(
                 "vault_spec.md",
-                PackageSource(package="everlingo.mem.vault"),
+                PackageSource(package="everlingo.mem.vault.vault_specs.default"),
             )
             spec_path.write_text(content, encoding="utf-8")
             spec_written = True

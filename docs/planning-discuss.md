@@ -1,4 +1,19 @@
 
+评估一下可行性：
+
+现在的 [Vault MCP Server](docs/impl-spec/vault-mcp/vault-mcp-spec.md) 在 create_vault 时
+把 src/everlingo/mem/vault/vault_specs/default/vault_spec.md 合成(compile_prompt)后放到 $workspace/memory/languages/$lang/vault/VAULT_SPEC.md 下。
+我想修改成： 在 create_vault 时 把 src/everlingo/mem/vault/vault_specs/default/* 复制到 $workspace/memory/languages/$lang/vault/spec 下。 被复制的源文件 *.md 还是需要作合成处理才写入目标目录。
+
+---
+
+
+现在 [Chat Agent](docs/impl-spec/chat-agent-spec.md) [Memory Extract Agent](/docs/impl-spec/memory-extract-agent-spec.md) [Memory Writer Agent](docs/impl-spec/memory-writer-agent-spec.md) 三个 Agent 联合才能
+
+
+---
+
+
 请给出架构建议：
 
 现在的 [Session](docs/impl-spec/session.md) / [Chat Agent](docs/impl-spec/chat-agent-spec.md) ，只能有一个由用户输入触发的事件源驱动。我计划加入一种驱动的事件源。以方便以后后台异步系统任务让 Session/ Chat Agent 推送消息。例如，[Memory Writer Agent](docs/impl-spec/memory-writer-agent-spec.md) 成功写入记忆后，反馈用户写入成功消息。

@@ -23,19 +23,9 @@
 
 
 ## 实现设计
-- [Agent 实现](/docs/impl-spec/chat-agent-spec.md)
+- [Chat Agent 实现](/docs/impl-spec/chat-agent-spec.md)
 - [Gateway 服务](/docs/impl-spec/gateway.md)
 
-## Agents 数据流水线
-
-```
-Chat Agent  →  Memory Extract Agent  →  Memory Writer Agent
-(对话回复)     (筛选 + 结构化抽取)       (异步写 vault)
-```
-
-- Chat Agent 在返回用户回复后，把本轮对话 delta 交给 Memory Extract Agent。
-- Memory Extract Agent 筛选并结构化为 entries，转交给 Memory Writer Agent。
-- Memory Writer Agent 异步写入 memory vault。
 
 ## 应用的主入口
 应用的主入口。指进程启动的入口点。参见： [app-entry.md](/docs/impl-spec/app-entry.md)
