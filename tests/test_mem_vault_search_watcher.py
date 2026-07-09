@@ -89,7 +89,29 @@ def test_watcher_skips_vault_spec_md(tmp_path: Path):
     try:
         spec_p = memory_root / "VAULT_SPEC.md"
         spec_p.write_text("# spec\n", encoding="utf-8")
-        # 给 watcher 充足时间触发 on_created 并尝试 parse_file
+        assert _wait_until(lambda: count_docs(conn) == 0, timeout=DEBOUNCE_SECONDS + 2.0)
+    finally:
+        w.stop()
+        conn.close()
+
+
+def test_watcher_skips_spec_dir(tmp_path: Path):
+    """spec/ 子目录下 .md 写入不触发 watcher 索引。"""
+    db_path = tmp_path / "index" / "memory.sqlite"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    memory_root = tmp_path / "memory"
+    memory_root.mkdir()
+
+    conn = sqlite3.connect(str(db_path), check_same_thread=False)
+    conn.execute("PRAGMA foreign_keys=ON")
+    init_db(conn)
+    w = VaultWatcher(conn, memory_root, "en")
+    w.start()
+    try:
+        spec_dir = memory_root / "spec"
+        spec_dir.mkdir()
+        (spec_dir / "vault_spec.md").write_text("# spec\n", encoding="utf-8")
+        (spec_dir / "events_spec.md").write_text("# events\n", encoding="utf-8")
         assert _wait_until(lambda: count_docs(conn) == 0, timeout=DEBOUNCE_SECONDS + 2.0)
     finally:
         w.stop()

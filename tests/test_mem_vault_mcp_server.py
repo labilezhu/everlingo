@@ -203,19 +203,22 @@ def test_session_configure_invalid_lang(empty_mcp_client):
 
 def test_session_configure_auto_creates_vault(fresh_workspace):
     """lang 在 workspace 不存在 → session.configure 内部调 create_vault，
-    vault 目录 + VAULT_SPEC.md 落盘，session 正常设 lang。"""
+    vault 目录 + spec/*.md 落盘，session 正常设 lang。"""
 
     async def body(c: Client) -> None:
         r = await c.call_tool("session.configure", {"lang": "fr"})
         assert r.is_error is False
         assert r.data == {"ok": True, "lang": "fr", "interface_language": None}
 
-        # vault 目录和 VAULT_SPEC.md 已落盘
+        # vault 目录和 spec/*.md 已落盘
         import os
         vault = workspace.lang_vault_dir("fr")
         assert vault.is_dir()
-        spec = vault / "VAULT_SPEC.md"
-        assert spec.is_file()
+        spec_dir = vault / "spec"
+        assert spec_dir.is_dir()
+        assert (spec_dir / "vault_spec.md").is_file()
+        assert (spec_dir / "events_spec.md").is_file()
+        assert (spec_dir / "kb_items_spec.md").is_file()
 
         # 后续 fs 工具可用
         r = await c.call_tool("ls", {"path": ""})
@@ -598,7 +601,7 @@ def test_list_vaults_no_configure_required(fresh_workspace):
 
 
 def test_create_vault_creates_dir_and_spec(fresh_workspace):
-    """新 lang：vault 目录 + VAULT_SPEC.md 创建，AppState 注册成功。"""
+    """新 lang：vault 目录 + spec/vault_spec.md 创建，AppState 注册成功。"""
     factory, state, tmp_path = fresh_workspace
     target_lang = "fr"
     expected_vault = tmp_path / "memory" / "languages" / "fr" / "vault"
@@ -614,9 +617,11 @@ def test_create_vault_creates_dir_and_spec(fresh_workspace):
         assert r.data["registered"] is True
         # 文件系统副作用
         assert expected_vault.is_dir()
-        spec = expected_vault / "VAULT_SPEC.md"
-        assert spec.is_file()
-        content = spec.read_text(encoding="utf-8")
+        spec_dir = expected_vault / "spec"
+        assert spec_dir.is_dir()
+        for name in ("vault_spec.md", "events_spec.md", "kb_items_spec.md"):
+            assert (spec_dir / name).is_file()
+        content = (spec_dir / "vault_spec.md").read_text(encoding="utf-8")
         # 合成结果含 vault_spec.md 顶层 h1
         assert "# 单语言 Memory Vault Spec" in content
         # 合成结果含展开后的 events_spec / kb_items_spec
@@ -631,11 +636,12 @@ def test_create_vault_creates_dir_and_spec(fresh_workspace):
 
 
 def test_create_vault_idempotent(fresh_workspace):
-    """重复调用 create_vault 不覆盖 VAULT_SPEC.md、不重建目录。"""
+    """重复调用 create_vault 不覆盖 spec/*.md、不重建目录。"""
     factory, state, tmp_path = fresh_workspace
     target_lang = "de"
     expected_vault = tmp_path / "memory" / "languages" / "de" / "vault"
-    expected_spec = expected_vault / "VAULT_SPEC.md"
+    expected_spec_dir = expected_vault / "spec"
+    expected_spec_path = expected_spec_dir / "vault_spec.md"
 
     async def body(c: Client) -> None:
         # 第一次：新建
@@ -643,9 +649,9 @@ def test_create_vault_idempotent(fresh_workspace):
         assert r1.is_error is False
         assert r1.data["created"] is True
         assert r1.data["spec_written"] is True
-        original_content = (expected_spec).read_text(encoding="utf-8")
-        # 修改 VAULT_SPEC.md（模拟用户/外部编辑）
-        expected_spec.write_text("USER EDITED\n", encoding="utf-8")
+        original_content = expected_spec_path.read_text(encoding="utf-8")
+        # 修改 vault_spec.md（模拟用户/外部编辑）
+        expected_spec_path.write_text("USER EDITED\n", encoding="utf-8")
         # 第二次：幂等
         r2 = await c.call_tool("create_vault", {"lang": target_lang})
         assert r2.is_error is False
@@ -653,9 +659,14 @@ def test_create_vault_idempotent(fresh_workspace):
         assert r2.data["spec_written"] is False
         assert r2.data["registered"] is True
         # 第二次未覆盖文件
-        assert expected_spec.read_text(encoding="utf-8") == "USER EDITED\n"
+        assert expected_spec_path.read_text(encoding="utf-8") == "USER EDITED\n"
         # 第一次的内容
         assert original_content.startswith("# 单语言 Memory Vault Spec")
+        # 其余 spec 文件 also untouched
+        for name in ("events_spec.md", "kb_items_spec.md"):
+            p = expected_spec_dir / name
+            assert p.is_file()
+            assert p.read_text(encoding="utf-8").startswith("#")
 
     with factory(body):
         pass

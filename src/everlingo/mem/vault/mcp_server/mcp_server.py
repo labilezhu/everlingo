@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import importlib.resources
 import datetime
 import fnmatch
 import functools
@@ -32,6 +33,8 @@ from everlingo.mem.vault.search.protocol import SearchHit
 from everlingo.mem.vault.search.search import search as do_search
 from everlingo.mem.vault.search.server import AppState
 from everlingo.utils.md_prompt_compiler import PackageSource, compile_prompt
+
+_VAULT_SPEC_PACKAGE = "everlingo.mem.vault.vault_specs.default"
 
 logger = logging.getLogger("everlingo.mem.vault.mcp_server")
 
@@ -57,7 +60,7 @@ Vault 按学习语言分目录：$workspace/memory/languages/$lang/vault/（lang
 工作流：
 1. 大部分工具（fs 9 个 + `search`）必须先调 `session.configure(lang="<lang>")` 设会话 lang；否则返回错误 `session not configured: call session.configure first`。
 2. 例外：`list_vaults` 与 `create_vault` 是 workspace 级工具，不绑特定 lang，不需要也不接受 session.configure。
- 3. `lang` 若 workspace 不存在该 lang vault，`session.configure` 会自动调 `create_vault` 创建（写 $lang/vault/VAULT_SPEC.md 并同步注册到 indexer）；非法 lang 名（含路径分隔符 `/`、`\\`、点号 `.`、`..`、空、NUL 字符）仍返回错误。
+ 3. `lang` 若 workspace 不存在该 lang vault，`session.configure` 会自动调 `create_vault` 创建（写 $lang/vault/spec/vault_spec.md 并同步注册到 indexer）；非法 lang 名（含路径分隔符 `/`、`\\`、点号 `.`、`..`、空、NUL 字符）仍返回错误。
  4. 会话内可重调 `session.configure` 切换 lang，无需重连 MCP stream。
  5. fs 工具的 `path` 参数相对会话 lang vault 根解析；禁止 `../` 逃逸，越界会被拒绝。
  6. 想学新语言时，先调 `list_vaults` 看现有 langs；若不存在，直接调 `session.configure(lang="<lang>")` 即可（内部自动创建 vault），也可显式调 `create_vault(lang="<lang>")` 建新 vault。
@@ -72,9 +75,9 @@ search 要点：
 - 文件变更由 indexer watcher 自动重新索引，agent 不需要也**无法**手动触发 index。
 
 vault 目录结构规范和各类文件格式说明：
-可以调用 read(path="VAULT_SPEC.md") 工具，返回的 content 为 vault 目录结构规范和各类文件格式说明。调用 search / fs 工具 前，先学习规范和 vault 的知识。
+可以调用 read(path="spec/vault_spec.md") 工具，返回的 content 为 vault 目录结构规范和各类文件格式说明。调用 search / fs 工具 前，先学习规范和 vault 的知识。
 
-典型用法：`list_vaults` → `create_vault(lang="en")` → `session.configure(lang="en")`  → `read(path="VAULT_SPEC.md")` → `search(q="...", mode="hybrid")` → `read(path=<hit.file_path>)` → `write(path=..., content=...)`。
+典型用法：`list_vaults` → `create_vault(lang="en")` → `session.configure(lang="en")`  → `read(path="spec/vault_spec.md")` → `search(q="...", mode="hybrid")` → `read(path=<hit.file_path>)` → `write(path=..., content=...)`。
 """
 
 # Lang 合法性校验缓存：避免每次 session.configure 都 walk filesystem
@@ -274,12 +277,13 @@ def create_mcp_app(state: AppState) -> FastMCP:
         description=(
             "Create and initialize a new target-learning-language vault directory "
             "at $workspace/memory/languages/$lang/vault/ and seed it with "
-            "VAULT_SPEC.md (synthesized from vault_spec.md with includes expanded). "
+            "spec/*.md (synthesized from vault_specs/default/*.md with includes "
+            "expanded). "
             "After creation, the lang is synchronously registered with the indexer's "
             "LangState so subsequent session.configure(lang=$lang) + search works "
             "immediately. "
-            "Idempotent: if the vault directory already exists, VAULT_SPEC.md is "
-            "not overwritten and re-registration is a no-op. "
+            "Idempotent: if a spec file already exists under spec/, it is "
+            "not overwritten; re-registration is a no-op. "
             "This is a workspace-level tool and does NOT require session.configure."
         ),
     )
@@ -300,19 +304,19 @@ def create_mcp_app(state: AppState) -> FastMCP:
         vault_root = workspace.lang_vault_dir(lang)
         already_existed = vault_root.is_dir()
         vault_root.mkdir(parents=True, exist_ok=True)
-        # 幂等写 VAULT_SPEC.md（不覆盖）
-        spec_path = vault_root / "VAULT_SPEC.md"
+        # 幂等写 spec/*.md（不存在才写）
+        spec_dir = vault_root / "spec"
+        spec_dir.mkdir(parents=True, exist_ok=True)
         spec_written = False
-        if not spec_path.exists():
-            # ref: docs/impl-spec/vault-mcp/vault-mcp-spec.md — VAULT_SPEC.md
-            # 合成方式与 src/everlingo/mem/agents/mem_writer_agent.py:67 的
-            # vault_spec.md 合成一致，但不 shift_headings（这是独立顶级文档，
-            # 保留 # 单语言 Memory Vault Spec 顶层 h1）。
-            content = compile_prompt(
-                "vault_spec.md",
-                PackageSource(package="everlingo.mem.vault.vault_specs.default"),
-            )
-            spec_path.write_text(content, encoding="utf-8")
+        source = PackageSource(package=_VAULT_SPEC_PACKAGE)
+        for entry in importlib.resources.files(_VAULT_SPEC_PACKAGE).iterdir():
+            if not entry.is_file() or not entry.name.endswith(".md"):
+                continue
+            target = spec_dir / entry.name
+            if target.exists():
+                continue
+            content = compile_prompt(entry.name, source)
+            target.write_text(content, encoding="utf-8")
             spec_written = True
         # 同步触发 lang 注册（与 LangDiscoveryWatcher 同一入口，加锁幂等）
         registered = True

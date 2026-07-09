@@ -117,3 +117,18 @@ def test_reconcile_skips_vault_spec_md(db_path: Path, memory_root: Path):
     assert conn.execute("SELECT ulid FROM documents").fetchone()[0] == "01JZB0009"
     rows = conn.execute("SELECT file_path FROM documents").fetchall()
     assert all(not r[0].endswith("VAULT_SPEC.md") for r in rows)
+
+
+def test_reconcile_skips_spec_subdirectory(db_path: Path, memory_root: Path):
+    """spec/ 子目录下 .md 不应被索引。"""
+    _write_item(memory_root, "a--01JZB0010.md", "01JZB0010")
+    spec_dir = memory_root / "spec"
+    spec_dir.mkdir()
+    (spec_dir / "vault_spec.md").write_text("# spec\n", encoding="utf-8")
+    (spec_dir / "events_spec.md").write_text("# events\n", encoding="utf-8")
+    conn = open_db(db_path)
+    result = reconcile(conn, memory_root, "en")
+    assert result.indexed == 1
+    assert count_docs(conn) == 1
+    rows = conn.execute("SELECT file_path FROM documents").fetchall()
+    assert all("spec/" not in r[0] for r in rows)

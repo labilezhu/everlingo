@@ -155,9 +155,10 @@ search 要点：
 - 命中结果的 `file_path` 相对当前 vault 根，可直接喂给 `read` / `write` 等 fs 工具集。
 
 vault 目录结构规范和各类文件格式说明：
-可以调用 read(path="VAULT_SPEC.md") 工具，返回的 content 为 vault 目录结构规范和各类文件格式说明。调用 search / fs 工具集 前，先学习规范和 vault 的知识。
+可以调用 read(path="spec/vault_spec.md") 工具，返回的 content 为 vault 目录结构规范和各类文件格式说明。调用 search / fs 工具集 前，先学习规范和 vault 的知识。
+spec/vault_spec.md 文件链接到其它子规范 md 文件，请按需要读取。
 
-典型用法： `read(path="VAULT_SPEC.md")` → `search(q="...", mode="hybrid")` → `read(path=<hit.file_path>)` → `write(path=..., content=...)`。
+典型用法： `read(path="spec/vault_spec.md")` → `search(q="...", mode="hybrid")` → `read(path=<hit.file_path>)` → `write(path=..., content=...)`。
 
 ### 工具的沙箱规则（强制）
 所有 fs 工具集**只能使用相对 path**，相对于 Memory Vault 的路径。

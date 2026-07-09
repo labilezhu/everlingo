@@ -619,14 +619,15 @@ def walk_vault(memory_root: Path) -> Iterable[Path]:
             yield p
 
 
-# vault 元文件（不索引、不入 FTS/vec）。
-# ref: docs/impl-spec/vault-mcp/vault-mcp-spec.md — VAULT_SPEC.md
+# vault 元文件与 spec 子目录（不索引、不入 FTS/vec）。
+# ref: docs/impl-spec/vault-mcp/vault-mcp-spec.md — VAULT_SPEC.md 与 spec/
 # 由 MCP `create_vault` 工具写入，承载 vault_spec.md 展开 include 后的规范说明。
+# spec/ 子目录整体排除；VAULT_SPEC.md（老 vault 根级文件）仍按 filename 向后兼容排除。
 _EXCLUDED_VAULT_FILENAMES: frozenset[str] = frozenset({"VAULT_SPEC.md"})
 
 
 def is_excluded_vault_file(abs_path: Path, memory_root: Path) -> bool:
-    """vault 元文件 / tmp/ 子目录 → 不索引。
+    """vault 元文件 / spec/ 子目录 / tmp/ 子目录 → 不索引。
 
     供 walk_vault / sync.reconcile / watcher._dispatch 统一收口，
     避免在三个调用点各自重复排除规则。
@@ -636,6 +637,8 @@ def is_excluded_vault_file(abs_path: Path, memory_root: Path) -> bool:
     except ValueError:
         return True
     if "tmp" in rel_parts:
+        return True
+    if "spec" in rel_parts:
         return True
     if abs_path.name in _EXCLUDED_VAULT_FILENAMES:
         return True

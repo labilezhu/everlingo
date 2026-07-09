@@ -32,16 +32,16 @@ tools:
     title: Create vault
     description: |
       Create and initialize a new target-learning-language vault directory at
-      $workspace/memory/languages/$lang/vault/ and seed it with VAULT_SPEC.md
-      (synthesized from vault_spec.md with includes expanded via
+      $workspace/memory/languages/$lang/vault/ and seed it with spec/*.md
+      (copied from vault_specs/default/*.md with includes expanded via
       everlingo.utils.md_prompt_compiler.compile_prompt + PackageSource,
       matching the same approach as mem_writer_agent.py:67 but without
-      shift_headings — VAULT_SPEC.md is a standalone top-level document).
+      shift_headings — each spec file is a standalone top-level document).
       After creation, synchronously registers the lang with the indexer's
       LangState via state._open_lang(lang) (same entry point as
-      LangDiscoveryWatcher / lazy open). Idempotent: if the vault directory
-      already exists, VAULT_SPEC.md is not overwritten and re-registration
-      is a no-op (open_lang is itself idempotent under AppState._lock).
+      LangDiscoveryWatcher / lazy open). Idempotent: if a spec file already
+      exists under spec/, it is not overwritten; re-registration is a no-op
+      (open_lang is itself idempotent under AppState._lock).
       Workspace-level tool: does NOT require session.configure.
     inputSchema:
       type: object
@@ -76,8 +76,8 @@ tools:
         spec_written:
           type: boolean
           description: |
-            true = 本次调用写入了 VAULT_SPEC.md；
-            false = VAULT_SPEC.md 已存在，本次未覆盖。
+            true = 本次调用写入了至少一个 spec 文件；
+            false = 所有 spec 文件均已存在，本次未覆盖。
         registered:
           type: boolean
           description: |

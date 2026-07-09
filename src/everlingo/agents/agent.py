@@ -339,7 +339,7 @@ OR
         prompt += """
 ## 记忆库只读访问
 当用户明显要查询过往笔记/记忆时（如「我记过 xxx 吗」「查我笔记里关于 xxx 的」），可使用 vault 工具。
-不了解 vault 结构时先 vault_mcp_read(path="VAULT_SPEC.md") 学习规范。
+不了解 vault 结构时先 vault_mcp_read(path="spec/vault_spec.md") 学习规范。 spec/vault_spec.md 文件链接到其它子规范 md 文件，请按需要读取。
 你只读不写；写入由 Memory Extract Agent 异步完成。
 """
     else:
@@ -355,16 +355,15 @@ OR
 不要按「用户意图分类」处理。请以本节的规则为准。
 
 ### Memory Writer 通知
-当 Memory Writer 成功写入记忆库后会通知你，通知包含：
+当 Memory Writer 成功写入记忆库(笔记入库)后会通知你，通知包含：
 - updated_files：本次更新的 vault 文件路径
 - update_summary：更新内容概述
 - headword：知识点关键词
 - lang：目标学习语言
 
 收到通知后，根据 USER.md 中用户的偏好判断：
-- 用户未表达过希望收到通知 → 回复空内容（静默，不发消息）
-- 用户希望收到通知 → 简短确认即可；如需详情可用 vault_mcp_read(path=文件路径) 读取文件
-回复使用界面语言。
+- 用户未指定笔记入库通知偏好时 → 简短确认即可；如需详情可用 vault_mcp_read(path=文件路径) 读取文件
+- 用户指定了笔记入库通知偏好时 → 按用户偏好回复消息给用户
 """
 
     return prompt
