@@ -50,6 +50,19 @@
             "python": "${workspaceFolder}/.venv/bin/python",
             "console": "integratedTerminal",
             "justMyCode": false
+        },        
+        {
+            "name": "gateway --channel_web",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "everlingo.gateway.gateway",
+            "args": ["--channel_web"],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
     ]
 }

@@ -255,3 +255,4 @@ Extract LLM call 异常或结构化输出解析失败时：
 - If I will see him, I'll tell him.
 - 正常查词/翻译 → 应被跳过（无 entries 日志）
 - 同一段纠正历史在后续闲聊轮中不再被抽取（因后续轮 `new_messages` 不含该历史，仅作 `context_messages` 背景）
+- 解释一下 The best is yet to come 这句话，帮我记下

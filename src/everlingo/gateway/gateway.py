@@ -10,6 +10,7 @@ import logging
 from ..log_utils import setup_logging
 from ..models import LANGUAGES, UserProfile
 from ..setting import load_profile, save_profile
+from ._memory_writer import memory_writer
 from .session_acceptor import StdioSessionAcceptor, WechatSessionAcceptor
 from .session_events import SystemNotice
 from .web_acceptor import WebSessionAcceptor
@@ -17,49 +18,6 @@ from .session import Session
 
 
 logger = logging.getLogger(__name__)
-
-
-# ── Memory Writer Agent 单例（进程级）───────────────────────────────
-# ref: memory-writer-agent-spec.md — 进程级单例，独立 daemon Thread + queue.Queue。
-# Memory Extract Agent 通过 enqueue(entries) 把已生成 entries 转交给 Writer；
-# Writer 异步消费、写入 memory vault。
-#
-# 延迟导入避免 gateway -> mem_writer_agent -> llm -> ... -> gateway 循环。
-# Extract Agent 已通过 EntryWriterProtocol.enqueue 转发；本模块只需要暴露单例。
-
-memory_writer: "_MemoryWriterProxy"  # type: ignore[type-arg]
-
-
-class _MemoryWriterProxy:
-    """延迟构造的 Writer 单例代理。
-
-    实际 MemoryWriterAgent 在首次访问时构造并 start()。
-    这样既能保留「gateway 模块级实例」的单例语义，
-    又能在测试中替换为 mock（patch / 直接赋值）。
-    """
-
-    def __init__(self) -> None:
-        self._agent: object | None = None
-        self._notice_sink: object | None = None
-
-    def set_notice_sink(self, sink: object) -> None:
-        self._notice_sink = sink
-        if self._agent is not None:
-            self._agent._notice_sink = sink
-
-    def _ensure(self):
-        if self._agent is None:
-            from ..mem.agents.mem_writer_agent import MemoryWriterAgent
-            self._agent = MemoryWriterAgent(notice_sink=self._notice_sink)
-            self._agent.start()
-            logger.info("memory_writer started")
-        return self._agent
-
-    def enqueue(self, entries) -> None:
-        self._ensure().enqueue(entries)
-
-
-memory_writer = _MemoryWriterProxy()
 
 
 # ── Profile 初始化向导（从 chat.py 迁入） ────────────────────────────────────

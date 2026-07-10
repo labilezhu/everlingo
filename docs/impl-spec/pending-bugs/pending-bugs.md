@@ -1,4 +1,60 @@
 
+src/everlingo/gateway/gateway.py#6 中的 memory_writer 被初始化了两次，好像不合理：
+
+1.
+__init__ (/home/labile/everlingo/src/everlingo/gateway/gateway.py:43)
+<module> (/home/labile/everlingo/src/everlingo/gateway/gateway.py:62)
+_run_code (/usr/lib/python3.12/runpy.py:88)
+_run_module_as_main (/usr/lib/python3.12/runpy.py:198)
+
+
+2.
+__init__ (/home/labile/everlingo/src/everlingo/gateway/gateway.py:43)
+<module> (/home/labile/everlingo/src/everlingo/gateway/gateway.py:62)
+_get_memory_writer (/home/labile/everlingo/src/everlingo/agents/agent.py:71)
+__init__ (/home/labile/everlingo/src/everlingo/agents/agent.py:420)
+__init__ (/home/labile/everlingo/src/everlingo/gateway/session.py:30)
+accept_session (/home/labile/everlingo/src/everlingo/gateway/gateway.py:179)
+create_session (/home/labile/everlingo/src/everlingo/gateway/web_acceptor.py:40)
+run_endpoint_function (/home/labile/everlingo/.venv/lib/python3.12/site-packages/fastapi/routing.py:344)
+app (/home/labile/everlingo/.venv/lib/python3.12/site-packages/fastapi/routing.py:690)
+app (/home/labile/everlingo/.venv/lib/python3.12/site-packages/fastapi/routing.py:136)
+wrapped_app (/home/labile/everlingo/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py:42)
+app (/home/labile/everlingo/.venv/lib/python3.12/site-packages/fastapi/routing.py:150)
+handle (/home/labile/everlingo/.venv/lib/python3.12/site-packages/starlette/routing.py:276)
+handle (/home/labile/everlingo/.venv/lib/python3.12/site-packages/fastapi/routing.py:1241)
+app (/home/labile/everlingo/.venv/lib/python3.12/site-packages/fastapi/routing.py:2531)
+__call__ (/home/labile/everlingo/.venv/lib/python3.12/site-packages/starlette/routing.py:660)
+__call__ (/home/labile/everlingo/.venv/lib/python3.12/site-packages/fastapi/middleware/asyncexitstack.py:18)
+wrapped_app (/home/labile/everlingo/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py:42)
+__call__ (/home/labile/everlingo/.venv/lib/python3.12/site-packages/starlette/middleware/exceptions.py:63)
+__call__ (/home/labile/everlingo/.venv/lib/python3.12/site-packages/starlette/middleware/errors.py:164)
+__call__ (/home/labile/everlingo/.venv/lib/python3.12/site-packages/starlette/applications.py:90)
+__call__ (/home/labile/everlingo/.venv/lib/python3.12/site-packages/fastapi/applications.py:1163)
+__call__ (/home/labile/everlingo/.venv/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py:62)
+run_asgi (/home/labile/everlingo/.venv/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py:421)
+_run (/usr/lib/python3.12/asyncio/events.py:88)
+_run_once (/usr/lib/python3.12/asyncio/base_events.py:1987)
+run_forever (/usr/lib/python3.12/asyncio/base_events.py:641)
+run_until_complete (/usr/lib/python3.12/asyncio/base_events.py:674)
+run (/usr/lib/python3.12/asyncio/runners.py:118)
+run (/usr/lib/python3.12/asyncio/runners.py:194)
+_run (/home/labile/everlingo/src/everlingo/gateway/gateway.py:255)
+main (/home/labile/everlingo/src/everlingo/gateway/gateway.py:220)
+<module> (/home/labile/everlingo/src/everlingo/gateway/gateway.py:259)
+_run_code (/usr/lib/python3.12/runpy.py:88)
+_run_module_as_main (/usr/lib/python3.12/runpy.py:198)
+
+---
+
+解释一下 The best is yet to come 这句话，帮我记下
+
+2026-07-09 22:26:01.076 [DEBUG] [129680933893824] [asyncio_1] [log_utils] [everlingo.log_utils] : LLM Response - generations=[[ChatGeneration(text='```json\n{\n  "updated_files": ["items/phrase/the-best-is-yet-to-come--01KX3JESC30VED0YFGK25B8HK9.md"],\n  "update_summary": "更新短语「The best is yet to come」条目，补充释义细节（\'yet to + 动词\'表示尚未做某事），增加遇到记录，更新 seen_count 和 timestamp。"\n}\n```', generation_info={'finish_reason': 'stop', 'logprobs': None}, message=AIMessage(content='```json\n{\n  "updated_files": ["items/phrase/the-best-is-yet-to-come--01KX3JESC30VED0YFGK25B8HK9.md"],\n  "update_summary": "更新短语「The best is yet to come」条目，补充释义细节（\'yet to + 动词\'表示尚未做某事），增加遇到记录，更新 seen_count 和 timestamp。"\n}\n```', additional_kwargs={'refusal': None}, response_metadata={'token_usage': {'completion_tokens': 91, 'prompt_tokens': 10691, 'total_tokens': 10782, 'completion_tokens_details': {'accepted_prediction_tokens': None, 'audio_tokens': 0, 'reasoning_tokens': 0, 'rejected_prediction_tokens': None, 'image_tokens': 0}, 'prompt_tokens_details': {'audio_tokens': 0, 'cached_tokens': 0, 'cache_write_tokens': 0, 'video_tokens': 0}, 'cost': 0.001511347, 'is_byok': False, 'cost_details': {'upstream_inference_cost': 0.001511347, 'upstream_inference_prompt_cost': 0.001486049, 'upstream_inference_completions_cost': 2.5298e-05}}, 'model_provider': 'openai', 'model_name': 'deepseek/deepseek-v4-flash-20260423', 'system_fingerprint': None, 'id': 'gen-1783607148-C8wIlvyiKSzLweSakfCd', 'finish_reason': 'stop', 'logprobs': None}, id='lc_run--019f4745-3f19-7311-9689-b9ab071c9301-0', tool_calls=[], invalid_tool_calls=[], usage_metadata={'input_tokens': 10691, 'output_tokens': 91, 'total_tokens': 10782, 'input_token_details': {'audio': 0, 'cache_read': 0}, 'output_token_details': {'audio': 0, 'reasoning': 0}}))]] llm_output={'token_usage': {'completion_tokens': 91, 'prompt_tokens': 10691, 'total_tokens': 10782, 'completion_tokens_details': {'accepted_prediction_tokens': None, 'audio_tokens': 0, 'reasoning_tokens': 0, 'rejected_prediction_tokens': None, 'image_tokens': 0}, 'prompt_tokens_details': {'audio_tokens': 0, 'cached_tokens': 0, 'cache_write_tokens': 0, 'video_tokens': 0}, 'cost': 0.001511347, 'is_byok': False, 'cost_details': {'upstream_inference_cost': 0.001511347, 'upstream_inference_prompt_cost': 0.001486049, 'upstream_inference_completions_cost': 2.5298e-05}}, 'model_provider': 'openai', 'model_name': 'deepseek/deepseek-v4-flash-20260423', 'system_fingerprint': None, 'id': 'gen-1783607148-C8wIlvyiKSzLweSakfCd'} run=None type='LLMResult'
+
+
+
+---
+
 修复由于 src/everlingo/mem/agents/mem_writer_agent.py:128 等 system prompt 修改，而导致的 unit test 失败。
 
 ---
