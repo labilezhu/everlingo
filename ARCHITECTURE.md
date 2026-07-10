@@ -17,14 +17,26 @@
 测试时用 OpenRouter 的 Open AI Chat Completions endpoint base url: `https://openrouter.ai/api/v1` 。 api key 由环境变量注入。
 
 
+## 核心设计
+- [Workspace](docs/impl-spec/worksplace/workspace.md)
+- [Session](docs/impl-spec/session.md)
+- [Channel](docs/impl-spec/channel.md)
+- [Chat Agent 实现](docs/impl-spec/chat-agent-spec.md)
+- [Gateway 服务](docs/impl-spec/gateway.md)
+
+
+### Workspace
+![Workspace](docs/impl-spec/workspace.drawio.svg)
+
+### Architecture
+![Architecture](docs/impl-spec/arch.drawio.svg)
+
+### Search
+![Search](docs/impl-spec/search/search.drawio.svg)
+
 ## 配置
 
-- [配置](/docs/impl-spec/configuration.md)
-
-
-## 实现设计
-- [Chat Agent 实现](/docs/impl-spec/chat-agent-spec.md)
-- [Gateway 服务](/docs/impl-spec/gateway.md)
+- [配置](docs/impl-spec/configuration.md)
 
 
 ## 应用的主入口
