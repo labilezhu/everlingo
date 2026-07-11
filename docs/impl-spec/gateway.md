@@ -30,6 +30,17 @@ Gateway 实现 `NoticeSink` Protocol（定义于 `session_events.py`），在 `_
 - [session.md — 事件队列与跨线程事件推送](/docs/impl-spec/session.md)
 - [memory-writer-agent-spec.md — 写入确认通知](/docs/impl-spec/memory-writer-agent-spec.md)
 
+## Session 退出清理（2026-07）
+
+Session 退出时（如 channel 断开触发 `QuitEvent`），Gateway 自动从 `Session 列表` 中移除该 session。
+
+实现方式：`Gateway.accept_session()` 给 `session.run()` 的 task 加 `add_done_callback`，
+回调中调用 `_cleanup_session(session_id)` 从 `self.sessions` 中 `pop`。
+
+参见：
+- [web-session-acceptor.md — Session 超时回收](/docs/impl-spec/web-session-acceptor.md)
+- [session.md — QuitEvent 与退出流程](/docs/impl-spec/session.md)
+
 ## 结构
 ```
 Gateway --> Session Acceptor

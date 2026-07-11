@@ -35,9 +35,12 @@ async def create_session():
     返回 session_id，前端用此 id 连接 SSE 和发送消息。
     """
     session_id = str(uuid.uuid4())
-    channel = WebChannel()
+    channel = WebChannel(session_id=session_id)
     _channels[session_id] = channel
-    await _gateway.accept_session(channel, session_id)
+    task = await _gateway.accept_session(channel, session_id)
+    task.add_done_callback(
+        lambda _: _channels.pop(session_id, None)
+    )
     return {"session_id": session_id}
 
 

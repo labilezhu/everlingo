@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from everlingo.gateway.web_acceptor import app, _channels
+from everlingo.gateway.web_acceptor import app, _channels, create_session, send_message, MessageBody
 from everlingo.gateway.channels.web_channel import WebChannel, SSEEvent
 
 
@@ -23,7 +23,8 @@ def _make_gateway():
         session.id = session_id
         session.channel = channel
         gateway.sessions[session_id] = session
-        return asyncio.create_task(asyncio.sleep(0))
+        # 返回一个不会立即完成的 task，避免 done_callback 立刻触发
+        return asyncio.create_task(asyncio.Event().wait())
 
     gateway.accept_session = AsyncMock(side_effect=fake_accept_session)
     return gateway
@@ -53,13 +54,14 @@ class TestCreateSession:
         assert "session_id" in data
         assert len(data["session_id"]) > 0
 
-    def test_registers_channel_in_global_dict(self):
+    @pytest.mark.asyncio
+    async def test_registers_channel_in_global_dict(self):
         import everlingo.gateway.web_acceptor as wa
         wa._gateway = _make_gateway()
 
-        client = TestClient(app)
-        resp = client.post("/api/session")
-        session_id = resp.json()["session_id"]
+        # 直接调用 create_session（不通过 HTTP），避免 TestClient 线程问题
+        resp = await create_session()
+        session_id = resp["session_id"]
         assert session_id in _channels
         assert isinstance(_channels[session_id], WebChannel)
 
@@ -90,24 +92,22 @@ class TestCreateSession:
 class TestSendMessage:
     """POST /api/session/{session_id}/message"""
 
-    def test_message_put_into_channel_queue(self):
+    @pytest.mark.asyncio
+    async def test_message_put_into_channel_queue(self):
         import everlingo.gateway.web_acceptor as wa
         wa._gateway = _make_gateway()
 
-        client = TestClient(app)
-        create_resp = client.post("/api/session")
-        session_id = create_resp.json()["session_id"]
+        # 直接调用 create_session 和 send_message
+        resp = await create_session()
+        session_id = resp["session_id"]
 
-        resp = client.post(
-            f"/api/session/{session_id}/message",
-            json={"text": "你好世界"},
-        )
-        assert resp.status_code == 200
-        assert resp.json()["ok"] is True
+        # 模拟发送消息
+        await send_message(session_id, MessageBody(text="你好世界"))
 
+        # 验证消息在队列中
         channel = _channels[session_id]
-        text = asyncio.run(channel.recv())
-        assert text == "你好世界"
+        msg = await channel.recv()
+        assert msg == "你好世界"
 
     def test_404_for_unknown_session(self):
         client = TestClient(app)

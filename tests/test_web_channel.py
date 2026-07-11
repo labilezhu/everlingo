@@ -6,6 +6,7 @@ ref: web-session-acceptor.md — Web Channel 实现
 """
 import asyncio
 import base64
+import logging
 
 import pytest
 
@@ -56,6 +57,79 @@ class TestWebChannelRecv:
         assert (await channel.recv()) == "first"
         assert (await channel.recv()) == "second"
         assert (await channel.recv()) is None
+
+
+class TestWebChannelRecvTimeout:
+    """recv() 超时回收测试（短超时值，避免等真实 5/60 分钟）。
+
+    ref: web-session-acceptor.md — Session 超时回收
+    """
+
+    @pytest.mark.asyncio
+    async def test_recv_returns_none_after_disconnect_grace(self):
+        """无 SSE client 超过宽限期 → recv() 返回 None。"""
+        channel = WebChannel(
+            session_id="test-session",
+            idle_check_interval=0.1,
+            disconnect_grace=0.3,
+        )
+        result = await asyncio.wait_for(channel.recv(), timeout=5.0)
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_recv_does_not_return_none_with_sse_client(self):
+        """有 SSE client 时，即使轮询超时也不返回 None（直到收到消息）。"""
+        channel = WebChannel(
+            session_id="test-session",
+            idle_check_interval=0.1,
+            disconnect_grace=0.3,
+            absolute_idle_timeout=9999,
+        )
+        channel.add_sse_client()
+        await channel._incoming.put("hello")
+        result = await channel.recv()
+        assert result == "hello"
+
+    @pytest.mark.asyncio
+    async def test_recv_returns_none_after_absolute_idle_timeout(self):
+        """绝对空闲超时（即使有 SSE client）→ recv() 返回 None。"""
+        channel = WebChannel(
+            session_id="test-session",
+            idle_check_interval=0.1,
+            absolute_idle_timeout=0.3,
+        )
+        channel.add_sse_client()
+        result = await asyncio.wait_for(channel.recv(), timeout=5.0)
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_recv_logs_disconnect_grace(self, caplog):
+        """DISCONNECT_GRACE 超时时输出 info 日志含 session id。"""
+        channel = WebChannel(
+            session_id="test-session-123",
+            idle_check_interval=0.1,
+            disconnect_grace=0.3,
+        )
+        with caplog.at_level(logging.INFO, logger="everlingo.gateway.channels.web_channel"):
+            result = await asyncio.wait_for(channel.recv(), timeout=5.0)
+        assert result is None
+        assert "test-session-123" in caplog.text
+        assert "DISCONNECT_GRACE" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_recv_logs_absolute_idle_timeout(self, caplog):
+        """ABSOLUTE_IDLE_TIMEOUT 超时时输出 info 日志含 session id。"""
+        channel = WebChannel(
+            session_id="test-session-456",
+            idle_check_interval=0.1,
+            absolute_idle_timeout=0.3,
+        )
+        channel.add_sse_client()
+        with caplog.at_level(logging.INFO, logger="everlingo.gateway.channels.web_channel"):
+            result = await asyncio.wait_for(channel.recv(), timeout=5.0)
+        assert result is None
+        assert "test-session-456" in caplog.text
+        assert "ABSOLUTE_IDLE_TIMEOUT" in caplog.text
 
 
 class TestWebChannelSSE:

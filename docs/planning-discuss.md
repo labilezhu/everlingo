@@ -1,4 +1,8 @@
 
+现在的 [Session](docs/impl-spec/session.md) 自己有 [QuitEvent](src/everlingo/gateway/session_events.py) 作为退出机制。但对于 [Web Session Acceptor](docs/impl-spec/web-session-acceptor.md) 用户每次开一个新浏览器页都一个新 session ， 但 session 没有超时机制。用户断开后，没有产生 QuitEvent 事件，[Gateway](docs/impl-spec/gateway.md) 中的 `Session 列表` 也没有回收 Session 。 我认为，Web Session Acceptor 产生的 Session 应该有自己的超进回收结束机制，结束后要通知 Gateway 在`Session 列表` 中清除。 
+
+---
+
 评估一下可行性：
 
 现在的 [Vault MCP Server](docs/impl-spec/vault-mcp/vault-mcp-spec.md) 在 create_vault 时

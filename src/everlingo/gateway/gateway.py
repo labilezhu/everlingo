@@ -137,7 +137,17 @@ class Gateway:
             session = Session(channel=channel, profile=self._profile, id=session_id)
             self.sessions[session_id] = session
 
-        return asyncio.create_task(session.run())
+        task = asyncio.create_task(session.run())
+        task.add_done_callback(
+            lambda _t, _sid=session_id: self._cleanup_session(_sid)
+        )
+        return task
+
+    def _cleanup_session(self, session_id: str) -> None:
+        """Session 退出后从 sessions 列表中移除。"""
+        removed = self.sessions.pop(session_id, None)
+        if removed is not None:
+            logger.info("Session %s cleaned up", session_id)
 
     async def run(self, channel_type: str = "stdio") -> None:
         """Gateway 主入口。

@@ -3,6 +3,7 @@
 # 2026-07 改为事件队列模式：channel.recv() 与系统事件混合为统一事件源。
 
 import asyncio
+import logging
 import uuid
 from datetime import datetime
 
@@ -10,6 +11,8 @@ from .channels.channel import Channel, ChannelMetadata
 from .session_events import QuitEvent, SystemNotice, UserMessage
 from ..agents.agent import MainAgent, MessageEvent
 from ..models import UserProfile
+
+logger = logging.getLogger(__name__)
 
 
 class Session:
@@ -76,6 +79,7 @@ class Session:
         while True:
             text = await self.channel.recv()
             if text is None:
+                logger.info("session %s: channel closed, posting QuitEvent", self.id)
                 await self._event_queue.put(QuitEvent())
                 return
             await self._event_queue.put(UserMessage(text=text))

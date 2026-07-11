@@ -1,49 +1,6 @@
 
-src/everlingo/gateway/gateway.py#6 中的 memory_writer 被初始化了两次，好像不合理：
+现在的 [Chat Agent](docs/impl-spec/chat-agent-spec.md) 中 “## Agents 数据流水线” 上， Memory Extract Agent 有点过度设计，如果把 Memory Extract Agent 合并到 Memory Writer Agent ，不要中间的环节，是不是更合理 ？
 
-1.
-__init__ (/home/labile/everlingo/src/everlingo/gateway/gateway.py:43)
-<module> (/home/labile/everlingo/src/everlingo/gateway/gateway.py:62)
-_run_code (/usr/lib/python3.12/runpy.py:88)
-_run_module_as_main (/usr/lib/python3.12/runpy.py:198)
-
-
-2.
-__init__ (/home/labile/everlingo/src/everlingo/gateway/gateway.py:43)
-<module> (/home/labile/everlingo/src/everlingo/gateway/gateway.py:62)
-_get_memory_writer (/home/labile/everlingo/src/everlingo/agents/agent.py:71)
-__init__ (/home/labile/everlingo/src/everlingo/agents/agent.py:420)
-__init__ (/home/labile/everlingo/src/everlingo/gateway/session.py:30)
-accept_session (/home/labile/everlingo/src/everlingo/gateway/gateway.py:179)
-create_session (/home/labile/everlingo/src/everlingo/gateway/web_acceptor.py:40)
-run_endpoint_function (/home/labile/everlingo/.venv/lib/python3.12/site-packages/fastapi/routing.py:344)
-app (/home/labile/everlingo/.venv/lib/python3.12/site-packages/fastapi/routing.py:690)
-app (/home/labile/everlingo/.venv/lib/python3.12/site-packages/fastapi/routing.py:136)
-wrapped_app (/home/labile/everlingo/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py:42)
-app (/home/labile/everlingo/.venv/lib/python3.12/site-packages/fastapi/routing.py:150)
-handle (/home/labile/everlingo/.venv/lib/python3.12/site-packages/starlette/routing.py:276)
-handle (/home/labile/everlingo/.venv/lib/python3.12/site-packages/fastapi/routing.py:1241)
-app (/home/labile/everlingo/.venv/lib/python3.12/site-packages/fastapi/routing.py:2531)
-__call__ (/home/labile/everlingo/.venv/lib/python3.12/site-packages/starlette/routing.py:660)
-__call__ (/home/labile/everlingo/.venv/lib/python3.12/site-packages/fastapi/middleware/asyncexitstack.py:18)
-wrapped_app (/home/labile/everlingo/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py:42)
-__call__ (/home/labile/everlingo/.venv/lib/python3.12/site-packages/starlette/middleware/exceptions.py:63)
-__call__ (/home/labile/everlingo/.venv/lib/python3.12/site-packages/starlette/middleware/errors.py:164)
-__call__ (/home/labile/everlingo/.venv/lib/python3.12/site-packages/starlette/applications.py:90)
-__call__ (/home/labile/everlingo/.venv/lib/python3.12/site-packages/fastapi/applications.py:1163)
-__call__ (/home/labile/everlingo/.venv/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py:62)
-run_asgi (/home/labile/everlingo/.venv/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py:421)
-_run (/usr/lib/python3.12/asyncio/events.py:88)
-_run_once (/usr/lib/python3.12/asyncio/base_events.py:1987)
-run_forever (/usr/lib/python3.12/asyncio/base_events.py:641)
-run_until_complete (/usr/lib/python3.12/asyncio/base_events.py:674)
-run (/usr/lib/python3.12/asyncio/runners.py:118)
-run (/usr/lib/python3.12/asyncio/runners.py:194)
-_run (/home/labile/everlingo/src/everlingo/gateway/gateway.py:255)
-main (/home/labile/everlingo/src/everlingo/gateway/gateway.py:220)
-<module> (/home/labile/everlingo/src/everlingo/gateway/gateway.py:259)
-_run_code (/usr/lib/python3.12/runpy.py:88)
-_run_module_as_main (/usr/lib/python3.12/runpy.py:198)
 
 ---
 
