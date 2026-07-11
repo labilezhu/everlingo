@@ -43,10 +43,7 @@
 - why_want_to_save_memory: 用户明确要求记住知识点  
 - user_intent: dict  
 - lang: ja  
-- headword: 曖昧  
-
-### mean_summary
-表示不明确、含糊、边界不清。日语中比中文“暧昧”使用范围更广。  
+- title: 曖昧  
 
 ### conversation_context
 用户在学习日语小说《罗生门》时直接查词  

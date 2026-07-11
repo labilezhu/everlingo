@@ -81,7 +81,7 @@ class TestSessionEventQueue:
                     source="memory_writer",
                     updated_files=["items/vocab/ufo.md"],
                     update_summary="test summary",
-                    headword="ufo",
+                    title="ufo",
                     lang="en",
                 ))
                 await asyncio.sleep(0.01)
@@ -95,7 +95,7 @@ class TestSessionEventQueue:
         assert agent.ainvoke.call_count == 1
         assert agent.ahandle_system_notice.call_count == 1
         call_notice = agent.ahandle_system_notice.call_args[0][0]
-        assert call_notice.headword == "ufo"
+        assert call_notice.title == "ufo"
 
     def test_quit_event_exits_loop(self):
         """QuitEvent 退出消息循环。"""
@@ -112,7 +112,7 @@ class TestSessionEventQueue:
         with pytest.raises(RuntimeError, match="not started"):
             session.post_event(SystemNotice(
                 source="test", updated_files=[], update_summary="",
-                headword="x", lang="en",
+                    title="x", lang="en",
             ))
 
     def test_post_event_routes_notice_to_agent(self):
@@ -129,7 +129,7 @@ class TestSessionEventQueue:
             source="memory_writer",
             updated_files=["items/vocab/test.md"],
             update_summary="测试",
-            headword="test",
+            title="test",
             lang="en",
         )
 
@@ -147,5 +147,5 @@ class TestSessionEventQueue:
 
         agent.ahandle_system_notice.assert_called_once()
         called_with = agent.ahandle_system_notice.call_args[0][0]
-        assert called_with.headword == "test"
+        assert called_with.title == "test"
         assert called_with.update_summary == "测试"

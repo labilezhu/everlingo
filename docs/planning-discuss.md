@@ -1,4 +1,52 @@
 
+现在的 src/everlingo/mem/agents/mem_extract_agent.py ，是把 $workspaces/memory/languages/$lang/vault/spec/memory_extract_spec.md 注入 system prompt 。
+
+ [MCP Server](docs/impl-spec/vault-mcp/vault-mcp-spec.md) 新增加了一个 compile_prompt(path) 工具，可以加载和预处理带 include 的 markdown prompt 文件。所以 mem_extract_agent.py 的 _load_extract_spec_from_vault 可以简化了。
+
+ 另外， mem_extract_agent.py 的  _load_extract_spec_from_package 不需要了，不需要本地 python package 兜底了。
+
+---
+src/everlingo/utils/md_prompt_compiler.py 的 compile_prompt() 支持多层 markdown 文件的递归 include 处理吗？
+
+---
+
+为 [MCP Server](docs/impl-spec/vault-mcp/vault-mcp-spec.md) 加入一个 prompt 分类的 tool。它主要作用是对 vault 中的 prompt 文件作预处理后返回:
+```yaml
+  - name: compile_prompt
+    title: compile a file
+    description: |
+      Compile a prompt file. Expand something like: {{ include [参考 mem_entry_spec.md](./mem_entry_spec.md) }} to the text of target file
+
+    inputSchema:
+      type: object
+      properties:
+        path:
+          type: string
+          description: Relative markdown file path (leading ``/`` or ``\`` treated as relative to vault root).
+      required:
+        - path
+    outputSchema:
+      type: object
+      properties:
+        content:
+          type: string
+          description: 文件全文文本。文件不存在时 isError=true + 错误文本，content 为空串。
+      required:
+        - content
+```
+
+其服务端(src/everlingo/mem/vault/mcp_server/mcp_server.py)的实现类似：
+```python
+compile_prompt(
+            path,
+            FilesystemSource(base_dir=resolve_vault_path(sess.lang, path)),
+        ),
+```
+
+这个 tool 同样要依赖于 session.configure 已经配置。
+
+---
+
 
 为了
 1. 让 [Memory Writer Agent](docs/impl-spec/memory-writer-agent-spec.md) 有更全面的对话上下文信息可以作为信息源，用更丰富的信息源分析，再写入 Memory Vault 。

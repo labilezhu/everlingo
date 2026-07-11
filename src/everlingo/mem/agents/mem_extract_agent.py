@@ -1,22 +1,27 @@
 # ref: docs/impl-spec/memory-extract-agent-spec.md
 # Chat Agent -> Memory Extract Agent -> Memory Writer Agent 数据流水线中的"筛选+结构化抽取"。
 # 每个 MainAgent 实例持有自己的 MemoryExtractAgent，daemon thread + queue 异步消费。
+#
+# 2026-07 迁移：system prompt 改为通过 MCP compile_prompt 工具读取
+# vault 中 spec/memory_extract_spec.md（含 include 展开），
+# indexer 离线时本轮 extract 失败丢弃（与 LLM call 失败一致），不再本地兜底。
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import queue
 import re
 import threading
 import uuid
 from datetime import datetime, timezone, timedelta
-from typing import Optional
+from typing import Any, Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from ...llm import create_extract_llm
 from ...setting import load_user_doc
-from ...utils.md_prompt_compiler import PackageSource, compile_prompt
+
 from .mem_entries import (
     EntryWriterProtocol,
     ExtractInput,
@@ -24,6 +29,7 @@ from .mem_entries import (
     LLMGeneratedEntry,
     MemoryEntry,
 )
+
 
 _GMT8 = timezone(timedelta(hours=8))
 
@@ -44,7 +50,6 @@ def _demote_headings(text: str) -> str:
     ref: chat-agent-spec.md — *.md 文件注入时标题层级处理
     """
     n = _HEADING_DEMOTE_OFFSET
-    # 每行行首的 1..6 个 # 后跟空白；多于 6 个视为普通文本不处理。
     pattern = re.compile(r'^(#{1,6}) ', flags=re.MULTILINE)
 
     def _shift(m: re.Match[str]) -> str:
@@ -74,9 +79,7 @@ def _render_context_messages(messages) -> str:
         role = getattr(m, "type", "") or m.__class__.__name__
         content = getattr(m, "content", "") or ""
         if isinstance(content, list):
-            # langchain 的 content 可能是 list[dict]（多模态）；退化为 str
             content = str(content)
-        # 工具消息标注：ToolMessage 是查词/翻译工具返回，是 mean_summary 的事实来源
         lines.append(f"[{role}] {content}")
     return "\n".join(lines)
 
@@ -91,23 +94,53 @@ def _intent_mode_label(intent_mode: Optional[str]) -> str:
     return intent_mode
 
 
+_SPEC_COMPILE_TOOLS: frozenset[str] = frozenset({"vault_mcp_compile_prompt"})
+
+
+async def _load_extract_spec_from_vault(lang: str) -> str:
+    """通过 MCP compile_prompt 工具编译 spec/memory_extract_spec.md（含 include 展开）。
+
+    返回编译后完整文本。
+    MCP server 不可用（IndexerOfflineError）或文件缺失时向上传播异常，
+    由 _run_loop 捕获后 logger.exception + 丢弃本轮。
+    """
+    from .mem_writer_mcp_client import mcp_vault_connection
+
+    async with mcp_vault_connection(
+        lang, wanted_tools=_SPEC_COMPILE_TOOLS
+    ) as (session, _tools):
+        result = await session.call_tool(
+            "compile_prompt", {"path": "spec/memory_extract_spec.md"}
+        )
+        if result.isError:
+            err_text = (
+                result.content[0].text
+                if result.content
+                else "compile_prompt returned isError"
+            )
+            raise RuntimeError(
+                f"compile_prompt spec/memory_extract_spec.md failed: {err_text}"
+            )
+        data = result.structuredContent or {}
+        return data.get("content", "")
+
+
 def _build_system_prompt(
     target_lang: str,
     interface_lang: str,
     channel_name: str,
     user_doc: str,
+    vault_spec_content: str,
 ) -> str:
     """构建 Extract Agent 的 system prompt。
 
-    ref: docs/impl-spec/memory-extract-agent-spec.md — 实现 · System prompt 要点
-    通过 PackageSource + compile_prompt 编译 mem_extract_output_spec.md，拼入
-    「输出 schema / 字段说明与真实性约束 / 输出格式」三段硬约束（与
-    Memory Writer Agent 加载 vault_spec.md 的机制一致）。
+    vault_spec_content 来自 MCP compile_prompt 编译的 memory_extract_spec.md
+    （含 memory_extract_output_spec.md / mem_entry_spec.md 等 include 展开）。
     """
-    spec_doc = compile_prompt(
-        "mem_extract_output_spec.md",
-        PackageSource(package="everlingo.mem.agents"),
-    )
+    spec_doc = vault_spec_content
+
+    # 替换占位符
+    spec_doc = spec_doc.replace("{target_lang}", target_lang)
 
     user_doc_section = ""
     if user_doc.strip():
@@ -115,17 +148,13 @@ def _build_system_prompt(
             "\n## 用户个性化偏好 (USER.md)\n"
             "以下为 USER.md 内容，用于辅助筛选判断（如判断是否'琐碎/显而易见'、"
             "'与目标学习语言相关性'、'用户偏好类应跳过'等）。\n"
-            "**仅用于筛选判断**，不要据此修改 mean_summary（mean_summary 必须保持事实性）。\n\n"
+            "**仅用于筛选判断**。\n\n"
             "---\n"
             f"{_demote_headings(user_doc.strip())}\n"
             "---\n"
         )
 
-    prefix = f"""你是 EverLingo 的"知识点抽取器(Memory Extract Agent)"。你的职责是分析本轮 Chat Agent 与用户的对话，判断是否有值得记入记忆库的知识点，并以结构化 JSON 输出 entries。
-
-你**不**与用户对话。你**不**写入任何文件。输出 JSON 后流程结束。
-
-## 会话元数据（系统提供，无需在输出中生成）
+    prefix = f"""## 会话元数据（系统提供，无需在输出中生成）
 
 - chat_session_id: 系统提供
 - channel_name: {channel_name}
@@ -133,57 +162,11 @@ def _build_system_prompt(
 - lang (目标学习语言): {target_lang}
 - interface_lang (用户熟识的语言/界面语言): {interface_lang}
 
+{user_doc_section}
 ## 输入
 
-每轮你会收到两段对话文本：
-
-- **本轮新增（new_messages）**：自上次抽取以来新增的对话消息。这是**唯一允许的抽取来源**。
-- **背景上下文（context_messages）**：最近最多 19 轮历史对话。**仅供生成 conversation_context 字段**，禁止从中抽取知识点。
-
-两段都包含 HumanMessage（用户）/ AIMessage（Chat Agent 回复）/ ToolMessage（查词/翻译工具返回）。
-ToolMessage 的 content 是 mean_summary 的**事实来源**（仅限 new_messages 段内的 ToolMessage）。
-
-## 抽取边界（硬约束）
-
-- **只允许从「本轮新增」段抽取知识点**。
-- 「背景上下文」段仅供理解对话场景、生成 `conversation_context`，**不得**作为 entry 输出。
-- 这是为了避免同一段历史在多轮抽取中被反复输出。
-
-## 筛选规则（本阶段精简版）
-
-### 规则优先级（高 → 低）
-
-1. **用户明确要求记住** —— 最高优先级，即使知识点对用户"显而易见"也应保存。
-2. **纠正事项** —— 信息源头是用户自己，且用户未预期到的，且目标学习语言方面的错误。
-3. **跳过规则**（任一触发即跳过）。
-
-### 应保存（本阶段仅两类）
-
-1. **用户明确要求记住**：如「记住 X 这个短语」「帮我记下 X」。
-2. **纠正事项**：用户自己写错的目标学习语言（如写 "I goes to school"，Chat Agent 纠正为 "I go to school"），且用户未预期到此错误。
-
-### 应跳过（任一触发）
-
-1. **与目标学习语言（lang={target_lang}）无关**。
-2. **用户偏好类**：应入 USER.md（由 Chat Agent 通过 user_doc 工具处理），不由你抽取。
-3. **原始数据转储**：单条 Message 文本超过 1000 字时，该 Message 不作为 mean_summary 的事实来源，但轮内其它知识点仍可抽取。
-4. **从背景上下文抽取**：知识点来自 context_messages 段而非 new_messages 段。
-5. **琐碎/显而易见**。
-
-### 本阶段不做（推迟到下一阶段）
-
-- 推断用户需要记住
-- 主动询问是否记住
-
-{user_doc_section}
-## 输出规范
-
-以下为输出 schema、字段说明与真实性约束、输出格式的硬约束。请严格遵守。
-
----
-
 """
-    return prefix + spec_doc.strip() + "\n"
+    return prefix.rstrip() + "\n\n" + spec_doc.strip() + "\n"
 
 
 class MemoryExtractAgent:
@@ -277,11 +260,17 @@ class MemoryExtractAgent:
         公开成方法是为便于测试以同步方式验证 post-process 行为。
         """
         user_doc = load_user_doc()
+
+        vault_spec = asyncio.run(
+            _load_extract_spec_from_vault(lang=self._target_lang)
+        )
+
         system_prompt = _build_system_prompt(
             target_lang=self._target_lang,
             interface_lang=self._interface_lang,
             channel_name=self._channel_name,
             user_doc=user_doc,
+            vault_spec_content=vault_spec,
         )
 
         intent_label = _intent_mode_label(extract_input.intent_mode)
@@ -302,7 +291,9 @@ class MemoryExtractAgent:
             HumanMessage(content=user_msg),
         ])
 
-        entries = self._post_process(result.entries, intent_label)
+        entries = self._post_process(
+            result.entries, intent_label, new_text, context_text
+        )
 
         # ref: 日志要求 — 每个 entry info 日志输出全部字段
         for e in entries:
@@ -310,11 +301,11 @@ class MemoryExtractAgent:
                 "memory extract entry: entry_id=%s chat_session_id=%s timestamp=%s "
                 "channel_name=%s item_type=%s why=%s user_intent=%s lang=%s "
                 "interface_language=%s "
-                "headword=%s mean_summary=%r conversation_context=%r",
+                "title=%s new_messages=%r context_messages=%r",
                 e.entry_id, e.chat_session_id, e.timestamp,
                 e.channel_name, e.item_type, e.why_want_to_save_memory,
                 e.user_intent, e.lang, e.interface_language,
-                e.headword, e.mean_summary, e.conversation_context,
+                e.title, e.new_messages, e.context_messages,
             )
 
         # 非空才转交 writer
@@ -324,9 +315,13 @@ class MemoryExtractAgent:
         return entries
 
     def _post_process(
-        self, llm_entries: list[LLMGeneratedEntry], user_intent: str
+        self,
+        llm_entries: list[LLMGeneratedEntry],
+        user_intent: str,
+        new_messages_text: str = "",
+        context_messages_text: str = "",
     ) -> list[MemoryEntry]:
-        """把 LLM 输出覆盖透传字段并补全 entry_id / timestamp。"""
+        """把 LLM 输出覆盖透传字段并补全 entry_id / timestamp / 对话消息。"""
         ts = _now_gmt8_str()
         out: list[MemoryEntry] = []
         for raw in llm_entries:
@@ -338,11 +333,11 @@ class MemoryExtractAgent:
                 user_intent=user_intent,
                 lang=self._target_lang,
                 interface_language=self._interface_lang,
+                new_messages=new_messages_text,
+                context_messages=context_messages_text,
                 item_type=raw.item_type,
                 why_want_to_save_memory=raw.why_want_to_save_memory,
-                headword=raw.headword,
-                mean_summary=raw.mean_summary,
-                conversation_context=raw.conversation_context,
+                title=raw.title,
             ))
         return out
 

@@ -358,7 +358,7 @@ OR
 当 Memory Writer 成功写入记忆库(笔记入库)后会通知你，通知包含：
 - updated_files：本次更新的 vault 文件路径
 - update_summary：更新内容概述
-- headword：知识点关键词
+- title：知识点标题
 - lang：目标学习语言
 
 收到通知后，根据 USER.md 中用户的偏好判断：
@@ -637,7 +637,7 @@ class MainAgent:
         files_str = ", ".join(notice.updated_files)
         notice_text = (
             f"[系统通知] Memory Writer 已更新记忆库：\n"
-            f"- 知识点: {notice.headword} (lang={notice.lang})\n"
+            f"- 知识点: {notice.title} (lang={notice.lang})\n"
             f"- 文件: {files_str}\n"
             f"- 概要: {notice.update_summary}\n"
             f"请根据用户偏好(USER.md)决定是否告知用户及详情程度。"

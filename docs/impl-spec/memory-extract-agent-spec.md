@@ -172,7 +172,7 @@ class ExtractInput:
 
 ## 输出规范
 
-见： [Memory Extract Agent 输出规范](/src/everlingo/mem/agents/mem_extract_output_spec.md)
+见： [Memory Extract Agent 输出规范](/src/everlingo/mem/vault/vault_specs/default/memory_extract_output_spec.md)
 
 ### 日志要求
 输出的所有 entries ，都需要有 info 级别的日志输出所有字段的内容。
@@ -188,7 +188,9 @@ class ExtractInput:
 - `entry_id / timestamp`：**代码生成**，不让 LLM 生成。
   - `entry_id`：uuid4。
   - `timestamp`：Extract 执行时刻，格式 `yyyy-mm-dd HH:MM:SS`，GMT+8。
-- `item_type / why_want_to_save_memory / headword / mean_summary / conversation_context`：LLM 生成。
+- `item_type / why_want_to_save_memory / title`：LLM 生成。
+- `new_messages / context_messages`：从 `ExtractInput` 透传（渲染后的字符串列表，用于填入 `MemoryEntry`）。
+- 注意：`conversation_context` 不再由 Extract Agent 生成，改由 Memory Writer Agent 在写入时根据 `new_messages` / `context_messages` 生成。
 
 ### why_want_to_save_memory 枚举
 
@@ -199,11 +201,9 @@ class ExtractInput:
 其余（推断用户需要记住 / 主动询问相关）推迟到下一阶段。
 
 
-## mean_summary 真实性约束
+## conversation_context 生成
 
-`mean_summary` **必须基于 `new_messages` 中 `ToolMessage` 的事实内容**（查词/翻译工具的返回），不允许 LLM 自由发挥或引入外部知识。本轮无工具返回（纯问答）时，基于 Agent 回复中给出的解释。此约束写进 system prompt，并在测试用例中验证。**禁止**从 `context_messages` 中取材 `mean_summary`。
-
-USER.md 仅用于**筛选判断**（判断"琐碎/显而易见""与 target_lang 相关性""用户偏好类应跳过"等），`mean_summary` 保持事实性、不个性化。否则 mean_summary 会偏离工具返回的真实释义，违反真实性约束。
+`conversation_context` 不再由 Extract Agent 生成，改为从 `ExtractInput` 的 `new_messages` / `context_messages` 透传给 Memory Entry，由 Memory Writer Agent 在写入时生成。Extract Agent 需确保这两个字段填充为渲染后的消息文本列表（字符串），供 Writer Agent 的 LLM 参考。
 
 ## 失败处理
 
@@ -229,14 +229,14 @@ Extract LLM call 异常或结构化输出解析失败时：
 - 输入字段含义说明（`intent_mode` / `new_messages` / `context_messages`，以及实例属性中的会话元数据）。
 - **抽取边界硬约束**：只允许从 `new_messages` 中抽取知识点；`context_messages` 仅用于生成 `conversation_context`，其中出现过的事实不得作为 entry 输出。
 - 筛选规则（本阶段精简版）与规则优先级。
-- 输出 schema、字段说明与真实性约束（见 `src/everlingo/mem/agents/mem_extract_output_spec.md`，由运行期加载拼入）。
-- mean_summary 真实性约束（基于 `new_messages` 中 ToolMessage 事实，不个性化）。
+- 输出 schema、字段说明（由运行期通过 MCP `compile_prompt` 工具加载并展开 include：`memory_extract_spec.md` → `memory_extract_output_spec.md` → `mem_entry_spec.md`；不再本地兜底）。
+- `conversation_context` 不在此生成；`new_messages` / `context_messages` 均透传给 Memory Entry 供 Writer Agent 使用。
 - 注入 USER.md 内容（标题降级，防止与 prompt 外层结构冲突），用于筛选判断。参考 `agent.py` 的 `_demote_headings()` 实现标题降级。
 - 只输出 JSON，不输出解释性文字。
 
 ### Prompt 文件加载
 
-「输出 schema / 字段说明与真实性约束 / 输出格式」三段抽离至 `src/everlingo/mem/agents/mem_extract_output_spec.md`。System prompt 在 `_build_system_prompt()` 中通过 `src/everlingo/utils/md_prompt_compiler.py` 的 `PackageSource` 加载该 md 并与 inline prefix 段（角色 / 会话元数据 / 输入 / 抽取边界 / 筛选规则 / USER.md）拼接，最终作为 LLM system prompt。与 [memory-writer-agent-spec.md](/docs/impl-spec/memory-writer-agent-spec.md) 加载 `src/everlingo/mem/vault/vault_spec.md` 的机制一致。
+`memory_extract_spec.md` 通过 `{{ include }}` 引用了 `memory_extract_output_spec.md`（后者又引用了 `mem_entry_spec.md`）。System prompt 在 `_build_system_prompt()` 中通过 MCP `compile_prompt` 工具动态编译 `spec/memory_extract_spec.md`，一步得到完整展开后的 spec 文本。MCP server 不可用（`IndexerOfflineError`）或 spec 文件缺失时，本轮 extract 失败丢弃（与 LLM call 失败一致），不再回退至 `PackageSource`。
 
 ## 已知简化 / 待评估
 

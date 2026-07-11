@@ -45,7 +45,7 @@ from everlingo.mem.agents.mem_writer_mcp_client import (
 
 
 def _entry(
-    headword="gcc",
+    title="gcc",
     item_type="vocab",
     why="用户明确要求记住知识点",
     lang="en",
@@ -54,8 +54,8 @@ def _entry(
     chat_session_id="cs-1",
     channel_name="StdioChannel",
     user_intent="dict",
-    mean="GNU C 编译器",
-    ctx="用户在查词",
+    new_messages="",
+    context_messages="",
 ) -> MemoryEntry:
     return MemoryEntry(
         entry_id="entry-uuid-1",
@@ -65,11 +65,11 @@ def _entry(
         user_intent=user_intent,
         lang=lang,
         interface_language=interface_language,
+        new_messages=new_messages,
+        context_messages=context_messages,
         item_type=item_type,
         why_want_to_save_memory=why,
-        headword=headword,
-        mean_summary=mean,
-        conversation_context=ctx,
+        title=title,
     )
 
 
@@ -95,7 +95,7 @@ class TestEventsRelPath:
 class TestFormatEventSection:
     def test_section_has_all_fields(self):
         e = _entry()
-        section = _format_event_section(e)
+        section = _format_event_section(e, conversation_context="用户在查词")
         assert "## Event" in section
         assert "- chat_session_id: cs-1" in section
         assert "- entry_id: entry-uuid-1" in section
@@ -105,17 +105,16 @@ class TestFormatEventSection:
         assert "- why_want_to_save_memory: 用户明确要求记住知识点" in section
         assert "- user_intent: dict" in section
         assert "- lang: en" in section
-        assert "- headword: gcc" in section
-        assert "### mean_summary" in section
-        assert "GNU C 编译器" in section
+        assert "- title: gcc" in section
+        assert "### mean_summary" not in section
         assert "### conversation_context" in section
         assert "用户在查词" in section
 
-    def test_section_keeps_multiline_summary(self):
-        e = _entry(mean="第一行\n第二行\n第三行")
-        section = _format_event_section(e)
-        assert "第一行\n第二行\n第三行" in section
-        assert "### mean_summary\n第一行\n第二行\n第三行" in section
+    def test_section_omits_conversation_context_when_none(self):
+        """conversation_context 为 None 时省略该子段。"""
+        e = _entry()
+        section = _format_event_section(e, conversation_context=None)
+        assert "### conversation_context" not in section
 
 
 class TestAppendEvent:
@@ -137,9 +136,8 @@ class TestAppendEvent:
         assert "事件按时间顺序记录" in text
         assert "事件记录格式：" in text
         assert "## Event" in text
-        assert "- headword: gcc" in text
-        assert "### mean_summary" in text
-        assert "GNU C 编译器" in text
+        assert "- title: gcc" in text
+        assert "### mean_summary" not in text
         assert any("events: created" in r.message for r in caplog.records)
 
     def test_appends_to_existing_file(
@@ -156,7 +154,7 @@ class TestAppendEvent:
                 asyncio.run(_append_event_async(_entry(
                     timestamp="2026-11-21 15:58:56",
                     lang="en",
-                    headword="kernel",
+                    title="kernel",
                 )))
         f = tmp_vault / "events/2026/11/2026-11-21.md"
         text = f.read_text(encoding="utf-8")
@@ -209,15 +207,15 @@ class TestWriterSystemPrompt:
         for field in (
             "chat_session_id", "entry_id", "timestamp", "channel_name",
             "item_type", "why_want_to_save_memory", "user_intent",
-            "lang", "interface_language", "headword",
-            "mean_summary", "conversation_context",
+            "lang", "interface_language", "title",
+            "new_messages", "context_messages",
         ):
             assert field in prompt, f"missing entry field: {field}"
 
     def test_entry_schema_appears_before_vault_spec(self):
         prompt = _build_writer_system_prompt()
         assert prompt.index("## 输入给你的 entry 结构") < prompt.index(
-            "## memory vault 结构"
+            "# memory vault 注意事项"
         )
 
     def test_injected_spec_headings_nested_under_parent(self):
@@ -227,7 +225,7 @@ class TestWriterSystemPrompt:
             stripped = line.lstrip()
             assert not stripped.startswith("# 记忆实体"), line
         assert "## 输入给你的 entry 结构" in prompt
-        assert "## memory vault 结构" in prompt
+        assert "# memory vault 注意事项" in prompt
 
 
 
@@ -265,8 +263,8 @@ class TestWriterAgentSync:
             agent, _ = self._make_agent(mock_create)
             with mcp_inmem_server():
                 agent._process_batch([
-                    _entry(timestamp="2026-11-21 14:58:56", headword="gcc"),
-                    _entry(timestamp="2026-11-21 15:58:56", headword="kernel"),
+                    _entry(timestamp="2026-11-21 14:58:56", title="gcc"),
+                    _entry(timestamp="2026-11-21 15:58:56", title="kernel"),
                 ])
         f = tmp_vault / "events/2026/11/2026-11-21.md"
         assert f.exists()
@@ -283,9 +281,9 @@ class TestWriterAgentSync:
             agent, mock_agent = self._make_agent(mock_create)
             with mcp_inmem_server():
                 agent._process_batch([
-                    _entry(timestamp="2026-11-21 14:58:56", headword="gcc"),
-                    _entry(timestamp="2026-11-21 15:58:56", headword="kernel"),
-                    _entry(timestamp="2026-11-21 16:58:56", headword="make"),
+                    _entry(timestamp="2026-11-21 14:58:56", title="gcc"),
+                    _entry(timestamp="2026-11-21 15:58:56", title="kernel"),
+                    _entry(timestamp="2026-11-21 16:58:56", title="make"),
                 ])
         assert mock_agent.ainvoke.call_count == 3
 
@@ -297,7 +295,7 @@ class TestWriterAgentSync:
         ) as mock_create:
             agent, mock_agent = self._make_agent(mock_create)
             with mcp_inmem_server():
-                agent._process_batch([_entry(headword="gcc")])
+                agent._process_batch([_entry(title="gcc")])
         call_args = mock_agent.ainvoke.call_args[0][0]
         msgs = call_args["messages"]
         assert any("gcc" in m.content for m in msgs if hasattr(m, "content"))
@@ -331,8 +329,8 @@ class TestWriterAgentSync:
             with caplog.at_level(logging.ERROR, logger="everlingo"):
                 with mcp_inmem_server():
                     agent._process_batch([
-                        _entry(headword="gcc"),
-                        _entry(headword="kernel"),
+                        _entry(title="gcc"),
+                        _entry(title="kernel"),
                     ])
         assert mock_agent.ainvoke.call_count == 2
         text = (tmp_vault / "events/2026/11/2026-11-21.md").read_text(
@@ -421,7 +419,7 @@ class TestWriterLangSandbox:
                         logging.ERROR, logger="everlingo"
                     ):
                         agent._process_batch(
-                            [_entry(headword="ambiguous")]
+                            [_entry(title="ambiguous")]
                         )
 
         # ainvoke 没被调用（mcp_vault_connection 直接抛错）
@@ -496,7 +494,7 @@ class TestWriterAgentDaemon:
             # patches must outlive the daemon thread's _process_batch;
             # expand the mcp_inmem_server window to cover the wait.
             with mcp_inmem_server():
-                agent.enqueue([_entry(headword="gcc")])
+                agent.enqueue([_entry(title="gcc")])
 
                 deadline = time.time() + 2.0
                 while (
@@ -531,7 +529,7 @@ class TestWriterAgentDaemon:
             agent.start()
 
             with mcp_inmem_server():
-                agent.enqueue([_entry(headword="a")])
+                agent.enqueue([_entry(title="a")])
 
                 deadline = time.time() + 2.0
                 while time.time() < deadline and not first_called.called:
@@ -543,7 +541,7 @@ class TestWriterAgentDaemon:
             )
             with mcp_inmem_server():
                 with caplog.at_level(logging.ERROR, logger="everlingo"):
-                    agent.enqueue([_entry(headword="b")])
+                    agent.enqueue([_entry(title="b")])
 
                     deadline = time.time() + 2.0
                     while (

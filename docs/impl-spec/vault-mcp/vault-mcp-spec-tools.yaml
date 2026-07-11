@@ -570,6 +570,40 @@ description: |
 
 ######################################
 
+########### Prompt ########################
+# 编译 vault 内 markdown 文件，展开 {{ include }} 指令。
+# 依赖 session.configure（未配置时返回固定错误文案）。
+
+  - name: compile_prompt
+    title: Compile a prompt file
+    description: |
+      Compile a prompt file. Resolve ``{{ include [label](path) }}`` directives
+      by replacing them with the content of the target file. The include path
+      is relative to the referencing file's directory. Compiled frontmatter is
+      stripped (same as compile_prompt used by create_vault's spec seeding).
+      Requires session.configure to be called first.
+
+    inputSchema:
+      type: object
+      properties:
+        path:
+          type: string
+          description: Relative markdown file path (leading ``/`` or ``\`` treated as relative to vault root).
+      required:
+        - path
+    outputSchema:
+      type: object
+      properties:
+        path:
+          type: string
+          description: 编译的文件相对路径（回显）。
+        content:
+          type: string
+          description: 文件全文文本（{{ include }} 已被展开）。文件不存在时 isError=true + 错误文本，content 为空串。
+      required:
+        - path
+        - content
+
   - name: search
     title: hybrid search (full-text + embedding)
     description: |

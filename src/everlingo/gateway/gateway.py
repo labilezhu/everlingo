@@ -97,7 +97,7 @@ class Gateway:
         source: str,
         updated_files: list[str],
         update_summary: str,
-        headword: str,
+        title: str,
         lang: str,
     ) -> None:
         """Implement NoticeSink Protocol：路由后台通知到对应 Session。
@@ -109,14 +109,14 @@ class Gateway:
         if session is None:
             logger.warning(
                 "notice for unknown session %s (%s=%s), dropped",
-                session_id, source, headword,
+                session_id, source, title,
             )
             return
         notice = SystemNotice(
             source=source,
             updated_files=updated_files,
             update_summary=update_summary,
-            headword=headword,
+            title=title,
             lang=lang,
         )
         session.post_event(notice)

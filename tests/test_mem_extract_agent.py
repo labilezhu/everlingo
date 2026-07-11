@@ -38,6 +38,7 @@ from everlingo.mem.agents.mem_extract_agent import (
     _render_context_messages,
 )
 from everlingo.models import UserLanguage, UserProfile
+from everlingo.utils.md_prompt_compiler import PackageSource, compile_prompt
 
 
 # ── 公共 fixtures ──────────────────────────────────────────────────────
@@ -74,16 +75,20 @@ def llm_response_factory():
     return _make
 
 
-def _entry(headword="gcc", item_type="vocab", why="用户明确要求记住知识点",
-          mean="GNU C 编译器", ctx="用户在查词"):
+def _entry(title="gcc", item_type="vocab", why="用户明确要求记住知识点"):
     """构造 LLM 生成的 entry（不含透传与系统字段）。"""
     return LLMGeneratedEntry(
         item_type=item_type,
         why_want_to_save_memory=why,
-        headword=headword,
-        mean_summary=mean,
-        conversation_context=ctx,
+        title=title,
     )
+
+
+@pytest.fixture
+def extract_spec_text():
+    """从打包默认值编译真实 spec 文本，用作 _build_system_prompt 的测试输入。"""
+    source = PackageSource(package="everlingo.mem.vault.vault_specs.default")
+    return compile_prompt("memory_extract_spec.md", source)
 
 
 # ── 数据结构与工具函数 ──────────────────────────────────────────────
@@ -170,23 +175,25 @@ class TestTailRecentTurns:
 
 
 class TestBuildSystemPrompt:
-    def test_includes_target_and_interface_lang(self, zh_en_profile):
+    def test_includes_target_and_interface_lang(self, zh_en_profile, extract_spec_text):
         prompt = _build_system_prompt(
             target_lang="en",
             interface_lang="zh-CN",
             channel_name="StdioChannel",
             user_doc="",
+            vault_spec_content=extract_spec_text,
         )
         assert "en" in prompt
         assert "zh-CN" in prompt
         assert "StdioChannel" in prompt
 
-    def test_states_new_context_boundary(self):
+    def test_states_new_context_boundary(self, extract_spec_text):
         prompt = _build_system_prompt(
             target_lang="en",
             interface_lang="zh-CN",
             channel_name="C",
             user_doc="",
+            vault_spec_content=extract_spec_text,
         )
         # 应明确区分 new_messages 与 context_messages 的抽取边界
         assert "本轮新增" in prompt
@@ -194,51 +201,55 @@ class TestBuildSystemPrompt:
         assert "唯一允许的抽取来源" in prompt
         assert "禁止从中抽取知识点" in prompt
 
-    def test_user_doc_section_skipped_when_empty(self):
+    def test_user_doc_section_skipped_when_empty(self, extract_spec_text):
         prompt = _build_system_prompt(
             target_lang="en",
             interface_lang="zh-CN",
             channel_name="C",
             user_doc="",
+            vault_spec_content=extract_spec_text,
         )
         # section header 是唯一的 USER.md 标识；规则文本中也提到 USER.md，
         # 所以检查 section header 而不是子串。
         assert "## 用户个性化偏好 (USER.md)" not in prompt
 
-    def test_user_doc_section_included_when_non_empty(self):
+    def test_user_doc_section_included_when_non_empty(self, extract_spec_text):
         prompt = _build_system_prompt(
             target_lang="en",
             interface_lang="zh-CN",
             channel_name="C",
             user_doc="# 偏好\n- 词源",
+            vault_spec_content=extract_spec_text,
         )
         assert "## 用户个性化偏好 (USER.md)" in prompt
         assert "词源" in prompt
         # 标题降级：# → ###（与 _demote_headings 一致）
         assert "### 偏好" in prompt
 
-    def test_user_doc_whitespace_only_skipped(self):
+    def test_user_doc_whitespace_only_skipped(self, extract_spec_text):
         prompt = _build_system_prompt(
             target_lang="en",
             interface_lang="zh-CN",
             channel_name="C",
             user_doc="   \n\n  ",
+            vault_spec_content=extract_spec_text,
         )
         assert "## 用户个性化偏好 (USER.md)" not in prompt
 
-    def test_prompt_does_not_request_transparent_fields(self):
+    def test_prompt_does_not_request_transparent_fields(self, extract_spec_text):
         """prompt 应明确告知 LLM 不要生成 chat_session_id/entry_id/timestamp 等。"""
         prompt = _build_system_prompt(
             target_lang="en",
             interface_lang="zh-CN",
             channel_name="C",
             user_doc="",
+            vault_spec_content=extract_spec_text,
         )
         assert "chat_session_id" in prompt
         assert "entry_id" in prompt
         assert "timestamp" in prompt
-        # 应明示"系统填充" / "不要尝试生成"
-        assert "系统填充" in prompt or "不要" in prompt
+        # 应明示"由系统提供" / "系统填充" / "你无需"
+        assert any(kw in prompt for kw in ("由系统提供", "系统填充", "你无需"))
 
 
 # ── MemoryExtractAgent._extract 同步测试 ─────────────────────────────
@@ -246,6 +257,16 @@ class TestBuildSystemPrompt:
 
 class TestExtractSync:
     """直接调用 _extract() 做同步断言（覆盖 post-process / 失败处理）。"""
+
+    @pytest.fixture(autouse=True)
+    def _patch_extract_spec(self, extract_spec_text):
+        """所有 _extract 调用都需要 patch 掉 MCP 依赖。"""
+        with patch(
+            "everlingo.mem.agents.mem_extract_agent._load_extract_spec_from_vault",
+            new_callable=AsyncMock,
+            return_value=extract_spec_text,
+        ):
+            yield
 
     def _make_agent(self, fake_writer, llm_output):
         """构造一个 mock 掉 LLM 的 MemoryExtractAgent。"""
@@ -262,7 +283,7 @@ class TestExtractSync:
 
     def test_post_process_fills_transparent_fields(self, fake_writer, llm_response_factory):
         agent = self._make_agent(fake_writer, llm_response_factory([
-            _entry(headword="gcc", mean="GNU C 编译器"),
+            _entry(title="gcc"),
         ]))
         entries = agent._extract(ExtractInput(
             intent_mode="dict",
@@ -277,8 +298,10 @@ class TestExtractSync:
         assert e.lang == "en"
         assert e.user_intent == "dict"  # intent_mode="dict" → "dict"
         # LLM 生成字段透传
-        assert e.headword == "gcc"
-        assert e.mean_summary == "GNU C 编译器"
+        assert e.title == "gcc"
+        # 对话消息渲染
+        assert "[human] gcc" in e.new_messages
+        assert e.context_messages == ""
         # entry_id 是 uuid4 形式
         import uuid as _uuid
         _uuid.UUID(e.entry_id)  # 解析成功即合法
@@ -287,7 +310,7 @@ class TestExtractSync:
 
     def test_user_intent_none_label(self, fake_writer, llm_response_factory):
         agent = self._make_agent(fake_writer, llm_response_factory([
-            _entry(headword="x"),
+            _entry(title="x"),
         ]))
         entries = agent._extract(ExtractInput(
             intent_mode=None, new_messages=[], context_messages=[]
@@ -304,8 +327,8 @@ class TestExtractSync:
 
     def test_non_empty_entries_call_enqueue(self, fake_writer, llm_response_factory):
         agent = self._make_agent(fake_writer, llm_response_factory([
-            _entry(headword="gcc"),
-            _entry(headword="kernel"),
+            _entry(title="gcc"),
+            _entry(title="kernel"),
         ]))
         entries = agent._extract(ExtractInput(
             intent_mode=None, new_messages=[], context_messages=[]
@@ -341,7 +364,7 @@ class TestExtractSync:
 
         # 此时切换为正常返回
         agent._llm.invoke = MagicMock(
-            return_value=llm_response_factory([_entry(headword="ok")])
+            return_value=llm_response_factory([_entry(title="ok")])
         )
         agent.submit(ExtractInput(
             intent_mode=None, new_messages=[], context_messages=[]
@@ -354,7 +377,7 @@ class TestExtractSync:
 
         # enqueue 应只被第二次成功调用一次
         assert fake_writer.enqueue.call_count == 1
-        assert fake_writer.enqueue.call_args[0][0][0].headword == "ok"
+        assert fake_writer.enqueue.call_args[0][0][0].title == "ok"
 
         # error 日志应被记录
         assert any("memory extract failed" in r.message for r in caplog.records)
@@ -389,7 +412,7 @@ class TestExtractSync:
         """ref: spec — 每个 entry 都应有 info 日志输出全部字段。"""
         import logging as _logging
         agent = self._make_agent(fake_writer, llm_response_factory([
-            _entry(headword="gcc", mean="GNU C 编译器", ctx="查词"),
+            _entry(title="gcc"),
         ]))
         with caplog.at_level(_logging.INFO, logger="everlingo"):
             agent._extract(ExtractInput(
@@ -402,7 +425,7 @@ class TestExtractSync:
         # 关键字段名都应在日志中（顺序与实现对齐）
         for field in ["entry_id=", "chat_session_id=", "timestamp=", "channel_name=",
                       "item_type=", "why=", "user_intent=", "lang=",
-                      "headword=", "mean_summary=", "conversation_context="]:
+                      "title=", "new_messages=", "context_messages="]:
             assert field in msg
 
 

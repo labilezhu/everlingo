@@ -10,7 +10,7 @@
 
 - indexer 进程同时承载两个对外接口：
   1. HTTP over unix socket REST API（`$workspace/indexer.sock`，FastAPI/uvicorn）—— 现有 `/{lang}/search|index|delete|rebuild|embed`、`/status`，给 gateway / CLI 等外部客户端用。契约见 [search-api-spec.md](/docs/impl-spec/search/search-api-spec.md)。
-   2. MCP 2025-11-25 Streamable HTTP Server —— 给 LLM agent / MCP 客户端用，暴露 fs 工具 + `search` 工具 + `session.configure` 工具 + `gen_id` Utility 工具。
+   2. MCP 2025-11-25 Streamable HTTP Server —— 给 LLM agent / MCP 客户端用，暴露 fs 工具 + `search` 工具 + `session.configure` 工具 + `compile_prompt` prompt 编译工具 + `gen_id` Utility 工具。
 - indexer 启动时把 MCP Streamable HTTP URL 写入 `$workspace/indexer.mcp.url` 文件，MCP 客户端据此连接。
 - 进程拓扑见 [memory-vault-search-spec.md](/docs/impl-spec/search/memory-vault-search-spec.md)「进程拓扑」。
 
@@ -21,7 +21,7 @@
 
 MCP Server 不在启动时绑定单一 lang；而是通过 `session.configure` 工具在会话内设定会话默认 lang（及其它会话级默认值）。设计要点：
 
-- **必须先 configure**：agent 调用任何 fs 工具（ls/read/write/grep/find/stat/mkdir/delete/tree）或 `search` 工具之前，必须先调用 `session.configure` 设定会话 lang；否则上述工具返回错误 `session not configured: call session.configure first`。无隐式回退（不自动取 workspace 唯一 lang、不自动取 indexer 启动默认 lang）——强制显式，促使 agent 建立正确习惯。
+- **必须先 configure**：agent 调用任何 fs 工具（ls/read/write/append/grep/find/stat/mkdir/delete/tree）或 `search` 工具或 `compile_prompt` 工具之前，必须先调用 `session.configure` 设定会话 lang；否则上述工具返回错误 `session not configured: call session.configure first`。无隐式回退（不自动取 workspace 唯一 lang、不自动取 indexer 启动默认 lang）——强制显式，促使 agent 建立正确习惯。
 - **可重调切换**：会话内可多次调用 `session.configure` 切换 lang（如先搜 en vault 再搜 ja vault），切换后后续工具调用按新 lang 解析。无需重连 MCP stream。
 - **生命周期**：`session.configure` 设置的状态按 MCP stream 生命周期存活——绑定到该 stream，stream 关闭即丢弃，无持久化、无跨重连保留。
 - **state 存放**：server 进程内按 MCP stream/session id 索引的内存 dict；不落盘，不进 SQLite。
@@ -222,7 +222,7 @@ MCP server 在 `initialize` 响应里通过 `instructions` 字段（[MCP 2025-11
 **契约**：实现方维护的实际文本可调整措辞与排版，但**必须覆盖**以下最小内容清单（缺一即视为违反 spec）：
 
 1. **服务器定位**——说明这是 Everlingo memory vault 的 MCP 接口、vault 是按学习语言分目录的 markdown 知识库。
-2. **工具分组**——点明 `session.configure` / fs 工具集（10 个）/ `search` / vault 管理（2 个：`list_vaults`、`create_vault`）/ Utility（1 个：`gen_id`）五个分组；总工具数 15。
+2. **工具分组**——点明 `session.configure` / fs 工具集（10 个）/ `search` / prompt 编译（1 个：`compile_prompt`）/ vault 管理（2 个：`list_vaults`、`create_vault`）/ Utility（1 个：`gen_id`）六个分组；总工具数 16。
 3. **强约束工作流**——
    - 调用任何 fs / `search` 工具前**必须**先调 `session.configure(lang=...)`；否则返回固定错误文案 `session not configured: call session.configure first`。
    - `lang` 必须是 workspace 已存在的语言目录（`$workspace/memory/languages/*/`）。
@@ -241,7 +241,7 @@ MCP server 在 `initialize` 响应里通过 `instructions` 字段（[MCP 2025-11
 
 每次 MCP Server 工具调用均记录 debug 日志。契约如下：
 
-- **适用范围**：全部 15 个工具（`list_vaults`、`create_vault`、`gen_id`、`session.configure`、10 个 fs 工具 `ls`/`read`/`write`/`append`/`grep`/`find`/`stat`/`mkdir`/`delete`/`tree`、`search`）的每次调用。
+- **适用范围**：全部 16 个工具（`list_vaults`、`create_vault`、`gen_id`、`session.configure`、10 个 fs 工具 `ls`/`read`/`write`/`append`/`grep`/`find`/`stat`/`mkdir`/`delete`/`tree`、`compile_prompt`、`search`）的每次调用。
 - **level**：`logging.DEBUG`。
 - **logger**：`everlingo.mem.vault.mcp_server`（`logging.getLogger("everlingo.mem.vault.mcp_server")`），在 indexer 进程的 uvicorn log_config（`_run_indexer`）中独立挂 `file` handler + 强制 `level=DEBUG` + `propagate=False`，不随 `--log-level`（默认 `info`）浮动，保证工具调用 debug 日志稳定写入 `$workspace/logs/indexer.log`（见 [observability.md](/docs/impl-spec/observability.md)「进程与日志文件边界」）。
 - **字段**：工具名（tool name）、输入参数（input）、输出结果（output / error）。

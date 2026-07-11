@@ -20,7 +20,7 @@ class SystemNotice(SessionEvent):
     source: str                     # "memory_writer"
     updated_files: list[str]        # vault file paths, e.g. ["items/vocab/ufo.md"]
     update_summary: str             # brief description, e.g. "新建词条 ufo，含释义与例句"
-    headword: str                   # headword, e.g. "ufo"
+    title: str                   # title, e.g. "ufo"
     lang: str                       # target language code, e.g. "en"
 
 
@@ -43,7 +43,7 @@ class NoticeSink(Protocol):
         source: str,
         updated_files: list[str],
         update_summary: str,
-        headword: str,
+        title: str,
         lang: str,
     ) -> None:
         ...

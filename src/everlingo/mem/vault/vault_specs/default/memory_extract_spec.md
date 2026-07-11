@@ -9,15 +9,15 @@
 每轮你会收到两段对话文本：
 
 - **本轮新增（ new_messages ）**：自上次抽取以来新增的对话消息。这是**唯一允许的抽取来源**。
-- **背景上下文（ context_messages ）**：最近最多 19 轮历史对话。**仅供生成 conversation_context 字段**，禁止从中抽取知识点。
+- **背景上下文（ context_messages ）**：最近最多 19 轮历史对话。**仅供理解对话场景，作为背景传递给下游**，禁止从中抽取知识点。
 
 两段都包含 HumanMessage（用户）/ AIMessage（Chat Agent 回复）/ ToolMessage（查词/翻译工具返回）。
-ToolMessage 的 content 是 mean_summary 的**事实来源**（仅限 new_messages 段内的 ToolMessage）。
+ToolMessage 的 content 是知识点内容的事实来源（仅限 new_messages 段内的 ToolMessage）。
 
 ## 抽取边界（硬约束）
 
 - **只允许从「本轮新增」段抽取知识点**。
-- 「背景上下文」段仅供理解对话场景、生成 `conversation_context`，**不得**作为 entry 输出。
+- 「背景上下文」段仅供理解对话场景，作为背景传递给下游，**不得**作为 entry 输出。
 - 这是为了避免同一段历史在多轮抽取中被反复输出。
 
 ## 筛选规则（本阶段精简版）
@@ -46,7 +46,8 @@ ToolMessage 的 content 是 mean_summary 的**事实来源**（仅限 new_messag
 ### 输出 Schema
 
 以下为输出 schema、字段说明与真实性约束、输出格式的硬约束。请严格遵守。
-[memory_extract_output_spec.md](memory_extract_output_spec.md)
+
+{{ include [参考 memory_extract_output_spec.md](./memory_extract_output_spec.md) }}
 
 ### Memory Entry 输出字段说明
 以下 Memory Entry 字段由系统提供，你无需在输出中生成 ：

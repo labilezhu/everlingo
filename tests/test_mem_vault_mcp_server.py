@@ -179,6 +179,11 @@ def test_session_not_configured_returns_error(mcp_client):
         r2 = await c.call_tool("search", {"q": "anything"}, raise_on_error=False)
         assert r2.is_error is True
         assert "session not configured" in r2.content[0].text
+        r3 = await c.call_tool(
+            "compile_prompt", {"path": "a.md"}, raise_on_error=False
+        )
+        assert r3.is_error is True
+        assert "session not configured" in r3.content[0].text
 
     with mcp_client(body):
         pass
@@ -857,6 +862,108 @@ def test_find_still_errors_on_path_escape(mcp_client):
         )
         assert r.is_error is True
         assert "escape" in r.content[0].text.lower()
+
+    with mcp_client(body):
+        pass
+
+
+# ── 14. compile_prompt ──────────────────────────────────────────────
+
+
+def test_compile_prompt_expands_include(mcp_client, memory_root: Path):
+    """写入主文件（含 {{ include }} 指令）+ 被引用文件 → compile_prompt
+    返回已展开的内容，frontmatter 被剥离。"""
+    # 被引用文件
+    ref_path = memory_root / "refs" / "greeting.md"
+    ref_path.parent.mkdir(parents=True)
+    ref_path.write_text("---\nulid: REF01\n---\n\nHello World\n", encoding="utf-8")
+    # 主文件引用 refs/greeting.md
+    main_path = memory_root / "prompts" / "welcome.md"
+    main_path.parent.mkdir(parents=True)
+    main_path.write_text(
+        "# Welcome\n\n{{ include [greeting](../refs/greeting.md) }}\n\nFooter\n",
+        encoding="utf-8",
+    )
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("session.configure", {"lang": "en"})
+        assert r.is_error is False
+        r = await c.call_tool(
+            "compile_prompt", {"path": "prompts/welcome.md"}
+        )
+        assert r.is_error is False
+        content = r.data["content"]
+        # frontmatter 被剥离（主文件无 frontmatter 则不剥离；引用文件的 frontmatter 被剥离）
+        assert "REF01" not in content
+        # include 被展开 → 包含引用文件内容
+        assert "Hello World" in content
+        # 主文件自身内容保留
+        assert "# Welcome" in content
+        assert "Footer" in content
+        # include 指令本身被移除
+        assert "{{ include" not in content
+        assert r.data["path"] == "prompts/welcome.md"
+
+    with mcp_client(body):
+        pass
+
+
+def test_compile_prompt_file_not_found(mcp_client):
+    """路径不存在 → isError=true。"""
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("session.configure", {"lang": "en"})
+        assert r.is_error is False
+        r = await c.call_tool(
+            "compile_prompt", {"path": "nonexistent.md"},
+            raise_on_error=False,
+        )
+        assert r.is_error is True
+        assert "file not found" in r.content[0].text.lower()
+
+    with mcp_client(body):
+        pass
+
+
+def test_compile_prompt_path_escape(mcp_client):
+    """../ 逃逸 → isError=true。"""
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("session.configure", {"lang": "en"})
+        assert r.is_error is False
+        r = await c.call_tool(
+            "compile_prompt", {"path": "../escape.md"},
+            raise_on_error=False,
+        )
+        assert r.is_error is True
+        assert "escape" in r.content[0].text.lower()
+
+    with mcp_client(body):
+        pass
+
+
+def test_compile_prompt_content_matches_structured_content(
+    mcp_client, memory_root: Path
+):
+    """content[0].text == json.dumps(structured_content)。"""
+    ref_path = memory_root / "refs" / "hello.md"
+    ref_path.parent.mkdir(parents=True)
+    ref_path.write_text("# Hello\n", encoding="utf-8")
+    main_path = memory_root / "prompts" / "main.md"
+    main_path.parent.mkdir(parents=True)
+    main_path.write_text(
+        "{{ include [hello](../refs/hello.md) }}", encoding="utf-8"
+    )
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("session.configure", {"lang": "en"})
+        assert r.is_error is False
+        r = await c.call_tool(
+            "compile_prompt", {"path": "prompts/main.md"}
+        )
+        text = r.content[0].text
+        sc = r.structured_content
+        assert text == json.dumps(sc, ensure_ascii=False, separators=(",", ":"))
 
     with mcp_client(body):
         pass

@@ -32,7 +32,12 @@ from everlingo.mem.vault.frontmatter import normalize_frontmatter_text
 from everlingo.mem.vault.search.protocol import SearchHit
 from everlingo.mem.vault.search.search import search as do_search
 from everlingo.mem.vault.search.server import AppState
-from everlingo.utils.md_prompt_compiler import PackageSource, compile_prompt
+from everlingo.utils.md_prompt_compiler import (
+    CompileError,
+    FilesystemSource,
+    PackageSource,
+    compile_prompt,
+)
 
 _VAULT_SPEC_PACKAGE = "everlingo.mem.vault.vault_specs.default"
 
@@ -50,16 +55,17 @@ Everlingo Memory Vault MCP Server
 这是 Everlingo 个人语言学习笔记库（按学习语言分目录的 markdown 知识库）的 MCP 接口。
 Vault 按学习语言分目录：$workspace/memory/languages/$lang/vault/（lang = en / ja / ...）。
 
-工具分组（共 15 个）：
+工具分组（共 16 个）：
 - `session.configure` —— 设置会话级默认 lang（必须先调用）。
 - fs 工具（10 个）—— `ls` / `read` / `write` / `append` / `grep` / `find` / `stat` / `mkdir` / `delete` / `tree`，操作 vault 下的 markdown 文件。
 - `search` —— 全文 / 语义 / 混合搜索 vault 文档（默认 mode=hybrid）。
+- prompt 编译（1 个）—— `compile_prompt`，编译 prompt 文件，展开 `{{ include }}` 指令。需要先调 session.configure。
 - vault 管理（2 个）—— `list_vaults` / `create_vault`，workspace 级工具，**不需要**先调 session.configure。
 - Utility（1 个）—— `gen_id`，生成 26 字符 ULID 随机 id。workspace 级，**不需要**先调 session configure。
 
 工作流：
-1. 大部分工具（fs 9 个 + `search`）必须先调 `session.configure(lang="<lang>")` 设会话 lang；否则返回错误 `session not configured: call session.configure first`。
-2. 例外：`list_vaults` 与 `create_vault` 是 workspace 级工具，不绑特定 lang，不需要也不接受 session.configure。
+1. 大部分工具（fs 10 个 + `search` + `compile_prompt`）必须先调 `session.configure(lang="<lang>")` 设会话 lang；否则返回错误 `session not configured: call session.configure first`。
+2. 例外：`list_vaults`、`create_vault`、`gen_id` 是 workspace 级 / Utility 工具，不绑特定 lang，不需要也不接受 session.configure。
  3. `lang` 若 workspace 不存在该 lang vault，`session.configure` 会自动调 `create_vault` 创建（写 $lang/vault/spec/vault_spec.md 并同步注册到 indexer）；非法 lang 名（含路径分隔符 `/`、`\\`、点号 `.`、`..`、空、NUL 字符）仍返回错误。
  4. 会话内可重调 `session.configure` 切换 lang，无需重连 MCP stream。
  5. fs 工具的 `path` 参数相对会话 lang vault 根解析；禁止 `../` 逃逸，越界会被拒绝。
@@ -77,7 +83,7 @@ search 要点：
 vault 目录结构规范和各类文件格式说明：
 可以调用 read(path="spec/vault_spec.md") 工具，返回的 content 为 vault 目录结构规范和各类文件格式说明。调用 search / fs 工具 前，先学习规范和 vault 的知识。
 
-典型用法：`list_vaults` → `create_vault(lang="en")` → `session.configure(lang="en")`  → `read(path="spec/vault_spec.md")` → `search(q="...", mode="hybrid")` → `read(path=<hit.file_path>)` → `write(path=..., content=...)`。
+典型用法：`list_vaults` → `create_vault(lang="en")` → `session.configure(lang="en")`  → `read(path="spec/vault_spec.md")` → `search(q="...", mode="hybrid")` → `read(path=<hit.file_path>)` → `write(path=..., content=...)` → `compile_prompt(path="prompts/my_template.md")`。
 """
 
 # Lang 合法性校验缓存：避免每次 session.configure 都 walk filesystem
@@ -245,7 +251,7 @@ def _gen_ulid() -> str:
 
 
 def create_mcp_app(state: AppState) -> FastMCP:
-    """注册 15 个工具，挂载到共享的 AppState。
+    """注册 16 个工具，挂载到共享的 AppState。
 
     工具实现约定：
     - 成功：返回 dict（FastMCP 自动包成 content+structuredContent）
@@ -754,6 +760,43 @@ def create_mcp_app(state: AppState) -> FastMCP:
             return out
 
         return {"path": path, "depth": depth, "entries": _build(root, 1)}
+
+    # ── compile_prompt ─────────────────────────────────────────────
+
+    @mcp.tool(
+        name="compile_prompt",
+        title="Compile a prompt file",
+        description=(
+            "Compile a prompt file. Resolve {{ include [label](path) }} "
+            "directives by replacing them with the content of the target file. "
+            "The include path is relative to the referencing file's directory. "
+            "Compiled frontmatter is stripped. "
+            "Requires session.configure to be called first."
+        ),
+    )
+    @_log_mcp_tool("compile_prompt")
+    async def compile_prompt_tool(
+        path: str, ctx: Context | None = None
+    ) -> dict[str, Any]:
+        if ctx is None:
+            raise RuntimeError("MCP context unavailable")
+        sess = _require_session(registry, ctx)
+        assert sess.lang is not None
+        try:
+            abs_path = resolve_vault_path(sess.lang, path)
+        except PathEscapeError as e:
+            raise RuntimeError(str(e)) from e
+        if not abs_path.is_file():
+            raise RuntimeError(f"file not found: {path!r}")
+        rel = path.lstrip("/\\")
+        vault_root = resolve_vault_path(sess.lang, "")
+        try:
+            content = compile_prompt(
+                rel, FilesystemSource(base_dir=vault_root)
+            )
+        except CompileError as e:
+            raise RuntimeError(str(e)) from e
+        return {"path": path, "content": content}
 
     # ── search ──────────────────────────────────────────────────────
 

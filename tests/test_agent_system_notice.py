@@ -47,7 +47,7 @@ def sample_notice():
         source="memory_writer",
         updated_files=["items/vocab/ufo.md"],
         update_summary="新增词条 ufo，含释义与例句",
-        headword="ufo",
+        title="ufo",
         lang="en",
     )
 

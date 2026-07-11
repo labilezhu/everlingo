@@ -82,18 +82,11 @@ class LLMGeneratedEntry(BaseModel):
             "其余原因（推断用户需要记住 / 主动询问相关）推迟到下一阶段。"
         ),
     )
-    headword: str = Field(
-        description="知识点 keyword：单词时为单词本身，短语则原样写出",
-    )
-    mean_summary: str = Field(
+    title: str = Field(
         description=(
-            "headword 的释义说明。"
-            "本轮若 ToolMessage 存在（查词/翻译工具返回），必须基于其事实内容；"
-            "不允许引入外部知识或 USER.md 偏好进行个性化改写。"
+            "使用界面语言，限一句话，描述本知识点。"
+            "用于语义搜索和全文搜索。"
         ),
-    )
-    conversation_context: str = Field(
-        description="对话上下文：用户在什么场景下查询/学习这个知识点",
     )
 
 
@@ -116,12 +109,14 @@ class MemoryEntry(BaseModel):
     # ref: docs/impl-spec/memory-writer-agent-spec.md — interface_language
     interface_language: str  # 界面语言
 
+    # 代码渲染
+    new_messages: str = ""
+    context_messages: str = ""
+
     # LLM 生成
     item_type: ItemType
     why_want_to_save_memory: WhySave
-    headword: str
-    mean_summary: str
-    conversation_context: str
+    title: str
 
 
 # ── Writer 转发协议 ───────────────────────────────────────────────────
