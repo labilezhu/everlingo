@@ -1,4 +1,57 @@
 
+
+为了
+1. 让 [Memory Writer Agent](docs/impl-spec/memory-writer-agent-spec.md) 有更全面的对话上下文信息可以作为信息源，用更丰富的信息源分析，再写入 Memory Vault 。
+2. [Memory Extract Agent](/docs/impl-spec/memory-extract-agent-spec.md) 的对话记忆筛选和抽取逻辑 prompt 可以由用户在 Vault 中定制。
+
+之前的流程是:
+1. [Chat Agent](docs/impl-spec/chat-agent-spec.md) 接收用户笔记请求
+2. 由 Memory Extract Agent 判断对话是否需要记忆，以及记忆的内容是什么。
+3. Memory Writer Agent 把 Memory Extract Agent 记忆的内容汇入 Memory Vault.
+
+现在计划， Memory Extract Agent 判断对话是否需要记忆，以及抽取记忆的`知识类型(item_type 字段)`和`知识点keyword(headword 字段)`：
+1. [Chat Agent](docs/impl-spec/chat-agent-spec.md) 接收用户笔记请求
+2. Memory Extract Agent 运行期根据 $workspaces/memory/languages/$lang/vault/spec/memory_extract_spec.md （源码在 src/everlingo/mem/vault/vault_specs/default/memory_extract_spec.md ）去判断对话是否需要记忆。用 mcp read 工具读取文件。
+3. 如果需要记忆，抽取一个或多个 [Memory Entry](src/everlingo/mem/vault/vault_specs/default/memory_extract_output_spec.md)，其中包括来自 Chat Agent 的 new_messages 与 context_messages 字段 ，发送给 Memory Writer Agent
+4. Memory Writer Agent 根据 Memory Entry ，特别是 item_type 、 headword 、 new_messages 、context_messages 。 写入记忆库。
+
+
+我知识最少包含以下实现修改点：
+- 每个 Chat Agent 建立自己的 Memory Writer Agent 实例
+- Chat Agent 到原来 Memory Extract Agent 的输出，现在输出到 Memory Writer Agent。
+
+
+---
+
+我修改了一下 src/everlingo/mem/vault/vault_specs/default/memory_extract_output_spec.md 。  删除了 `headword`字段，加入了 `title` 字段。
+
+---
+
+为让 [Memory Writer Agent](docs/impl-spec/memory-writer-agent-spec.md) 有更全面的对话上下文信息可以作为写入 Memory Vault 。
+
+之前的流程是:
+1. [Chat Agent](docs/impl-spec/chat-agent-spec.md) 接收用户笔记请求
+2. 由 Memory Extract Agent 判断对话是否需要记忆，以及记忆的内容是什么。
+3. Memory Writer Agent 把 Memory Extract Agent 记忆的内容汇入 Memory Vault.
+
+现在计划，删除 Memory Extract Agent：
+1. [Chat Agent](docs/impl-spec/chat-agent-spec.md) 接收用户笔记请求
+2. Memory Writer Agent 运行期根据 $workspaces/memory/languages/$lang/vault/spec/memory_extract_spec.md （源码在 src/everlingo/mem/vault/vault_specs/default/memory_extract_spec.md ）去判断对话是否需要记忆。用 mcp read 工具读取文件。
+3. 如果需要记忆，抽取一个或多个知识点，并按
+
+
+我知识最少包含以下实现修改点：
+- 每个 Chat Agent 建立自己的 Memory Writer Agent 实例
+- Chat Agent 到原来 Memory Extract Agent 的输出，现在输出到 Memory Writer Agent。
+
+src/everlingo/mem/vault/vault_specs/default/memory_extract_spec.md
+
+ 现在计划对重构：
+- [Memory Extract Agent](/docs/impl-spec/memory-extract-agent-spec.md) 的输出
+- Memory Writer Agent 的输入（即 Memory Extract Agent 的输出）
+
+---
+
 现在的 [Session](docs/impl-spec/session.md) 自己有 [QuitEvent](src/everlingo/gateway/session_events.py) 作为退出机制。但对于 [Web Session Acceptor](docs/impl-spec/web-session-acceptor.md) 用户每次开一个新浏览器页都一个新 session ， 但 session 没有超时机制。用户断开后，没有产生 QuitEvent 事件，[Gateway](docs/impl-spec/gateway.md) 中的 `Session 列表` 也没有回收 Session 。 我认为，Web Session Acceptor 产生的 Session 应该有自己的超进回收结束机制，结束后要通知 Gateway 在`Session 列表` 中清除。 
 
 ---
