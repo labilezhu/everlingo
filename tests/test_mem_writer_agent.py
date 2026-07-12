@@ -22,7 +22,7 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.messages import AIMessage
@@ -39,9 +39,17 @@ from everlingo.mem.agents.mem_writer_agent import (
 from everlingo.mem.agents.mem_writer_mcp_client import (
     IndexerOfflineError,
 )
+from everlingo.utils.md_prompt_compiler import PackageSource, compile_prompt
 
 
 # ── fixtures ──────────────────────────────────────────────────────
+
+
+@pytest.fixture
+def mem_entry_spec_text():
+    """从打包默认值编译真实 mem_entry_spec.md 文本，用作 _build_writer_system_prompt 的测试输入。"""
+    source = PackageSource(package="everlingo.mem.vault.vault_specs.default")
+    return compile_prompt("mem_entry_spec.md", source)
 
 
 def _entry(
@@ -169,18 +177,18 @@ class TestAppendEvent:
 
 
 class TestWriterSystemPrompt:
-    def test_includes_vault_spec_sections(self):
-        prompt = _build_writer_system_prompt()
+    def test_includes_vault_spec_sections(self, mem_entry_spec_text):
+        prompt = _build_writer_system_prompt(mem_entry_spec_text)
         assert "Memory Vault" in prompt
         assert "chat_session_id" in prompt
 
-    def test_states_sandbox_rule(self):
-        prompt = _build_writer_system_prompt()
+    def test_states_sandbox_rule(self, mem_entry_spec_text):
+        prompt = _build_writer_system_prompt(mem_entry_spec_text)
         assert "相对 path" in prompt or "相对路径" in prompt
 
-    def test_uses_mcp_tool_names(self):
+    def test_uses_mcp_tool_names(self, mem_entry_spec_text):
         """迁移后 system prompt 必须用 MCP 工具名（read/write/grep/...）。"""
-        prompt = _build_writer_system_prompt()
+        prompt = _build_writer_system_prompt(mem_entry_spec_text)
         for name in ("read(", "write(", "append(", "delete(",
                      "ls(", "find(", "grep(", "vault_mcp_gen_id("):
             assert name in prompt, f"missing tool: {name}"
@@ -192,17 +200,17 @@ class TestWriterSystemPrompt:
         ):
             assert old not in prompt, f"legacy tool name leaked: {old}"
 
-    def test_states_read_write_once_constraint(self):
-        prompt = _build_writer_system_prompt()
+    def test_states_read_write_once_constraint(self, mem_entry_spec_text):
+        prompt = _build_writer_system_prompt(mem_entry_spec_text)
         assert "read" in prompt and "write" in prompt
         assert "至多 1 次" in prompt
 
-    def test_includes_pragmatics_fallback_template(self):
-        prompt = _build_writer_system_prompt()
+    def test_includes_pragmatics_fallback_template(self, mem_entry_spec_text):
+        prompt = _build_writer_system_prompt(mem_entry_spec_text)
         assert "pragmatics" in prompt
 
-    def test_includes_entry_schema(self):
-        prompt = _build_writer_system_prompt()
+    def test_includes_entry_schema(self, mem_entry_spec_text):
+        prompt = _build_writer_system_prompt(mem_entry_spec_text)
         assert "## 输入给你的 entry 结构" in prompt
         for field in (
             "chat_session_id", "entry_id", "timestamp", "channel_name",
@@ -212,14 +220,14 @@ class TestWriterSystemPrompt:
         ):
             assert field in prompt, f"missing entry field: {field}"
 
-    def test_entry_schema_appears_before_vault_spec(self):
-        prompt = _build_writer_system_prompt()
+    def test_entry_schema_appears_before_vault_spec(self, mem_entry_spec_text):
+        prompt = _build_writer_system_prompt(mem_entry_spec_text)
         assert prompt.index("## 输入给你的 entry 结构") < prompt.index(
             "# memory vault 注意事项"
         )
 
-    def test_injected_spec_headings_nested_under_parent(self):
-        prompt = _build_writer_system_prompt()
+    def test_injected_spec_headings_nested_under_parent(self, mem_entry_spec_text):
+        prompt = _build_writer_system_prompt(mem_entry_spec_text)
         assert "### 记忆实体" in prompt
         for line in prompt.splitlines():
             stripped = line.lstrip()
@@ -234,6 +242,15 @@ class TestWriterSystemPrompt:
 
 class TestWriterAgentSync:
     """单 entry 触发一次 agent.ainvoke（per-entry build agent）。"""
+
+    @pytest.fixture(autouse=True)
+    def _patch_mem_entry_spec(self, mem_entry_spec_text):
+        with patch(
+            "everlingo.mem.agents.mem_writer_agent._load_mem_entry_spec_from_vault",
+            new_callable=AsyncMock,
+            return_value=mem_entry_spec_text,
+        ):
+            yield
 
     def _make_agent(self, mock_create_context):
         """构造 mock 掉 LLM agent 的 MemoryWriterAgent。
@@ -349,6 +366,15 @@ class TestWriterAgentSync:
 class TestWriterLangSandbox:
     """回归：per-lang vault 正确性 + prompt 不带 $lang/ 前缀。"""
 
+    @pytest.fixture(autouse=True)
+    def _patch_mem_entry_spec(self, mem_entry_spec_text):
+        with patch(
+            "everlingo.mem.agents.mem_writer_agent._load_mem_entry_spec_from_vault",
+            new_callable=AsyncMock,
+            return_value=mem_entry_spec_text,
+        ):
+            yield
+
     def test_write_kb_item_uses_entry_lang(
         self, mcp_inmem_server, tmp_vault
     ):
@@ -433,8 +459,8 @@ class TestWriterLangSandbox:
         # 没有文件被写入
         assert not (tmp_vault / "events/2026/11/2026-11-21.md").exists()
 
-    def test_write_kb_item_system_prompt_no_lang_prefix(self):
-        prompt = _build_writer_system_prompt()
+    def test_write_kb_item_system_prompt_no_lang_prefix(self, mem_entry_spec_text):
+        prompt = _build_writer_system_prompt(mem_entry_spec_text)
         assert "$lang/items/" not in prompt
         assert "$lang/events/" not in prompt
 
@@ -443,6 +469,16 @@ class TestWriterLangSandbox:
 
 
 class TestWriterAgentDaemon:
+
+    @pytest.fixture(autouse=True)
+    def _patch_mem_entry_spec(self, mem_entry_spec_text):
+        with patch(
+            "everlingo.mem.agents.mem_writer_agent._load_mem_entry_spec_from_vault",
+            new_callable=AsyncMock,
+            return_value=mem_entry_spec_text,
+        ):
+            yield
+
     def _start_agent_with_mock(self):
         """返回 (mock_create_context, agent)。
         调用方负责保持 mock_create_context 上下文存活（覆盖 agent 全生命周期）。
@@ -571,6 +607,16 @@ class TestWriterAgentDaemon:
 
 
 class TestGatewayMemoryWriterProxy:
+
+    @pytest.fixture(autouse=True)
+    def _patch_mem_entry_spec(self, mem_entry_spec_text):
+        with patch(
+            "everlingo.mem.agents.mem_writer_agent._load_mem_entry_spec_from_vault",
+            new_callable=AsyncMock,
+            return_value=mem_entry_spec_text,
+        ):
+            yield
+
     def test_enqueue_lazily_constructs_and_starts_agent(
         self, mcp_inmem_server
     ):

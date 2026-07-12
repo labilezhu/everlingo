@@ -1,3 +1,9 @@
+我计划实现一个新功能，用户可以在 [Chat Agent](docs/impl-spec/chat-agent-spec.md) 中删除笔记条目（笔记文件），也可以指示 Chat Agent 直接编辑笔记条目的 markdown 主体内容。
+请计划一下架构设计和风险点。
+
+删除和编辑操作，我觉得还是经 Chat Agent → Memory Extract Agent → Memory Writer Agent 好，能不能调整一下现在这几个环节的输出与输出数据结构，以达成目的？ Memory Extract Agent 抽取操作的知识点条目或文件名，Memory Writer Agent 从聊天 context 中分析操作类型和更精细的操作目标。
+
+---
 
 src/everlingo/mem/agents/mem_writer_agent.py 中 system prompt 的 mem_entry_spec.md 加载，现在是用 PackageSource 。应该修改成与 src/everlingo/mem/agents/mem_extract_agent.py 中 _load_extract_spec_from_vault() 一致的，用 mcp 工具从 vault 中加载的方法。
 

@@ -5,6 +5,13 @@
 ## 完成的任务
 格式：完成日期与时间(GMT+8 timezone) | 任务描述 。 示例： " - 2026-06-20 19:28 | 生成主入口代码"
 
+- 2026-07-12 19:30 | Memory Writer Agent system prompt 的 mem_entry_spec.md 加载方式从 PackageSource 改为 MCP compile_prompt（与 Extract Agent 一致）
+  - 新增 `_load_mem_entry_spec_from_vault(lang)` 镜像 `_load_extract_spec_from_vault`
+  - `_build_writer_system_prompt()` 改为取参数，不再本地编译 spec
+  - `_write_kb_item_async` per-entry 调 MCP 加载 spec 后构建 prompt
+  - 更新测试：新增 `mem_entry_spec_text` fixture、autouse `_patch_mem_entry_spec`
+  - 更新 memory-writer-agent-spec.md 设计文档
+
 - 2026-07-12 17:00 | Chat Agent 显式驱动 Memory Extract Agent（而非每轮无条件触发）
   - 新增 `request_memory_extraction` 工具（tool def + factory），Chat Agent 通过 LLM 工具调用决定是否触发抽取
   - `ExtractInput` 新增 `reason` / `note` 字段，`WhySave` 新增 `Chat Agent 判定` 枚举

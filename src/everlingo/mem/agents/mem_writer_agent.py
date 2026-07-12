@@ -26,7 +26,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from ...gateway.session_events import NoticeSink
 from ...llm import create_agent, create_mem_writer_llm
-from ...utils.md_prompt_compiler import PackageSource, compile_prompt, shift_headings
+from ...utils.md_prompt_compiler import shift_headings
 from .mem_entries import MemoryEntry
 from .mem_writer_mcp_client import IndexerOfflineError, mcp_vault_connection
 
@@ -51,27 +51,51 @@ _EVENT_FILE_PREAMBLE = (
 # ── 系统提示词构建 ──────────────────────────────────────────────────
 
 
-def _build_writer_system_prompt() -> str:
+_SPEC_COMPILE_TOOLS: frozenset[str] = frozenset({"vault_mcp_compile_prompt"})
+
+
+async def _load_mem_entry_spec_from_vault(lang: str) -> str:
+    """通过 MCP compile_prompt 工具编译 spec/mem_entry_spec.md（含 include 展开）。
+
+    返回编译后完整文本。
+    MCP server 不可用（IndexerOfflineError）或文件缺失时向上传播异常，
+    由 _process_batch 捕获后丢弃该 entry。
+    """
+    from .mem_writer_mcp_client import mcp_vault_connection
+
+    async with mcp_vault_connection(
+        lang, wanted_tools=_SPEC_COMPILE_TOOLS
+    ) as (session, _tools):
+        result = await session.call_tool(
+            "compile_prompt", {"path": "spec/mem_entry_spec.md"}
+        )
+        if result.isError:
+            err_text = (
+                result.content[0].text
+                if result.content
+                else "compile_prompt returned isError"
+            )
+            raise RuntimeError(
+                f"compile_prompt spec/mem_entry_spec.md failed: {err_text}"
+            )
+        data = result.structuredContent or {}
+        return data.get("content", "")
+
+
+def _build_writer_system_prompt(mem_entry_spec_content: str) -> str:
     """构建 Memory Writer Agent 的 system prompt。
 
     ref: docs/impl-spec/memory-writer-agent-spec.md — System prompt
-    通过 PackageSource + compile_prompt 编译 mem_entry_spec.md 与 vault_spec.md，
-    自动展开 vault_spec.md 内嵌的 {{ include kb_items_spec.md }} 与
-    {{ include events_spec.md }}。mem_entry_spec.md 用于告知 LLM 其输入 entry
-    的完整字段结构与含义。
-
-    注入前对两份 spec 文档整体 shift_headings(+2)，使其最浅标题 h1 → h3，
-    嵌套于外层 `## 输入 entry 结构` / `## memory vault 结构` (h2) 之下。
+    mem_entry_spec.md 已通过 MCP compile_prompt 工具从 vault 加载并展开
+    include 指令，作为参数传入。此处对其 shift_headings(+2) 使其最浅
+    标题 h1 → h3，嵌套于外层 `## 输入给你的 entry 结构` (h2) 之下。
     与 chat-agent-spec.md「*.md 注入需降级标题」约定一致。
 
     工具名约定：使用 Vault MCP Server 暴露的 fs 工具
     原名（`vault_mcp_read` / `vault_mcp_write` / `vault_mcp_search` / ...）+ Utility 工具 `vault_mcp_gen_id`。
     """
     input_entry_spec_doc = shift_headings(
-        compile_prompt(
-            "mem_entry_spec.md",
-            PackageSource(package="everlingo.mem.vault.vault_specs.default"),
-        ),
+        mem_entry_spec_content,
         offset=2,
     )
 
@@ -414,7 +438,7 @@ class MemoryWriterAgent:
         # LLM 工厂使用 create_mem_writer_llm()（temperature=0），
         # kb items 正文（释义/例句/记忆钩子）需要自然语言写作。
         # 工具集 per-entry 重建（依赖 mcp_vault_connection session）。
-        self._system_prompt = _build_writer_system_prompt()
+        # system prompt 也 per-entry 重建（mem_entry_spec 从 vault 加载）。
         self._llm = create_mem_writer_llm()
         self._notice_sink = notice_sink
 
@@ -506,11 +530,16 @@ class MemoryWriterAgent:
         """对单个 entry 调一次 LLM agent，返回 conversation_context（可能为 None）。
 
         ref: memory-writer-agent-spec.md — 更新知识点类 memory items
-        per-entry 打开一条 MCP stream，调用 session.configure 设定 lang，
-        加载过滤后的 fs 工具 + vault_mcp_gen_id 工具，构建 langchain agent，
-        调 ainvoke。若通知 sink 已注入，写成功后将写入确认发给对应 Session。
+        先通过 MCP compile_prompt 从 vault 加载 mem_entry_spec.md 构建 system
+        prompt；再 per-entry 打开一条 MCP stream 加载过滤后的 fs 工具 +
+        vault_mcp_gen_id 工具，构建 langchain agent，调 ainvoke。
+        spec 加载失败（IndexerOfflineError）向上传播，调用方丢弃该 entry。
+        若通知 sink 已注入，写成功后将写入确认发给对应 Session。
         返回 conversation_context（由 LLM 在确认 JSON 中输出）。
         """
+        spec_content = await _load_mem_entry_spec_from_vault(entry.lang)
+        system_prompt = _build_writer_system_prompt(spec_content)
+
         payload = _render_entry_payload(entry)
         user_msg = (
             "请将以下 entry 合并或写入 memory vault。\n\n"
@@ -520,11 +549,11 @@ class MemoryWriterAgent:
             agent = create_agent(
                 self._llm,
                 tools=tools,
-                system_prompt=self._system_prompt,
+                system_prompt=system_prompt,
             )
             response = await agent.ainvoke({
                 "messages": [
-                    SystemMessage(content=self._system_prompt),
+                    SystemMessage(content=system_prompt),
                     HumanMessage(content=user_msg),
                 ]
             })
