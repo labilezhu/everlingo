@@ -1,3 +1,7 @@
+[Chat Agent](docs/impl-spec/chat-agent-spec.md) 加入用户通过对话直接编辑已有笔记文件的功能。
+
+
+---
 
 现在的 src/everlingo/mem/agents/mem_extract_agent.py ，是把 $workspaces/memory/languages/$lang/vault/spec/memory_extract_spec.md 注入 system prompt 。
 

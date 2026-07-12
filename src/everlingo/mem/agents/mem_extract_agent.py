@@ -19,6 +19,8 @@ from typing import Any, Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from everlingo.utils.md_prompt_compiler import shift_headings
+
 from ...llm import create_extract_llm
 from ...setting import load_user_doc
 
@@ -150,23 +152,11 @@ def _build_system_prompt(
             "'与目标学习语言相关性'、'用户偏好类应跳过'等）。\n"
             "**仅用于筛选判断**。\n\n"
             "---\n"
-            f"{_demote_headings(user_doc.strip())}\n"
+            f"{shift_headings(user_doc.strip(), offset=2)}\n"
             "---\n"
         )
 
-    prefix = f"""## 会话元数据（系统提供，无需在输出中生成）
-
-- chat_session_id: 系统提供
-- channel_name: {channel_name}
-- user_intent: 自动 / dict / translate（由系统从 input 传入）
-- lang (目标学习语言): {target_lang}
-- interface_lang (用户熟识的语言/界面语言): {interface_lang}
-
-{user_doc_section}
-## 输入
-
-"""
-    return prefix.rstrip() + "\n\n" + spec_doc.strip() + "\n"
+    return spec_doc.strip() + "\n\n" + user_doc_section.rstrip()
 
 
 class MemoryExtractAgent:
