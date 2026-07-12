@@ -455,19 +455,13 @@ class TestMainAgentWiring:
         agent, mock_extract_inst = _make_main_agent(zh_en_profile)
         mock_extract_inst.start.assert_called_once()
 
-    def test_invoke_submits_extract_input_with_correct_intent_mode(
-        self, zh_en_profile, mock_agent_response
-    ):
-        """ainvoke() 应在返回 replies 前 submit 一个 ExtractInput，
-        intent_mode 与当前 self._intent_mode 一致，且 new/context 切片正确。
-        """
+    def test_no_tool_call_does_not_submit(self, zh_en_profile, mock_agent_response):
+        """ainvoke() 不触发 request_memory_extraction 工具时不 submit。"""
         mock_inner = MagicMock()
         mock_inner.ainvoke = AsyncMock(return_value=mock_agent_response)
         agent, mock_extract_inst = _make_main_agent(zh_en_profile)
 
-        # 设置为 dict 模式
         asyncio.run(agent.ainvoke(MessageEvent(text="/dict")))
-        # 真实对话触发 submit
         with patch("everlingo.agents.agent.create_agent", return_value=mock_inner), \
              patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
              patch("everlingo.agents.agent.load_user_doc", return_value=""), \
@@ -476,35 +470,55 @@ class TestMainAgentWiring:
             asyncio.run(agent.ainvoke(MessageEvent(text="hello")))
             asyncio.run(agent.ainvoke(MessageEvent(text="world")))
 
-        # submit 应被调用 2 次（不含命令路径）
+        # 未调用工具时不应 submit
+        mock_extract_inst.submit.assert_not_called()
+
+    def test_pending_extract_triggers_submit(self, zh_en_profile, mock_agent_response):
+        """设置 _pending_extract 后在 invoke 末尾提交 ExtractInput。"""
+        mock_inner = MagicMock()
+        mock_inner.ainvoke = AsyncMock(return_value=mock_agent_response)
+        agent, mock_extract_inst = _make_main_agent(zh_en_profile)
+
+        # 设置为 dict 模式，然后两次对话（第一次 submit，第二次也 submit）
+        with patch("everlingo.agents.agent.create_agent", return_value=mock_inner), \
+             patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+             patch("everlingo.agents.agent.load_user_doc", return_value=""), \
+             patch("everlingo.agents.agent.get_config_version", return_value=999), \
+             patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0):
+            asyncio.run(agent.ainvoke(MessageEvent(text="/dict")))
+
+            # 模拟 request_memory_extraction 工具调用
+            agent._pending_extract = ("user_explicit_request", "记住 gcc")
+            asyncio.run(agent.ainvoke(MessageEvent(text="gcc")))
+            assert agent._pending_extract is None  # invoke 应清除标记
+
+            # 第二次 invoke，同样触发
+            agent._pending_extract = ("correction", "纠正 goes→go")
+            asyncio.run(agent.ainvoke(MessageEvent(text="I goes to school")))
+
+        # submit 应被调用 2 次（命令路径不 submit）
         assert mock_extract_inst.submit.call_count == 2
 
-        # 第一次 submit 的 ExtractInput.intent_mode 应是 "dict"
-        first_input = mock_extract_inst.submit.call_args_list[0][0][0]
-        assert isinstance(first_input, ExtractInput)
-        assert first_input.intent_mode == "dict"
-        # new_messages 应含本轮 HumanMessage（唯一抽取来源）
-        assert any(isinstance(m, HumanMessage) and m.content == "hello"
-                   for m in first_input.new_messages)
-        # context_messages 不应含本轮 HumanMessage
-        assert not any(isinstance(m, HumanMessage) and m.content == "hello"
-                       for m in first_input.context_messages)
-        # 首轮 context_messages 应为空（游标从 0 起步）
-        assert first_input.context_messages == []
+        # 第一次 submit 的 ExtractInput 字段验证
+        first = mock_extract_inst.submit.call_args_list[0][0][0]
+        assert isinstance(first, ExtractInput)
+        assert first.intent_mode == "dict"
+        assert first.reason == "user_explicit_request"
+        assert first.note == "记住 gcc"
+        assert any(isinstance(m, HumanMessage) and m.content == "gcc"
+                   for m in first.new_messages)
+        # 首轮 context_messages 应为空（游标从 0 起步，/dict 不推进游标）
+        assert first.context_messages == []
 
-        # 第二次 submit：new_messages 应含 "world" 轮，context_messages 应含上一轮 "hello"
-        second_input = mock_extract_inst.submit.call_args_list[1][0][0]
-        assert any(isinstance(m, HumanMessage) and m.content == "world"
-                   for m in second_input.new_messages)
-        assert not any(isinstance(m, HumanMessage) and m.content == "world"
-                       for m in second_input.context_messages)
-        assert any(isinstance(m, HumanMessage) and m.content == "hello"
-                   for m in second_input.context_messages)
+        # 第二次 submit：new_messages 应含 "I goes to school" 轮
+        second = mock_extract_inst.submit.call_args_list[1][0][0]
+        assert second.reason == "correction"
+        assert second.note == "纠正 goes→go"
 
-    def test_cursor_advances_so_old_turns_never_re_extracted(
+    def test_cursor_advances_even_without_submit(
         self, zh_en_profile, mock_agent_response
     ):
-        """ref: spec — 抽取边界硬约束：同一段历史不应在后续轮被放入 new_messages。"""
+        """未触发抽取时游标仍推进，后续触发时未触发轮出现在 context_messages。"""
         mock_inner = MagicMock()
         mock_inner.ainvoke = AsyncMock(return_value=mock_agent_response)
         agent, mock_extract_inst = _make_main_agent(zh_en_profile)
@@ -514,17 +528,21 @@ class TestMainAgentWiring:
              patch("everlingo.agents.agent.load_user_doc", return_value=""), \
              patch("everlingo.agents.agent.get_config_version", return_value=999), \
              patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0):
+            # 前两轮不触发抽取
             asyncio.run(agent.ainvoke(MessageEvent(text="turn1")))
             asyncio.run(agent.ainvoke(MessageEvent(text="turn2")))
+            # 第三轮触发
+            agent._pending_extract = ("other", "")
             asyncio.run(agent.ainvoke(MessageEvent(text="turn3")))
 
-        # 三轮后，最新一轮的 new_messages 只应含 "turn3"，前两轮只能在 context
-        latest = mock_extract_inst.submit.call_args_list[2][0][0]
-        human_in_new = [m.content for m in latest.new_messages
+        assert mock_extract_inst.submit.call_count == 1
+        inp = mock_extract_inst.submit.call_args_list[0][0][0]
+        # new_messages 只应含 "turn3"
+        human_in_new = [m.content for m in inp.new_messages
                         if isinstance(m, HumanMessage)]
         assert human_in_new == ["turn3"]
-        # 前两轮 HumanMessage 必须出现在 context_messages（背景）
-        ctx_humans = [m.content for m in latest.context_messages
+        # context 应含前两轮
+        ctx_humans = [m.content for m in inp.context_messages
                       if isinstance(m, HumanMessage)]
         assert "turn1" in ctx_humans
         assert "turn2" in ctx_humans

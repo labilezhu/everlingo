@@ -41,6 +41,14 @@ class ExtractInput:
     # 仅供 LLM 生成 conversation_context 字段，禁止从中抽取知识点。
     context_messages: list[BaseMessage]
 
+    # Chat Agent 通过 request_memory_extraction 工具传入的触发原因。
+    # "user_explicit_request" / "correction" / "other"。
+    # None 表示不由 Chat Agent 触发（当前不应出现，保留以兼容测试）。
+    reason: Optional[str] = None
+
+    # Chat Agent 的可选语义提示，供 Extract Agent 参考，不指定具体 entries 内容。
+    note: str = ""
+
 
 # ── 输出规范 ──────────────────────────────────────────────────────────
 
@@ -49,9 +57,11 @@ class ExtractInput:
 # `item_type` 仅使用 vault 规范定义的四种知识类型。
 ItemType = Literal["vocab", "phrase", "grammar", "pragmatics", "others"]
 
-# 本阶段 why_want_to_save_memory 仅允许两个枚举值（其余推迟到下一阶段）。
+# why_want_to_save_memory 枚举值：
+# - "用户明确要求记住知识点" / "纠正事项"：由 Chat Agent 的 reason 映射
+# - "Chat Agent 判定"：reason="other" 时的映射
 # ref: memory-extract-agent-spec.md — why_want_to_save_memory 枚举
-WhySave = Literal["用户明确要求记住知识点", "纠正事项"]
+WhySave = Literal["用户明确要求记住知识点", "纠正事项", "Chat Agent 判定"]
 
 
 class ExtractLLMOutput(BaseModel):
@@ -78,8 +88,9 @@ class LLMGeneratedEntry(BaseModel):
     )
     why_want_to_save_memory: WhySave = Field(
         description=(
-            "本阶段仅允许两个值：'用户明确要求记住知识点' / '纠正事项'。"
-            "其余原因（推断用户需要记住 / 主动询问相关）推迟到下一阶段。"
+            "允许值：'用户明确要求记住知识点' / '纠正事项' / 'Chat Agent 判定'。"
+            "此字段在 post-process 阶段由 reason 参数覆盖，"
+            "LLM 的输出值作为降级兜底。"
         ),
     )
     title: str = Field(

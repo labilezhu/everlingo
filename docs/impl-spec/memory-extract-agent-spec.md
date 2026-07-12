@@ -1,12 +1,15 @@
 # Memory Extract Agent
 
-负责从刚刚结束的一轮对话中，筛选出值得记入 [memory vault](/docs/impl-spec/worksplace/memory-vault-spec.md) 的知识点，并输出结构化 entries ，转交给 [Memory Writer Agent](/docs/impl-spec/memory-writer-agent-spec.md) 异步写入。
+负责从由 Chat Agent 通过 `request_memory_extraction` 工具显式触发的一轮对话中，提取结构化知识点 entries，转交给 [Memory Writer Agent](/docs/impl-spec/memory-writer-agent-spec.md) 异步写入。
+
+**不再自主判断"本轮是否值得抽取"**——该决策已由上游 Chat Agent 完成。
 
 
 ## 筛选规则
 
-### 最终产品规则
-哪些 memory entry 应该同步给 Memory Writer Agent，哪些该跳过：
+**上游 Chat Agent 已通过 tool 调用决定"值得抽取"。** Extract Agent 不再自主判断"应保存"语义规则（用户明确要求记住 / 纠正事项），而是信任上游的 `reason` 字段映射为 `why_want_to_save_memory`。
+
+### 仅保留结构性跳过规则
 
 应跳过的内容：
 - 与学习 `目标学习语言` 无关的信息。
@@ -16,50 +19,11 @@
 - 从背景上下文中抽取：`context_messages` 段仅供生成 `conversation_context`，禁止从中抽取知识点。抽取来源仅限 `new_messages` 段。
 - 用户偏好，因为用户偏好应该保存在 USER.md
 
-应主动保存的内容:
-- 用户明确要求记住知识点 ：“记住 somebody used to do something 这个短语” 
-- 纠正事项 ：发现信息生产源头是用户自己 且 用户未预期到的 且 `目标学习语言`方面的任何错误。
-- 推断用户需要记住
-
-应主动询问是否需要记住知识点：
-- 同一个对话会话中，同一个知识点出现到达2次的。而且相同知识点之前没有询问过是否需要记住。
-- 明显难记忆或生僻小众的`目标学习语言`相关的知识
-- 通过用户偏好或个性设置，发现很容易出错的知识。如，中国程序员很容易回答 Aren't you a programmer? 为 No
-
-不应主动询问是否记住知识点的场景：
-- 同一会话中，主动询问是否记住已经超过 3 次。影响应用体验
-
-### 当前阶段产品规则
-
-#### 规则优先级
-
-当规则间冲突时，按以下优先级判断（高优先级先于低优先级）：
-
-1. **用户明确要求记住** —— 最高，即使知识点对用户"显而易见"也应保存。
-2. **纠正事项** —— 用户自己产出的 target_lang 错误被纠正。
-3. **跳过规则**（与 target_lang 无关 / 用户偏好类 / 会话内已抽取 / 琐碎显而易见）。
-
-#### 应保存
-
-1. **用户明确要求记住**：如「记住 X 这个短语」「帮我记下 X」。
-2. **纠正事项**：信息生产源头是用户自己，且用户未预期到的，且 `target_lang` 方面的错误。如用户写 "I goes to school"，Agent 纠正为 "I go to school"。
-
-#### 应跳过
-
-1. 与 `target_lang` 无关。
-2. 用户偏好类（应入 USER.md，由 Chat Agent 处理）。
-3. 原始数据转储：单条 Message 文本超 1000 字时，该 Message 不作为 `mean_summary` 的事实来源，但轮内其它知识点仍可抽取。
-4. 从背景上下文中抽取：`context_messages` 仅供生成 `conversation_context`，禁止从中抽取知识点；抽取来源仅限 `new_messages` 段。
-5. 琐碎/显而易见。
-
-#### 本阶段不做（推迟到下一阶段）
-
-- 推断用户需要记住
-- 主动询问是否记住
-
 ## 职责边界
 
-**做**：分析本轮对话，判断该不该记、记什么，输出结构化 entries。
+**做**：
+- 根据 Chat Agent 传递的 `reason` / `note`，提取结构化 entries。
+- 保留结构性筛选（字数上限、来源边界、与 target_lang 无关的兜底跳过）。
 
 **不做**：
 - 不读写文件（Writer 的事）
@@ -67,21 +31,28 @@
 - 不与用户交互、不产生用户可见输出
 - 不做跨会话 dedup（本阶段只写不读，无法跨会话）
 - 不做工具调用（无 tools，纯结构化输出的 LLM call）
+- **不做"是否值得记"的语义判断**——该决策由 Chat Agent 的 `request_memory_extraction` 工具调用完成
 
 ## 异步执行
 
-Memory Extract Agent **异步**执行，不阻塞用户回复：
+Memory Extract Agent **异步**执行，不阻塞用户回复。由 Chat Agent 显式触发：
 
 ```
-MainAgent.invoke()
+Chat Agent LLM 调用 request_memory_extraction(reason, note)
+  → MainAgent._pending_extract = (reason, note)          # 工具内仅设标记
+  → MainAgent.invoke() 末尾：
+       if _pending_extract:
+         submit(ExtractInput)                             # 统一提交
+         _pending_extract = None
+       _extract_cursor = len(_messages)                   # 游标始终推进
   → replies (立即返回给用户，零延迟)
-  → self._extract_agent.submit(ExtractInput)        # 入队即返回
+  → self._extract_agent.submit(ExtractInput)              # 入队即返回
         ↓ [extract daemon thread, per-instance]
   MemoryExtractAgent._run_loop()
         ↓ consume ExtractInput
   extract(input)  →  entries
         ↓ 成功且非空
-  gateway.memory_writer.enqueue(entries)             # 转交 Memory Writer Agent 队列
+  gateway.memory_writer.enqueue(entries)                  # 转交 Memory Writer Agent 队列
 ```
 
 - 每个 MainAgent 实例拥有自己的 Memory Extract Agent 实例与 daemon thread（见"生命周期"）。
@@ -111,12 +82,14 @@ class MainAgent:
 
 ### 会话级状态
 
-Memory Extract Agent **无状态**。本阶段所有会话级 dedup 由 `MainAgent` 通过 **extract 游标** 完成：
+Memory Extract Agent **无状态**。所有会话级 dedup 由 `MainAgent` 通过 **extract 游标** 完成：
 
-- `MainAgent._extract_cursor: int` —— 已提交过 extract 的 `_messages` 长度。每次 `invoke()` 末尾构造 `ExtractInput` 时：
-  - `new_messages = self._messages[self._extract_cursor:]`（本轮往返，唯一抽取来源）
-  - `context_messages = _tail_recent_turns(self._messages[:self._extract_cursor], limit=19)`（背景上下文，仅供生成 `conversation_context`）
-  - 推进 `self._extract_cursor = len(self._messages)`。**即使后续 extract LLM call 失败也推进**（与 daemon thread "可接受丢失"语义一致，避免失败轮次在下次 invoke 被重抽）。
+- `MainAgent._extract_cursor: int` —— 已遍历过的 `_messages` 长度。每次 `invoke()` 末尾：
+  - 若 `_pending_extract` 已设置：构造 `ExtractInput` 并 submit。
+    - `new_messages = self._messages[self._extract_cursor:]`（本轮往返，唯一抽取来源）
+    - `context_messages = _tail_recent_turns(self._messages[:self._extract_cursor], limit=19)`（背景上下文，仅供生成 `conversation_context`）
+  - **无论是否触发抽取**，游标均推进 `self._extract_cursor = len(self._messages)`。未触发轮自然成为后续触发的背景上下文。
+  - 即使后续 extract LLM call 失败也推进（与 daemon thread "可接受丢失"语义一致，避免失败轮次在下次 invoke 被重抽）。
 
 游标放在 MainAgent 而非 Extract Agent：Extract Agent 消费 `ExtractInput` 即完成全部判断，无状态、可序列化、可测试。Extract Agent 自身不再持有任何会话级状态。
 
@@ -147,6 +120,14 @@ class ExtractInput:
     # 最近最多 19 轮，仅供 LLM 生成 conversation_context 字段。
     # 禁止从中抽取知识点。
     context_messages: list[Message]
+
+    # —— Chat Agent 触发原因 ——
+    # "user_explicit_request" / "correction" / "other"
+    # 由 request_memory_extraction 工具传入，_post_process 映射为 why_want_to_save_memory
+    reason: str | None = None
+
+    # —— Chat Agent 可选语义提示 ——
+    note: str = ""
 ```
 
 ### 设计说明
@@ -194,11 +175,15 @@ class ExtractInput:
 
 ### why_want_to_save_memory 枚举
 
-本阶段只允许两个值：
-- `用户明确要求记住知识点`
-- `纠正事项`
+`why_want_to_save_memory` 不再由 LLM 判断，而是在 `_post_process` 阶段根据 `reason` 参数映射：
 
-其余（推断用户需要记住 / 主动询问相关）推迟到下一阶段。
+| `reason` 值 | 映射后的 `why_want_to_save_memory` |
+|---|---|
+| `user_explicit_request` | `用户明确要求记住知识点` |
+| `correction` | `纠正事项` |
+| `other` | `Chat Agent 判定` |
+
+`reason` 为 None 时（测试兼容）保留 LLM 生成值。`Chat Agent 判定` 为新枚举值，反射上游 Chat Agent 的判断。
 
 
 ## conversation_context 生成
@@ -226,9 +211,10 @@ Extract LLM call 异常或结构化输出解析失败时：
 ### System prompt 要点
 
 - 角色：知识点抽取器，不与用户对话。
-- 输入字段含义说明（`intent_mode` / `new_messages` / `context_messages`，以及实例属性中的会话元数据）。
+- 输入字段含义说明（`intent_mode` / `reason` / `note` / `new_messages` / `context_messages`，以及实例属性中的会话元数据）。
+- **不再自主判断"是否值得抽取"**：上游 Chat Agent 已通过 `request_memory_extraction` 工具触发，`reason` 字段即为触发原因。LLM 应按 `reason` 映射输出 `why_want_to_save_memory`（`user_explicit_request` → `用户明确要求记住知识点`，`correction` → `纠正事项`，`other` → `Chat Agent 判定`）。
 - **抽取边界硬约束**：只允许从 `new_messages` 中抽取知识点；`context_messages` 仅用于生成 `conversation_context`，其中出现过的事实不得作为 entry 输出。
-- 筛选规则（本阶段精简版）与规则优先级。
+- 筛选规则（本轮仅保留结构性跳过规则：字数上限、来源边界、与 target_lang 无关跳过等）。
 - 输出 schema、字段说明（由运行期通过 MCP `compile_prompt` 工具加载并展开 include：`memory_extract_spec.md` → `memory_extract_output_spec.md` → `mem_entry_spec.md`；不再本地兜底）。
 - `conversation_context` 不在此生成；`new_messages` / `context_messages` 均透传给 Memory Entry 供 Writer Agent 使用。
 - 注入 USER.md 内容（标题降级，防止与 prompt 外层结构冲突），用于筛选判断。参考 `agent.py` 的 `_demote_headings()` 实现标题降级。
@@ -243,6 +229,7 @@ Extract LLM call 异常或结构化输出解析失败时：
 - **模型**：使用独立工厂 `create_extract_llm()`（见 `src/everlingo/llm.py`），与主对话同 model / callbacks / tracing，唯一差异是 `temperature=0`。抽取任务要求结构化、确定性输出，0.7 会带来字段漂移；已实施独立配置，不再复用 `create_llm()`。
 - **失败轮次丢失**：extract LLM call 失败时本轮 `new_messages` 不再重抽（游标已在 submit 前推进），与 daemon thread "可接受丢失"语义一致。
 - **跨会话 dedup**：本阶段 Extract Agent 不读 vault，无法跨会话 dedup，推迟到下阶段读取能力上线。
+- **语义筛选职责迁移**：Extract Agent 不再自主判断"是否值得抽取"，该决策由 Chat Agent 的 `request_memory_extraction` 工具调用完成。Extract Agent 保留结构性跳过规则（字数上限、来源边界、target_lang 无关）。这样避免了两个 LLM 对同一轮进行重复的"是否值得记"判断。
 - **context 上限 19 轮**：经验值，若发现不足或过多再调整。`context_messages` 取 `MainAgent._messages[:cursor]` 的尾部 turn 截断，不单独持久化。
 
 

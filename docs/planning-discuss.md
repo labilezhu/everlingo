@@ -1,3 +1,13 @@
+
+src/everlingo/mem/agents/mem_writer_agent.py 中 system prompt 的 mem_entry_spec.md 加载，现在是用 PackageSource 。应该修改成与 src/everlingo/mem/agents/mem_extract_agent.py 中 _load_extract_spec_from_vault() 一致的，用 mcp 工具从 vault 中加载的方法。
+
+---
+
+现在的实现，[Chat Agent](docs/impl-spec/chat-agent-spec.md) 不知道 [Memory Extract Agent](/docs/impl-spec/memory-extract-agent-spec.md) 是否有可能触发记忆抽取和后续的[Memory Writer Agent](docs/impl-spec/memory-writer-agent-spec.md)的 Vault 写入。
+能不能，由 Chat Agent 去显式（LLM工具或结构输出）去决定是否驱动 Memory Extract Agent ？而不是现在的每轮对话后都驱动 Memory Extract Agent ？ 这然 Agent 间的责任分工可以明确点，不会两个 Agent 不了解对方是否已经响应，而作重复行为。
+
+---
+
 [Chat Agent](docs/impl-spec/chat-agent-spec.md) 加入用户通过对话直接编辑已有 Vault 笔记文件的功能:
 - Chat Agent 增加 [MCP Server](src/everlingo/mem/vault/vault_specs/default/memory_extract_output_spec.md) 的 `vault_mcp_write` 工具可用
 - 在 Chat Agent 的 System Prompt 中，要强调： 

@@ -28,6 +28,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# ── Tool factories (bind instance state via closure) ────────────────
+from ..tools.request_memory_extract import make_request_memory_extract_tool
+
 @dataclass
 class MessageEvent:
     """从 Channel 收到的消息的规范化表示。
@@ -113,8 +116,10 @@ def _build_system_prompt(
 处理每次用户消息的主要的流程是： 分析当前会话消息和历史消息 -> 识别用户意图(当最近系统消息未指定`对话模式`时) -> [可选:必要时调用提供的 tools] -> 作出友好与实用的回答。
 你的记忆有两部分组成：
 - 个性化偏好 (USER.md) ，支持读写，已经为你提供读写工具
-- 目标学习语言({target_lang}) 的相关知识，只支持写入，而且不是由你去写入。
-需要写入记忆时，你要先分类一下记忆内容。对于 目标学习语言 知识相关的，非个性化偏好的记忆， 有一个 Memory Extract Agent 负责监控你的对话内容。并异步写入目标学习语言笔记库。
+- 目标学习语言({target_lang}) 的相关知识，只支持写入，但不是由你去直接写入。
+
+当需要记下某目标学习语言知识点时，你通过 `request_memory_extraction` 工具显式触发记忆抽取流程，
+下游 Memory Extract Agent 会异步提取结构化知识点并写入笔记库。你不需要直接调用读写笔记的工具。
 
 **当用户要求"记住 / 记下 / 帮我记"某目标学习语言的知识点（单词/短语/语法点/语用）时**：
 - **必须先在本轮回复中产出该知识点的实际内容**——用 dest_lang 给出含义/释义、用法、必要时举例（参考上文「查单词」与「翻译」响应要求）。这是 Memory Extract Agent 抽取 mean_summary 的唯一事实来源（它没有查词工具，也不能引入外部知识，只能从本轮 new_messages 里的 AIMessage.content 取事实）。
@@ -124,6 +129,28 @@ def _build_system_prompt(
 - 正确示例：用户说"记住 god 这个单词"，回复"god：名词，意为'神、神灵'。首字母大写 God 通常指一神论中的独一真神，小写 god 指多神教中的某位神祇或比喻义。\n\n已提交笔记请求。"
 
 纠正事项（用户写错目标语言被你纠正）的情况天然满足事实来源（用户原句 + 你的纠正都在本轮对话里），无需额外动作。
+
+## 记忆抽取触发
+
+你通过 `request_memory_extraction` 工具显式触发记忆抽取，而不是每轮对话都自动触发。
+
+### 何时调用
+
+1. **用户明确要求记住**：用户说"记住 / 记下 / 帮我记"某知识点时 —— 调用 `request_memory_extraction(reason="user_explicit_request")`
+2. **纠正事项**：你发现并纠正了用户未预期的目标学习语言错误 —— 调用 `request_memory_extraction(reason="correction")`
+3. **其他你觉得值得记录的情形** —— 调用 `request_memory_extraction(reason="other", note="简要说明")`
+
+### 何时不调用
+
+- 与目标学习语言无关的闲聊
+- 纯查词或翻译，没有纠正也没有显式要求记住
+- 用户偏好类内容（应通过 user_doc 工具写入 USER.md）
+- 琐碎/显而易见的信息
+
+### 调用前必须
+
+- 已在本轮回复中产出该知识点的实际内容（释义/解释/用法/举例）
+- 这是下游 Extract Agent 抽取事实的唯一来源（它没有查词工具，也不能引入外部知识）
 
 ## 术语
 先定义下面将使用的术语
@@ -340,7 +367,7 @@ OR
 ## 记忆库/笔记 Vault / 知识库 的只读访问
 当用户明显要查询过往笔记/记忆时（如「我记过 xxx 吗」「查我笔记里关于 xxx 的」），可使用 vault 工具。
 不了解 vault 结构时先 vault_mcp_read(path="spec/vault_spec.md") 学习规范。 spec/vault_spec.md 文件链接到其它子规范 md 文件，请按需要读取。
-你只读不写；写入由 Memory Extract Agent 异步完成。
+你只读不写；需要写入时通过 `request_memory_extraction` 工具触发异步抽取流程。
 """
     else:
         prompt += """
@@ -410,6 +437,10 @@ class MainAgent:
         # 即使 extract 失败也推进（与 daemon 可丢失语义一致），避免失败轮次被重抽。
         self._extract_cursor: int = 0
 
+        # request_memory_extraction 工具调用后设置的 pending 标记。
+        # (reason, note)；invoke 末尾据此决定是否 submit ExtractInput。
+        self._pending_extract: tuple[str, str] | None = None
+
         # ── Memory Extract Agent ──────────────────────────────────────
         # ref: docs/impl-spec/memory-extract-agent-spec.md — 生命周期与状态
         # 每个 MainAgent 实例持有自己的 Extract Agent 实例（会话级状态相关）；
@@ -425,7 +456,13 @@ class MainAgent:
         )
         self._extract_agent.start()
 
-    # ── MCP 长连接管理 ──────────────────────────────────────────
+    def _set_pending_extract(self, reason: str, note: str) -> None:
+        """request_memory_extraction 工具回调：记录 pending 标记。
+
+        工具在 LLM 多步循环中被调用，此时 invoke 尚未结束、
+        new_messages 切片未就绪。工具只设标记，不直接 submit。
+        """
+        self._pending_extract = (reason, note)
 
     async def _ensure_mcp_stream(self) -> None:
         """懒打开到 Vault MCP Server 的长连接，配置会话 lang，加载只读工具。
@@ -491,7 +528,8 @@ class MainAgent:
         await self._ensure_mcp_stream()
 
         user_doc = load_user_doc()
-        self._tools = list(self._tools_base) + list(self._vault_tools)
+        extract_tool = make_request_memory_extract_tool(self._set_pending_extract)
+        self._tools = list(self._tools_base) + [extract_tool] + list(self._vault_tools)
         self._agent = create_agent(
             self._llm,
             tools=self._tools,
@@ -608,20 +646,28 @@ class MainAgent:
 
         # ── 提交 Memory Extract Agent（异步，不阻塞回复） ──────────
         # ref: docs/impl-spec/memory-extract-agent-spec.md — 异步执行 / 输入规范
+        # 由 Chat Agent 通过 request_memory_extraction 工具显式触发。
         # new_messages = 自上次 extract 游标以来新增的 messages（本轮往返，唯一抽取来源）
         # context_messages = 游标之前的最近 19 轮（背景上下文，仅供 conversation_context）
-        # 游标在切片后立即推进，即使 extract 失败也不再重抽本轮。
-        # 命令路径已在函数早期 return；此处仅在真实 LLM 调用后到达。
-        new_messages = list(self._messages[self._extract_cursor:])
-        context_messages = _tail_recent_turns(
-            self._messages[:self._extract_cursor]
-        )
-        self._extract_cursor = len(self._messages)
-        self._extract_agent.submit(ExtractInput(
-            intent_mode=self._intent_mode,
-            new_messages=new_messages,
-            context_messages=context_messages,
-        ))
+        # 游标始终推进；未触发时本轮自然并入未来 context_messages。
+        if self._pending_extract is not None:
+            reason, note = self._pending_extract
+            self._pending_extract = None
+            new_messages = list(self._messages[self._extract_cursor:])
+            context_messages = _tail_recent_turns(
+                self._messages[:self._extract_cursor]
+            )
+            self._extract_cursor = len(self._messages)
+            self._extract_agent.submit(ExtractInput(
+                intent_mode=self._intent_mode,
+                new_messages=new_messages,
+                context_messages=context_messages,
+                reason=reason,
+                note=note,
+            ))
+        else:
+            # 未触发抽取：游标仍推进，本轮内容自然成为未来 context
+            self._extract_cursor = len(self._messages)
 
         return replies
 

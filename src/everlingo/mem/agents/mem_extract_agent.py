@@ -39,6 +39,15 @@ _GMT8 = timezone(timedelta(hours=8))
 logger = logging.getLogger(__name__)
 
 
+# —— Chat Agent reason → why_want_to_save_memory 映射 ——
+# ref: docs/impl-spec/memory-extract-agent-spec.md — why_want_to_save_memory 枚举
+_REASON_TO_WHYSAVE: dict[str, str] = {
+    "user_explicit_request": "用户明确要求记住知识点",
+    "correction": "纠正事项",
+    "other": "Chat Agent 判定",
+}
+
+
 def _now_gmt8_str() -> str:
     """GMT+8 时间戳字符串，格式 yyyy-mm-dd HH:MM:SS。
 
@@ -218,6 +227,39 @@ class MemoryExtractAgent:
 
     # ── 单轮抽取（可被测试直接调用以同步化断言）─────────────────────
 
+    def _post_process(
+        self,
+        llm_entries: list[LLMGeneratedEntry],
+        user_intent: str,
+        new_messages_text: str = "",
+        context_messages_text: str = "",
+        reason: str | None = None,
+    ) -> list[MemoryEntry]:
+        """把 LLM 输出覆盖透传字段并补全 entry_id / timestamp / 对话消息。
+
+        当 `reason` 不为 None 时，用 `reason` 映射值覆盖
+        `why_want_to_save_memory`（Chat Agent 的触发原因为最高权威）。
+        """
+        ts = _now_gmt8_str()
+        mapped_why = _REASON_TO_WHYSAVE.get(reason) if reason else None
+        out: list[MemoryEntry] = []
+        for raw in llm_entries:
+            out.append(MemoryEntry(
+                entry_id=str(uuid.uuid4()),
+                timestamp=ts,
+                chat_session_id=self._chat_session_id,
+                channel_name=self._channel_name,
+                user_intent=user_intent,
+                lang=self._target_lang,
+                interface_language=self._interface_lang,
+                new_messages=new_messages_text,
+                context_messages=context_messages_text,
+                item_type=raw.item_type,
+                why_want_to_save_memory=mapped_why or raw.why_want_to_save_memory,
+                title=raw.title,
+            ))
+        return out
+
     def _extract(self, extract_input: ExtractInput) -> list[MemoryEntry]:
         """执行一次抽取，返回构造好的 MemoryEntry 列表（可能为空）。
 
@@ -243,8 +285,12 @@ class MemoryExtractAgent:
         intent_label = _intent_mode_label(extract_input.intent_mode)
         new_text = _render_context_messages(extract_input.new_messages)
         context_text = _render_context_messages(extract_input.context_messages)
+        reason_info = f"reason: {extract_input.reason}"
+        note_info = f"note: {extract_input.note}" if extract_input.note else ""
         user_msg = (
-            f"intent_mode: {intent_label}\n\n"
+            f"intent_mode: {intent_label}\n"
+            f"{reason_info}\n"
+            f"{note_info}\n\n"
             f"=== 背景上下文（仅供理解对话场景，禁止从中抽取知识点）===\n"
             f"{context_text}\n\n"
             f"=== 本轮新增（唯一允许的抽取来源）===\n"
@@ -259,7 +305,8 @@ class MemoryExtractAgent:
         ])
 
         entries = self._post_process(
-            result.entries, intent_label, new_text, context_text
+            result.entries, intent_label, new_text, context_text,
+            reason=extract_input.reason,
         )
 
         # ref: 日志要求 — 每个 entry info 日志输出全部字段
@@ -280,33 +327,6 @@ class MemoryExtractAgent:
             self._memory_writer.enqueue(entries)
 
         return entries
-
-    def _post_process(
-        self,
-        llm_entries: list[LLMGeneratedEntry],
-        user_intent: str,
-        new_messages_text: str = "",
-        context_messages_text: str = "",
-    ) -> list[MemoryEntry]:
-        """把 LLM 输出覆盖透传字段并补全 entry_id / timestamp / 对话消息。"""
-        ts = _now_gmt8_str()
-        out: list[MemoryEntry] = []
-        for raw in llm_entries:
-            out.append(MemoryEntry(
-                entry_id=str(uuid.uuid4()),
-                timestamp=ts,
-                chat_session_id=self._chat_session_id,
-                channel_name=self._channel_name,
-                user_intent=user_intent,
-                lang=self._target_lang,
-                interface_language=self._interface_lang,
-                new_messages=new_messages_text,
-                context_messages=context_messages_text,
-                item_type=raw.item_type,
-                why_want_to_save_memory=raw.why_want_to_save_memory,
-                title=raw.title,
-            ))
-        return out
 
 
 def make_default_extract_agent(
