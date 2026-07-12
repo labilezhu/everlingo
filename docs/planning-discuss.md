@@ -1,7 +1,30 @@
-我计划实现一个新功能，用户可以在 [Chat Agent](docs/impl-spec/chat-agent-spec.md) 中删除笔记条目（笔记文件），也可以指示 Chat Agent 直接编辑笔记条目的 markdown 主体内容。
-请计划一下架构设计和风险点。
+请计划一下架构设计和风险点：
 
-删除和编辑操作，我觉得还是经 Chat Agent → Memory Extract Agent → Memory Writer Agent 好，能不能调整一下现在这几个环节的输出与输出数据结构，以达成目的？ Memory Extract Agent 抽取操作的知识点条目或文件名，Memory Writer Agent 从聊天 context 中分析操作类型和更精细的操作目标。
+我计划实现一个新功能，用户可以在 [Chat Agent](docs/impl-spec/chat-agent-spec.md) 中删除笔记条目（笔记文件），也可以指示 Chat Agent 直接编辑笔记条目的 markdown 主体内容。
+
+流程如下：
+1. 用户指示要删除或编辑笔记条目
+2. Agent 尝试自动定位目标文件（优先级从高到低）： 
+   2.1 Chat Agent 如果能通过 message history 中推断出 `file_path` 就最好（如之前有 Memory Writer 通知的 updated_files，或之前已经定位过文件）
+   2.2 如果不能，就通过过 search 找到可选文件集合(top 4)，然后 read 找出最匹配的
+3. 发起删除/编辑笔记条操作前，Chat Agent 必须和用户确认上一步自动定位到的目标笔记条目的`title` 和 `item_type(知识点类型)`
+4. 如果用户确认，往后操作。否则，如果用户增加了提示信息，按提示 goto 2.1 步继续定位。用户也可以取消操作
+5. 同步调用 [Memory Writer Agent](docs/impl-spec/memory-writer-agent-spec.md)(作为 Chat Agent 的 tool) 写入 Vault
+6. Memory Writer Agent 同步返回写入结果，由 Chat Agent 转告用户。
+
+
+Chat Agent 与 Memory Writer 之间的交互数据结构，尽量考虑在现有的 src/everlingo/mem/vault/vault_specs/default/memory_extract_output_spec.md 上扩展。
+建议加上以下字段：
+```json
+{
+  "operation": "delete",   // "create"(默认) | "delete" | "edit"
+  "file_path": "/items/phrase/the-best-is-yet-to-come--01KXAQCXT331QT41Y6VGSZ2QPW.md",   // delete/edit 专用且必选
+  "body": null         // edit 专用且必选：新的 markdown 正文（不含 frontmatter）
+}
+```
+
+Memory Writer Agent 能不能在原有的 daemon thread 上执行 delete/edit 任务？不希望用多线程 lock 的方案。
+
 
 ---
 
