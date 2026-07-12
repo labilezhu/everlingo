@@ -39,29 +39,6 @@ _GMT8 = timezone(timedelta(hours=8))
 logger = logging.getLogger(__name__)
 
 
-# ref: chat-agent-spec.md — *_demote_headings*
-# 注入到 system prompt 的 USER.md 内容需要降级标题层级，
-# 防止与 prompt 外层的 ## 标题冲突。本阶段 system prompt 外层使用 ##，
-# 注入 USER.md 也使用与 Chat Agent 相同的 +2 偏移。
-_HEADING_DEMOTE_OFFSET = 2
-
-
-def _demote_headings(text: str) -> str:
-    """把 markdown 标题降 N 级（N=_HEADING_DEMOTE_OFFSET），避免与外层 prompt 标题冲突。
-
-    ref: chat-agent-spec.md — *.md 文件注入时标题层级处理
-    """
-    n = _HEADING_DEMOTE_OFFSET
-    pattern = re.compile(r'^(#{1,6}) ', flags=re.MULTILINE)
-
-    def _shift(m: re.Match[str]) -> str:
-        original = m.group(1)
-        new_level = min(len(original) + n, 6)
-        return '#' * new_level + ' '
-
-    return pattern.sub(_shift, text)
-
-
 def _now_gmt8_str() -> str:
     """GMT+8 时间戳字符串，格式 yyyy-mm-dd HH:MM:SS。
 

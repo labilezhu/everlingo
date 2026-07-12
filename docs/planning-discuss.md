@@ -1,5 +1,11 @@
-[Chat Agent](docs/impl-spec/chat-agent-spec.md) 加入用户通过对话直接编辑已有笔记文件的功能。
+[Chat Agent](docs/impl-spec/chat-agent-spec.md) 加入用户通过对话直接编辑已有 Vault 笔记文件的功能:
+- Chat Agent 增加 [MCP Server](src/everlingo/mem/vault/vault_specs/default/memory_extract_output_spec.md) 的 `vault_mcp_write` 工具可用
+- 在 Chat Agent 的 System Prompt 中，要强调： 
+  笔记的创建和写入，默认应该是 Memory Extract Agent 通过监控你的对话内容去异步更新的。只有在用户在聊天上下文中有明显的直接编辑一个笔记知识条目(文件)的要求时，才按用户要求写笔记文件。
 
+---
+
+2. **通过分析对话，发现用户在 Chat Agent 中直接编辑一个已有笔记知识条目(文件)** ： 这时不应该再由 Memory Extract Agent 去抽取和重复写入。
 
 ---
 

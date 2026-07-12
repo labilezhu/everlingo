@@ -337,7 +337,7 @@ OR
     # 记忆库只读访问（vault 工具）
     if vault_available:
         prompt += """
-## 记忆库只读访问
+## 记忆库/笔记 Vault / 知识库 的只读访问
 当用户明显要查询过往笔记/记忆时（如「我记过 xxx 吗」「查我笔记里关于 xxx 的」），可使用 vault 工具。
 不了解 vault 结构时先 vault_mcp_read(path="spec/vault_spec.md") 学习规范。 spec/vault_spec.md 文件链接到其它子规范 md 文件，请按需要读取。
 你只读不写；写入由 Memory Extract Agent 异步完成。

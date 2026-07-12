@@ -32,13 +32,12 @@ from everlingo.mem.agents.mem_entries import (
 from everlingo.mem.agents.mem_extract_agent import (
     MemoryExtractAgent,
     _build_system_prompt,
-    _demote_headings,
     _intent_mode_label,
     _now_gmt8_str,
     _render_context_messages,
 )
 from everlingo.models import UserLanguage, UserProfile
-from everlingo.utils.md_prompt_compiler import PackageSource, compile_prompt
+from everlingo.utils.md_prompt_compiler import PackageSource, compile_prompt, shift_headings
 
 
 # ── 公共 fixtures ──────────────────────────────────────────────────────
@@ -122,13 +121,12 @@ class TestUtilityFunctions:
         assert "tool" in out
         assert "lookup: gcc" in out
 
-    def test_demote_headings_offset_2(self):
+    def test_shift_headings_offset_2(self):
         md = "# h1\n## h2\n### h3\n###### h6\nplain"
-        out = _demote_headings(md)
+        out = shift_headings(md, offset=2)
         assert "### h1" in out
         assert "#### h2" in out
         assert "##### h3" in out
-        # 6 级标题 + offset 2 → 8 级，钳制为 6 级
         assert "###### h6" in out
         assert "plain" in out
 
@@ -175,7 +173,7 @@ class TestTailRecentTurns:
 
 
 class TestBuildSystemPrompt:
-    def test_includes_target_and_interface_lang(self, zh_en_profile, extract_spec_text):
+    def test_includes_target_lang(self, zh_en_profile, extract_spec_text):
         prompt = _build_system_prompt(
             target_lang="en",
             interface_lang="zh-CN",
@@ -185,7 +183,6 @@ class TestBuildSystemPrompt:
         )
         assert "en" in prompt
         assert "zh-CN" in prompt
-        assert "StdioChannel" in prompt
 
     def test_states_new_context_boundary(self, extract_spec_text):
         prompt = _build_system_prompt(

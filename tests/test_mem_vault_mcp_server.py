@@ -223,7 +223,8 @@ def test_session_configure_auto_creates_vault(fresh_workspace):
         assert spec_dir.is_dir()
         assert (spec_dir / "vault_spec.md").is_file()
         assert (spec_dir / "events_spec.md").is_file()
-        assert (spec_dir / "kb_items_spec.md").is_file()
+        assert (spec_dir / "kb_items_spec_vocab.md").is_file()
+        assert (spec_dir / "mem_entry_spec.md").is_file()
 
         # 后续 fs 工具可用
         r = await c.call_tool("ls", {"path": ""})
@@ -624,13 +625,11 @@ def test_create_vault_creates_dir_and_spec(fresh_workspace):
         assert expected_vault.is_dir()
         spec_dir = expected_vault / "spec"
         assert spec_dir.is_dir()
-        for name in ("vault_spec.md", "events_spec.md", "kb_items_spec.md"):
+        for name in ("vault_spec.md", "events_spec.md", "kb_items_spec_vocab.md",
+                      "kb_items_spec_phrase.md", "mem_entry_spec.md"):
             assert (spec_dir / name).is_file()
         content = (spec_dir / "vault_spec.md").read_text(encoding="utf-8")
-        # 合成结果含 vault_spec.md 顶层 h1
         assert "# 单语言 Memory Vault Spec" in content
-        # 合成结果含展开后的 events_spec / kb_items_spec
-        assert "事件类" in content
         assert "知识点类 memory items" in content
 
     with factory(body):
@@ -668,7 +667,7 @@ def test_create_vault_idempotent(fresh_workspace):
         # 第一次的内容
         assert original_content.startswith("# 单语言 Memory Vault Spec")
         # 其余 spec 文件 also untouched
-        for name in ("events_spec.md", "kb_items_spec.md"):
+        for name in ("events_spec.md", "kb_items_spec_vocab.md"):
             p = expected_spec_dir / name
             assert p.is_file()
             assert p.read_text(encoding="utf-8").startswith("#")

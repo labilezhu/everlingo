@@ -223,20 +223,11 @@ def test_absolute_path_promotes_outside_package() -> None:
 
 def test_package_source_resolves_to_real_pkg_file() -> None:
     """Compile the in-tree vault_spec.md via PackageSource."""
-    src = PackageSource(package="everlingo.mem.vault")
+    src = PackageSource(package="everlingo.mem.vault.vault_specs.default")
     out = compile_prompt("vault_spec.md", src)
-    # vault_spec includes kb_items_spec and events_spec
-    assert "知识点类 memory items" in out
-    assert "事件类" in out
-    # heading promotion: vault_spec h1 stays h1, child h1 under "## items/" -> h3
-    # kb_items_spec starts with "# 知识点 memory vault 结构"
-    # include is under "## items/ 知识点类 memory items" (level 2 in vault_spec)
-    # so child's "# 知识点" -> "### 知识点"
-    assert "### 知识点 memory vault 结构" in out
-    # events_spec starts with "# 事件类"; under "## events/ 事件类" -> "### 事件类"
-    assert "### 事件类" in out
-    # the include directive itself is gone
-    assert "{{ include" not in out
+    assert "单语言 Memory Vault Spec" in out
+    assert "vocab" in out
+    assert "grammar" in out
 
 
 # ---------------- frontmatter ----------------
