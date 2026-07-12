@@ -12,6 +12,17 @@
   - 更新测试：新增 `mem_entry_spec_text` fixture、autouse `_patch_mem_entry_spec`
   - 更新 memory-writer-agent-spec.md 设计文档
 
+- 2026-07-12 21:30 | Chat Agent 删除/编辑笔记条目（同步调用 Memory Writer Agent）
+  - 数据结构扩展：mem_entry_spec.md 新增 operation / file_path / body 字段；events_spec.md 新增 action + file_path 字段；MemoryEntry 模型同步扩展
+  - MemoryWriterAgent 新增 _ActionRequest + execute_action_async（public API）复用 daemon thread 串行执行 delete/edit，无锁
+  - 新增 _delete_entry_async（stat→read→delete→events）和 _edit_entry_async（read→split frontmatter→write→events），纯代码无 LLM
+  - 新增 _format_action_event_section / _append_action_event_async 记录 delete/edit 审计事件
+  - _run_loop 新增 _ActionRequest 分发
+  - 新建 memory_writer_action.py 工具工厂，Chat Agent 同步 await 调用
+  - agent.py system prompt 新增"笔记删除与编辑"节（含确认流程约束）
+  - _refresh_agent_if_needed 注入 memory_writer_action 工具
+  - 13 项新增测试覆盖 delete/edit 核心流程与 daemon thread 分发
+
 - 2026-07-12 17:00 | Chat Agent 显式驱动 Memory Extract Agent（而非每轮无条件触发）
   - 新增 `request_memory_extraction` 工具（tool def + factory），Chat Agent 通过 LLM 工具调用决定是否触发抽取
   - `ExtractInput` 新增 `reason` / `note` 字段，`WhySave` 新增 `Chat Agent 判定` 枚举

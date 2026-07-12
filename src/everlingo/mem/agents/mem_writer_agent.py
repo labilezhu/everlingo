@@ -15,18 +15,21 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import json
 import logging
 import queue
 import threading
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from ...gateway.session_events import NoticeSink
 from ...llm import create_agent, create_mem_writer_llm
 from ...utils.md_prompt_compiler import shift_headings
+from ...mem.vault.frontmatter import parse_frontmatter, split_frontmatter
 from .mem_entries import MemoryEntry
 from .mem_writer_mcp_client import IndexerOfflineError, mcp_vault_connection
 
@@ -46,6 +49,21 @@ _EVENT_FILE_PREAMBLE = (
     "事件按时间顺序记录，即最早的事件在前面。\n"
     "事件记录格式：\n\n"
 )
+
+
+# ── _ActionRequest ──────────────────────────────────────────────────────
+
+
+@dataclass
+class _ActionRequest:
+    """Chat Agent 同步调用封装，走 daemon thread 串行执行。
+
+    Chat Agent 的 memory_writer_action 工具创建此对象入队，
+    daemon thread 消费后通过 future 返回结果。
+    """
+
+    entry: MemoryEntry
+    future: concurrent.futures.Future
 
 
 # ── 系统提示词构建 ──────────────────────────────────────────────────
@@ -356,6 +374,80 @@ async def _append_event_async(
     )
 
 
+def _format_action_event_section(
+    entry: MemoryEntry,
+    action: str,  # "deleted" | "edited"
+) -> str:
+    """按 events_spec.md 删除/编辑事件格式构造 event markdown 段落。
+
+    delete/edit 事件字段比 create 少（无 why_want_to_save_memory / user_intent /
+    new_messages / context_messages / conversation_context），但多了 action 与 file_path。
+    """
+    fields = [
+        ("action", action),
+        ("timestamp", entry.timestamp),
+        ("lang", entry.lang),
+        ("title", entry.title),
+        ("item_type", entry.item_type),
+        ("file_path", entry.file_path),
+        ("chat_session_id", entry.chat_session_id),
+        ("channel_name", entry.channel_name),
+    ]
+    field_lines = "\n".join(f"- {name}: {value}" for name, value in fields)
+    return f"## Event\n{field_lines}\n"
+
+
+async def _append_action_event_async(entry: MemoryEntry, action: str) -> None:
+    """把 delete/edit 事件追加到当日 events 文件（通过 MCP fs 工具）。
+
+    流程与 _append_event_async 一致，但事件段落格式不同。
+    entry.timestamp 用于计算 events 文件路径。
+    """
+    rel = _events_rel_path(entry)
+    section = _format_action_event_section(entry, action)
+
+    async with mcp_vault_connection(entry.lang) as (session, _tools):
+        stat_result = await session.call_tool("stat", {"path": rel})
+        if stat_result.isError:
+            raise RuntimeError(
+                f"events stat failed: {stat_result.content[0].text}"
+            )
+        exists = bool(
+            (stat_result.structuredContent or {}).get("exists", False)
+        )
+
+        if not exists:
+            write_result = await session.call_tool(
+                "write", {"path": rel, "content": _EVENT_FILE_PREAMBLE}
+            )
+            if write_result.isError:
+                raise RuntimeError(
+                    f"events write preamble failed: "
+                    f"{write_result.content[0].text}"
+                )
+            action = "created"
+        else:
+            action = "appended"
+
+        append_result = await session.call_tool(
+            "append", {"path": rel, "content": section + "\n"}
+        )
+        if append_result.isError:
+            raise RuntimeError(
+                f"events append failed: {append_result.content[0].text}"
+            )
+
+    logger.info(
+        "events: %s %s/%s, content=%s",
+        action, entry.lang, rel, section,
+    )
+
+
+def _normalize_path(path: str) -> str:
+    """去除 file_path 的前导 /，确保为相对路径。"""
+    return path.lstrip("/")
+
+
 # ── kb item 写入（LLM 驱动）──────────────────────────────────────────
 
 
@@ -431,7 +523,7 @@ class MemoryWriterAgent:
     """
 
     def __init__(self, notice_sink: NoticeSink | None = None) -> None:
-        self._queue: "queue.Queue[Optional[list[MemoryEntry]]]" = queue.Queue()
+        self._queue: "queue.Queue[Optional[Any]]" = queue.Queue()
         self._thread: Optional[threading.Thread] = None
 
         # ref: memory-writer-agent-spec.md — 用 langchain 的 agent 框架
@@ -463,6 +555,22 @@ class MemoryWriterAgent:
         """
         self._queue.put(list(entries))
 
+    async def execute_action_async(self, entry: MemoryEntry) -> dict:
+        """同步执行 delete/edit 操作，返回结果 dict（awaitable）。
+
+        由 Chat Agent 的 memory_writer_action 工具调用。
+        将 _ActionRequest 入队后 await future，
+        daemon thread 串行执行后 set_result / set_exception。
+
+        30s 超时保护，防止 daemon thread 被前序 LLM 写入阻塞过久。
+        """
+        future: concurrent.futures.Future = concurrent.futures.Future()
+        self._queue.put(_ActionRequest(entry=entry, future=future))
+        result = await asyncio.wait_for(
+            asyncio.wrap_future(future), timeout=30.0,
+        )
+        return result
+
     def stop(self, timeout: float = 5.0) -> None:
         """发送结束哨兵并等待线程退出。供测试与优雅关闭使用。"""
         self._queue.put(None)
@@ -472,15 +580,23 @@ class MemoryWriterAgent:
     # ── 主循环 ────────────────────────────────────────────────────
 
     def _run_loop(self) -> None:
-        """消费 entries 列表；遇 None 哨兵退出。"""
+        """消费队列；遇 None 哨兵退出。
+
+        队列中可能包含两种 item：
+        - list[MemoryEntry]：由 Extract Agent enqueue（create 流程）
+        - _ActionRequest：由 Chat Agent tool enqueue（delete/edit 流程）
+        """
         while True:
             item = self._queue.get()
             if item is None:
                 return
             try:
-                self._process_batch(item)
+                if isinstance(item, _ActionRequest):
+                    self._process_action(item)
+                else:
+                    self._process_batch(item)
             except Exception:
-                # ref: 失败处理 —— logger.exception 后丢弃本批 entries，继续消费
+                # ref: 失败处理 —— logger.exception 后丢弃，继续消费
                 logger.exception("memory writer batch failed")
 
     # ── 批处理 ────────────────────────────────────────────────────
@@ -525,6 +641,123 @@ class MemoryWriterAgent:
                     "events append failed for entry_id=%s title=%s",
                     entry.entry_id, entry.title,
                 )
+
+    # ── Action 处理（delete/edit）────────────────────────────────
+
+    def _process_action(self, request: _ActionRequest) -> None:
+        """在 daemon thread 中同步执行 _ActionRequest（通过 asyncio.run）。
+
+        成功 → request.future.set_result(result dict)
+        失败 → request.future.set_exception(exc)
+        """
+        try:
+            result = asyncio.run(self._execute_action_async(request.entry))
+            request.future.set_result(result)
+        except Exception as e:
+            logger.exception(
+                "action failed: operation=%s file_path=%s",
+                request.entry.operation, request.entry.file_path,
+            )
+            request.future.set_exception(e)
+
+    async def _execute_action_async(self, entry: MemoryEntry) -> dict:
+        """根据 operation 分发到 delete/edit 具体实现。"""
+        if entry.operation == "delete":
+            return await self._delete_entry_async(entry)
+        elif entry.operation == "edit":
+            return await self._edit_entry_async(entry)
+        else:
+            return {"ok": False, "error": f"unknown operation: {entry.operation}"}
+
+    async def _delete_entry_async(self, entry: MemoryEntry) -> dict:
+        """删除 vault 文件。
+
+        1. stat 确认文件存在
+        2. read 获取 frontmatter（用于写 events + 返回 title/item_type）
+        3. delete 删除
+        4. 追加 events 审计事件
+        """
+        file_path = _normalize_path(entry.file_path or "")
+        if not file_path:
+            return {"ok": False, "error": "file_path is required"}
+
+        async with mcp_vault_connection(entry.lang) as (session, _tools):
+            stat_result = await session.call_tool("stat", {"path": file_path})
+            if stat_result.isError:
+                return {"ok": False, "error": f"stat failed: {stat_result.content[0].text}"}
+            exists = bool((stat_result.structuredContent or {}).get("exists", False))
+            if not exists:
+                return {"ok": False, "error": "file not found", "file_path": file_path}
+
+            read_result = await session.call_tool("read", {"path": file_path})
+            if read_result.isError:
+                return {"ok": False, "error": f"read failed: {read_result.content[0].text}"}
+            content = (read_result.structuredContent or {}).get("content", "") or ""
+            frontmatter, _body = parse_frontmatter(content)
+
+            delete_result = await session.call_tool("delete", {"path": file_path})
+            if delete_result.isError:
+                return {"ok": False, "error": f"delete failed: {delete_result.content[0].text}"}
+
+        try:
+            await _append_action_event_async(entry, "deleted")
+        except Exception:
+            logger.exception("failed to append delete event for %s", file_path)
+
+        return {
+            "ok": True,
+            "file_path": file_path,
+            "title": frontmatter.get("title", entry.title),
+            "item_type": frontmatter.get("type", entry.item_type),
+        }
+
+    async def _edit_entry_async(self, entry: MemoryEntry) -> dict:
+        """编辑 vault 文件正文。
+
+        1. read 原文件
+        2. 拆分 frontmatter + 旧正文
+        3. 保留原 frontmatter 不变，拼接新 body
+        4. write 覆盖写入
+        5. 追加 events 审计事件
+        """
+        file_path = _normalize_path(entry.file_path or "")
+        if not file_path:
+            return {"ok": False, "error": "file_path is required"}
+        if not entry.body:
+            return {"ok": False, "error": "body is required for edit operation"}
+
+        async with mcp_vault_connection(entry.lang) as (session, _tools):
+            read_result = await session.call_tool("read", {"path": file_path})
+            if read_result.isError:
+                return {"ok": False, "error": f"read failed: {read_result.content[0].text}"}
+            content = (read_result.structuredContent or {}).get("content", "") or ""
+            raw_fm, _ = split_frontmatter(content)
+            frontmatter, _ = parse_frontmatter(content)
+
+            # 保留原 frontmatter 文本（含 --- 分隔符），拼接新 body
+            if raw_fm is not None:
+                new_content = f"---\n{raw_fm}\n---\n{entry.body}"
+            else:
+                new_content = entry.body
+
+            write_result = await session.call_tool(
+                "write", {"path": file_path, "content": new_content},
+            )
+            if write_result.isError:
+                return {"ok": False, "error": f"write failed: {write_result.content[0].text}"}
+
+        try:
+            await _append_action_event_async(entry, "edited")
+        except Exception:
+            logger.exception("failed to append edit event for %s", file_path)
+
+        return {
+            "ok": True,
+            "file_path": file_path,
+            "title": frontmatter.get("title", entry.title),
+            "item_type": frontmatter.get("type", entry.item_type),
+        }
+
 
     async def _write_kb_item_async(self, entry: MemoryEntry) -> str | None:
         """对单个 entry 调一次 LLM agent，返回 conversation_context（可能为 None）。

@@ -47,5 +47,9 @@ class _MemoryWriterProxy:
     def enqueue(self, entries) -> None:
         self._ensure().enqueue(entries)
 
+    def get_agent(self):
+        """获取或创建 MemoryWriterAgent 实例。"""
+        return self._ensure()
+
 
 memory_writer: _MemoryWriterProxy = _MemoryWriterProxy()

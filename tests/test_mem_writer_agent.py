@@ -34,6 +34,7 @@ from everlingo.mem.agents.mem_writer_agent import (
     _append_event_async,
     _build_writer_system_prompt,
     _events_rel_path,
+    _format_action_event_section,
     _format_event_section,
 )
 from everlingo.mem.agents.mem_writer_mcp_client import (
@@ -171,6 +172,292 @@ class TestAppendEvent:
         assert "kernel" in text
         assert text.count("# 当天事件") == 1
         assert any("events: appended" in r.message for r in caplog.records)
+
+
+# ── action event 格式 & 写入 ──────────────────────────────────
+
+
+def _create_vault_file(
+    vault_root: Path,
+    rel_path: str,
+    title: str,
+    item_type: str = "vocab",
+    body: str = "# test\n\nbody content\n",
+) -> Path:
+    """在 vault 中创建一个知识点文件用于 delete/edit 测试。"""
+    full_path = vault_root / rel_path
+    full_path.parent.mkdir(parents=True, exist_ok=True)
+    frontmatter = (
+        "---\n"
+        f"ulid: test123\n"
+        f"slug: test\n"
+        f"type: {item_type}\n"
+        f"title: {title}\n"
+        f"description: test\n"
+        f"schema_version: 1\n"
+        "---\n"
+    )
+    full_path.write_text(frontmatter + body, encoding="utf-8")
+    return full_path
+
+
+def _action_entry(
+    operation: str = "delete",
+    file_path: str = "items/vocab/test--test123.md",
+    title: str = "test",
+    item_type: str = "vocab",
+    body: str | None = None,
+    lang: str = "en",
+    chat_session_id: str = "cs-1",
+    channel_name: str = "StdioChannel",
+    timestamp: str = "2026-11-21 14:58:56",
+) -> MemoryEntry:
+    return MemoryEntry(
+        operation=operation,
+        entry_id="action-uuid-1",
+        timestamp=timestamp,
+        chat_session_id=chat_session_id,
+        channel_name=channel_name,
+        user_intent="None",
+        lang=lang,
+        interface_language="zh-CN",
+        item_type=item_type,
+        title=title,
+        file_path=file_path,
+        body=body,
+    )
+
+
+class TestFormatActionEventSection:
+    def test_delete_event_section(self):
+        e = _action_entry(operation="delete")
+        section = _format_action_event_section(e, "deleted")
+        assert "## Event" in section
+        assert "- action: deleted" in section
+        assert "- title: test" in section
+        assert "- file_path: items/vocab/test--test123.md" in section
+
+    def test_edit_event_section(self):
+        e = _action_entry(operation="edit", body="# new body")
+        section = _format_action_event_section(e, "edited")
+        assert "## Event" in section
+        assert "- action: edited" in section
+        assert "- title: test" in section
+        assert "- file_path: items/vocab/test--test123.md" in section
+
+
+class TestActionDelete:
+    """_delete_entry_async 走 MCP fs 工具（stat + read + delete + events）。"""
+
+    def test_delete_existing_file(self, mcp_inmem_server, tmp_vault):
+        _create_vault_file(tmp_vault, "items/vocab/test--test123.md", title="test")
+        file_path = tmp_vault / "items/vocab/test--test123.md"
+        assert file_path.exists()
+
+        with mcp_inmem_server():
+            import asyncio
+            agent = MemoryWriterAgent()
+            entry = _action_entry(
+                operation="delete",
+                file_path="items/vocab/test--test123.md",
+                title="test",
+            )
+            result = asyncio.run(agent._delete_entry_async(entry))
+
+        assert result["ok"] is True
+        assert result["file_path"] == "items/vocab/test--test123.md"
+        assert result["title"] == "test"
+        assert result["item_type"] == "vocab"
+        assert not file_path.exists()
+
+    def test_delete_file_not_found(self, mcp_inmem_server):
+        with mcp_inmem_server():
+            import asyncio
+            agent = MemoryWriterAgent()
+            entry = _action_entry(
+                operation="delete",
+                file_path="items/vocab/nonexistent--ulid.md",
+            )
+            result = asyncio.run(agent._delete_entry_async(entry))
+
+        assert result["ok"] is False
+        assert "file not found" in result["error"]
+
+    def test_delete_writes_event(self, mcp_inmem_server, tmp_vault):
+        _create_vault_file(tmp_vault, "items/vocab/test--test123.md", title="test")
+
+        with mcp_inmem_server():
+            import asyncio
+            agent = MemoryWriterAgent()
+            entry = _action_entry(
+                operation="delete",
+                file_path="items/vocab/test--test123.md",
+                title="test",
+                timestamp="2026-11-21 14:58:56",
+            )
+            asyncio.run(agent._delete_entry_async(entry))
+
+        events_file = tmp_vault / "events/2026/11/2026-11-21.md"
+        assert events_file.exists()
+        text = events_file.read_text(encoding="utf-8")
+        assert "- action: deleted" in text
+        assert "- title: test" in text
+        assert "- file_path: items/vocab/test--test123.md" in text
+
+    def test_delete_missing_file_path(self):
+        agent = MemoryWriterAgent()
+        import asyncio
+        entry = _action_entry(operation="delete", file_path="")
+        result = asyncio.run(agent._delete_entry_async(entry))
+        assert result["ok"] is False
+        assert "file_path is required" in result["error"]
+
+
+class TestActionEdit:
+    """_edit_entry_async 走 MCP fs 工具（read + write + events）。"""
+
+    def test_edit_preserves_frontmatter(self, mcp_inmem_server, tmp_vault):
+        orig_body = "# original\n\noriginal content\n"
+        _create_vault_file(
+            tmp_vault, "items/vocab/test--test123.md",
+            title="test", body=orig_body,
+        )
+
+        new_body = "# edited\n\nnew content\n"
+        with mcp_inmem_server():
+            import asyncio
+            agent = MemoryWriterAgent()
+            entry = _action_entry(
+                operation="edit",
+                file_path="items/vocab/test--test123.md",
+                title="test",
+                body=new_body,
+            )
+            result = asyncio.run(agent._edit_entry_async(entry))
+
+        assert result["ok"] is True
+        assert result["file_path"] == "items/vocab/test--test123.md"
+        assert result["title"] == "test"
+
+        file_path = tmp_vault / "items/vocab/test--test123.md"
+        text = file_path.read_text(encoding="utf-8")
+        # frontmatter preserved
+        assert "ulid: test123" in text
+        assert "title: test" in text
+        assert "type: vocab" in text
+        # frontmatter delimiters preserved
+        assert text.startswith("---")
+        # old body gone
+        assert "original content" not in text
+        # new body present
+        assert "new content" in text
+
+    def test_edit_no_body(self):
+        agent = MemoryWriterAgent()
+        import asyncio
+        entry = _action_entry(operation="edit", file_path="items/vocab/test.md", body=None)
+        result = asyncio.run(agent._edit_entry_async(entry))
+        assert result["ok"] is False
+        assert "body is required" in result["error"]
+
+    def test_edit_file_not_found(self, mcp_inmem_server):
+        with mcp_inmem_server():
+            import asyncio
+            agent = MemoryWriterAgent()
+            entry = _action_entry(
+                operation="edit",
+                file_path="items/vocab/nonexistent--ulid.md",
+                body="# new body",
+            )
+            result = asyncio.run(agent._edit_entry_async(entry))
+        assert result["ok"] is False
+        assert "read failed" in result["error"]
+
+    def test_edit_writes_event(self, mcp_inmem_server, tmp_vault):
+        _create_vault_file(
+            tmp_vault, "items/vocab/test--test123.md",
+            title="test", body="# original",
+        )
+
+        with mcp_inmem_server():
+            import asyncio
+            agent = MemoryWriterAgent()
+            entry = _action_entry(
+                operation="edit",
+                file_path="items/vocab/test--test123.md",
+                title="test",
+                body="# edited",
+                timestamp="2026-11-21 15:58:56",
+            )
+            asyncio.run(agent._edit_entry_async(entry))
+
+        events_file = tmp_vault / "events/2026/11/2026-11-21.md"
+        assert events_file.exists()
+        text = events_file.read_text(encoding="utf-8")
+        assert "- action: edited" in text
+        assert "- title: test" in text
+        assert "- file_path: items/vocab/test--test123.md" in text
+
+    def test_edit_missing_file_path(self):
+        agent = MemoryWriterAgent()
+        import asyncio
+        entry = _action_entry(
+            operation="edit", file_path="", body="# new body",
+        )
+        result = asyncio.run(agent._edit_entry_async(entry))
+        assert result["ok"] is False
+        assert "file_path is required" in result["error"]
+
+
+class TestActionDaemonDispatch:
+    """daemon thread _run_loop 分发 _ActionRequest。"""
+
+    @pytest.fixture(autouse=True)
+    def _patch_mem_entry_spec(self, mem_entry_spec_text):
+        with patch(
+            "everlingo.mem.agents.mem_writer_agent._load_mem_entry_spec_from_vault",
+            new_callable=AsyncMock,
+            return_value=mem_entry_spec_text,
+        ):
+            yield
+
+    def test_process_action_delete(self, mcp_inmem_server, tmp_vault):
+        _create_vault_file(tmp_vault, "items/vocab/test--test123.md", title="test")
+
+        with mcp_inmem_server():
+            agent = MemoryWriterAgent()
+            entry = _action_entry(
+                operation="delete",
+                file_path="items/vocab/test--test123.md",
+            )
+            import asyncio
+            result = asyncio.run(agent._delete_entry_async(entry))
+
+        assert result["ok"] is True
+
+    def test_run_loop_dispatches_action_request(self, mcp_inmem_server, tmp_vault):
+        _create_vault_file(tmp_vault, "items/vocab/test--test123.md", title="test")
+        file_path = tmp_vault / "items/vocab/test--test123.md"
+        assert file_path.exists()
+
+        with mcp_inmem_server():
+            from everlingo.mem.agents.mem_writer_agent import _ActionRequest
+            import concurrent.futures
+
+            agent = MemoryWriterAgent()
+            future = concurrent.futures.Future()
+            entry = _action_entry(
+                operation="delete",
+                file_path="items/vocab/test--test123.md",
+            )
+            agent._queue.put(_ActionRequest(entry=entry, future=future))
+            agent._queue.put(None)  # sentinel to stop the loop
+            agent._run_loop()
+
+        assert future.done()
+        result = future.result()
+        assert result["ok"] is True
+        assert not file_path.exists()
 
 
 # ── system prompt ──────────────────────────────────────────────

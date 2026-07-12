@@ -33,8 +33,11 @@
 
 每个 event 增加一个 markdown 段落，如：
 
+创建事件（create，默认）：
+
 ```markdown
 ## Event
+- action: created  
 - chat_session_id: 49c  
 - entry_id: 6b9  
 - timestamp: 2026-11-21 14:58:56  
@@ -47,6 +50,21 @@
 
 ### conversation_context
 用户在学习日语小说《罗生门》时直接查词  
+
+```
+
+删除/编辑事件（delete / edited）：
+
+```markdown
+## Event
+- action: deleted  
+- timestamp: 2026-11-21 15:00:00  
+- lang: ja  
+- title: 曖昧  
+- item_type: vocab  
+- file_path: items/vocab/aimai--01JZABD123.md  
+- chat_session_id: cs-1  
+- channel_name: WechatChannel  
 
 ```
 

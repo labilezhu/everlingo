@@ -106,7 +106,13 @@ class MemoryEntry(BaseModel):
 
     Extract Agent 在 LLM 输出上覆盖透传字段并补充 entry_id / timestamp 后得到此对象，
     转交给 Memory Writer Agent（当前 stub）。
+
+    operation="delete" / "edit" 时由 Chat Agent 的 memory_writer_action 工具构造
+    并同步调用 Writer。此时部分 create 专用字段可为空。
     """
+
+    # 操作类型："create"(默认) | "delete" | "edit"
+    operation: str = "create"
 
     # 代码生成：uuid4
     entry_id: str
@@ -125,9 +131,13 @@ class MemoryEntry(BaseModel):
     context_messages: str = ""
 
     # LLM 生成
-    item_type: ItemType
-    why_want_to_save_memory: WhySave
-    title: str
+    item_type: ItemType = "others"
+    why_want_to_save_memory: WhySave = "Chat Agent 判定"
+    title: str = ""
+
+    # delete/edit 专属字段
+    file_path: str | None = None
+    body: str | None = None
 
 
 # ── Writer 转发协议 ───────────────────────────────────────────────────
