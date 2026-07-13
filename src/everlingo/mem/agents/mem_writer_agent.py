@@ -29,7 +29,12 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from ...gateway.session_events import NoticeSink
 from ...llm import create_agent, create_mem_writer_llm
 from ...utils.md_prompt_compiler import shift_headings
-from ...mem.vault.frontmatter import parse_frontmatter, split_frontmatter
+from ...mem.vault.frontmatter import (
+    dump_frontmatter,
+    parse_frontmatter,
+    split_frontmatter,
+    tolerant_parse,
+)
 from .mem_entries import MemoryEntry
 from .mem_writer_mcp_client import IndexerOfflineError, mcp_vault_connection
 
@@ -443,6 +448,13 @@ async def _append_action_event_async(entry: MemoryEntry, action: str) -> None:
     )
 
 
+# frontmatter 编辑时不可由 LLM 覆盖的系统字段
+_PROTECTED_FRONTMATTER_FIELDS: frozenset[str] = frozenset({
+    "ulid", "slug", "type", "created_at", "timestamp",
+    "schema_version", "first_seen", "last_seen", "seen_count",
+})
+
+
 def _normalize_path(path: str) -> str:
     """去除 file_path 的前导 /，确保为相对路径。"""
     return path.lstrip("/")
@@ -712,13 +724,17 @@ class MemoryWriterAgent:
         }
 
     async def _edit_entry_async(self, entry: MemoryEntry) -> dict:
-        """编辑 vault 文件正文。
+        """编辑 vault 文件正文，可选合并 frontmatter。
 
         1. read 原文件
         2. 拆分 frontmatter + 旧正文
-        3. 保留原 frontmatter 不变，拼接新 body
-        4. write 覆盖写入
-        5. 追加 events 审计事件
+        3. 若 entry.frontmatter 提供了：合并 frontmatter
+           - 保护字段强制保留原值
+           - 可编辑字段由 LLM 值覆盖
+           - 重新序列化为 YAML
+           否则保留原 frontmatter 文本不变
+        4. 拼接新 body，write 覆盖写入
+        5. 追加 events 审计事件（title 使用合并后的新 title）
         """
         file_path = _normalize_path(entry.file_path or "")
         if not file_path:
@@ -732,13 +748,27 @@ class MemoryWriterAgent:
                 return {"ok": False, "error": f"read failed: {read_result.content[0].text}"}
             content = (read_result.structuredContent or {}).get("content", "") or ""
             raw_fm, _ = split_frontmatter(content)
-            frontmatter, _ = parse_frontmatter(content)
+            frontmatter_dict, _ = parse_frontmatter(content)
 
-            # 保留原 frontmatter 文本（含 --- 分隔符），拼接新 body
-            if raw_fm is not None:
-                new_content = f"---\n{raw_fm}\n---\n{entry.body}"
+            if entry.frontmatter:
+                # 合并 frontmatter：LLM 传入值覆盖，但保护字段强制用原值
+                llm_fm = tolerant_parse(entry.frontmatter)
+                merged = {**frontmatter_dict, **llm_fm}
+                for k in _PROTECTED_FRONTMATTER_FIELDS:
+                    if k in frontmatter_dict:
+                        merged[k] = frontmatter_dict[k]
+                merged_fm = dump_frontmatter(merged)
+                new_content = f"---\n{merged_fm}---\n{entry.body}"
+                # 更新 entry title 以便审计事件和返回值使用新值
+                new_title = merged.get("title", frontmatter_dict.get("title", entry.title))
+                entry.title = new_title if isinstance(new_title, str) else entry.title
+                frontmatter_dict = merged  # 使用合并后的 dict 用于返回值
             else:
-                new_content = entry.body
+                # 保留原 frontmatter 文本（含 --- 分隔符），拼接新 body
+                if raw_fm is not None:
+                    new_content = f"---\n{raw_fm}\n---\n{entry.body}"
+                else:
+                    new_content = entry.body
 
             write_result = await session.call_tool(
                 "write", {"path": file_path, "content": new_content},
@@ -754,8 +784,8 @@ class MemoryWriterAgent:
         return {
             "ok": True,
             "file_path": file_path,
-            "title": frontmatter.get("title", entry.title),
-            "item_type": frontmatter.get("type", entry.item_type),
+            "title": frontmatter_dict.get("title", entry.title),
+            "item_type": frontmatter_dict.get("type", entry.item_type),
         }
 
 

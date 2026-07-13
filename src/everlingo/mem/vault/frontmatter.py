@@ -151,6 +151,11 @@ def _dump_frontmatter(data: dict[str, Any]) -> str:
     )
 
 
+def dump_frontmatter(data: dict) -> str:
+    """公开接口：将 dict 序列化为合法 YAML block 风格。"""
+    return _dump_frontmatter(data)
+
+
 def normalize_frontmatter_text(text: str) -> str:
     """如果 text 包含 frontmatter，解析后用 yaml.safe_dump 重序列化。
 

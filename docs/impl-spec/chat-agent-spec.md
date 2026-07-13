@@ -190,9 +190,11 @@ Chat Agent 可按用户口头请求删除或编辑已有的笔记条目（知识
 3. **执行**
    - **删除**：`memory_writer_action(operation="delete", file_path="...")`
    - **编辑**：
-     1. 必须先 `vault_mcp_read(path=file_path)` 加载最新原文件，在内存中去除 markdown frontmatter 部分
-     2. 在内存中按用户要求编辑加载的 markdown 文件的正文部分
-     3. 调用 `memory_writer_action(operation="edit", file_path="...", body="<新正文>")`
+     1. 必须先 `vault_mcp_read(path=file_path)` 加载最新原文件
+     2. 在内存中按用户要求编辑：
+        - **正文**：去除 markdown frontmatter 部分后编辑
+        - **Frontmatter**：保护字段（ulid / slug / type / created_at / timestamp / schema_version / first_seen / last_seen / seen_count）**必须原样保留**，可编辑字段（title / description / description_in_target_lang / tags 等）按用户要求修改
+     3. 调用 `memory_writer_action(operation="edit", file_path="...", body="<新正文>")`，可选传入 `frontmatter="<完整 YAML 文本>"` 以同步编辑 frontmatter；保护字段值会被 Writer 端强制保留原值
 
 4. **转告结果**
    - 工具返回 JSON 后，如实告知用户操作结果

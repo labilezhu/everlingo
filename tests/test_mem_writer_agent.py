@@ -201,12 +201,44 @@ def _create_vault_file(
     return full_path
 
 
+def _create_vault_file_full(
+    vault_root: Path,
+    rel_path: str,
+    title: str,
+    item_type: str = "vocab",
+    body: str = "# test\n\nbody content\n",
+) -> Path:
+    """创建带完整保护字段的知识点文件（用于 frontmatter 编辑测试）。"""
+    full_path = vault_root / rel_path
+    full_path.parent.mkdir(parents=True, exist_ok=True)
+    frontmatter = (
+        "---\n"
+        f"ulid: test123\n"
+        f"slug: test\n"
+        f"type: {item_type}\n"
+        f"title: {title}\n"
+        f"description: test description\n"
+        f"description_in_target_lang: test\n"
+        f"created_at: 2026-06-22T18:08:00+08:00\n"
+        f"timestamp: 2026-06-26T09:15:00+08:00\n"
+        f"schema_version: 1\n"
+        f"first_seen: 2026-06-22T18:08:00+08:00\n"
+        f"last_seen: 2026-06-26T09:15:00+08:00\n"
+        f"seen_count: 4\n"
+        "tags:\n"
+        "---\n"
+    )
+    full_path.write_text(frontmatter + body, encoding="utf-8")
+    return full_path
+
+
 def _action_entry(
     operation: str = "delete",
     file_path: str = "items/vocab/test--test123.md",
     title: str = "test",
     item_type: str = "vocab",
     body: str | None = None,
+    frontmatter: str | None = None,
     lang: str = "en",
     chat_session_id: str = "cs-1",
     channel_name: str = "StdioChannel",
@@ -225,6 +257,7 @@ def _action_entry(
         title=title,
         file_path=file_path,
         body=body,
+        frontmatter=frontmatter,
     )
 
 
@@ -407,6 +440,164 @@ class TestActionEdit:
         result = asyncio.run(agent._edit_entry_async(entry))
         assert result["ok"] is False
         assert "file_path is required" in result["error"]
+
+    def test_edit_merges_frontmatter_protected_fields(self, mcp_inmem_server, tmp_vault):
+        """LLM 传入改过的 ulid/slug/seen_count → 实际文件中保留原值。"""
+        _create_vault_file_full(
+            tmp_vault, "items/vocab/test--test123.md",
+            title="旧标题", body="# original",
+        )
+
+        new_body = "# edited\n"
+        frontmatter_input = (
+            "ulid: EVILCHANGED\n"
+            "slug: malicious-slug\n"
+            "type: grammar\n"
+            "title: 新标题\n"
+            "description: 新描述\n"
+            "created_at: 2000-01-01T00:00:00+08:00\n"
+            "timestamp: 2000-01-01T00:00:00+08:00\n"
+            "schema_version: 99\n"
+            "first_seen: 2000-01-01T00:00:00+08:00\n"
+            "last_seen: 2000-01-01T00:00:00+08:00\n"
+            "seen_count: 999\n"
+        )
+        with mcp_inmem_server():
+            import asyncio
+            agent = MemoryWriterAgent()
+            entry = _action_entry(
+                operation="edit",
+                file_path="items/vocab/test--test123.md",
+                title="旧标题",
+                body=new_body,
+                frontmatter=frontmatter_input,
+            )
+            result = asyncio.run(agent._edit_entry_async(entry))
+
+        assert result["ok"] is True
+
+        file_path = tmp_vault / "items/vocab/test--test123.md"
+        text = file_path.read_text(encoding="utf-8")
+        # 保护字段保留原值（yaml.safe_dump 会把 datetime T 归一化为空格）
+        assert "ulid: test123" in text
+        assert "slug: test" in text
+        assert "type: vocab" in text   # 原文件是 vocab
+        assert "created_at: 2026-06-22" in text
+        assert "schema_version: 1" in text
+        assert "first_seen: 2026-06-22" in text
+        assert "seen_count: 4" in text
+        # 可编辑字段被修改
+        assert "title: 新标题" in text
+        assert "description: 新描述" in text
+        # 新 body
+        assert text.endswith("# edited\n") or text.endswith("# edited\n\n")
+
+    def test_edit_merges_frontmatter_editable_fields(self, mcp_inmem_server, tmp_vault):
+        """title/description/tags 可被 LLC 传入的新值覆盖。"""
+        _create_vault_file_full(
+            tmp_vault, "items/vocab/edit-me--test.md",
+            title="旧标题", body="# original",
+        )
+
+        new_body = "# edited\n"
+        frontmatter_input = (
+            "ulid: test123\n"
+            "slug: test\n"
+            "type: vocab\n"
+            "title: 新标题\n"
+            "description: 新描述\n"
+            "description_in_target_lang: new target desc\n"
+            "created_at: 2026-06-22T18:08:00+08:00\n"
+            "timestamp: 2026-06-26T09:15:00+08:00\n"
+            "schema_version: 1\n"
+            "first_seen: 2026-06-22T18:08:00+08:00\n"
+            "last_seen: 2026-06-26T09:15:00+08:00\n"
+            "seen_count: 4\n"
+            "tags:\n"
+            "  - tag1\n"
+            "  - tag2\n"
+        )
+        with mcp_inmem_server():
+            import asyncio
+            agent = MemoryWriterAgent()
+            entry = _action_entry(
+                operation="edit",
+                file_path="items/vocab/edit-me--test.md",
+                title="旧标题",
+                body=new_body,
+                frontmatter=frontmatter_input,
+            )
+            result = asyncio.run(agent._edit_entry_async(entry))
+
+        assert result["ok"] is True
+        assert result["title"] == "新标题"  # return 使用合并后的 title
+
+        text = (tmp_vault / "items/vocab/edit-me--test.md").read_text(encoding="utf-8")
+        assert "title: 新标题" in text
+        assert "description: 新描述" in text
+        assert "description_in_target_lang: new target desc" in text
+        assert "tag1" in text
+        assert "tag2" in text
+
+    def test_edit_frontmatter_updates_event_title(self, mcp_inmem_server, tmp_vault):
+        """审计事件中 title 使用合并后的新值。"""
+        _create_vault_file_full(
+            tmp_vault, "items/vocab/test--test123.md",
+            title="旧标题", body="# original",
+        )
+
+        new_body = "# edited\n"
+        frontmatter_input = (
+            "title: 新标题\n"
+            "description: 新描述\n"
+        )
+        with mcp_inmem_server():
+            import asyncio
+            agent = MemoryWriterAgent()
+            entry = _action_entry(
+                operation="edit",
+                file_path="items/vocab/test--test123.md",
+                title="旧标题",
+                body=new_body,
+                frontmatter=frontmatter_input,
+                timestamp="2026-11-21 15:58:56",
+            )
+            asyncio.run(agent._edit_entry_async(entry))
+
+        events_file = tmp_vault / "events/2026/11/2026-11-21.md"
+        assert events_file.exists()
+        text = events_file.read_text(encoding="utf-8")
+        assert "- title: 新标题" in text
+        assert "- file_path: items/vocab/test--test123.md" in text
+
+    def test_edit_no_frontmatter_params_still_works(self, mcp_inmem_server, tmp_vault):
+        """不传 frontmatter 参数时行为与原来一致。"""
+        orig_body = "# original\n\noriginal content\n"
+        _create_vault_file(
+            tmp_vault, "items/vocab/test--test123.md",
+            title="test", body=orig_body,
+        )
+
+        new_body = "# edited\n\nnew content\n"
+        with mcp_inmem_server():
+            import asyncio
+            agent = MemoryWriterAgent()
+            # 不传 frontmatter（None）
+            entry = _action_entry(
+                operation="edit",
+                file_path="items/vocab/test--test123.md",
+                title="test",
+                body=new_body,
+                frontmatter=None,
+            )
+            result = asyncio.run(agent._edit_entry_async(entry))
+
+        assert result["ok"] is True
+        text = (tmp_vault / "items/vocab/test--test123.md").read_text(encoding="utf-8")
+        assert "ulid: test123" in text
+        assert "title: test" in text
+        assert "original content" not in text
+        assert "new content" in text
 
 
 class TestActionDaemonDispatch:

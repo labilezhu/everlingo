@@ -1,4 +1,18 @@
-[Chat Agent](docs/impl-spec/chat-agent-spec.md) 的笔记更新，不能
+请分析以下功能和架构设计上的合理性和可行性：
+
+[Chat Agent](docs/impl-spec/chat-agent-spec.md) 的笔记编辑功能，不能修改笔记 markdown 文件的 Markdown Frontmatter。只能修改 body 。 现在计划支持修改所有 Markdown Frontmatter ，除了以下的 Markdown Frontmatter 字段不能修改：
+```yaml
+ulid: 01JZABD123
+slug: pragmatically-answering-yes-or-no-can-easily-lead-to-confusion
+type: pragmatics
+created_at: 2026-06-22T18:08:00+08:00
+timestamp: 2026-06-26T09:15:00+08:00
+schema_version: 1
+first_seen: 2026-06-22T18:08:00+08:00
+last_seen: 2026-06-26T09:15:00+08:00
+seen_count: 4
+```
+
 
 ---
 

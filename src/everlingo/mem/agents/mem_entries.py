@@ -138,6 +138,7 @@ class MemoryEntry(BaseModel):
     # delete/edit 专属字段
     file_path: str | None = None
     body: str | None = None
+    frontmatter: str | None = None  # edit 时可选：完整 frontmatter YAML 文本（含保护字段，Writer 端会强制保留保护字段原值）
 
 
 # ── Writer 转发协议 ───────────────────────────────────────────────────

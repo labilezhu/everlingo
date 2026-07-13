@@ -30,6 +30,16 @@ class _MemoryWriterActionArgs(BaseModel):
         default="",
         description='operation="edit" 时必选。新 markdown 正文（不含 frontmatter YAML 元数据段）。',
     )
+    frontmatter: str = Field(
+        default="",
+        description=(
+            'operation="edit" 时可选的完整 frontmatter YAML 文本。'
+            "保护字段（ulid/slug/type/created_at/timestamp/"
+            "schema_version/first_seen/last_seen/seen_count）会被 "
+            "Writer 强制保留原值，忽略你传入的值。"
+            "可编辑字段：title/description/description_in_target_lang/tags。"
+        ),
+    )
 
 
 def make_memory_writer_action_tool(
@@ -51,6 +61,7 @@ def make_memory_writer_action_tool(
         operation: str,
         file_path: str,
         body: str = "",
+        frontmatter: str = "",
     ) -> str:
         """同步执行笔记删除或编辑。
 
@@ -73,6 +84,7 @@ def make_memory_writer_action_tool(
             interface_language=interface_lang,
             file_path=file_path,
             body=body or None,
+            frontmatter=frontmatter or None,
         )
         result = await memory_writer.execute_action_async(entry)
         import json

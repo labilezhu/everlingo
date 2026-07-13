@@ -237,6 +237,7 @@ parameters:
     operation: string 。`"delete"` 删除笔记文件 | `"edit"` 编辑笔记文件正文。
     file_path: string 。相对 vault 根的文件路径，如 `items/vocab/aimai--01JZABD123.md`。必须以 `items/` 开头，无前导 `/`。
     body: string 。`operation="edit"` 时必选。新 markdown 正文（不含 frontmatter YAML 元数据段）。`operation="delete"` 时忽略。
+    frontmatter: string 。`operation="edit"` 时可选的完整 frontmatter YAML 文本。保护字段（ulid/slug/type/created_at/timestamp/schema_version/first_seen/last_seen/seen_count）会被 Writer 端强制保留原值，忽略 LLM 传入的值。可编辑字段：title / description / description_in_target_lang / tags（以及其他非保护字段）。
 returns: string 。JSON 序列化的结果 dict：
 ```json
 { "ok": true, "file_path": "items/vocab/test--test123.md", "title": "test", "item_type": "vocab" }
@@ -252,10 +253,11 @@ returns: string 。JSON 序列化的结果 dict：
 - 调用前**必须**已向用户确认，格式示例：「请确认：目标笔记 title=「曖昧」, item_type=vocab（词汇），对吗？」
 - **禁止**在未确认的情况下调用此工具。
 - **禁止**凭空编造 `file_path`；必须来自定位步骤或对话历史中 Memory Writer 通知的 `updated_files`。
-- `operation="edit"` 时 `body` 必须是**完整正文**，不能是片段；frontmatter 由 Writer 服务端原样保留。
+- `operation="edit"` 时 `body` 必须是**完整正文**，不能是片段。
+- `operation="edit"` 时可选传入 `frontmatter`（完整 YAML 文本）同步编辑 frontmatter；保护字段由 Writer 端强制保留原值。
 
 **实现机制**：
-- 工具执行体构造 `MemoryEntry(operation=operation, file_path=..., body=..., user_intent="None", entry_id=uuid4(), timestamp=now)` 并 `await memory_writer.execute_action_async(entry)`。
+- 工具执行体构造 `MemoryEntry(operation=operation, file_path=..., body=..., frontmatter=..., user_intent="None", entry_id=uuid4(), timestamp=now)` 并 `await memory_writer.execute_action_async(entry)`。
 - Writer daemon thread 通过 `_ActionRequest` 入队串行执行，结果通过 `concurrent.futures.Future` 回传。
 - indexer 离线（MCP 连不上）时 `IndexerOfflineError` 通过 future 异常回传，工具调用抛出，由 LLM 转告用户。
 

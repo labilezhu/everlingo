@@ -5,6 +5,18 @@
 ## 完成的任务
 格式：完成日期与时间(GMT+8 timezone) | 任务描述 。 示例： " - 2026-06-20 19:28 | 生成主入口代码"
 
+- 2026-07-13 11:00 | 笔记编辑支持修改 Markdown Frontmatter（保护字段除外）
+  - 保护字段：ulid / slug / type / created_at / timestamp / schema_version / first_seen / last_seen / seen_count（Writer 端强制保留原值，不信任 LLM）
+  - 可编辑字段：title / description / description_in_target_lang / tags 等
+  - MemoryEntry 新增 frontmatter 字段（可选 str）
+  - memory_writer_action 工具新增 frontmatter 参数（完整 YAML 文本）
+  - Writer 端 _edit_entry_async 实现 frontmatter merge 逻辑（保护字段强制保留 + 可编辑字段覆盖 + dump_frontmatter 重新序列化）
+  - dump_frontmatter() 公开接口（frontmatter.py）
+  - 审计事件 title 使用合并后的新值
+  - 更新 agent.py system prompt 笔记编辑节（保护字段清单、编辑流程、确认话术说明）
+  - 更新 3 个设计文档（chat-agent-spec.md / chat-agent-tools-spec.md / memory-writer-agent-spec.md）
+  - 新增 4 项测试覆盖保护字段保留、可编辑字段合并、事件 title 更新、向后兼容
+
 - 2026-07-13 10:00 | 补齐笔记删除/编辑功能的设计文档
   - chat-agent-spec.md：意图类型清单新增 #9 笔记删除 / #10 笔记编辑；重写「## 编辑笔记」节为「## 笔记删除与编辑」（含主流程、同步语义、约束、手工测试用例）；Agent tools 节新增 memory_writer_action 小节
   - chat-agent-tools-spec.md：新增「## 笔记删除与编辑 - memory_writer_action」工具集（operation/file_path/body 入参、返回 JSON、调用准则、同步实现机制、与 request_memory_extraction 的区别）

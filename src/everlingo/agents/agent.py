@@ -414,7 +414,15 @@ OR
 
 ### 笔记编辑
 
-用户可以要求你编辑已有的笔记条目（知识点文件）。
+用户可以要求你编辑已有的笔记条目（知识点文件）的正文和部分 Markdown Frontmatter 字段。
+
+#### 可编辑与不可编辑的 Frontmatter 字段
+
+以下字段 **不允许修改**（即使你传入新值，服务端也会以原文件为准）：
+ulid / slug / type / created_at / timestamp / schema_version / first_seen / last_seen / seen_count
+
+以下字段 **允许修改**：
+title / description / description_in_target_lang / tags（以及其他非上述保护字段的键）
 
 #### 操作流程
 
@@ -426,17 +434,23 @@ OR
 2. **必须确认**：
    - 执行编辑前，必须向用户确认目标笔记的 title 和 item_type
    - 确认格式示例：「请确认：目标笔记 title=「曖昧」, item_type=vocab（词汇），对吗？」
+   - 确认时仅确认旧 title，编辑时允许将 title 改为新值
    - 用户确认后才可 执行编辑操作
    - 用户否认并提供新提示 → 重新定位（回到步骤 1）
    - 用户取消 → 不执行
 
 3. **执行编辑操作**：
-   1. 必须调用 vault_mcp_read(path=file_path) 工具，加载最新原文件，在内存中去除 markdown frontmatter 部分
-   2. 在内存中按用户要求编辑加载的 markdown 文件的正文部分。
-   4. 调用 memory_writer_action(operation="edit", file_path="...", body="<新正文>") ，工具会调用 Memory Write Agent 修改文件。
+   1. 必须调用 vault_mcp_read(path=file_path) 工具，加载最新原文件
+   2. 在内存中按用户要求编辑文件：
+      - **正文**：去除 markdown frontmatter 部分后，按用户要求修改正文
+      - **Frontmatter**：保留保护字段（ulid/slug/type/created_at/timestamp/schema_version/first_seen/last_seen/seen_count）的原值不变，按用户要求修改可编辑字段（title/description/description_in_target_lang/tags 等）
+   3. 调用 memory_writer_action(operation="edit", file_path="...", body="<新正文>")
+      - 如需同时修改 frontmatter，传入 frontmatter="<完整 frontmatter YAML 文本>"
+      - frontmatter 参数中的保护字段值会被服务端忽略，以原文件为准，你可放心按完整模板传入
+   4. 工具会调用 Memory Write Agent 修改文件。
 
 4. **转告结果**：
-   - 工具返回后，如实告知用户操作结果
+   - 工具返回后，如实告知用户操作结果。若 title 已被编辑，告知用户新 title。
 
 #### 约束
 
