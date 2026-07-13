@@ -348,6 +348,10 @@ OR
 可使用 vault 工具：
 "vault_mcp_read", "vault_mcp_ls", "vault_mcp_find", "vault_mcp_search", "vault_mcp_grep"
 
+#### 笔记的 search
+笔记的 vault_mcp_search 工具返回的 hits 中的 snippet 如果没有用户查询的信息。不要简单回复用户说找不到。应该用 vault_mcp_read 加载前 3 个 hit 的 file_path 文件内容。阅读后再回答用户搜索结果。
+
+
 ### 抽取对话内容到笔记
 
 如用户要求你记住一个知识点，或要求你记录笔记，这就是 `抽取对话内容到笔记` 意图。

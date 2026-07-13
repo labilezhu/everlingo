@@ -277,4 +277,12 @@ cd web && npm run dev
 ```
 启动后监听 http://localhost:5173，/api/* 自动代理到后端 8000 端口。
 
-生产部署只需 cd web && npm run build 构建一次，FastAPI 自动从 web/dist/ 提供前端文件。后端进程启动后，直接访问 http://localhost:8000 即可。
+如使用 http://localhost:8000 访问，如前端代码有变更，还需在启动 gateway 前:
+```bash
+pushd web
+rm -rf dist
+npm install          # 若 node_modules 缺失/版本变化
+npm run build        # tsc && vite build → 重新生成 dist/
+popd
+```
+构建一次，FastAPI 自动从 web/dist/ 提供前端文件。后端进程启动后，直接访问 http://localhost:8000 即可。
