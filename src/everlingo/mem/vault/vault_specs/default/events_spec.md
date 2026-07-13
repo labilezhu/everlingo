@@ -68,4 +68,10 @@
 
 ```
 
+`action` 取值：
+- `deleted` — 笔记删除
+- `edited` — 笔记编辑
+
+删除/编辑事件**不包含**创建事件的 `why_want_to_save_memory` / `user_intent` / `entry_id` / `conversation_context` 字段，但多了 `action` 与 `file_path` 字段。
+
 

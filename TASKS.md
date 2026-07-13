@@ -5,6 +5,14 @@
 ## 完成的任务
 格式：完成日期与时间(GMT+8 timezone) | 任务描述 。 示例： " - 2026-06-20 19:28 | 生成主入口代码"
 
+- 2026-07-13 10:00 | 补齐笔记删除/编辑功能的设计文档
+  - chat-agent-spec.md：意图类型清单新增 #9 笔记删除 / #10 笔记编辑；重写「## 编辑笔记」节为「## 笔记删除与编辑」（含主流程、同步语义、约束、手工测试用例）；Agent tools 节新增 memory_writer_action 小节
+  - chat-agent-tools-spec.md：新增「## 笔记删除与编辑 - memory_writer_action」工具集（operation/file_path/body 入参、返回 JSON、调用准则、同步实现机制、与 request_memory_extraction 的区别）
+  - memory-writer-agent-spec.md：顶部补一句 delete/edit 不调 LLM；新增「## 笔记删除与编辑（同步 action 流程）」节（入口 execute_action_async、_ActionRequest、并发模型、delete/edit 路径、审计事件、不发 SystemNotice、离线降级、测试参考）
+  - session.md：注明 delete/edit 不发 SystemNotice；修正 SystemNotice 字段名 headword→title
+  - events_spec.md：补 action: edited 取值说明，并标注删除/编辑事件字段集与创建事件的差异
+  - mem_entry_spec.md：补 delete/edit entry 来源说明与 title 占位语义
+
 - 2026-07-12 19:30 | Memory Writer Agent system prompt 的 mem_entry_spec.md 加载方式从 PackageSource 改为 MCP compile_prompt（与 Extract Agent 一致）
   - 新增 `_load_mem_entry_spec_from_vault(lang)` 镜像 `_load_extract_spec_from_vault`
   - `_build_writer_system_prompt()` 改为取参数，不再本地编译 spec

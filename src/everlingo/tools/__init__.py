@@ -1,4 +1,5 @@
 import functools
+import inspect
 import logging
 
 logger = logging.getLogger(__name__)
@@ -6,6 +7,22 @@ logger = logging.getLogger(__name__)
 
 def log_tool_call(tool_name: str):
     def decorator(func):
+        if inspect.iscoroutinefunction(func):
+            @functools.wraps(func)
+            async def wrapper(*args, **kwargs):
+                arg_parts = []
+                for i, a in enumerate(args):
+                    arg_parts.append(f"arg{i}={a}")
+                for k, v in kwargs.items():
+                    arg_parts.append(f"{k}={v}")
+                params = ", ".join(arg_parts)
+                logger.debug("tool_name: %s , parameters: %s", tool_name, params)
+                result = await func(*args, **kwargs)
+                logger.debug("tool_name: %s , return: %s", tool_name, result)
+                return result
+
+            return wrapper
+
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             arg_parts = []

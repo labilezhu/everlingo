@@ -212,3 +212,50 @@ returns: string 。固定返回 "memory extraction requested"。
 **实现机制**：
 - 工具执行体仅设置 MainAgent 内部的 pending 标记，不在工具调用循环内直接 submit。
 - 实际 submit 由 `MainAgent.invoke()` 末尾统一处理，确保 `new_messages` 切片正确。
+
+## 笔记删除与编辑 - memory_writer_action
+
+toolset name: memory_writer_action
+toolset description: 同步执行已有笔记条目的删除或编辑。
+
+### 设计说明
+
+`memory_writer_action` 工具通过工厂函数 `make_memory_writer_action_tool(...)` 创建，绑定到特定 MainAgent 实例（闭包捕获 `target_lang` / `interface_lang` / `chat_session_id` / `channel_name` 与全局 `MemoryWriterAgent`）。每次 `_refresh_agent_if_needed()` 重建 agent 时都会重新构造。
+
+工具是**同步**的：内部 `await memory_writer.execute_action_async(entry)` 等待 daemon thread 完成（30s 超时保护），结果作为 JSON 字符串回给 LLM。详见 [memory-writer-agent-spec.md — 笔记删除与编辑](/docs/impl-spec/memory-writer-agent-spec.md#笔记删除与编辑同步-action-流程)。
+
+与 `request_memory_extraction` 的区别：
+- `request_memory_extraction` 触发**异步** Memory Extract → Memory Writer 创建/合并流程，工具立即返回。
+- `memory_writer_action` 触发**同步** delete/edit 流程，**不经过** Memory Extract Agent，工具阻塞等待结果。
+
+### functions
+
+#### memory_writer_action
+function name: memory_writer_action
+function description: 同步执行笔记删除或编辑。调用前必须已与用户确认目标笔记的 title 和 item_type。调用后等待 Memory Writer 完成操作并返回结果 JSON。
+parameters:
+    operation: string 。`"delete"` 删除笔记文件 | `"edit"` 编辑笔记文件正文。
+    file_path: string 。相对 vault 根的文件路径，如 `items/vocab/aimai--01JZABD123.md`。必须以 `items/` 开头，无前导 `/`。
+    body: string 。`operation="edit"` 时必选。新 markdown 正文（不含 frontmatter YAML 元数据段）。`operation="delete"` 时忽略。
+returns: string 。JSON 序列化的结果 dict：
+```json
+{ "ok": true, "file_path": "items/vocab/test--test123.md", "title": "test", "item_type": "vocab" }
+```
+失败时：
+```json
+{ "ok": false, "error": "file not found", "file_path": "items/vocab/xxx.md" }
+```
+可能的 error：`file_path is required` / `file not found` / `body is required for edit operation` / `read failed` / `write failed` / `delete failed` / `unknown operation: <op>`。
+
+**调用准则**（由 Chat Agent system prompt 注入，见 [chat-agent-spec.md — 笔记删除与编辑](/docs/impl-spec/chat-agent-spec.md#笔记删除与编辑)）：
+- 调用前**必须**已通过 `vault_mcp_search` + `vault_mcp_read` 定位文件，读取 frontmatter 获取 `title` 与 `item_type`。
+- 调用前**必须**已向用户确认，格式示例：「请确认：目标笔记 title=「曖昧」, item_type=vocab（词汇），对吗？」
+- **禁止**在未确认的情况下调用此工具。
+- **禁止**凭空编造 `file_path`；必须来自定位步骤或对话历史中 Memory Writer 通知的 `updated_files`。
+- `operation="edit"` 时 `body` 必须是**完整正文**，不能是片段；frontmatter 由 Writer 服务端原样保留。
+
+**实现机制**：
+- 工具执行体构造 `MemoryEntry(operation=operation, file_path=..., body=..., user_intent="None", entry_id=uuid4(), timestamp=now)` 并 `await memory_writer.execute_action_async(entry)`。
+- Writer daemon thread 通过 `_ActionRequest` 入队串行执行，结果通过 `concurrent.futures.Future` 回传。
+- indexer 离线（MCP 连不上）时 `IndexerOfflineError` 通过 future 异常回传，工具调用抛出，由 LLM 转告用户。
+

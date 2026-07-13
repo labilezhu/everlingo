@@ -15,6 +15,20 @@ agent = create_agent("openai:gpt-5.5", tools=tools)
 ## 用户意图分析、执行、回复响应
 `用户意图的分析`，应该交由 LLM / langchain agent 去判断，而不是代码实现。
 
+`用户意图类型` 按识别优先级从高到低分为（与 system prompt `agent.py` 中 `_build_system_prompt()` 一致）：
+1. 查单词
+2. 翻译
+3. 语言学习问题智能问答
+4. 管理 USER.md
+5. 管理基本配置
+6. 未识别输入
+7. 笔记读取和浏览
+8. 抽取对话内容到笔记
+9. 笔记删除
+10. 笔记编辑
+
+其中 #8 走异步 `request_memory_extraction` 工具（见下文「Memory Extract」节）；#9 / #10 走同步 `memory_writer_action` 工具（见下文「笔记删除与编辑」节）。
+
 Agent 的`用户意图分析` 与 `用户意图的执行与回复响应` 见 Agent 的 system prompt:
 `src/everlingo/agents/agent.py` 中的 `_build_system_prompt()`
 
@@ -154,9 +168,72 @@ Memory Extract Agent 的 `mean_summary` 真实性约束要求事实必须来自 
 
 纠正事项（用户写错被纠正）的场景天然满足事实来源（用户原句 + Agent 纠正都在本轮对话里），无需额外动作。
 
+
+## 笔记删除与编辑
+
+Chat Agent 可按用户口头请求删除或编辑已有的笔记条目（知识点文件）。**无 slash 命令**，由 LLM 识别意图 #9（笔记删除）/ #10（笔记编辑）后驱动。system prompt 中 `### 笔记删除` 与 `### 笔记编辑` 节给出完整流程约束（见 `agent.py` `_build_system_prompt()` 中 vault_available 分支）。
+
+### 主流程（删除 / 编辑共四步）
+
+1. **定位文件**
+   - 优先从对话历史中推断 `file_path`：如 Memory Writer 通知的 `updated_files`（见下文「系统事件处理」节），或之前已定位过的文件
+   - 推断失败时，用 `vault_mcp_search` 搜索 top 4，逐一 `vault_mcp_read` 确认最匹配的文件
+   - 定位到文件后，`vault_mcp_read` 读取其 frontmatter 获取 `title` 和 `item_type`
+
+2. **必须确认**
+   - 执行前**必须**向用户确认目标笔记的 `title` 和 `item_type`
+   - 确认格式示例：「请确认：目标笔记 title=「曖昧」, item_type=vocab（词汇），对吗？」
+   - 用户确认后才可调用 `memory_writer_action` 工具
+   - 用户否认并提供新提示 → 重新定位（回到步骤 1）
+   - 用户取消 → 不执行
+
+3. **执行**
+   - **删除**：`memory_writer_action(operation="delete", file_path="...")`
+   - **编辑**：
+     1. 必须先 `vault_mcp_read(path=file_path)` 加载最新原文件，在内存中去除 markdown frontmatter 部分
+     2. 在内存中按用户要求编辑加载的 markdown 文件的正文部分
+     3. 调用 `memory_writer_action(operation="edit", file_path="...", body="<新正文>")`
+
+4. **转告结果**
+   - 工具返回 JSON 后，如实告知用户操作结果
+
+### 同步语义
+
+`memory_writer_action` 是**同步**调用：工具内部 `await memory_writer.execute_action_async(entry)` 等待 Memory Writer Agent daemon thread 完成（30s 超时保护），结果作为 `ToolMessage` 回到 LLM。
+
+- **不经过** Memory Extract Agent（跳过结构化抽取，因为没有新知识点要抽取）
+- **不发** `SystemNotice`（与创建流程不同；结果通过 future 同步回传，不经过事件队列）
+
+工具定义见 [chat-agent-tools-spec.md — 笔记删除与编辑](/docs/impl-spec/chat-agent-tools-spec.md)。
+Memory Writer 端的实现见 [memory-writer-agent-spec.md — 笔记删除与编辑](/docs/impl-spec/memory-writer-agent-spec.md#笔记删除与编辑同步-action-流程)。
+
+### 约束
+
+- **禁止**在未确认的情况下调用 `memory_writer_action`
+- **禁止**凭空编造 `file_path`；必须来自定位步骤或对话历史
+- 调用 `memory_writer_action` 时 `body` 参数必须是**完整正文**，不能是片段
+- 删除/编辑时定位文件用到的就是「Memory Vault 只读访问」一节的 5 个只读 vault 工具
+
+### 手工测试用例
+
+Case1：新增笔记，然后编辑
+
+1. 记住 ambiguous 这个词
+2. 在笔记中增加: gcc 时常有出现这个单词
+
+Case2：编辑不在 session context 的笔记
+
+1. 在 ambiguous 这个词的笔记中增加: gcc 时常有出现这个单词
+2. 再增加一个例句: the election result was ambiguous
+
+
 ## Agent tools
 
 参考： [chat-agent-tools-spec.md](/docs/impl-spec/chat-agent-tools-spec.md)
+
+### memory_writer_action（笔记删除/编辑）
+
+同步工具，删除或编辑已有笔记条目。`_refresh_agent_if_needed()` 重建 agent 时通过工厂 `make_memory_writer_action_tool(...)` 注入，闭包绑定 `target_lang` / `interface_lang` / `chat_session_id` / `channel_name`。详见上文「笔记删除与编辑」节与 [chat-agent-tools-spec.md](/docs/impl-spec/chat-agent-tools-spec.md)。
 
 ### vault 工具（只读）
 
@@ -191,3 +268,4 @@ Chat Agent  →  [显式触发]  →  Memory Extract Agent  →  Memory Writer A
 - 工具调用设置 pending 标记，`MainAgent.invoke()` 末尾统一提交 `ExtractInput`。
 - [Memory Extract Agent](/docs/impl-spec/memory-extract-agent-spec.md) 信任上游的触发意图，跳过"是否值得记"的语义筛选，专职结构化抽取。
 - [Memory Writer Agent](docs/impl-spec/memory-writer-agent-spec.md) 异步写入 memory vault。
+

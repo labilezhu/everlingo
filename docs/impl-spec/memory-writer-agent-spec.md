@@ -4,6 +4,8 @@
 
 Memory Writer Agent 负责验证、合并 [Memory Extract Agent](/docs/impl-spec/memory-extract-agent-spec.md) 的输出，并写入 memory vault 。
 
+除"创建/合并笔记"主流程外，Writer 还接收 Chat Agent 同步触发的"删除 / 编辑"请求，**走代码路径，不调 LLM**（见下文「笔记删除与编辑」节）。
+
 Memory Writer Agent 用一个队列接收请求，然后**异步**处理。Memory Writer Agent 是全局单例和独立单线程或协程。由于使用独立单线程或协程，所以没有并发写文件问题。队列内容不需要持久化，可接受因程序非法结束的丢失。
 
 即，用独立 daemon Thread + queue.Queue 。
@@ -47,6 +49,84 @@ MCP `write` 工具在落盘前会调用 `normalize_frontmatter_text` 归一化 f
    1. 追加 `遇到记录`；
    2. 更新 frontmatter ；
    3. 根据 [kb_items_spec.md](/src/everlingo/mem/vault/kb_items_spec.md) 对应 知识类型 的正文格式和段落要求，更新 markdown 文件正文内容
+
+## 笔记删除与编辑（同步 action 流程）
+
+由 Chat Agent 的 `memory_writer_action` 工具同步触发，**不经过** Memory Extract Agent，Writer 端走纯代码路径（不调 LLM）。详见 [chat-agent-spec.md — 笔记删除与编辑](/docs/impl-spec/chat-agent-spec.md#笔记删除与编辑) 与 [chat-agent-tools-spec.md](/docs/impl-spec/chat-agent-tools-spec.md)。
+
+### 入口与并发模型
+
+Public API：`MemoryWriterAgent.execute_action_async(entry: MemoryEntry) -> dict`。
+
+- 工具调用方构造 `MemoryEntry(operation="delete"|"edit", file_path=..., body=...)` 并 `await` 此方法。
+- 内部将 `_ActionRequest(entry, future)` 入队后 `await asyncio.wrap_future(future)`，**30s 超时**保护（防止 daemon thread 被前序 LLM 写入阻塞过久）。
+- `_ActionRequest` 数据结构（Writer 内部）：
+  ```python
+  @dataclass
+  class _ActionRequest:
+      entry: MemoryEntry
+      future: concurrent.futures.Future
+  ```
+- **复用同一 daemon thread + `queue.Queue`**：`_run_loop` 按 item 类型分发 —— `_ActionRequest` 走 `_process_action`，`list[MemoryEntry]`（Extract Agent 入队）走 `_process_batch`。delete/edit 与 create 串行执行，**无需加锁**。
+- daemon thread 在 `_process_action` 中 `asyncio.run(self._execute_action_async(entry))`：成功 → `future.set_result(result_dict)`；失败 → `future.set_exception(exc)`，由 Chat Agent 工具体 await 时抛出并转告用户。
+
+### 输入字段
+
+delete/edit 的 `MemoryEntry` 由 Chat Agent 的 `memory_writer_action` 工具构造（见 [mem_entry_spec.md](/src/everlingo/mem/vault/vault_specs/default/mem_entry_spec.md)）：
+
+- `operation`：`"delete"` / `"edit"`
+- `file_path`：必选，相对 vault 根路径（如 `items/vocab/aimai--01JZABD123.md`）
+- `body`：`operation="edit"` 时必选，新 markdown 正文（不含 frontmatter YAML 段）
+- 系统字段由工具工厂填充：`entry_id=uuid4()`、`timestamp=now`（GMT+8 `%Y-%m-%d %H:%M:%S`）、`user_intent="None"`、`lang=target_lang`、`interface_language`、`chat_session_id`、`channel_name`
+- `item_type` / `title` 在 entry 中仅为占位（默认 `"others"` / `""`）；真实值由 Writer 从文件 frontmatter 回读后放入返回结果
+
+### delete 路径：`_delete_entry_async`（纯代码，no LLM）
+
+1. `file_path = _normalize_path(entry.file_path or "")`（去前导 `/`）；空 → `{"ok": False, "error": "file_path is required"}`
+2. `async with mcp_vault_connection(entry.lang) as (session, _tools):`
+   - `stat(path=file_path)` → 不存在 → `{"ok": False, "error": "file not found", "file_path": ...}`
+   - `read(path=file_path)` → `parse_frontmatter(content)` 取 frontmatter dict（用于写 events + 返回 title/item_type）
+   - `delete(path=file_path)` → 失败 → `{"ok": False, "error": "delete failed: ..."}`
+3. `await _append_action_event_async(entry, "deleted")`（失败被吞，只 `logger.exception`，不影响主结果）
+4. 返回 `{"ok": True, "file_path", "title", "item_type"}`（title/item_type 来自原 frontmatter，缺失时回退到 entry 占位值）
+
+### edit 路径：`_edit_entry_async`（纯代码，no LLM）
+
+1. 同上校验 `file_path`；`not entry.body` → `{"ok": False, "error": "body is required for edit operation"}`
+2. `async with mcp_vault_connection(entry.lang) as (session, _tools):`
+   - `read(path=file_path)` → 失败 → `{"ok": False, "error": "read failed: ..."}`
+   - `split_frontmatter(content)` 取**原始 frontmatter 文本**（`---` 之间的内容）；`parse_frontmatter(content)` 取 dict（用于返回字段）
+   - **保留原 frontmatter 原样**，仅替换正文：
+     - 有 frontmatter → `new_content = f"---\n{raw_fm}\n---\n{entry.body}"`
+     - 无 frontmatter → `new_content = entry.body`
+   - `write(path=file_path, content=new_content)`（server 端 `normalize_frontmatter_text` 会再归一化）→ 失败 → `{"ok": False, "error": "write failed: ..."}`
+3. `await _append_action_event_async(entry, "edited")`
+4. 返回 `{"ok": True, "file_path", "title", "item_type"}`
+
+### 审计事件
+
+复用当日 events 文件 `events/<YYYY>/<MM>/<YYYY-MM-DD>.md`，由 `_format_action_event_section(entry, action)` 生成 `## Event` 段落，`_append_action_event_async(entry, action)` 追加（流程与创建事件的 `_append_event_async` 一致：`stat` → `write` preamble 或 `append` section）。
+
+字段（见 [events_spec.md](/src/everlingo/mem/vault/vault_specs/default/events_spec.md) 删除/编辑事件节）：
+- `action`: `"deleted"` / `"edited"`
+- `timestamp` / `lang` / `title` / `item_type` / `file_path` / `chat_session_id` / `channel_name`
+
+**不包含** `why_want_to_save_memory` / `user_intent` / `new_messages` / `context_messages` / `conversation_context`（这些是创建事件独有字段）。
+
+### 不发 SystemNotice
+
+与创建流程不同，delete/edit **不调用** `notice_sink.notify(...)`。结果通过 `future` 同步回 Chat Agent 的 `memory_writer_action` 工具体，由 LLM 直接转告用户。详见 [session.md](/docs/impl-spec/session.md) 中关于 SystemNotice 源的说明。
+
+### 离线降级
+
+MCP 连不上（`IndexerOfflineError`）时，异常通过 `future.set_exception` 回传；Chat Agent 工具体 `await` 时抛出，由 LLM 转告用户。**不丢弃 entry**（与创建流程的"丢弃+告警"不同），因为同步调用必须给用户反馈。
+
+### 测试参考
+
+`tests/test_mem_writer_agent.py`：
+- `TestActionDelete` — `_delete_entry_async` 各场景（删除成功 / 文件不存在 / 写事件 / 缺 file_path）
+- `TestActionEdit` — `_edit_entry_async` 各场景（保留 frontmatter / 缺 body / 文件不存在 / 写事件 / 缺 file_path）
+- `TestActionDaemonDispatch` — `_ActionRequest` 经 `_run_loop` 分发与 future 回传
 
 ## 实现
 应实现于： `/src/everlingo/mem/agents/mem_writer_agent.py`。

@@ -45,13 +45,15 @@ while True:
 定义在 `src/everlingo/gateway/session_events.py`：
 
 - `UserMessage(text)` — 来自 channel.recv() 的用户输入
-- `SystemNotice(source, updated_files, update_summary, headword, lang)` — 后台系统通知
+- `SystemNotice(source, updated_files, update_summary, title, lang)` — 后台系统通知
 - `QuitEvent()` — channel 断开或用户退出
 
 ### 跨线程事件推送
 
 `Session.post_event(ev)` 为线程安全入口，通过 `call_soon_threadsafe` 将事件入队。
-Memory Writer Agent（全局单例 daemon thread）在写入成功后调用此方法推送通知。
+Memory Writer Agent（全局单例 daemon thread）在**创建**笔记写入成功后调用此方法推送通知。
+
+**delete/edit 不发通知**：笔记删除/编辑由 Chat Agent 的 `memory_writer_action` 工具同步调用，结果通过 `concurrent.futures.Future` 直接回传工具调用，不经过事件队列、不发 `SystemNotice`。详见 [memory-writer-agent-spec.md — 笔记删除与编辑](/docs/impl-spec/memory-writer-agent-spec.md#笔记删除与编辑同步-action-流程)。
 
 ### 通知处理
 
