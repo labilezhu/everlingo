@@ -42,6 +42,7 @@ def search(
     embedder: store.Embedder | None = None,
     item_type: str | None = None,
     tags: list[str] | None = None,
+    tags_op: Literal["and", "or"] = "and",
     kind: str | None = None,
     mode: Literal["exact", "semantic", "hybrid"] = "exact",
     limit: int = 20,
@@ -49,21 +50,53 @@ def search(
     """三模式搜索入口。lang 必填（per-lang DB 隐含）。"""
     start = time.perf_counter()
     if mode == "exact":
-        return _fts_recall(conn, query, lang, item_type, tags, kind, limit)
+        return _fts_recall(conn, query, lang, item_type, tags, tags_op, kind, limit)
     if mode == "semantic":
         if embedder is None:
             logger.warning("mode=semantic 但 embedder 未提供，返回空")
             return []
-        return _vec_recall(conn, embedder, query, lang, item_type, tags, kind, limit)
+        return _vec_recall(conn, embedder, query, lang, item_type, tags, tags_op, kind, limit)
     if mode == "hybrid":
         if embedder is None:
             logger.warning("mode=hybrid 但 embedder 未提供，回退 exact")
-            return _fts_recall(conn, query, lang, item_type, tags, kind, limit)
+            return _fts_recall(conn, query, lang, item_type, tags, tags_op, kind, limit)
         return _hybrid_recall(
-            conn, embedder, query, lang, item_type, tags, kind, limit
+            conn, embedder, query, lang, item_type, tags, tags_op, kind, limit
         )
     logger.warning("未知 mode=%s，回退 exact", mode)
-    return _fts_recall(conn, query, lang, item_type, tags, kind, limit)
+    return _fts_recall(conn, query, lang, item_type, tags, tags_op, kind, limit)
+
+
+# ── 公共辅助 ──────────────────────────────────────────────────────────
+
+
+def _tag_filter_clause(
+    tags: list[str] | None,
+    tags_op: str,
+) -> tuple[str, list]:
+    """构造 document_tags 精确过滤子句。
+
+    Returns: (SQL 片段, params)。无 tags 时返回 ('', [])。
+    """
+    if not tags:
+        return "", []
+    if len(tags) == 1 or tags_op == "and":
+        clauses: list[str] = []
+        params: list[str] = []
+        for t in tags:
+            clauses.append(
+                "EXISTS (SELECT 1 FROM document_tags dt "
+                "WHERE dt.doc_rowid = d.rowid AND dt.tag = ?)"
+            )
+            params.append(t)
+        return " AND ".join(clauses), params
+    # tags_op == "or"
+    placeholders = ",".join("?" * len(tags))
+    return (
+        f"EXISTS (SELECT 1 FROM document_tags dt "
+        f"WHERE dt.doc_rowid = d.rowid AND dt.tag IN ({placeholders}))",
+        list(tags),
+    )
 
 
 # ── FTS 召回 ────────────────────────────────────────────────────────
@@ -75,6 +108,7 @@ def _fts_recall(
     lang: str,
     item_type: str | None,
     tags: list[str] | None,
+    tags_op: str,
     kind: str | None,
     limit: int,
 ) -> list[SearchHit]:
@@ -92,9 +126,9 @@ def _fts_recall(
         where_clauses.append("d.kind = ?")
         where_params.append(kind)
     if tags:
-        for t in tags:
-            where_clauses.append("d.tags LIKE ?")
-            where_params.append(f"%{t}%")
+        tag_sql, tag_params = _tag_filter_clause(tags, tags_op)
+        where_clauses.append(f"({tag_sql})")
+        where_params.extend(tag_params)
 
     sql = f"""
         SELECT d.rowid, d.ulid, d.kind, d.item_type, d.file_path, d.title,
@@ -144,6 +178,7 @@ def _vec_recall(
     lang: str,
     item_type: str | None,
     tags: list[str] | None,
+    tags_op: str,
     kind: str | None,
     limit: int,
 ) -> list[SearchHit]:
@@ -157,7 +192,7 @@ def _vec_recall(
         return []
 
     knn = store.knn_with_filter(
-        conn, qvec, k=limit, item_type=item_type, kind=kind, tags=tags
+        conn, qvec, k=limit, item_type=item_type, kind=kind, tags=tags, tags_op=tags_op
     )
     if not knn:
         return []
@@ -228,13 +263,14 @@ def _hybrid_recall(
     lang: str,
     item_type: str | None,
     tags: list[str] | None,
+    tags_op: str,
     kind: str | None,
     limit: int,
 ) -> list[SearchHit]:
     # 各自多取一些给 RRF 留融合空间
     over = max(limit * 2, 20)
-    fts_hits = _fts_recall(conn, query, lang, item_type, tags, kind, over)
-    vec_hits = _vec_recall(conn, embedder, query, lang, item_type, tags, kind, over)
+    fts_hits = _fts_recall(conn, query, lang, item_type, tags, tags_op, kind, over)
+    vec_hits = _vec_recall(conn, embedder, query, lang, item_type, tags, tags_op, kind, over)
 
     fused = _rrf_fuse(fts_hits, vec_hits, limit=limit)
     # 标 source='hybrid'

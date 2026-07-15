@@ -94,7 +94,8 @@ schema_version: 1
 first_seen: 2026-06-22T18:08:00+08:00
 last_seen: 2026-06-26T09:15:00+08:00
 seen_count: 4
-tags:
+tags: 
+  - pragmatics
 ```
 
 字段说明：
@@ -112,6 +113,11 @@ type: 知识类型(item type): 对应不同子目录
 - grammar
 - pragmatics
 - others
+
+tags: `知识点条目`的标签，支持多个标签。说明如下：
+  - 格式：标签名允许包含空格，但一般不要有空格或其它空白字符。一般是一个单词或词语。
+  - 预置 tag: 上文中的 `type` 字段，必须作为一个 tag，记入 tags 中。
+  - 智能生成: 除非用户明显要求，生成或修改 `知识点条目` 时，不应该生成除上面 `预置 tag` 以外的其它 tag
 
 ### 文件命名
 

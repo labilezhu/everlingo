@@ -53,6 +53,7 @@ class ParsedDoc:
     aliases: str | None  # '\n' 连接
     related: str | None
     tags: str | None  # ' ' 连接
+    tag_list: list[str]
     first_seen: str | None
     last_seen: str | None
     seen_count: int | None
@@ -84,6 +85,15 @@ def _join_space(values) -> str:
     if isinstance(values, str):
         return values
     return " ".join(str(v) for v in values if v is not None and v != "")
+
+
+def _tags_list(values) -> list[str]:
+    """frontmatter tags 字段归一为 list[str]，保留多词 tag。"""
+    if not values:
+        return []
+    if isinstance(values, str):
+        return [t for t in values.split() if t]
+    return [str(v).strip() for v in values if v]
 
 
 def _is_under(path: Path, root: Path) -> bool:
@@ -129,6 +139,7 @@ def parse_file(absolute: Path, memory_root: Path, lang: str) -> ParsedDoc:
             aliases=_join_newline(fm.get("aliases")),
             related=_join_newline(fm.get("related")),
             tags=_join_space(fm.get("tags")),
+            tag_list=_tags_list(fm.get("tags")),
             first_seen=fm.get("first_seen"),
             last_seen=fm.get("last_seen"),
             seen_count=fm.get("seen_count"),
@@ -161,6 +172,7 @@ def parse_file(absolute: Path, memory_root: Path, lang: str) -> ParsedDoc:
         aliases=_join_newline(fm.get("aliases")),
         related=_join_newline(fm.get("related")),
         tags=_join_space(fm.get("tags")),
+        tag_list=_tags_list(fm.get("tags")),
         first_seen=fm.get("first_seen"),
         last_seen=fm.get("last_seen"),
         seen_count=fm.get("seen_count"),
@@ -376,7 +388,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(schema)
     # 写分词器版本
     _set_meta(conn, "tokenizer_version", tokenizer_version())
-    _set_meta(conn, "schema_version", "2")
+    _set_meta(conn, "schema_version", "3")
     conn.commit()
 
 
@@ -517,9 +529,10 @@ def index_file(
                 rowid,
             ),
         )
-        # chunks 与 FTS 行级联清理后重建
+        # chunks / FTS / document_tags 级联清理后重建
         conn.execute("DELETE FROM chunks WHERE doc_rowid=?", (rowid,))
         conn.execute("DELETE FROM documents_fts WHERE rowid=?", (rowid,))
+        conn.execute("DELETE FROM document_tags WHERE doc_rowid=?", (rowid,))
 
     # FTS 行
     fts_headword = _fts_text(parsed.headword)
@@ -551,6 +564,14 @@ def index_file(
             parsed.body,
         ),
     )
+
+    # document_tags
+    conn.execute("DELETE FROM document_tags WHERE doc_rowid=?", (rowid,))
+    for t in parsed.tag_list:
+        conn.execute(
+            "INSERT OR IGNORE INTO document_tags(doc_rowid, tag) VALUES (?, ?)",
+            (rowid, t),
+        )
 
     # chunks：frontmatter 字段 chunk 在前，body chunk 在后
     fm_chunks = _frontmatter_chunks(parsed)

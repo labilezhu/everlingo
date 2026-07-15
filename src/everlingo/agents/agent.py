@@ -2,12 +2,26 @@
 # 主要实现在 MainAgent。产品文档中的"词典老师"、"翻译老师"均由同一个 langchain agent 实现。
 # ref: /docs/impl-spec/chat-agent-spec.md
 
+import asyncio
+import json
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Optional
 
+import httpx
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from openai import (
+    APIConnectionError,
+    APITimeoutError,
+    AuthenticationError,
+    BadRequestError,
+    InternalServerError,
+    NotFoundError,
+    PermissionDeniedError,
+    RateLimitError,
+    UnprocessableEntityError,
+)
 
 from ..gateway.channels.channel import ChannelMetadata
 from ..gateway.session_events import SystemNotice
@@ -27,6 +41,64 @@ from ..tools.tools import build_tools
 import logging
 
 logger = logging.getLogger(__name__)
+
+# ── Retryable LLM errors ────────────────────────────────────────────
+_RETRYABLE_LLM_ERRORS = (
+    json.JSONDecodeError,
+    httpx.HTTPError,
+    InternalServerError,
+    RateLimitError,
+    APITimeoutError,
+    APIConnectionError,
+)
+
+_NON_RETRYABLE_LLM_ERRORS = (
+    AuthenticationError,
+    BadRequestError,
+    NotFoundError,
+    PermissionDeniedError,
+    UnprocessableEntityError,
+)
+
+
+async def _invoke_llm_with_retry(
+    agent: "CompiledStateGraph",
+    messages: list,
+    max_retries: int = 2,
+    base_delay: float = 1.0,
+) -> dict | None:
+    """调用 LLM agent 并自动重试瞬态错误。
+
+    成功 → 返回 response dict。
+    重试耗尽 → 返回 None（调用方据此降级为友好提示）。
+    永久性错误 → 透传异常。
+    """
+    last_exception: Exception | None = None
+    for attempt in range(max_retries + 1):
+        try:
+            return await agent.ainvoke({"messages": messages})
+        except _NON_RETRYABLE_LLM_ERRORS:
+            raise
+        except _RETRYABLE_LLM_ERRORS as e:
+            last_exception = e
+            if attempt < max_retries:
+                delay = base_delay * (2**attempt)
+                logger.warning(
+                    "LLM invoke failed (attempt %d/%d), retrying in %.1fs: %s",
+                    attempt + 1,
+                    max_retries + 1,
+                    delay,
+                    e,
+                )
+                await asyncio.sleep(delay)
+
+    logger.exception(
+        "agent.ainvoke failed after %d retries: %s",
+        max_retries,
+        last_exception,
+    )
+    return None
+
 
 # ── Tool factories (bind instance state via closure) ────────────────
 from ..tools.memory_writer_action import make_memory_writer_action_tool
@@ -346,7 +418,7 @@ OR
 
 当用户明显要查询过往笔记/记忆时（如「我记过 xxx 吗」「查我笔记里关于 xxx 的」），这就是 `笔记读取和浏览` 意图
 可使用 vault 工具：
-"vault_mcp_read", "vault_mcp_ls", "vault_mcp_find", "vault_mcp_search", "vault_mcp_grep"
+"vault_mcp_read", "vault_mcp_ls", "vault_mcp_find", "vault_mcp_search", "vault_mcp_grep", "vault_mcp_list_tags"
 
 #### 笔记的 search
 笔记的 vault_mcp_search 工具返回的 hits 中的 snippet 如果没有用户查询的信息。不要简单回复用户说找不到。应该用 vault_mcp_read 加载前 3 个 hit 的 file_path 文件内容。阅读后再回答用户搜索结果。
@@ -727,12 +799,10 @@ class MainAgent:
         # 将用户消息写入持久化历史（不含模式提示）
         self._messages.append(HumanMessage(content=text))
 
-        # ── 调用 LLM ──────────────────────────────────────────
-        try:
-            response = await self._agent.ainvoke({"messages": messages_for_llm})
-        except Exception as e:
-            logger.exception("agent.ainvoke failed")
-            return [MessageEvent(text=f"处理请求时出错: {e}")]
+        # ── 调用 LLM（含瞬态重试） ────────────────────────────
+        response = await _invoke_llm_with_retry(self._agent, messages_for_llm)
+        if response is None:
+            return [MessageEvent(text="AI 服务暂时不可用，请稍后重试 (已自动重试 2 次)")]
 
         # 持久化 AI 回复（跳过 messages_for_llm 中注入的模式提示）
         # 含 ToolMessage，供多轮对话中 LLM 上下文使用

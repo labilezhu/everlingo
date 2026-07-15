@@ -8,7 +8,8 @@ IPC socket 路径：`$workspace/indexer.sock`（workspace 级共享，不随 lan
 
 | 方法 路径 | 用途 | 请求 body | 响应 |
 |---|---|---|---|
-| `POST /{lang}/search` | 全文/语义/混合检索该 lang vault | `{q, item_type?, tags?, kind?, mode, limit}` | `{hits:[...], count, took_ms}` |
+| `POST /{lang}/search` | 全文/语义/混合检索该 lang vault | `{q, item_type?, tags?, tags_op?, kind?, mode, limit}` | `{hits:[...], count, took_ms}` |
+| `GET /{lang}/tags` | 返回该 lang vault 全部 tag 及文档计数 | `kind?, item_type?`（查询参数） | `{tags:[{tag, count}], total, took_ms}` |
 | `POST /{lang}/index` | Writer 投递该 lang vault 的索引请求 | `{path}` | `{ok}` |
 | `POST /{lang}/delete` | 删除该 lang vault 中指定文件索引 | `{path}` | `{ok}` |
 | `POST /{lang}/rebuild` | 全量重建该 lang DB | `{}` | `{ok, indexed, chunks, took_ms}` |
@@ -26,7 +27,7 @@ IPC socket 路径：`$workspace/indexer.sock`（workspace 级共享，不随 lan
 - `lang`：目标学习语言编码（必填）。如 `en`、`ja`、`zh-CN`。
 
 #### Request body
-Request: {q, item_type?, tags?, kind?, mode, limit}
+Request: {q, item_type?, tags?, tags_op?, kind?, mode, limit}
 
 字段说明：
 
@@ -42,6 +43,8 @@ mode: 搜索模式。一般情况下，优先使用 hybrid 混合搜索： `"mod
     semantic ： 语义搜索
     hybrid ： 混合搜索。混合以上两人种搜索的结果
 limit: 搜索返回结果数限制
+tags: 匹配过滤条件：按 tags 精确过滤（走 document_tags 关系表）。
+tags_op: 多 tag 过滤模式。默认 "and"（全部匹配），"or"（任一匹配）。tags 为空时无效。
 
 
 #### curl 示例
@@ -279,4 +282,34 @@ curl --unix-socket $workspace/indexer.sock http://localhost/ja/index \
 ```bash
 # 全量重建 ja lang DB
 curl --unix-socket $workspace/indexer.sock -X POST http://localhost/ja/rebuild
+```
+
+### GET /{lang}/tags
+返回该 lang vault 全部 tag 及文档计数。常用于 Chat Agent 先用 `list_tags` 发现可用 tag，再用 `search(tags=[...])` 过滤。
+
+#### 查询参数
+- `kind`：限定到文档类型（item/event）
+- `item_type`：限定到知识类型（vocab/phrase/grammar/...）
+
+#### curl 示例
+
+```bash
+# 列出所有 tag 及计数
+curl --unix-socket $workspace/indexer.sock http://localhost/en/tags | jq -r
+
+# 只看 vocab 类的 tag
+curl --unix-socket $workspace/indexer.sock "http://localhost/en/tags?kind=item&item_type=vocab" | jq -r
+```
+
+#### 响应示例
+
+```json
+{
+  "tags": [
+    {"tag": "adjective", "count": 5},
+    {"tag": "travel", "count": 3}
+  ],
+  "total": 2,
+  "took_ms": 0.5
+}
 ```  

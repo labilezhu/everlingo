@@ -21,8 +21,7 @@ created_at: 2026-06-20T21:00:00+08:00
 timestamp: 2026-06-26T08:30:00+08:00
 aliases:
   - taken for granted
-tags:
-  - workplace
+tags: []
 first_seen: 2026-06-20T21:00:00+08:00
 last_seen: 2026-06-26T08:30:00+08:00
 seen_count: 3

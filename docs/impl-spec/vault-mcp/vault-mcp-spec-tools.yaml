@@ -672,7 +672,13 @@ description: |
           type: array
           items:
             type: string
-          description: 匹配过滤条件：按 frontmatter tags 过滤。
+          description: 匹配过滤条件：按 tags 精确过滤（走 document_tags 关系表）。
+        tags_op:
+          type: string
+          enum: [and, or]
+          default: and
+          description: |
+            多 tag 过滤模式。and=全部匹配（默认），or=任一匹配。单 tag 时不生效。
         mode:
           type: string
           enum: [exact, semantic, hybrid]
@@ -781,3 +787,54 @@ description: |
         - hits
         - count
         - took_ms
+
+  - name: list_tags
+    title: List vault tags with counts
+    description: |
+      List all tags used in the current lang vault, with document counts.
+      Use this before calling search with tags filter to discover valid tag
+      values. Optional kind/item_type narrow the count to a document subset.
+      Requires session.configure to be called first.
+    inputSchema:
+      type: object
+      properties:
+        lang:
+          type: string
+          description: |
+            目标学习语言代码 (en/ja/...)。
+            省略 = 取 session.configure 设定的会话 lang。
+        kind:
+          type: string
+          enum: [item, event]
+          description: |
+            限定文档类型，只统计该类型的 tag 分布。
+        item_type:
+          type: string
+          enum: [vocab, phrase, grammar, pragmatics, others]
+          description: |
+            限定知识类型，只统计该知识类型的 tag 分布。
+      required: []
+    outputSchema:
+      type: object
+      properties:
+        tags:
+          type: array
+          description: tag 频率列表（按 count 降序、tag 名升序）。
+          items:
+            type: object
+            properties:
+              tag:
+                type: string
+                description: tag 值。
+              count:
+                type: integer
+                description: 拥有该 tag 的文档数。
+            required:
+              - tag
+              - count
+        total:
+          type: integer
+          description: tags 数组长度（== len(tags)）。
+      required:
+        - tags
+        - total

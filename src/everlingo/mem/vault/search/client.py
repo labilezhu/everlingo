@@ -25,6 +25,7 @@ from .protocol import (
     SearchRequest,
     SearchResponse,
     StatusResponse,
+    TagsResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -79,6 +80,7 @@ class SearchClient:
         lang: str,
         item_type: str | None = None,
         tags: list[str] | None = None,
+        tags_op: Literal["and", "or"] = "and",
         kind: str | None = None,
         mode: Literal["exact", "semantic", "hybrid"] = "exact",
         limit: int = 20,
@@ -87,6 +89,7 @@ class SearchClient:
             q=query,
             item_type=item_type,
             tags=tags,
+            tags_op=tags_op,
             kind=kind,
             mode=mode,
             limit=limit,
@@ -157,6 +160,30 @@ class SearchClient:
                 logger.warning("indexer 不可达，status 失败: %s", e)
             else:
                 logger.warning("status 失败: %s", e)
+            return None
+
+    def list_tags(
+        self,
+        lang: str,
+        kind: str | None = None,
+        item_type: str | None = None,
+    ) -> TagsResponse | None:
+        """返回该 lang vault 的 tag 字典及计数。"""
+        params = {}
+        if kind is not None:
+            params["kind"] = kind
+        if item_type is not None:
+            params["item_type"] = item_type
+        try:
+            client = self._ensure_client()
+            resp = client.get(f"http://localhost/{lang}/tags", params=params)
+            resp.raise_for_status()
+            return TagsResponse.model_validate(resp.json())
+        except Exception as e:
+            if self._is_unreachable(e):
+                logger.warning("indexer 不可达，list_tags 返回 None: %s", e)
+            else:
+                logger.warning("list_tags 失败: %s", e)
             return None
 
     def embed(self, lang: str, *, rebuild: bool = False, batch: int = 64, wait: bool = True) -> EmbedResponse | None:

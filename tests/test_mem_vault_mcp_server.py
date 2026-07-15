@@ -966,3 +966,87 @@ def test_compile_prompt_content_matches_structured_content(
 
     with mcp_client(body):
         pass
+
+
+# ── list_tags ────────────────────────────────────────────────────────
+
+
+def _write_item_with_tags(memory_root: Path, name: str, ulid: str, tags_list: list[str]) -> Path:
+    p = memory_root / "items" / "vocab" / name
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tags_yaml = "\n".join(f"  - {t}" for t in tags_list)
+    p.write_text(
+        f"---\nulid: {ulid}\nslug: {name.split('--')[0]}\ntype: vocab\n"
+        f"title: {name.split('--')[0]}\ntags:\n{tags_yaml}\n---\n\nbody",
+        encoding="utf-8",
+    )
+    return p
+
+
+def test_mcp_list_tags_returns_counts(mcp_client, memory_root: Path):
+    _write_item_with_tags(memory_root, "ta--01JZLTA01.md", "01JZLTA01", ["food"])
+    _write_item_with_tags(memory_root, "tb--01JZLTA02.md", "01JZLTA02", ["travel"])
+    _write_item_with_tags(memory_root, "tc--01JZLTA03.md", "01JZLTA03", ["food", "travel"])
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("session.configure", {"lang": "en"})
+        assert r.is_error is False
+        # 等待全部文件被 watcher 索引
+        r = await _wait_for_hit(c, {"q": "body", "kind": "item"}, target_ulid="01JZLTA01")
+        assert r is not None
+        r = await _wait_for_hit(c, {"q": "body", "kind": "item"}, target_ulid="01JZLTA02")
+        assert r is not None
+        r = await _wait_for_hit(c, {"q": "body", "kind": "item"}, target_ulid="01JZLTA03")
+        assert r is not None
+
+        r = await c.call_tool("list_tags", {})
+        assert not r.is_error
+        data = r.structured_content
+        tags = {t["tag"]: t["count"] for t in data["tags"]}
+        assert tags["food"] == 2  # ta + tc
+        assert tags["travel"] == 2  # tb + tc
+        assert data["total"] == 2
+
+    with mcp_client(body):
+        pass
+
+
+def test_mcp_list_tags_kind_filter(mcp_client, memory_root: Path):
+    _write_item_with_tags(memory_root, "td--01JZLTA04.md", "01JZLTA04", ["filter_me"])
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("session.configure", {"lang": "en"})
+        assert r.is_error is False
+        r = await _wait_for_hit(c, {"q": "body", "kind": "item"}, target_ulid="01JZLTA04")
+        assert r is not None
+
+        r = await c.call_tool("list_tags", {"kind": "item"})
+        assert not r.is_error
+        data = r.structured_content
+        assert data["total"] >= 1
+
+    with mcp_client(body):
+        pass
+
+
+def test_mcp_search_tags_op_or(mcp_client, memory_root: Path):
+    _write_item_with_tags(memory_root, "te--01JZLTA05.md", "01JZLTA05", ["cats"])
+    _write_item_with_tags(memory_root, "tf--01JZLTA06.md", "01JZLTA06", ["dogs"])
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("session.configure", {"lang": "en"})
+        assert r.is_error is False
+        # 等待两个文件都被 watcher 索引（用 body 搜索两者都会命中）
+        r = await _wait_for_hit(c, {"q": "body", "kind": "item"}, target_ulid="01JZLTA05")
+        assert r is not None, "等待 01JZLTA05 索引超时"
+        r = await _wait_for_hit(c, {"q": "body", "kind": "item"}, target_ulid="01JZLTA06")
+        assert r is not None, "等待 01JZLTA06 索引超时"
+
+        r = await c.call_tool("search", {
+            "q": "body", "tags": ["cats", "dogs"], "tags_op": "or", "kind": "item",
+        })
+        assert not r.is_error
+        assert r.data["count"] >= 2
+
+    with mcp_client(body):
+        pass

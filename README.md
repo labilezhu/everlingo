@@ -147,35 +147,7 @@ Wiki Vault 是一堆 markdown 文件和目录。文件格式兼容 [Open Knowled
 
 ---
 
-## 技术上怎么实现的
-
-对于开发者朋友，简单说一下架构。
-
-记了么是一个 **Python 开源项目**，基于 **LangChain + LLM** 构建。核心设计思路：
-
-- **Gateway 架构**：一个独立的 Gateway 进程管理多个 Session，每个 Session 绑定一个 Channel（微信/Web/终端）和一个 Agent。新连接进来时自动创建或恢复 Session。
-- **Agent 驱动**：用户意图由 LLM Agent 自主判断，而不是硬编码路由。Agent 的 system prompt 会根据用户配置和偏好笔记动态刷新——配置改了，下一次对话立刻生效。
-- **个性化注入**：用户的偏好（`USER.md`）以 Markdown 自由文本的形式存在，动态注入 Agent 的 system prompt。
-- LLM tools: 文件转语音 Edge TTS
-- [微信 ClawBot](https://cloud.tencent.com/developer/article/2651968) 接入
-
-
-
-技术栈：
-
-后端：Python + LangChain + FastAPI（后端）
-
-Web 前端：React + Vite + TailwindCSS + shadcn/ui
-
-微信 ClawBot 前端：微信 iLink 协议
-
-
-
-开发使用了 Opencode 生成代码，但我永远要用 design spec 控制架构和对修改做 code review。完善的 design spec 文档可以让你的 coding agent 快速参与到这个项目。
-
----
-
-## 最后
+## 总结
 
 市面上不缺 AI 词典，不缺 AI 翻译，甚至不缺 AI 外教。
 
@@ -199,15 +171,7 @@ Web 前端：React + Vite + TailwindCSS + shadcn/ui
 
 最后的最后的最后，如果你觉得这开源项目 https://github.com/labilezhu/everlingo 将来有点用，记得给它打个小星星⭐。谢谢大家🤗！
 
-## Docs
 
-文档说明：
-- [产品文档](./PRODUCT-FUNC.md)
-- [领域模型](./DOMAIN.md)
-- [架构设计](./ARCHITECTURE.md)
-- [ROADMAP](ROADMAP.md)
-- [项目状态](./STATE.md)
-- [当前开发任务](./TASKS.md)
 
 ## Quick Start
 
@@ -286,3 +250,44 @@ npm run build        # tsc && vite build → 重新生成 dist/
 popd
 ```
 构建一次，FastAPI 自动从 web/dist/ 提供前端文件。后端进程启动后，直接访问 http://localhost:8000 即可。
+
+
+
+## 开发
+
+对于开发者朋友，简单说一下架构。
+
+记了么是一个 **Python 开源项目**，基于 **LangChain + LLM** 构建。核心设计思路：
+
+- **Gateway 架构**：一个独立的 Gateway 进程管理多个 Session，每个 Session 绑定一个 Channel（微信/Web/终端）和一个 Agent。新连接进来时自动创建或恢复 Session。
+- **Agent 驱动**：用户意图由 LLM Agent 自主判断，而不是硬编码路由。Agent 的 system prompt 会根据用户配置和偏好笔记动态刷新——配置改了，下一次对话立刻生效。
+- **个性化注入**：用户的偏好（`USER.md`）以 Markdown 自由文本的形式存在，动态注入 Agent 的 system prompt。
+- LLM tools: 文件转语音 Edge TTS
+- [微信 ClawBot](https://cloud.tencent.com/developer/article/2651968) 接入
+
+
+
+技术栈：
+
+后端：Python + LangChain + FastAPI（后端）
+
+Web 前端：React + Vite + TailwindCSS + shadcn/ui
+
+微信 ClawBot 前端：微信 iLink 协议
+
+
+
+开发使用了 Opencode 生成代码，但我永远要用 design spec 控制架构和对修改做 code review。完善的 design spec 文档可以让你的 coding agent 快速参与到这个项目。
+
+
+
+## 文档
+
+文档说明：
+
+- [产品文档](./PRODUCT-FUNC.md)
+- [领域模型](./DOMAIN.md)
+- [架构设计](./ARCHITECTURE.md)
+- [ROADMAP](ROADMAP.md)
+- [项目状态](./STATE.md)
+- [当前开发任务](./TASKS.md)

@@ -18,7 +18,7 @@ description_in_target_lang: 「て」形の文法
 created_at: 2026-06-24T10:00:00+08:00
 timestamp: 2026-06-26T10:10:00+08:00
 seen_count: 1
-tags:
+tags: []
 first_seen: 2026-06-24T10:00:00+08:00
 last_seen: 2026-06-26T10:10:00+08:00
 schema_version: 1

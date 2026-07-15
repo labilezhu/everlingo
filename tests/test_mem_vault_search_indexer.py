@@ -69,7 +69,7 @@ def test_init_db_creates_tables(conn: sqlite3.Connection):
 
 def test_init_db_sets_meta(conn: sqlite3.Connection):
     assert get_meta(conn, "tokenizer_version") is not None
-    assert get_meta(conn, "schema_version") == "2"
+    assert get_meta(conn, "schema_version") == "3"
 
 
 def test_set_meta_overwrites(conn: sqlite3.Connection):
@@ -606,6 +606,7 @@ def _make_parsed_doc(
         aliases=None,
         related=None,
         tags=None,
+        tag_list=[],
         first_seen=None,
         last_seen=None,
         seen_count=None,
@@ -614,3 +615,125 @@ def _make_parsed_doc(
         file_mtime="2026-01-01T00:00:00",
         content_hash="dummy",
     )
+
+
+# ── document_tags ──────────────────────────────────────────────────
+
+
+def _count_doc_tags(conn: sqlite3.Connection) -> list[tuple[str, int]]:
+    rows = conn.execute(
+        "SELECT dt.tag, COUNT(*) FROM document_tags dt GROUP BY dt.tag ORDER BY dt.tag"
+    ).fetchall()
+    return [(r[0], r[1]) for r in rows]
+
+
+def test_index_file_populates_document_tags(conn: sqlite3.Connection, memory_root: Path):
+    p = _write_kb_item(
+        memory_root,
+        "t1--01JZATAG1.md",
+        {"ulid": "01JZATAG1", "slug": "t1", "type": "vocab", "headword": "foo",
+         "tags": ["adjective", "confusing"]},
+    )
+    parsed = parse_file(p, memory_root, "en")
+    index_file(conn, parsed)
+    tags = _count_doc_tags(conn)
+    assert ("adjective", 1) in tags
+    assert ("confusing", 1) in tags
+    assert len(tags) == 2
+
+
+def test_index_file_upsert_replaces_tags(conn: sqlite3.Connection, memory_root: Path):
+    p = _write_kb_item(
+        memory_root,
+        "t2--01JZATAG2.md",
+        {"ulid": "01JZATAG2", "slug": "t2", "type": "vocab", "headword": "bar",
+         "tags": ["a", "b"]},
+    )
+    index_file(conn, parse_file(p, memory_root, "en"))
+    assert len(_count_doc_tags(conn)) == 2
+
+    # 改 tags 后重索引
+    p2 = _write_kb_item(
+        memory_root,
+        "t2--01JZATAG2.md",
+        {"ulid": "01JZATAG2", "slug": "t2", "type": "vocab", "headword": "bar",
+         "tags": ["b", "c"]},
+    )
+    index_file(conn, parse_file(p2, memory_root, "en"))
+    tags = _count_doc_tags(conn)
+    assert ("b", 1) in tags
+    assert ("c", 1) in tags
+    # "a" 被清除
+    assert ("a", 1) not in tags
+    assert len(tags) == 2
+
+
+def test_index_file_no_tags_empty_table(conn: sqlite3.Connection, memory_root: Path):
+    p = _write_kb_item(
+        memory_root,
+        "t3--01JZATAG3.md",
+        {"ulid": "01JZATAG3", "slug": "t3", "type": "vocab", "headword": "baz"},
+    )
+    index_file(conn, parse_file(p, memory_root, "en"))
+    assert len(_count_doc_tags(conn)) == 0
+
+
+def test_delete_file_cascades_document_tags(conn: sqlite3.Connection, memory_root: Path):
+    p = _write_kb_item(
+        memory_root,
+        "t4--01JZATAG4.md",
+        {"ulid": "01JZATAG4", "slug": "t4", "type": "vocab", "headword": "qux",
+         "tags": ["delete_me"]},
+    )
+    parsed = parse_file(p, memory_root, "en")
+    index_file(conn, parsed)
+    assert len(_count_doc_tags(conn)) == 1
+    delete_file(conn, parsed.file_path)
+    assert len(_count_doc_tags(conn)) == 0
+
+
+def test_open_db_ensures_document_tags_table_on_legacy_db(tmp_path: Path):
+    """模拟旧库（不带 document_tags），open_db 应补建但不回填。"""
+    from everlingo.mem.vault.search.sync import open_db
+
+    db_path = tmp_path / "legacy" / "memory.sqlite"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("PRAGMA foreign_keys=ON")
+    # 手动创建 v2 库（无 document_tags 表）
+    conn.executescript("""
+        CREATE TABLE documents (
+          rowid INTEGER PRIMARY KEY,
+          ulid TEXT UNIQUE,
+          kind TEXT NOT NULL,
+          item_type TEXT,
+          file_path TEXT NOT NULL UNIQUE,
+          slug TEXT, headword TEXT, title TEXT,
+          description TEXT, description_in_target_lang TEXT,
+          aliases TEXT, related TEXT, tags TEXT,
+          first_seen TEXT, last_seen TEXT,
+          seen_count INTEGER, schema_version INTEGER,
+          body TEXT NOT NULL, content_hash TEXT NOT NULL,
+          file_mtime TEXT NOT NULL, indexed_at TEXT NOT NULL
+        );
+        CREATE VIRTUAL TABLE documents_fts USING fts5(
+          headword, title, description, description_in_target_lang,
+          aliases, related, tags, body, body_raw UNINDEXED,
+          tokenize='unicode61'
+        );
+        CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
+        INSERT INTO meta(key, value) VALUES ('schema_version', '2');
+        INSERT INTO meta(key, value) VALUES ('tokenizer_version', 'old');
+    """)
+    conn.close()
+    # open_db 应补建 document_tags
+    conn2 = open_db(db_path)
+    try:
+        t = conn2.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='document_tags'"
+        ).fetchone()
+        assert t is not None, "document_tags 表应被补建"
+        ver = conn2.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0]
+        assert ver == "3"
+    finally:
+        conn2.close()

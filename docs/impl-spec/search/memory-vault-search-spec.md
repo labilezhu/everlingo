@@ -129,7 +129,7 @@ CREATE TABLE documents (
   description_in_target_lang TEXT,
   aliases TEXT,                           -- '\n' 连接
   related TEXT,                           -- '\n' 连接
-  tags TEXT,                              -- ' ' 连接，便于过滤
+  tags TEXT,                              -- ' ' 连接，FTS 列用于全文匹配；过滤走 document_tags
   first_seen TEXT,
   last_seen TEXT,
   seen_count INTEGER,
@@ -151,6 +151,16 @@ CREATE VIRTUAL TABLE documents_fts USING fts5(
   body_raw UNINDEXED,                     -- 原文，仅给 snippet() 用，不索引
   tokenize='unicode61'
 );
+
+-- tags 关系表：精确匹配，AND/OR 过滤
+-- 由 indexer.index_file 同步维护（delete-then-insert）
+-- documents 行删除时 ON DELETE CASCADE 自动清理
+CREATE TABLE document_tags (
+  doc_rowid INTEGER NOT NULL REFERENCES documents(rowid) ON DELETE CASCADE,
+  tag TEXT NOT NULL,
+  PRIMARY KEY (doc_rowid, tag)
+) WITHOUT ROWID;
+CREATE INDEX idx_document_tags_tag ON document_tags(tag);
 
 -- 段级文本，向量作用层
 CREATE TABLE chunks (
@@ -182,7 +192,7 @@ CREATE TABLE meta (
 );
 -- 记录示例：
 --   tokenizer_version = 'jieba:0.42+fugashi:1.1+unidic:2024...'
---   schema_version    = '1'
+--   schema_version    = '3'
 ```
 
 ### events 文件特殊处理
@@ -236,6 +246,16 @@ FTS5 的 `snippet()` 作用于 `body_raw` UNINDEXED 列，返回**干净原文**
 jieba 词典更新、unidic 版本变化会导致 token 集变化，需触发重索引。`meta` 表记录 `tokenizer_version`，indexer 启动时比对，版本变化则全量重建 FTS（FTS 重建便宜，毫秒级，不像 embedding）。
 
 `content_hash` 基于**原文**算（不随分词器版本变），保证重索引时能跳过未变文件的解析，只重算分词。
+
+### schema_version 与数据迁移
+
+| 版本 | 变更 |
+|------|------|
+| 1 | 初始版 |
+| 2 | —（中期版本，无标记变更） |
+| 3 | 新增 `document_tags` 关系表，替换 `d.tags LIKE` 子串过滤为精确匹配，支持 AND/OR。 |
+
+**升级（v2 → v3）**：`open_db` 启动时 DDL 补建 `document_tags` 表（空表），**不回填数据**。升级后 tag 过滤暂时失效，需手动全量重建索引恢复：`everlingo mem reindex LANG --rebuild`。
 
 ## Chunk 切分策略
 
@@ -349,7 +369,8 @@ class SearchHit:
 class SearchClient:
     def __init__(self, uds_path: str): ...
     def search(self, query: str, *, lang: str,
-               item_type=None, tags=None, kind=None,
+               item_type=None, tags=None, tags_op: Literal['and','or'] = 'and',
+               kind=None,
                mode: Literal['exact','semantic','hybrid'] = 'exact',  # semantic/hybrid 见 embedding-spec
                limit: int = 20) -> list[SearchHit]: ...
     def index_file(self, lang: str, path: str) -> bool: ...   # fire-and-forget
@@ -367,6 +388,7 @@ def search(
     lang: str,                        # 必填，用于路由到对应 lang 的 DB conn
     item_type: str | None = None,
     tags: list[str] | None = None,
+    tags_op: Literal['and', 'or'] = 'and',
     kind: str | None = None,
     mode: Literal['exact', 'semantic', 'hybrid'] = 'exact',  # semantic/hybrid 见 embedding-spec
     limit: int = 20,
@@ -391,6 +413,38 @@ LIMIT 20;
 - `snippet(documents_fts, 8, ...)`：第 8 列即 `body_raw`（UNINDEXED），返回干净原文高亮片段
 - `d.item_type='phrase'`：范围限定到短语类知识点
 - `ORDER BY rank`：bm25 加权排序，默认各列权重 1.0；如要 headword/title 权重更高，改用 `bm25(documents_fts, 10.0, 10.0, 4.0, 4.0, 2.0, 2.0, 2.0, 1.0, 0.0)`
+
+### 按 tag 过滤
+
+tag 过滤走 `document_tags` 关系表精确匹配（`d.tags LIKE` 子串匹配已被替换）。支持 AND / OR：
+
+```sql
+-- AND：须同时有 "travel" 和 "food" tag
+AND EXISTS (SELECT 1 FROM document_tags dt
+            WHERE dt.doc_rowid = d.rowid AND dt.tag = 'travel')
+AND EXISTS (SELECT 1 FROM document_tags dt
+            WHERE dt.doc_rowid = d.rowid AND dt.tag = 'food')
+
+-- OR：有其一即可
+AND EXISTS (SELECT 1 FROM document_tags dt
+            WHERE dt.doc_rowid = d.rowid AND dt.tag IN ('travel', 'food'))
+```
+
+`tags_op` 参数控制 AND/OR。`tags_op` 默认 `"and"`，单 tag 时 AND/OR 等价。`tags=[]`（空列表）跳过过滤。
+
+FTS `tags` 列仍存在且被索引——全文搜索时 `q` 仍可命中 tag 文本（如搜 "travel" 命中含 `travel` tag 的文档）。关系表只承担「过滤」语义，职责分离。
+
+### 查询 tag 字典与计数
+
+`GET /{lang}/tags` 返回该 lang vault 的 tag 频率统计，供 Chat Agent 先发现可用 tag 再构造过滤查询：
+
+```sql
+SELECT dt.tag, COUNT(DISTINCT d.rowid) AS cnt
+FROM document_tags dt
+JOIN documents d ON d.rowid = dt.doc_rowid
+GROUP BY dt.tag
+ORDER BY cnt DESC, dt.tag ASC
+```
 
 ### 仅正文命中
 

@@ -10,7 +10,7 @@ pragmatics/pragmatically-answering-yes-or-no-can-easily-lead-to-confusion--01JZA
 ```yaml
 ulid: 01JZABE001
 slug: pragmatically-answering-yes-or-no-can-easily-lead-to-confusion
-tags:
+tags: []
 type: pragmatics
 created_at: 2026-06-22T18:08:00+08:00
 timestamp: 2026-06-26T09:15:00+08:00
@@ -61,7 +61,7 @@ others/pragmatically-answering-yes-or-no-can-easily-lead-to-confusion--01JZABE00
 ```yaml
 ulid: 01JZABD123
 slug: take-off
-tags:
+tags: []
 type: others
 created_at: 2026-06-22T18:08:00+08:00
 timestamp: 2026-06-26T09:15:00+08:00

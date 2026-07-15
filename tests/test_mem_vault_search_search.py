@@ -106,3 +106,62 @@ def test_search_kind_filter_event(conn: sqlite3.Connection, memory_root: Path):
     assert len(hits) >= 1
     assert hits[0].kind == "event"
     assert hits[0].lang == "en"
+
+
+# ── tags 过滤 ─────────────────────────────────────────────────────
+
+
+def test_search_tags_and(conn: sqlite3.Connection, memory_root: Path):
+    p1 = _write_item(memory_root, "tag1--01JZAT01.md", "01JZAT01", "vocab", "tag1", "T1",
+                     "body", tags="[a, b]")
+    p2 = _write_item(memory_root, "tag2--01JZAT02.md", "01JZAT02", "vocab", "tag2", "T2",
+                     "body", tags="[a]")
+    index_file(conn, parse_file(p1, memory_root, "en"))
+    index_file(conn, parse_file(p2, memory_root, "en"))
+    hits = do_search(conn, "tag", lang="en", tags=["a", "b"], tags_op="and", limit=10)
+    assert len(hits) == 1
+    assert hits[0].ulid == "01JZAT01"
+
+
+def test_search_tags_or(conn: sqlite3.Connection, memory_root: Path):
+    p1 = _write_item(memory_root, "tag3--01JZAT03.md", "01JZAT03", "vocab", "tag3", "T3",
+                     "body", tags="[cats]")
+    p2 = _write_item(memory_root, "tag4--01JZAT04.md", "01JZAT04", "vocab", "tag4", "T4",
+                     "body", tags="[dogs]")
+    index_file(conn, parse_file(p1, memory_root, "en"))
+    index_file(conn, parse_file(p2, memory_root, "en"))
+    hits = do_search(conn, "tag", lang="en", tags=["cats", "dogs"], tags_op="or", limit=10)
+    assert len(hits) == 2
+
+
+def test_search_tags_exact_no_substring(conn: sqlite3.Connection, memory_root: Path):
+    p1 = _write_item(memory_root, "tag5--01JZAT05.md", "01JZAT05", "vocab", "tag5", "T5",
+                     "body", tags="travel")
+    p2 = _write_item(memory_root, "tag6--01JZAT06.md", "01JZAT06", "vocab", "tag6", "T6",
+                     "body", tags="traveling")
+    index_file(conn, parse_file(p1, memory_root, "en"))
+    index_file(conn, parse_file(p2, memory_root, "en"))
+    hits = do_search(conn, "tag", lang="en", tags=["travel"], limit=10)
+    assert len(hits) == 1
+    assert hits[0].ulid == "01JZAT05"
+
+
+def test_search_tags_empty_list_no_filter(conn: sqlite3.Connection, memory_root: Path):
+    p1 = _write_item(memory_root, "tag7--01JZAT07.md", "01JZAT07", "vocab", "tag7", "T7",
+                     "body", tags="[z]")
+    p2 = _write_item(memory_root, "tag8--01JZAT08.md", "01JZAT08", "vocab", "tag8", "T8",
+                     "body", tags="[z]")
+    index_file(conn, parse_file(p1, memory_root, "en"))
+    index_file(conn, parse_file(p2, memory_root, "en"))
+    hits = do_search(conn, "tag", lang="en", tags=[], limit=10)
+    assert len(hits) == 2
+
+
+def test_search_tags_single_ignores_op(conn: sqlite3.Connection, memory_root: Path):
+    p1 = _write_item(memory_root, "tag9--01JZAT09.md", "01JZAT09", "vocab", "tag9", "T9",
+                     "body", tags="[single]")
+    index_file(conn, parse_file(p1, memory_root, "en"))
+    hits_a = do_search(conn, "tag", lang="en", tags=["single"], tags_op="and", limit=10)
+    hits_o = do_search(conn, "tag", lang="en", tags=["single"], tags_op="or", limit=10)
+    assert len(hits_a) == 1
+    assert len(hits_o) == 1

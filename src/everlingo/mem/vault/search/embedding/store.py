@@ -235,6 +235,31 @@ def _vec0_knn(
     return [(int(r[0]), float(r[1])) for r in rows]
 
 
+def _document_tags_filter_clause(
+    tags: list[str] | None,
+    tags_op: str,
+) -> tuple[str, list]:
+    """构造 document_tags 精确过滤子句（与 search.py 同语义）。"""
+    if not tags:
+        return "", []
+    if len(tags) == 1 or tags_op == "and":
+        clauses: list[str] = []
+        params: list[str] = []
+        for t in tags:
+            clauses.append(
+                "EXISTS (SELECT 1 FROM document_tags dt "
+                "WHERE dt.doc_rowid = d.rowid AND dt.tag = ?)"
+            )
+            params.append(t)
+        return " AND ".join(clauses), params
+    placeholders = ",".join("?" * len(tags))
+    return (
+        f"EXISTS (SELECT 1 FROM document_tags dt "
+        f"WHERE dt.doc_rowid = d.rowid AND dt.tag IN ({placeholders}))",
+        list(tags),
+    )
+
+
 def knn_with_filter(
     conn: sqlite3.Connection,
     query_vec: list[float],
@@ -243,11 +268,14 @@ def knn_with_filter(
     item_type: str | None = None,
     kind: str | None = None,
     tags: list[str] | None = None,
+    tags_op: str = "and",
 ) -> list[tuple[int, float]]:
     """带过滤的 KNN：先取 k*3 候选，再 join chunks/documents 过滤。
 
     距离按 sqlite-vec cosine distance（0=同向，2=反向）。
     lang 过滤已隐含于 per-lang DB，不再需要。
+    tags 过滤走 document_tags 关系表精确匹配（与 FTS 路径一致）。
+    tags_op 支持 "and" / "or"。
     """
     overfetch = max(k * 3, k)
     candidates = _vec0_knn(conn, query_vec, overfetch)
@@ -265,10 +293,9 @@ def knn_with_filter(
         clauses.append("d.kind = ?")
         params.append(kind)
     if tags:
-        # tags 存 ' ' 连接，做包含判定（与 FTS 路径一致）
-        for t in tags:
-            clauses.append("d.tags LIKE ?")
-            params.append(f"%{t}%")
+        tag_sql, tag_params = _document_tags_filter_clause(tags, tags_op)
+        clauses.append(f"({tag_sql})")
+        params.extend(tag_params)
 
     rows = conn.execute(
         f"""

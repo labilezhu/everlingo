@@ -23,9 +23,7 @@ seen_count: 4
 aliases:
   - あいまい
   - ambiguous
-tags:
-  - adjective
-  - confusing
+tags: []
 related:
   - 明確
   - はっきり

@@ -70,7 +70,31 @@ def open_db(db_path: Path) -> sqlite3.Connection:
     ).fetchone()
     if cur is None:
         init_db(conn)
+    else:
+        _ensure_document_tags_table(conn)
     return conn
+
+
+def _ensure_document_tags_table(conn: sqlite3.Connection) -> None:
+    """升级已有 DB：补建 document_tags 表（v2 → v3 schema）。
+
+    仅做 DDL，不回填数据；后续由 index_file 实时同步。
+    用户可运行 `reindex LANG --rebuild` 回填全部行。
+    """
+    cur = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='document_tags'"
+    ).fetchone()
+    if cur is not None:
+        return
+    conn.execute(
+        "CREATE TABLE document_tags ("
+        "  doc_rowid INTEGER NOT NULL REFERENCES documents(rowid) ON DELETE CASCADE,"
+        "  tag TEXT NOT NULL,"
+        "  PRIMARY KEY (doc_rowid, tag)"
+        ") WITHOUT ROWID"
+    )
+    conn.execute("CREATE INDEX idx_document_tags_tag ON document_tags(tag)")
+    set_meta(conn, "schema_version", "3")
 
 
 def reconcile(conn: sqlite3.Connection, memory_root: Path, lang: str) -> ReconcileResult:

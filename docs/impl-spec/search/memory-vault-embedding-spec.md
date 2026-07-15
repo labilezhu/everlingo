@@ -119,7 +119,7 @@ class EmbeddingWorker:
 ```python
 def ensure_vec_table(conn, dim: int) -> None        # 建/重建该 lang DB 的 chunk_vec
 def batch_upsert(conn, items, embedder) -> int      # 批量写该 lang DB 的 chunk_embeddings + chunk_vec
-def knn(conn, query_vec, *, k, item_type, kind, tags) -> list[tuple[int, float]]
+def knn(conn, query_vec, *, k, item_type, kind, tags, tags_op="and") -> list[tuple[int, float]]
 def rebuild_for_model(conn, new_model_id, dim) -> None # drop 该 lang DB 的 vec0 + 旧 embedding + 重建
 ```
 

@@ -72,6 +72,16 @@ CREATE TABLE chunk_embeddings (
 -- vec0 与 chunk_embeddings 的同步清理在 embedding/store.py 的 sync_* 函数里
 -- 集中处理（避免 chunk_vec 表未建时触发器失败）。
 
+-- tags 关系表：精确匹配，AND/OR 过滤
+-- 由 indexer.index_file 同步维护（delete-then-insert）
+-- documents 行删除时 ON DELETE CASCADE 自动清理
+CREATE TABLE IF NOT EXISTS document_tags (
+  doc_rowid INTEGER NOT NULL REFERENCES documents(rowid) ON DELETE CASCADE,
+  tag TEXT NOT NULL,
+  PRIMARY KEY (doc_rowid, tag)
+) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS idx_document_tags_tag ON document_tags(tag);
+
 CREATE TABLE meta (
   key TEXT PRIMARY KEY,
   value TEXT

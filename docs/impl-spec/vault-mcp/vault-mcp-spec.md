@@ -9,8 +9,8 @@
 本 MCP Server **内嵌于 indexer 进程**（方案 C：合并部署），与 indexer 的 HTTP/UDS REST API 共进程，监听不同端口：
 
 - indexer 进程同时承载两个对外接口：
-  1. HTTP over unix socket REST API（`$workspace/indexer.sock`，FastAPI/uvicorn）—— 现有 `/{lang}/search|index|delete|rebuild|embed`、`/status`，给 gateway / CLI 等外部客户端用。契约见 [search-api-spec.md](/docs/impl-spec/search/search-api-spec.md)。
-   2. MCP 2025-11-25 Streamable HTTP Server —— 给 LLM agent / MCP 客户端用，暴露 fs 工具 + `search` 工具 + `session.configure` 工具 + `compile_prompt` prompt 编译工具 + `gen_id` Utility 工具。
+  1. HTTP over unix socket REST API（`$workspace/indexer.sock`，FastAPI/uvicorn）—— 现有 `/{lang}/search|index|delete|rebuild|embed`、`/status`、`/{lang}/tags`，给 gateway / CLI 等外部客户端用。契约见 [search-api-spec.md](/docs/impl-spec/search/search-api-spec.md)。
+   2. MCP 2025-11-25 Streamable HTTP Server —— 给 LLM agent / MCP 客户端用，暴露 fs 工具 + `search` 工具（含 `tags_op` 参数）+ `list_tags` 工具 + `session.configure` 工具 + `compile_prompt` prompt 编译工具 + `gen_id` Utility 工具。
 - indexer 启动时把 MCP Streamable HTTP URL 写入 `$workspace/indexer.mcp.url` 文件，MCP 客户端据此连接。
 - 进程拓扑见 [memory-vault-search-spec.md](/docs/impl-spec/search/memory-vault-search-spec.md)「进程拓扑」。
 
@@ -21,14 +21,15 @@
 
 MCP Server 不在启动时绑定单一 lang；而是通过 `session.configure` 工具在会话内设定会话默认 lang（及其它会话级默认值）。设计要点：
 
-- **必须先 configure**：agent 调用任何 fs 工具（ls/read/write/append/grep/find/stat/mkdir/delete/tree）或 `search` 工具或 `compile_prompt` 工具之前，必须先调用 `session.configure` 设定会话 lang；否则上述工具返回错误 `session not configured: call session.configure first`。无隐式回退（不自动取 workspace 唯一 lang、不自动取 indexer 启动默认 lang）——强制显式，促使 agent 建立正确习惯。
+- **必须先 configure**：agent 调用任何 fs 工具（ls/read/write/append/grep/find/stat/mkdir/delete/tree）或 `search`/`list_tags`/`compile_prompt` 工具之前，必须先调用 `session.configure` 设定会话 lang；否则上述工具返回错误 `session not configured: call session.configure first`。无隐式回退（不自动取 workspace 唯一 lang、不自动取 indexer 启动默认 lang）——强制显式，促使 agent 建立正确习惯。
 - **可重调切换**：会话内可多次调用 `session.configure` 切换 lang（如先搜 en vault 再搜 ja vault），切换后后续工具调用按新 lang 解析。无需重连 MCP stream。
 - **生命周期**：`session.configure` 设置的状态按 MCP stream 生命周期存活——绑定到该 stream，stream 关闭即丢弃，无持久化、无跨重连保留。
 - **state 存放**：server 进程内按 MCP stream/session id 索引的内存 dict；不落盘，不进 SQLite。
 - **lang 合法性**：`session.configure` 传入的 lang 必须是 workspace 已存在的 lang（indexer 启动时按 `$workspace/memory/languages/*/` 确定可用 lang 集合；运行时新 lang 发现机制见 memory-vault-search-spec.md「运行时新 lang 发现」）。**不在集合内时 session.configure 内部自动调 create_vault_tool 创建该 lang vault；创建失败（含非法 lang 名）返回错误。**
 - **fs 工具**：path 相对会话 lang vault 根 `$workspace/memory/languages/$lang/vault/`，工具层强制校验解析后路径不逃出该 lang vault_dir（防 `../`）。以 `/` 或 `\` 开头的 path 视为相对 vault 根的路径，前导分隔符会被忽略（兼容 LLM 常见的 Unix 风格写法，如 `ls /` 等价于 `ls ""`）。
 - **搜索类 fs 工具（grep / find）路径不存在语义**：`grep` 与 `find` 的搜索根路径不存在时，返回空结果（`{ "matches": [] }` / `{ "files": [] }`），不报 `isError=true`。便于 agent 在尚无该子目录时（如首个 vocab 条目写入前）执行查重搜索，自然走"未命中→新建"逻辑。同一约束不适用于 `ls`/`read`/`append`/`delete`——这些工具路径不存在仍是错误。
-- **search 工具**：`lang` 参数可选，省略时取会话 lang；显式传入可覆盖会话 lang（支持一次跨 lang 检索）。
+- **search 工具**：`lang` 参数可选，省略时取会话 lang；显式传入可覆盖会话 lang（支持一次跨 lang 检索）。`tags` 参数配合 `tags_op`（`"and"`/`"or"`，默认 `"and"`）按 tag 精确过滤。先用 `list_tags` 工具发现可用 tag 再构造 tag 过滤查询。
+- **list_tags 工具**：返回当前 lang vault 的 tag 字典与文档计数，便于 agent 了解可用 tag 取值。可选 `kind`/`item_type` 参数限定统计范围。需要先调 `session.configure`。
 
 ### vault 管理工具豁免
 
@@ -229,10 +230,10 @@ MCP server 在 `initialize` 响应里通过 `instructions` 字段（[MCP 2025-11
    - 会话内可重调 `session.configure` 切换 lang，无需重连。
     - 例外：`list_vaults` / `create_vault` / `gen_id` 是 workspace 级或 Utility 工具，**不**受上述 configure 约束。
 4. **路径语义**——fs 工具的 `path` 参数相对会话 lang vault 根 `$workspace/memory/languages/$lang/vault/` 解析；`../` 越界被拒绝。以 `/` 或 `\` 开头的 path 视为相对 vault 根的路径，前导分隔符会被忽略（如 `ls /` 等价于 `ls ""`）。
-5. **search 要点**——默认 `mode=hybrid`（推荐）；`lang` 参数可省略或显式覆盖以跨 lang 检索；命中 `file_path` 可直接喂给 fs 工具。
+5. **search 要点**——默认 `mode=hybrid`（推荐）；`lang` 参数可省略或显式覆盖以跨 lang 检索；`tags` 配合 `tags_op`（"and"/"or"）按 tag 精确过滤；命中 `file_path` 可直接喂给 fs 工具。
 6. **副作用说明**——文件变更由 indexer watcher 自动重新索引，agent **不需要**也**无法**手动触发 index。
 7. **会话生命周期**——session 状态按 MCP stream 生命周期存活，stream 关闭即丢弃；无持久化。
-8. **典型用法序列**——示例 `session.configure → search → read → append`，给 agent 一条参考路径。
+8. **典型用法序列**——示例 `session.configure → list_tags → search(tags=[...]) → read → append`，给 agent 一条参考路径。
 
 实现方在修改实际文本时，必须保证上述 8 项要点均仍可从文本中检索到对应关键词或同义表述；如需变更要点本身，须同步更新本 spec 节。
 
@@ -241,7 +242,7 @@ MCP server 在 `initialize` 响应里通过 `instructions` 字段（[MCP 2025-11
 
 每次 MCP Server 工具调用均记录 debug 日志。契约如下：
 
-- **适用范围**：全部 16 个工具（`list_vaults`、`create_vault`、`gen_id`、`session.configure`、10 个 fs 工具 `ls`/`read`/`write`/`append`/`grep`/`find`/`stat`/`mkdir`/`delete`/`tree`、`compile_prompt`、`search`）的每次调用。
+- **适用范围**：全部 17 个工具（`list_vaults`、`create_vault`、`gen_id`、`session.configure`、10 个 fs 工具 `ls`/`read`/`write`/`append`/`grep`/`find`/`stat`/`mkdir`/`delete`/`tree`、`compile_prompt`、`search`、`list_tags`）的每次调用。
 - **level**：`logging.DEBUG`。
 - **logger**：`everlingo.mem.vault.mcp_server`（`logging.getLogger("everlingo.mem.vault.mcp_server")`），在 indexer 进程的 uvicorn log_config（`_run_indexer`）中独立挂 `file` handler + 强制 `level=DEBUG` + `propagate=False`，不随 `--log-level`（默认 `info`）浮动，保证工具调用 debug 日志稳定写入 `$workspace/logs/indexer.log`（见 [observability.md](/docs/impl-spec/observability.md)「进程与日志文件边界」）。
 - **字段**：工具名（tool name）、输入参数（input）、输出结果（output / error）。

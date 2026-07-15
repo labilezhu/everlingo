@@ -39,6 +39,8 @@ from .protocol import (
     SearchRequest,
     SearchResponse,
     StatusResponse,
+    TagCount,
+    TagsResponse,
 )
 from .sync import open_db, reconcile
 from .tokenizer import tokenizer_version
@@ -317,6 +319,7 @@ def create_app(state: AppState) -> FastAPI:
             embedder=ls.embedder,
             item_type=req.item_type,
             tags=req.tags,
+            tags_op=req.tags_op,
             kind=req.kind,
             mode=req.mode,
             limit=req.limit,
@@ -345,6 +348,38 @@ def create_app(state: AppState) -> FastAPI:
         ls = state._get_lang_state(lang)
         ok = delete_file(ls.conn, req.path)  # type: ignore[arg-type]
         return OkResponse(ok=ok)
+
+    @app.get("/{lang}/tags", response_model=TagsResponse)
+    def do_tags(
+        lang: str,
+        kind: str | None = None,
+        item_type: str | None = None,
+    ) -> TagsResponse:
+        start = time.perf_counter()
+        ls = state._get_lang_state(lang)
+        clauses: list[str] = []
+        params: list[str | None] = []
+        if kind is not None:
+            clauses.append("d.kind = ?")
+            params.append(kind)
+        if item_type is not None:
+            clauses.append("d.item_type = ?")
+            params.append(item_type)
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        rows = ls.conn.execute(  # type: ignore[union-attr]
+            f"""
+            SELECT dt.tag, COUNT(DISTINCT d.rowid) AS cnt
+            FROM document_tags dt
+            JOIN documents d ON d.rowid = dt.doc_rowid
+            {where}
+            GROUP BY dt.tag
+            ORDER BY cnt DESC, dt.tag ASC
+            """,
+            params,
+        ).fetchall()
+        tags = [TagCount(tag=r[0], count=r[1]) for r in rows]
+        took_ms = (time.perf_counter() - start) * 1000.0
+        return TagsResponse(tags=tags, total=len(tags), took_ms=took_ms)
 
     @app.post("/{lang}/rebuild", response_model=RebuildResponse)
     def do_rebuild(lang: str) -> RebuildResponse:

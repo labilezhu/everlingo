@@ -74,7 +74,14 @@ Vault 按学习语言分目录：$workspace/memory/languages/$lang/vault/（lang
 search 要点：
 - 默认 `mode=hybrid`（推荐，混合全文 + 语义）。
 - `lang` 参数可省略（取会话 lang）；显式传入可覆盖会话 lang 跨 lang 检索。
+- `tags` 参数配合 `tags_op`（"and"/"or"，默认 "and"）按 tag 精确过滤：`tags=["travel"]` 或 `tags=["food","travel"], tags_op="or"`。
+- 先用 `list_tags` 工具发现 vault 中可用的 tag 列表及计数，再调 `search` 进行 tag 过滤检索。
 - 命中结果的 `file_path` 相对当前 lang vault 根，可直接喂给 `read` / `write` 等 fs 工具。
+
+list_tags 要点：
+- 返回当前 lang vault 的 tag 字典与文档计数，便于 agent 了解可用的 tag 取值。
+- 可选 `kind` / `item_type` 参数限定统计范围（如 `kind="item", item_type="vocab"`）。
+- 需要先调 `session.configure`。
 
 副作用与生命周期：
 - 会话状态按 MCP stream 生命周期存活，stream 关闭即丢弃；无持久化。
@@ -816,6 +823,7 @@ def create_mcp_app(state: AppState) -> FastMCP:
         kind: str | None = None,
         item_type: str | None = None,
         tags: list[str] | None = None,
+        tags_op: str = "and",
         mode: str = "hybrid",
         limit: int = 10,
         ctx: Context | None = None,
@@ -839,6 +847,7 @@ def create_mcp_app(state: AppState) -> FastMCP:
             embedder=ls.embedder,
             item_type=item_type,
             tags=tags,
+            tags_op=tags_op,  # type: ignore[arg-type]
             kind=kind,
             mode=mode,  # type: ignore[arg-type]
             limit=limit,
@@ -849,6 +858,54 @@ def create_mcp_app(state: AppState) -> FastMCP:
             "count": len(hits),
             "took_ms": 0.0,
         }
+
+    # ── list_tags ────────────────────────────────────────────────────
+
+    @mcp.tool(
+        name="list_tags",
+        title="List vault tags with counts",
+        description=(
+            "List all tags used in the current lang vault, with document counts. "
+            "Use this before calling search with tags filter to discover valid tag values. "
+            "Optional kind/item_type narrow the count to a document subset. "
+            "Requires session.configure."
+        ),
+    )
+    @_log_mcp_tool("list_tags")
+    async def list_tags_tool(
+        lang: str | None = None,
+        kind: str | None = None,
+        item_type: str | None = None,
+        ctx: Context | None = None,
+    ) -> dict[str, Any]:
+        if ctx is None:
+            raise RuntimeError("MCP context unavailable")
+        sess = _require_session(registry, ctx)
+        assert sess.lang is not None
+        effective_lang = lang or sess.lang
+        ls = state._get_lang_state(effective_lang)
+        clauses: list[str] = []
+        params: list[str | None] = []
+        if kind is not None:
+            clauses.append("d.kind = ?")
+            params.append(kind)
+        if item_type is not None:
+            clauses.append("d.item_type = ?")
+            params.append(item_type)
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        rows = ls.conn.execute(
+            f"""
+            SELECT dt.tag, COUNT(DISTINCT d.rowid) AS cnt
+            FROM document_tags dt
+            JOIN documents d ON d.rowid = dt.doc_rowid
+            {where}
+            GROUP BY dt.tag
+            ORDER BY cnt DESC, dt.tag ASC
+            """,
+            params,
+        ).fetchall()
+        tags = [{"tag": r[0], "count": r[1]} for r in rows]
+        return {"tags": tags, "total": len(tags)}
 
     return mcp
 

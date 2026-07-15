@@ -61,6 +61,7 @@ class SearchRequest(BaseModel):
     q: str = Field(..., description="查询字符串（indexer 侧会先 tokenize）")
     item_type: str | None = None
     tags: list[str] | None = None
+    tags_op: Literal["and", "or"] = Field("and", description="多 tag 过滤模式：and=全部匹配，or=任一匹配")
     kind: Literal["item", "event"] | None = None
     mode: Literal["exact", "semantic", "hybrid"] = "exact"
     limit: int = Field(20, ge=1, le=100)
@@ -74,6 +75,25 @@ class SearchResponse(BaseModel):
     hits: list[SearchHit]
     count: int
     took_ms: float
+
+
+class TagCount(BaseModel):
+    """GET /{lang}/tags 的单条 tag 计数。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tag: str
+    count: int
+
+
+class TagsResponse(BaseModel):
+    """GET /{lang}/tags 响应。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tags: list[TagCount]
+    total: int
+    took_ms: float = 0.0
 
 
 class IndexRequest(BaseModel):

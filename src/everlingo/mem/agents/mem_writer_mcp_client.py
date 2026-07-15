@@ -44,7 +44,7 @@ class IndexerOfflineError(RuntimeError):
 # MCP server 共 15 个工具；writer 只需要 fs 子集 + gen_id。
 # load_mcp_tools 加载全部 15 个后按名称过滤。
 WANTED_TOOLS: frozenset[str] = frozenset(
-    {"vault_mcp_read", "vault_mcp_write", "vault_mcp_append", "vault_mcp_delete", "vault_mcp_ls", "vault_mcp_find", "vault_mcp_search", "vault_mcp_grep", "vault_mcp_gen_id"}
+    {"vault_mcp_read", "vault_mcp_write", "vault_mcp_append", "vault_mcp_delete", "vault_mcp_ls", "vault_mcp_find", "vault_mcp_search", "vault_mcp_grep", "vault_mcp_gen_id", "vault_mcp_list_tags"}
 )
 
 
@@ -52,7 +52,7 @@ WANTED_TOOLS: frozenset[str] = frozenset(
 # Chat Agent 不需要写 vault（由 Memory Extract Agent + Writer 异步完成），
 # 所以只加载 search / fs 只读工具子集 + grep / find 搜索。
 CHAT_AGENT_WANTED_TOOLS: frozenset[str] = frozenset(
-    {"vault_mcp_read", "vault_mcp_ls", "vault_mcp_find", "vault_mcp_search", "vault_mcp_grep"}
+    {"vault_mcp_read", "vault_mcp_ls", "vault_mcp_find", "vault_mcp_search", "vault_mcp_grep", "vault_mcp_list_tags"}
 )
 
 

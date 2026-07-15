@@ -176,3 +176,49 @@ def test_hybrid_no_embedder_falls_back_to_fts(conn, memory_root):
     # 退化到 FTS，但走的是 hybrid 入口 → source 应为 'fts'（_fts_recall 填的）
     assert hits[0].source == "fts"
     assert hits[0].lang == "en"
+
+
+# ── semantic + tags 过滤 ──────────────────────────────────────────
+
+
+def _write_and_embed(conn, memory_root, name, ulid, type_, headword, title, body, tags=""):
+    """写 item + index + 仅嵌入该文件的 chunks。"""
+    p = _write_item(memory_root, name, ulid, type_, headword, title, body, tags=tags)
+    parsed = parse_file(p, memory_root, "en")
+    rowid = index_file(conn, parsed)
+    doc_rowid = conn.execute("SELECT rowid FROM documents WHERE ulid=?", (ulid,)).fetchone()[0]
+    rows = conn.execute(
+        "SELECT chunk_id, text FROM chunks WHERE doc_rowid=?", (doc_rowid,)
+    ).fetchall()
+    chunk_texts = [(r[0], r[1]) for r in rows]
+    emb = FakeEmbedder()
+    store.batch_upsert(conn, chunk_texts, emb, model_id="m", dim=DIM)
+    conn.commit()
+    return emb
+
+
+def test_vec_tags_filter_exact(conn, memory_root):
+    """vec 路径 tag 精确匹配：travel 不命中 traveling。"""
+    _write_and_embed(conn, memory_root,
+        "vt1--01JZVT01.md", "01JZVT01", "vocab", "vt1", "VT1", "body a", tags="travel")
+    _write_and_embed(conn, memory_root,
+        "vt2--01JZVT02.md", "01JZVT02", "vocab", "vt2", "VT2", "body b", tags="traveling")
+    emb = FakeEmbedder()
+    hits = do_search(conn, "vt", lang="en", embedder=emb, mode="semantic",
+                     tags=["travel"], limit=10)
+    assert len(hits) >= 1
+    assert all(h.ulid == "01JZVT01" for h in hits)
+
+
+def test_vec_tags_or(conn, memory_root):
+    """vec 路径 tags_op='or'。"""
+    _write_and_embed(conn, memory_root,
+        "vt3--01JZVT03.md", "01JZVT03", "vocab", "vt3", "VT3", "body x", tags="[cats]")
+    _write_and_embed(conn, memory_root,
+        "vt4--01JZVT04.md", "01JZVT04", "vocab", "vt4", "VT4", "body y", tags="[dogs]")
+    emb = FakeEmbedder()
+    hits = do_search(conn, "vt", lang="en", embedder=emb, mode="semantic",
+                     tags=["cats", "dogs"], tags_op="or", limit=10)
+    ulids = {h.ulid for h in hits}
+    assert "01JZVT03" in ulids
+    assert "01JZVT04" in ulids
