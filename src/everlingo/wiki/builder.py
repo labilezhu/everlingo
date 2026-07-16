@@ -12,21 +12,22 @@ from starlette.staticfiles import StaticFiles
 from .. import workspace
 
 _LANG_NAMES: dict[str, str] = {
-    "en": "English",
+    "en": "🇬🇧🇺🇸English",
     "ja": "日本語",
-    "zh": "中文",
-    "fr": "Français",
-    "de": "Deutsch",
-    "es": "Español",
-    "ko": "한국어",
-    "ar": "العربية",
-    "ru": "Русский",
-    "pt": "Português",
-    "it": "Italiano",
-    "th": "ไทย",
-    "vi": "Tiếng Việt",
-    "id": "Bahasa Indonesia",
-    "hi": "हिन्दी",
+    "zh-CN": "🇨🇳 简体中文",
+    "zh-TW": "🇹🇼 繁體中文",
+    "fr": "🇫🇷 Français",
+    "de": "🇩🇪 Deutsch",
+    "es": "🇪🇸 Español",
+    "ko": "🇰🇷 한국어",
+    "ar": "🇸🇦 العربية",
+    "ru": "🇷🇺 Русский",
+    "pt": "🇵🇹 Português",
+    "it": "🇮🇹 Italiano",
+    "th": "🇹🇭 ไทย",
+    "vi": "🇻🇳 Tiếng Việt",
+    "id": "🇮🇩 Bahasa Indonesia",
+    "hi": "🇮🇳 हिन्दी",
 }
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
@@ -158,7 +159,7 @@ def _generate_root_html(dist_dir: Path, langs: list[str]) -> None:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EverLingo Wiki</title>
+<title>🐹 EverLingo Wiki 🐹</title>
 <style>
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
 body {{
@@ -183,7 +184,7 @@ p {{ color: #4e4e4e; margin-bottom: 2rem; }}
 </head>
 <body>
 <div class="container">
-  <h1>EverLingo Wiki</h1>
+  <h1>🐹 EverLingo Wiki 🐹</h1>
   <p>选择语言知识库</p>
   <div class="lang-list">
 {cards}

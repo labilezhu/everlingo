@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=./quartz/plugins/quartz-plugins.schema.json
 configuration:
-  pageTitle: EverLingo Wiki
+  pageTitle: 🐹 EverLingo Wiki
   pageTitleSuffix: ""
   enableSPA: true
   enablePopovers: true
