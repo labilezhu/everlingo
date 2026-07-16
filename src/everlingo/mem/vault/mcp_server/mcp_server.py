@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import importlib.resources
+from importlib.resources.abc import Traversable
 import datetime
 import fnmatch
 import functools
@@ -28,7 +29,7 @@ import uvicorn
 from fastmcp import Context, FastMCP
 
 from everlingo import workspace
-from everlingo.mem.vault.frontmatter import normalize_frontmatter_text
+from everlingo.mem.vault.frontmatter import normalize_frontmatter_text, split_frontmatter
 from everlingo.mem.vault.search.protocol import SearchHit
 from everlingo.mem.vault.search.search import search as do_search
 from everlingo.mem.vault.search.server import AppState
@@ -39,9 +40,24 @@ from everlingo.utils.md_prompt_compiler import (
     compile_prompt,
 )
 
-_VAULT_SPEC_PACKAGE = "everlingo.mem.vault.templates.default.spec"
+_VAULT_TEMPLATES_PACKAGE = "everlingo.mem.vault.templates.default"
 
 logger = logging.getLogger("everlingo.mem.vault.mcp_server")
+
+
+def _walk_package(root: Traversable, prefix: str = "") -> list[tuple[str, Traversable]]:
+    """Recursively walk an importlib.resources Traversable directory.
+
+    Returns list of (relative_path, entry) for every file under *root*.
+    """
+    result: list[tuple[str, Traversable]] = []
+    for entry in root.iterdir():
+        rel = f"{prefix}{entry.name}"
+        if entry.is_dir():
+            result.extend(_walk_package(entry, f"{rel}/"))
+        else:
+            result.append((rel, entry))
+    return result
 
 
 # 错误文案固定串（spec 强制）
@@ -290,13 +306,13 @@ def create_mcp_app(state: AppState) -> FastMCP:
         description=(
             "Create and initialize a new target-learning-language vault directory "
             "at $workspace/memory/languages/$lang/vault/ and seed it with "
-            "spec/*.md (synthesized from templates/default/spec/*.md with includes "
-            "expanded). "
+            "templates/default/* (spec/*.md compiled with includes expanded, "
+            "other files raw-copied). "
             "After creation, the lang is synchronously registered with the indexer's "
             "LangState so subsequent session.configure(lang=$lang) + search works "
             "immediately. "
-            "Idempotent: if a spec file already exists under spec/, it is "
-            "not overwritten; re-registration is a no-op. "
+            "Idempotent: if a target file already exists, it is not "
+            "overwritten; re-registration is a no-op. "
             "This is a workspace-level tool and does NOT require session.configure."
         ),
     )
@@ -317,20 +333,26 @@ def create_mcp_app(state: AppState) -> FastMCP:
         vault_root = workspace.lang_vault_dir(lang)
         already_existed = vault_root.is_dir()
         vault_root.mkdir(parents=True, exist_ok=True)
-        # 幂等写 spec/*.md（不存在才写）
-        spec_dir = vault_root / "spec"
-        spec_dir.mkdir(parents=True, exist_ok=True)
-        spec_written = False
-        source = PackageSource(package=_VAULT_SPEC_PACKAGE)
-        for entry in importlib.resources.files(_VAULT_SPEC_PACKAGE).iterdir():
-            if not entry.is_file() or not entry.name.endswith(".md"):
-                continue
-            target = spec_dir / entry.name
+        # 递归遍历 templates/default/，幂等写入（不存在才写）
+        files_written = 0
+        source = PackageSource(package=_VAULT_TEMPLATES_PACKAGE)
+        root_traversable = importlib.resources.files(_VAULT_TEMPLATES_PACKAGE)
+        for rel_path, entry in _walk_package(root_traversable):
+            target = vault_root / rel_path
             if target.exists():
                 continue
-            content = compile_prompt(entry.name, source)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if rel_path.startswith("spec/") and rel_path.endswith(".md"):
+                raw = entry.read_text(encoding="utf-8")
+                fm, _body = split_frontmatter(raw)
+                if fm is not None:
+                    content = raw
+                else:
+                    content = compile_prompt(rel_path, source)
+            else:
+                content = entry.read_text(encoding="utf-8")
             target.write_text(content, encoding="utf-8")
-            spec_written = True
+            files_written += 1
         # 同步触发 lang 注册（与 LangDiscoveryWatcher 同一入口，加锁幂等）
         registered = True
         try:
@@ -352,7 +374,7 @@ def create_mcp_app(state: AppState) -> FastMCP:
             "lang": lang,
             "vault_path": vault_path_rel,
             "created": not already_existed,
-            "spec_written": spec_written,
+            "files_written": files_written,
             "registered": registered,
         }
 

@@ -73,11 +73,12 @@ tools:
           description: |
             true = 本次调用新建了 vault 目录；
             false = vault 目录已存在，本次未创建。
-        spec_written:
-          type: boolean
+        files_written:
+          type: integer
           description: |
-            true = 本次调用写入了至少一个 spec 文件；
-            false = 所有 spec 文件均已存在，本次未覆盖。
+            本次调用写入的文件数量（0 = 所有文件均已存在，本次未覆盖）。
+            spec/*.md 走 compile_prompt（展开 include + 剥 frontmatter），
+            其余文件（如 items/**/*）raw copy 保留 frontmatter。
         registered:
           type: boolean
           description: |
@@ -89,7 +90,7 @@ tools:
         - lang
         - vault_path
         - created
-        - spec_written
+        - files_written
         - registered
 
 ########### Utility ################

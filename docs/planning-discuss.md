@@ -1,4 +1,32 @@
 
+src/everlingo/mem/vault/mcp_server/mcp_server.py:320 create_vault_tool() 中，对于 `spec/` 目录下的文件，需要根据文件内容作不同的 copy 处理：
+- *.md 文件：
+  - 如果 文件内容开头有 markdown frontmatters ，直接 copy 文件，不要用 compile_prompt
+  - 否则，compile_prompt 处理文件内容再 copy （现状）
+- 其它文件： 直接 copy 文件
+
+---
+
+如设计文档：
+- docs/impl-spec/search/memory-vault-search-spec.md
+- docs/impl-spec/search/memory-vault-embedding-spec.md
+
+现在会索引 $workspace/memory/languages/en/vault 下的所有目录。
+
+现计划修改成：
+只索引 $workspace/memory/languages/en/vault/items 下的所有目录和文件。包括子目录。
+但不要索引 $workspace/memory/languages/en/vault/items/**/index.md 。即不要索引所有 index.md 文件。
+
+
+
+---
+
+现在的 src/everlingo/mem/vault/mcp_server/mcp_server.py:304 的 create_vault_tool() 只 copy 了 src/everlingo/mem/vault/templates/default/spec/*.md  到 $workspace/memory/languages/$lang/vault/spec 。 
+
+计划修改成 copy src/everlingo/mem/vault/templates/default/* （包括子目录和文件） 到 $workspace/memory/languages/$lang/vault/ 
+
+---
+
 评估一下影响和方案：
 把 src/everlingo/mem/vault/vault_specs/default 目录重命名为 src/everlingo/mem/vault/templates/default/spec
 

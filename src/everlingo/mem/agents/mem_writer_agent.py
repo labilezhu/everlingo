@@ -483,10 +483,31 @@ def _parse_write_confirmation(
     import json
     import re
 
+    import logging
+
+    logger = logging.getLogger(__name__)
+
     for msg in reversed(messages):
         if not hasattr(msg, "content") or not msg.content:
             continue
-        content = msg.content.strip()
+
+        raw = msg.content
+        if isinstance(raw, list):
+            parts = []
+            for block in raw:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    parts.append(block.get("text", ""))
+                elif isinstance(block, str):
+                    parts.append(block)
+            content = "".join(parts).strip()
+        elif isinstance(raw, str):
+            content = raw.strip()
+        else:
+            logger.warning("_parse_write_confirmation: unexpected msg.content type=%s", type(raw))
+            continue
+
+        if not content:
+            continue
 
         # Try fenced JSON block first
         m = re.search(r"```(?:json)?\s*([\s\S]*?)```", content)

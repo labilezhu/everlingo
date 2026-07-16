@@ -620,18 +620,32 @@ def test_create_vault_creates_dir_and_spec(fresh_workspace):
         assert r.data["lang"] == target_lang
         assert r.data["vault_path"] == f"memory/languages/{target_lang}/vault"
         assert r.data["created"] is True
-        assert r.data["spec_written"] is True
+        assert r.data["files_written"] > 0
         assert r.data["registered"] is True
-        # 文件系统副作用
+        # 文件系统副作用：spec/*.md 编译写入
         assert expected_vault.is_dir()
         spec_dir = expected_vault / "spec"
         assert spec_dir.is_dir()
         for name in ("vault_spec.md", "events_spec.md", "kb_items_spec_vocab.md",
                       "kb_items_spec_phrase.md", "mem_entry_spec.md"):
             assert (spec_dir / name).is_file()
+        # spec/index.md 含 frontmatter → 原样 copy，frontmatter 保留
+        idx = spec_dir / "index.md"
+        assert idx.is_file()
+        idx_content = idx.read_text(encoding="utf-8")
+        assert idx_content.startswith("---\n")
+        assert "title: 知识库规范" in idx_content
         content = (spec_dir / "vault_spec.md").read_text(encoding="utf-8")
         assert "# 单语言 Memory Vault Spec" in content
         assert "知识点类 memory items" in content
+        # items/**/* raw-copied
+        items_dir = expected_vault / "items"
+        assert items_dir.is_dir()
+        for cat in ("vocab", "grammar", "phrase", "pragmatics", "others"):
+            idx = items_dir / cat / "index.md"
+            assert idx.is_file(), f"missing items/{cat}/index.md"
+            raw = idx.read_text(encoding="utf-8")
+            assert raw.startswith("---\ntitle:"), f"frontmatter stripped in items/{cat}/index.md"
 
     with factory(body):
         pass
@@ -653,18 +667,22 @@ def test_create_vault_idempotent(fresh_workspace):
         r1 = await c.call_tool("create_vault", {"lang": target_lang})
         assert r1.is_error is False
         assert r1.data["created"] is True
-        assert r1.data["spec_written"] is True
+        assert r1.data["files_written"] > 0
         original_content = expected_spec_path.read_text(encoding="utf-8")
         # 修改 vault_spec.md（模拟用户/外部编辑）
         expected_spec_path.write_text("USER EDITED\n", encoding="utf-8")
+        # 修改 items/vocab/index.md（模拟用户/外部编辑）
+        items_vocab_idx = expected_vault / "items" / "vocab" / "index.md"
+        items_vocab_idx.write_text("USER EDITED ITEMS\n", encoding="utf-8")
         # 第二次：幂等
         r2 = await c.call_tool("create_vault", {"lang": target_lang})
         assert r2.is_error is False
         assert r2.data["created"] is False
-        assert r2.data["spec_written"] is False
+        assert r2.data["files_written"] == 0
         assert r2.data["registered"] is True
-        # 第二次未覆盖文件
+        # 第二次未覆盖任何文件
         assert expected_spec_path.read_text(encoding="utf-8") == "USER EDITED\n"
+        assert items_vocab_idx.read_text(encoding="utf-8") == "USER EDITED ITEMS\n"
         # 第一次的内容
         assert original_content.startswith("# 单语言 Memory Vault Spec")
         # 其余 spec 文件 also untouched
