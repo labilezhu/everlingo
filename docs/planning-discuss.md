@@ -1,4 +1,9 @@
 
+评估一下影响和方案：
+把 src/everlingo/mem/vault/vault_specs/default 目录重命名为 src/everlingo/mem/vault/templates/default/spec
+
+---
+
 按照设计文档
 docs/impl-spec/wiki/wiki-spec.md 
 

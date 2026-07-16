@@ -39,7 +39,7 @@ from everlingo.utils.md_prompt_compiler import (
     compile_prompt,
 )
 
-_VAULT_SPEC_PACKAGE = "everlingo.mem.vault.vault_specs.default"
+_VAULT_SPEC_PACKAGE = "everlingo.mem.vault.templates.default.spec"
 
 logger = logging.getLogger("everlingo.mem.vault.mcp_server")
 
@@ -290,7 +290,7 @@ def create_mcp_app(state: AppState) -> FastMCP:
         description=(
             "Create and initialize a new target-learning-language vault directory "
             "at $workspace/memory/languages/$lang/vault/ and seed it with "
-            "spec/*.md (synthesized from vault_specs/default/*.md with includes "
+            "spec/*.md (synthesized from templates/default/spec/*.md with includes "
             "expanded). "
             "After creation, the lang is synchronously registered with the indexer's "
             "LangState so subsequent session.configure(lang=$lang) + search works "

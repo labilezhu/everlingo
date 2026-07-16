@@ -223,7 +223,7 @@ def test_absolute_path_promotes_outside_package() -> None:
 
 def test_package_source_resolves_to_real_pkg_file() -> None:
     """Compile the in-tree vault_spec.md via PackageSource."""
-    src = PackageSource(package="everlingo.mem.vault.vault_specs.default")
+    src = PackageSource(package="everlingo.mem.vault.templates.default.spec")
     out = compile_prompt("vault_spec.md", src)
     assert "单语言 Memory Vault Spec" in out
     assert "vocab" in out

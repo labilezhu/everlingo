@@ -153,7 +153,7 @@ class ExtractInput:
 
 ## 输出规范
 
-见： [Memory Extract Agent 输出规范](/src/everlingo/mem/vault/vault_specs/default/memory_extract_output_spec.md)
+见： [Memory Extract Agent 输出规范](/src/everlingo/mem/vault/templates/default/spec/memory_extract_output_spec.md)
 
 ### 日志要求
 输出的所有 entries ，都需要有 info 级别的日志输出所有字段的内容。

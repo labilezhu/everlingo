@@ -33,7 +33,7 @@ tools:
     description: |
       Create and initialize a new target-learning-language vault directory at
       $workspace/memory/languages/$lang/vault/ and seed it with spec/*.md
-      (copied from vault_specs/default/*.md with includes expanded via
+      (copied from templates/default/spec/*.md with includes expanded via
       everlingo.utils.md_prompt_compiler.compile_prompt + PackageSource,
       matching the same approach as mem_writer_agent.py:67 but without
       shift_headings — each spec file is a standalone top-level document).

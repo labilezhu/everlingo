@@ -49,7 +49,7 @@ from everlingo.utils.md_prompt_compiler import PackageSource, compile_prompt
 @pytest.fixture
 def mem_entry_spec_text():
     """从打包默认值编译真实 mem_entry_spec.md 文本，用作 _build_writer_system_prompt 的测试输入。"""
-    source = PackageSource(package="everlingo.mem.vault.vault_specs.default")
+    source = PackageSource(package="everlingo.mem.vault.templates.default.spec")
     return compile_prompt("mem_entry_spec.md", source)
 
 

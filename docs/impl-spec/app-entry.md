@@ -12,7 +12,7 @@ src/everlingo/main.py 应该实现为与 命令入口 `gateway --channel_stdio `
 
 ## wiki
 
-位于 `/src/everlingo/wiki/cli.py` 。把 [Memory Vault](/src/everlingo/mem/vault/vault_specs/default/vault_spec.md) 渲染成可浏览的静态网站。说明见 [wiki-spec.md](/docs/impl-spec/wiki/wiki-spec.md)
+位于 `/src/everlingo/wiki/cli.py` 。把 [Memory Vault](/src/everlingo/mem/vault/templates/default/spec/vault_spec.md) 渲染成可浏览的静态网站。说明见 [wiki-spec.md](/docs/impl-spec/wiki/wiki-spec.md)
 
 ```bash
 # 构建静态站点到 $workspace/.wiki-dist/
