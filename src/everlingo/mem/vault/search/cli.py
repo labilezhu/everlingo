@@ -21,6 +21,7 @@ from pathlib import Path
 
 from .... import workspace
 from .client import SearchClient
+from .indexer import is_excluded_vault_file
 
 logger = logging.getLogger(__name__)
 
@@ -168,15 +169,14 @@ def cmd_reindex(args: argparse.Namespace) -> int:
     target = args.path
     if target is None:
         files = sorted(memory_root.rglob("*.md"))
-        # 排除 tmp/
-        files = [f for f in files if "tmp" not in f.relative_to(memory_root).parts]
+        files = [f for f in files if not is_excluded_vault_file(f, memory_root)]
     else:
         p = (memory_root / target).resolve() if not Path(target).is_absolute() else Path(target).resolve()
         if p.is_file() and p.suffix == ".md":
             files = [p]
         elif p.is_dir():
             files = sorted(p.rglob("*.md"))
-            files = [f for f in files if "tmp" not in f.relative_to(memory_root).parts]
+            files = [f for f in files if not is_excluded_vault_file(f, memory_root)]
         else:
             print(f"PATH 既不是文件也不是目录: {target}", file=sys.stderr)
             return 1

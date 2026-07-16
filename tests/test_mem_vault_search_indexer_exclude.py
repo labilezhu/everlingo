@@ -24,6 +24,29 @@ def test_excludes_tmp_subdirectory(tmp_path: Path) -> None:
     assert "draft.md" not in paths
 
 
+def test_excludes_index_md(tmp_path: Path) -> None:
+    """index.md（vault 保留文件名，类别导航页）不应被索引。"""
+    memory_root = tmp_path
+    _touch(memory_root / "items" / "vocab" / "a--01JZH0010.md")
+    _touch(memory_root / "items" / "vocab" / "index.md")
+    paths = [p.name for p in walk_vault(memory_root)]
+    assert "a--01JZH0010.md" in paths
+    assert "index.md" not in paths
+
+
+def test_excludes_index_md_nested(tmp_path: Path) -> None:
+    """index.md 即便在子目录（如 items/vocab/）也应被排除（按 basename）。"""
+    memory_root = tmp_path
+    _touch(memory_root / "items" / "vocab" / "index.md", "nav")
+    _touch(memory_root / "items" / "vocab" / "a--01JZH0011.md")
+    assert is_excluded_vault_file(
+        memory_root / "items" / "vocab" / "index.md", memory_root
+    )
+    assert not is_excluded_vault_file(
+        memory_root / "items" / "vocab" / "a--01JZH0011.md", memory_root
+    )
+
+
 def test_excludes_vault_spec_md(tmp_path: Path) -> None:
     memory_root = tmp_path
     _touch(memory_root / "items" / "vocab" / "a--01JZH0002.md")

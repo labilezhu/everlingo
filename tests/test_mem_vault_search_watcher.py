@@ -118,3 +118,25 @@ def test_watcher_skips_spec_dir(tmp_path: Path):
     finally:
         w.stop()
         conn.close()
+
+
+def test_watcher_skips_index_md(tmp_path: Path):
+    """index.md（vault 保留文件名）写入不触发 watcher 索引。"""
+    db_path = tmp_path / "index" / "memory.sqlite"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    memory_root = tmp_path / "memory"
+    memory_root.mkdir()
+
+    conn = sqlite3.connect(str(db_path), check_same_thread=False)
+    conn.execute("PRAGMA foreign_keys=ON")
+    init_db(conn)
+    w = VaultWatcher(conn, memory_root, "en")
+    w.start()
+    try:
+        index_dir = memory_root / "items" / "vocab"
+        index_dir.mkdir(parents=True, exist_ok=True)
+        (index_dir / "index.md").write_text("---\ntitle: 语法索引\n---\n\n导航页\n", encoding="utf-8")
+        assert _wait_until(lambda: count_docs(conn) == 0, timeout=DEBOUNCE_SECONDS + 2.0)
+    finally:
+        w.stop()
+        conn.close()

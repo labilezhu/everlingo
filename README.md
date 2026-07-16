@@ -192,6 +192,8 @@ Everlingo 是个分体式应用，包括两个进程：
 export OPENAI_API_KEY=sk-xxxxf98300
 export OPENAI_BASE_URL=https://openrouter.ai/api/v1 
 export OPENAI_MODEL=deepseek/deepseek-v4-flash
+# Embedding 模型
+OPENAI_EMBEDDING_MODEL=qwen/qwen3-embedding-8b
 
 uv run python -m everlingo mem indexer start
 ```
@@ -206,6 +208,8 @@ TUI:
 export OPENAI_API_KEY=sk-xxxxf98300
 export OPENAI_BASE_URL=https://openrouter.ai/api/v1 
 export OPENAI_MODEL=deepseek/deepseek-v4-flash
+# Embedding 模型
+OPENAI_EMBEDDING_MODEL=qwen/qwen3-embedding-8b
 
 uv run python -m everlingo.main
 # or

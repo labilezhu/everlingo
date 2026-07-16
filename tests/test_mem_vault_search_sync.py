@@ -134,3 +134,17 @@ def test_reconcile_skips_spec_subdirectory(db_path: Path, memory_root: Path):
     assert count_docs(conn) == 1
     rows = conn.execute("SELECT file_path FROM documents").fetchall()
     assert all("spec/" not in r[0] for r in rows)
+
+
+def test_reconcile_skips_index_md(db_path: Path, memory_root: Path):
+    """index.md（vault 保留文件名）不应被索引。"""
+    _write_item(memory_root, "a11.md", "01JZB0011")
+    index_dir = memory_root / "items" / "vocab"
+    index_dir.mkdir(parents=True, exist_ok=True)
+    (index_dir / "index.md").write_text("---\ntitle: 语法索引\n---\n\n导航页\n", encoding="utf-8")
+    conn = open_db(db_path)
+    result = reconcile(conn, memory_root, "en")
+    assert result.indexed == 1
+    assert count_docs(conn) == 1
+    rows = conn.execute("SELECT file_path FROM documents").fetchall()
+    assert all("index.md" not in r[0] for r in rows)

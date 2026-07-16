@@ -644,11 +644,12 @@ def walk_vault(memory_root: Path) -> Iterable[Path]:
 # ref: docs/impl-spec/vault-mcp/vault-mcp-spec.md — VAULT_SPEC.md 与 spec/
 # 由 MCP `create_vault` 工具写入，承载 vault_spec.md 展开 include 后的规范说明。
 # spec/ 子目录整体排除；VAULT_SPEC.md（老 vault 根级文件）仍按 filename 向后兼容排除。
-_EXCLUDED_VAULT_FILENAMES: frozenset[str] = frozenset({"VAULT_SPEC.md"})
+# index.md 为 vault 保留文件名（类别导航页 / wiki builder 临时根 index），也在任意深度排除。
+_EXCLUDED_VAULT_FILENAMES: frozenset[str] = frozenset({"VAULT_SPEC.md", "index.md"})
 
 
 def is_excluded_vault_file(abs_path: Path, memory_root: Path) -> bool:
-    """vault 元文件 / spec/ 子目录 / tmp/ 子目录 → 不索引。
+    """vault 元文件 / spec/ 子目录 / tmp/ 子目录 / index.md → 不索引。
 
     供 walk_vault / sync.reconcile / watcher._dispatch 统一收口，
     避免在三个调用点各自重复排除规则。
