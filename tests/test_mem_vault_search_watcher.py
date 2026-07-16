@@ -23,11 +23,13 @@ def _wait_until(predicate, timeout: float = 5.0, interval: float = 0.05):
     return False
 
 
-def _write_item(memory_root: Path, name: str, ulid: str, body: str = "x") -> Path:
-    """写 kb item 文件。新布局：不含 {lang}/ 前缀。"""
+def _write_item(memory_root: Path, name: str, ulid: str, body: str = "x", slug: str | None = None) -> Path:
+    """写 kb item 文件。新布局：不含 {lang}/ 前缀。文件名即 {slug}.md。"""
     p = memory_root / "items" / "vocab" / name
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(f"---\nulid: {ulid}\nslug: {name.split('--')[0]}\ntype: vocab\n---\n\n{body}", encoding="utf-8")
+    if slug is None:
+        slug = Path(name).stem
+    p.write_text(f"---\nulid: {ulid}\nslug: {slug}\ntype: vocab\n---\n\n{body}", encoding="utf-8")
     return p
 
 
@@ -43,7 +45,7 @@ def test_watcher_indexes_new_file(tmp_path: Path):
     w = VaultWatcher(conn, memory_root, "en")
     w.start()
     try:
-        p = _write_item(memory_root, "a--01JZW0001.md", "01JZW0001")
+        p = _write_item(memory_root, "a.md", "01JZW0001")
         ok = _wait_until(lambda: count_docs(conn) == 1, timeout=DEBOUNCE_SECONDS + 3.0)
         assert ok, "watcher did not index new file in time"
     finally:
@@ -63,7 +65,7 @@ def test_watcher_delete_removes_row(tmp_path: Path):
     w = VaultWatcher(conn, memory_root, "en")
     w.start()
     try:
-        p = _write_item(memory_root, "a--01JZW0002.md", "01JZW0002")
+        p = _write_item(memory_root, "a.md", "01JZW0002")
         assert _wait_until(lambda: count_docs(conn) == 1, timeout=DEBOUNCE_SECONDS + 3.0)
 
         p.unlink()

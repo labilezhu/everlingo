@@ -3,6 +3,7 @@
 # 子命令：
 #   everlingo mem ...     memory vault 搜索索引维护
 #   everlingo gateway ... 显式启动 gateway 进程
+#   everlingo wiki ...    wiki 知识库静态站构建与服务
 
 import argparse
 import asyncio
@@ -100,6 +101,30 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_reindex.add_argument("--rebuild", action="store_true", help="完全删除 index，从零重建")
     p_reindex.add_argument("-v", "--verbose", action="store_true", help="逐文件输出")
+    # wiki 子命令
+    p_wiki = sub.add_parser("wiki", help="wiki 知识库静态站构建与服务")
+    _add_workspace_args(p_wiki)
+    wiki_sub = p_wiki.add_subparsers(dest="wiki_cmd", required=True)
+    p_build = wiki_sub.add_parser("build", help="构建 wiki 静态站")
+    _add_workspace_args(p_build)
+    p_build.add_argument(
+        "--dist",
+        default=None,
+        help="输出目录（默认 $workspace/.wiki-dist）",
+    )
+    p_serve = wiki_sub.add_parser("serve", help="启动 wiki web 服务（阻塞）")
+    _add_workspace_args(p_serve)
+    p_serve.add_argument(
+        "--dist",
+        default=None,
+        help="构建产物目录（默认 $workspace/.wiki-dist）",
+    )
+    p_serve.add_argument(
+        "--port",
+        type=int,
+        default=8765,
+        help="监听端口（默认 8765）",
+    )
     return parser
 
 
@@ -124,6 +149,17 @@ def _dispatch(args: argparse.Namespace) -> int:
             from .mem.vault.search.cli import cmd_reindex
 
             return cmd_reindex(args)
+        return 2
+    if args.cmd == "wiki":
+        _apply_workspace_args(args)
+        if args.wiki_cmd == "build":
+            from .wiki.cli import cmd_build
+
+            return cmd_build(args)
+        if args.wiki_cmd == "serve":
+            from .wiki.cli import cmd_serve
+
+            return cmd_serve(args)
         return 2
     # 无子命令：向后兼容 = stdio gateway
     _apply_workspace_args(args)

@@ -96,7 +96,7 @@ def _write_kb_item(memory_root: Path, name: str, front: dict, body: str = "正�
 def test_parse_file_kb_item(memory_root: Path):
     p = _write_kb_item(
         memory_root,
-        "aimai--01JZABD123.md",
+        "aimai.md",
         {
             "ulid": "01JZABD123",
             "slug": "aimai",
@@ -140,7 +140,7 @@ def test_parse_file_events(memory_root: Path):
 def test_index_file_inserts_doc_fts_chunks(conn: sqlite3.Connection, memory_root: Path):
     p = _write_kb_item(
         memory_root,
-        "computer--01JZABD789.md",
+        "computer.md",
         {
             "ulid": "01JZABD789",
             "slug": "computer",
@@ -181,7 +181,7 @@ def test_index_file_idempotent_no_change(conn: sqlite3.Connection, memory_root: 
     """content_hash 未变 → 重新 index_file 也不应改变 documents 行内容。"""
     p = _write_kb_item(
         memory_root,
-        "x--01JZABD999.md",
+        "x999.md",
         {"ulid": "01JZABD999", "slug": "x", "type": "vocab"},
         body="body",
     )
@@ -197,7 +197,7 @@ def test_index_file_content_hash_short_circuit_preserves_chunks(
     """touch 未变内容 → chunk_id 保持不变，chunks 计数不变。"""
     p = _write_kb_item(
         memory_root,
-        "y--01JZABD1FF.md",
+        "y1ff.md",
         {"ulid": "01JZABD1FF", "slug": "y", "type": "vocab", "seen_count": 1},
         body="## 解释\noriginal body",
     )
@@ -231,7 +231,7 @@ def test_index_file_content_change_rebuilds_chunks(
     """content_hash 变了 → 走原 DELETE+重建路径，chunks 内容更新。"""
     p = _write_kb_item(
         memory_root,
-        "z--01JZABD200.md",
+        "z200.md",
         {"ulid": "01JZABD200", "slug": "z", "type": "vocab"},
         body="## 解释\nv1",
     )
@@ -263,7 +263,7 @@ def test_index_file_content_change_rebuilds_chunks(
 def test_index_file_update_changes_hash(conn: sqlite3.Connection, memory_root: Path):
     p = _write_kb_item(
         memory_root,
-        "x--01JZABD998.md",
+        "x998.md",
         {"ulid": "01JZABD998", "slug": "x", "type": "vocab"},
         body="old",
     )
@@ -301,7 +301,7 @@ def test_index_file_events_kind_event_ulid(conn: sqlite3.Connection, memory_root
 def test_delete_file_cascades_chunks(conn: sqlite3.Connection, memory_root: Path):
     p = _write_kb_item(
         memory_root,
-        "x--01JZABD997.md",
+        "x997.md",
         {"ulid": "01JZABD997", "slug": "x", "type": "vocab"},
         body="## 例句\nfoo",
     )
@@ -316,7 +316,7 @@ def test_delete_file_cascades_chunks(conn: sqlite3.Connection, memory_root: Path
 def test_delete_by_ulid(conn: sqlite3.Connection, memory_root: Path):
     p = _write_kb_item(
         memory_root,
-        "x--01JZABD996.md",
+        "x996.md",
         {"ulid": "01JZABD996", "slug": "x", "type": "vocab"},
         body="x",
     )
@@ -386,7 +386,7 @@ def test_parse_file_tolerates_title_with_embedded_quotes(memory_root: Path):
     """log 真实 case: `title: "god" 释义`"""
     p = _write_kb_item_raw(
         memory_root,
-        "god--01KWDV.md",
+        "god.md",
         'ulid: 01KWDV\ntype: vocab\nheadword: god\ntitle: "god" 释义',
     )
     parsed = parse_file(p, memory_root, "en")
@@ -399,7 +399,7 @@ def test_parse_file_tolerates_intro_with_colon_in_value(memory_root: Path):
     """log 真实 case: `description_in_target_lang: ... "for" and "since": duration vs point in time`"""
     p = _write_kb_item_raw(
         memory_root,
-        "x--01KWBS.md",
+        "xkwbs.md",
         (
             "ulid: 01KWBS\n"
             "type: grammar\n"
@@ -416,7 +416,7 @@ def test_parse_file_tolerates_intro_with_colon_before_quotes(memory_root: Path):
     """log 真实 case: `description_in_target_lang: Subject-verb agreement: "I" takes ...`"""
     p = _write_kb_item_raw(
         memory_root,
-        "y--01KWB7.md",
+        "ykwb7.md",
         (
             "ulid: 01KWB7\n"
             "type: grammar\n"
@@ -480,7 +480,7 @@ def test_index_file_frontmatter_chunks_prepended(conn: sqlite3.Connection, memor
     """index_file 写入的 chunks 中 frontmatter chunk 排在 body chunk 之前。"""
     p = _write_kb_item(
         memory_root,
-        "aimai--01JZABD123.md",
+        "aimai.md",
         {
             "ulid": "01JZABD123",
             "slug": "aimai",
@@ -519,7 +519,7 @@ def test_index_file_frontmatter_chunks_content_hash_triggers_rebuild(
     """仅 frontmatter 改变（body 不变）→ content_hash 变 → chunks 重建。"""
     p = _write_kb_item(
         memory_root,
-        "x--01JZABD300.md",
+        "x300.md",
         {
             "ulid": "01JZABD300",
             "slug": "x",
@@ -554,7 +554,7 @@ def test_rebuild_fts_includes_frontmatter_chunks(conn: sqlite3.Connection, memor
     """rebuild_fts 重建的 chunks 也含 frontmatter chunk。"""
     p = _write_kb_item(
         memory_root,
-        "x--01JZABD301.md",
+        "x301.md",
         {
             "ulid": "01JZABD301",
             "slug": "x",
@@ -630,7 +630,7 @@ def _count_doc_tags(conn: sqlite3.Connection) -> list[tuple[str, int]]:
 def test_index_file_populates_document_tags(conn: sqlite3.Connection, memory_root: Path):
     p = _write_kb_item(
         memory_root,
-        "t1--01JZATAG1.md",
+        "t1.md",
         {"ulid": "01JZATAG1", "slug": "t1", "type": "vocab", "headword": "foo",
          "tags": ["adjective", "confusing"]},
     )
@@ -645,7 +645,7 @@ def test_index_file_populates_document_tags(conn: sqlite3.Connection, memory_roo
 def test_index_file_upsert_replaces_tags(conn: sqlite3.Connection, memory_root: Path):
     p = _write_kb_item(
         memory_root,
-        "t2--01JZATAG2.md",
+        "t2.md",
         {"ulid": "01JZATAG2", "slug": "t2", "type": "vocab", "headword": "bar",
          "tags": ["a", "b"]},
     )
@@ -655,7 +655,7 @@ def test_index_file_upsert_replaces_tags(conn: sqlite3.Connection, memory_root: 
     # 改 tags 后重索引
     p2 = _write_kb_item(
         memory_root,
-        "t2--01JZATAG2.md",
+        "t2.md",
         {"ulid": "01JZATAG2", "slug": "t2", "type": "vocab", "headword": "bar",
          "tags": ["b", "c"]},
     )
@@ -671,7 +671,7 @@ def test_index_file_upsert_replaces_tags(conn: sqlite3.Connection, memory_root: 
 def test_index_file_no_tags_empty_table(conn: sqlite3.Connection, memory_root: Path):
     p = _write_kb_item(
         memory_root,
-        "t3--01JZATAG3.md",
+        "t3.md",
         {"ulid": "01JZATAG3", "slug": "t3", "type": "vocab", "headword": "baz"},
     )
     index_file(conn, parse_file(p, memory_root, "en"))
@@ -681,7 +681,7 @@ def test_index_file_no_tags_empty_table(conn: sqlite3.Connection, memory_root: P
 def test_delete_file_cascades_document_tags(conn: sqlite3.Connection, memory_root: Path):
     p = _write_kb_item(
         memory_root,
-        "t4--01JZATAG4.md",
+        "t4.md",
         {"ulid": "01JZATAG4", "slug": "t4", "type": "vocab", "headword": "qux",
          "tags": ["delete_me"]},
     )

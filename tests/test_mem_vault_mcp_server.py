@@ -141,8 +141,9 @@ def fresh_workspace(tmp_path: Path, monkeypatch):
 def _write_kb_item(memory_root: Path, name: str, ulid: str, body: str) -> Path:
     p = memory_root / "items" / "vocab" / name
     p.parent.mkdir(parents=True, exist_ok=True)
+    slug = Path(name).stem
     p.write_text(
-        f"---\nulid: {ulid}\nslug: {name.split('--')[0]}\ntype: vocab\ntitle: {name.split('--')[0]}\n---\n\n{body}",
+        f"---\nulid: {ulid}\nslug: {slug}\ntype: vocab\ntitle: {slug}\n---\n\n{body}",
         encoding="utf-8",
     )
     return p
@@ -264,14 +265,14 @@ def test_session_configure_then_ls_read_write(mcp_client, memory_root: Path):
 
         r = await c.call_tool(
             "write",
-            {"path": "items/vocab/hello--01JZDMC01.md", "content": "# hello\n"},
+            {"path": "items/vocab/hello.md", "content": "# hello\n"},
         )
         assert r.is_error is False
         assert r.data["ok"] is True
         assert r.data["bytes_written"] == 8
 
         r = await c.call_tool(
-            "read", {"path": "items/vocab/hello--01JZDMC01.md"}
+            "read", {"path": "items/vocab/hello.md"}
         )
         assert r.is_error is False
         assert r.data["content"] == "# hello\n"
@@ -280,7 +281,7 @@ def test_session_configure_then_ls_read_write(mcp_client, memory_root: Path):
         r = await c.call_tool("ls", {"path": "items/vocab"})
         assert r.is_error is False
         names = [e["name"] for e in r.data["entries"]]
-        assert "hello--01JZDMC01.md" in names
+        assert "hello.md" in names
 
     with mcp_client(body):
         pass
@@ -293,7 +294,7 @@ def test_write_normalizes_frontmatter(mcp_client, memory_root: Path):
     """写含坏 frontmatter（裸冒号 / 缺引号等）的内容；落盘后 yaml.safe_load 仍可解析。"""
     import yaml
 
-    rel = "items/vocab/bad-fm--01JZDMC99.md"
+    rel = "items/vocab/bad-fm.md"
     # 故意写坏：headword 值含冒号但未加引号；多出 : 的键
     bad_content = (
         "---\n"
@@ -419,7 +420,7 @@ def test_path_escape_rejected(mcp_client):
 
 def test_search_hybrid_returns_hits(mcp_client, memory_root: Path):
     """写一个 kb item → search 命中 → 字段齐全。"""
-    _write_kb_item(memory_root, "god--01JZDMC02.md", "01JZDMC02", "deity supreme being")
+    _write_kb_item(memory_root, "god.md", "01JZDMC02", "deity supreme being")
 
     async def body(c: Client) -> None:
         r = await c.call_tool("session.configure", {"lang": "en"})
@@ -450,7 +451,7 @@ def test_search_lang_param_overrides_session(mcp_client, tmp_path: Path, monkeyp
     """session=en，传 lang=ja 跨 lang 检索。"""
     ja_vault = tmp_path / "memory" / "languages" / "ja" / "vault"
     ja_vault.mkdir(parents=True)
-    _write_kb_item(ja_vault, "ai--01JZDMC03.md", "01JZDMC03", "あいまい ambiguous")
+    _write_kb_item(ja_vault, "ai.md", "01JZDMC03", "あいまい ambiguous")
 
     async def body(c: Client) -> None:
         r = await c.call_tool("session.configure", {"lang": "en"})
@@ -486,7 +487,7 @@ def test_session_reconfigure_switches_lang(mcp_client, memory_root: Path):
         r = await c.call_tool("session.configure", {"lang": "en"})
         assert r.is_error is False
         r = await c.call_tool(
-            "write", {"path": "en-file--01JZDMC04.md", "content": "en"}
+            "write", {"path": "en-file.md", "content": "en"}
         )
         assert r.is_error is False
 
@@ -494,12 +495,12 @@ def test_session_reconfigure_switches_lang(mcp_client, memory_root: Path):
         assert r.is_error is False
         assert r.data["lang"] == "ja"
         r = await c.call_tool(
-            "write", {"path": "ja-file--01JZDMC05.md", "content": "ja"}
+            "write", {"path": "ja-file.md", "content": "ja"}
         )
         assert r.is_error is False
         ja_vault = workspace.lang_vault_dir("ja")
-        assert (ja_vault / "ja-file--01JZDMC05.md").exists()
-        assert not (memory_root / "ja-file--01JZDMC05.md").exists()
+        assert (ja_vault / "ja-file.md").exists()
+        assert not (memory_root / "ja-file.md").exists()
 
     with mcp_client(body):
         pass
@@ -515,7 +516,7 @@ def test_structured_content_equals_text(mcp_client, memory_root: Path):
         r = await c.call_tool("session.configure", {"lang": "en"})
         assert r.is_error is False
         r = await c.call_tool(
-            "write", {"path": "x--01JZDMC06.md", "content": "abc"}
+            "write", {"path": "x.md", "content": "abc"}
         )
         assert r.is_error is False
         text = r.content[0].text
@@ -974,19 +975,20 @@ def test_compile_prompt_content_matches_structured_content(
 def _write_item_with_tags(memory_root: Path, name: str, ulid: str, tags_list: list[str]) -> Path:
     p = memory_root / "items" / "vocab" / name
     p.parent.mkdir(parents=True, exist_ok=True)
+    slug = Path(name).stem
     tags_yaml = "\n".join(f"  - {t}" for t in tags_list)
     p.write_text(
-        f"---\nulid: {ulid}\nslug: {name.split('--')[0]}\ntype: vocab\n"
-        f"title: {name.split('--')[0]}\ntags:\n{tags_yaml}\n---\n\nbody",
+        f"---\nulid: {ulid}\nslug: {slug}\ntype: vocab\n"
+        f"title: {slug}\ntags:\n{tags_yaml}\n---\n\nbody",
         encoding="utf-8",
     )
     return p
 
 
 def test_mcp_list_tags_returns_counts(mcp_client, memory_root: Path):
-    _write_item_with_tags(memory_root, "ta--01JZLTA01.md", "01JZLTA01", ["food"])
-    _write_item_with_tags(memory_root, "tb--01JZLTA02.md", "01JZLTA02", ["travel"])
-    _write_item_with_tags(memory_root, "tc--01JZLTA03.md", "01JZLTA03", ["food", "travel"])
+    _write_item_with_tags(memory_root, "ta.md", "01JZLTA01", ["food"])
+    _write_item_with_tags(memory_root, "tb.md", "01JZLTA02", ["travel"])
+    _write_item_with_tags(memory_root, "tc.md", "01JZLTA03", ["food", "travel"])
 
     async def body(c: Client) -> None:
         r = await c.call_tool("session.configure", {"lang": "en"})
@@ -1012,7 +1014,7 @@ def test_mcp_list_tags_returns_counts(mcp_client, memory_root: Path):
 
 
 def test_mcp_list_tags_kind_filter(mcp_client, memory_root: Path):
-    _write_item_with_tags(memory_root, "td--01JZLTA04.md", "01JZLTA04", ["filter_me"])
+    _write_item_with_tags(memory_root, "td.md", "01JZLTA04", ["filter_me"])
 
     async def body(c: Client) -> None:
         r = await c.call_tool("session.configure", {"lang": "en"})
@@ -1030,8 +1032,8 @@ def test_mcp_list_tags_kind_filter(mcp_client, memory_root: Path):
 
 
 def test_mcp_search_tags_op_or(mcp_client, memory_root: Path):
-    _write_item_with_tags(memory_root, "te--01JZLTA05.md", "01JZLTA05", ["cats"])
-    _write_item_with_tags(memory_root, "tf--01JZLTA06.md", "01JZLTA06", ["dogs"])
+    _write_item_with_tags(memory_root, "te.md", "01JZLTA05", ["cats"])
+    _write_item_with_tags(memory_root, "tf.md", "01JZLTA06", ["dogs"])
 
     async def body(c: Client) -> None:
         r = await c.call_tool("session.configure", {"lang": "en"})

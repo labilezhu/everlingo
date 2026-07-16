@@ -30,7 +30,7 @@ class EventFileMeta:
     month: str
 
 
-# 新路径 pattern：items/{item_type}/{slug}--{ulid}.md（相对 lang vault）
+# 新路径 pattern：items/{item_type}/{slug}.md（相对 lang vault；ulid 仅存于 frontmatter）
 _KB_ITEM_PATH_RE = re.compile(
     r"^items/(?P<item_type>[^/]+)/(?P<filename>[^/]+\.md)$"
 )

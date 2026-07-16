@@ -34,11 +34,13 @@ def conn(tmp_path: Path) -> sqlite3.Connection:
     c.close()
 
 
-def _write_item(memory_root: Path, name: str, ulid: str, type_: str, headword: str, title: str, body: str, lang: str = "en", tags: str = "") -> Path:
-    """写 kb item 文件。新布局：不含 {lang}/ 前缀。"""
+def _write_item(memory_root: Path, name: str, ulid: str, type_: str, headword: str, title: str, body: str, lang: str = "en", tags: str = "", slug: str | None = None) -> Path:
+    """写 kb item 文件。新布局：不含 {lang}/ 前缀。文件名即 {slug}.md。"""
     p = memory_root / "items" / type_ / name
     p.parent.mkdir(parents=True, exist_ok=True)
-    fm = f"---\nulid: {ulid}\nslug: {name.split('--')[0]}\ntype: {type_}\nheadword: {headword}\ntitle: {title}\n"
+    if slug is None:
+        slug = Path(name).stem
+    fm = f"---\nulid: {ulid}\nslug: {slug}\ntype: {type_}\nheadword: {headword}\ntitle: {title}\n"
     if tags:
         fm += f"tags: {tags}\n"
     p.write_text(fm + f"---\n\n{body}", encoding="utf-8")
@@ -62,8 +64,8 @@ def test_search_exact_hit(conn: sqlite3.Connection, memory_root: Path):
 
 
 def test_search_field_filter_item_type(conn: sqlite3.Connection, memory_root: Path):
-    p1 = _write_item(memory_root, "b--01JZA0004.md", "01JZA0004", "vocab", "banana", "香蕉", "fruit")
-    p2 = _write_item(memory_root, "b--01JZA0005.md", "01JZA0005", "phrase", "banana republic", "香蕉共和国", "phrase")
+    p1 = _write_item(memory_root, "b4.md", "01JZA0004", "vocab", "banana", "香蕉", "fruit")
+    p2 = _write_item(memory_root, "b5.md", "01JZA0005", "phrase", "banana republic", "香蕉共和国", "phrase")
     index_file(conn, parse_file(p1, memory_root, "en"))
     index_file(conn, parse_file(p2, memory_root, "en"))
     hits = do_search(conn, "banana", lang="en", item_type="phrase", limit=10)
@@ -72,7 +74,7 @@ def test_search_field_filter_item_type(conn: sqlite3.Connection, memory_root: Pa
 
 
 def test_search_no_match_returns_empty(conn: sqlite3.Connection, memory_root: Path):
-    p = _write_item(memory_root, "c--01JZA0006.md", "01JZA0006", "vocab", "cherry", "樱桃", "fruit")
+    p = _write_item(memory_root, "c.md", "01JZA0006", "vocab", "cherry", "樱桃", "fruit")
     index_file(conn, parse_file(p, memory_root, "en"))
     hits = do_search(conn, "zzz_no_such_word", lang="en", limit=10)
     assert hits == []
@@ -92,7 +94,7 @@ def test_search_query_tokenize_consistency_zh(conn: sqlite3.Connection, memory_r
 
 def test_search_kind_filter_event(conn: sqlite3.Connection, memory_root: Path):
     # 加一个 item
-    p1 = _write_item(memory_root, "e--01JZA0008.md", "01JZA0008", "vocab", "event", "事件", "x")
+    p1 = _write_item(memory_root, "e.md", "01JZA0008", "vocab", "event", "事件", "x")
     index_file(conn, parse_file(p1, memory_root, "en"))
     # 加一个 events 文件（新布局：不含 {lang}/ 前缀）
     p2 = memory_root / "events" / "2026" / "06" / "2026-06-26.md"
@@ -112,9 +114,9 @@ def test_search_kind_filter_event(conn: sqlite3.Connection, memory_root: Path):
 
 
 def test_search_tags_and(conn: sqlite3.Connection, memory_root: Path):
-    p1 = _write_item(memory_root, "tag1--01JZAT01.md", "01JZAT01", "vocab", "tag1", "T1",
+    p1 = _write_item(memory_root, "tag1.md", "01JZAT01", "vocab", "tag1", "T1",
                      "body", tags="[a, b]")
-    p2 = _write_item(memory_root, "tag2--01JZAT02.md", "01JZAT02", "vocab", "tag2", "T2",
+    p2 = _write_item(memory_root, "tag2.md", "01JZAT02", "vocab", "tag2", "T2",
                      "body", tags="[a]")
     index_file(conn, parse_file(p1, memory_root, "en"))
     index_file(conn, parse_file(p2, memory_root, "en"))
@@ -124,9 +126,9 @@ def test_search_tags_and(conn: sqlite3.Connection, memory_root: Path):
 
 
 def test_search_tags_or(conn: sqlite3.Connection, memory_root: Path):
-    p1 = _write_item(memory_root, "tag3--01JZAT03.md", "01JZAT03", "vocab", "tag3", "T3",
+    p1 = _write_item(memory_root, "tag3.md", "01JZAT03", "vocab", "tag3", "T3",
                      "body", tags="[cats]")
-    p2 = _write_item(memory_root, "tag4--01JZAT04.md", "01JZAT04", "vocab", "tag4", "T4",
+    p2 = _write_item(memory_root, "tag4.md", "01JZAT04", "vocab", "tag4", "T4",
                      "body", tags="[dogs]")
     index_file(conn, parse_file(p1, memory_root, "en"))
     index_file(conn, parse_file(p2, memory_root, "en"))
@@ -135,9 +137,9 @@ def test_search_tags_or(conn: sqlite3.Connection, memory_root: Path):
 
 
 def test_search_tags_exact_no_substring(conn: sqlite3.Connection, memory_root: Path):
-    p1 = _write_item(memory_root, "tag5--01JZAT05.md", "01JZAT05", "vocab", "tag5", "T5",
+    p1 = _write_item(memory_root, "tag5.md", "01JZAT05", "vocab", "tag5", "T5",
                      "body", tags="travel")
-    p2 = _write_item(memory_root, "tag6--01JZAT06.md", "01JZAT06", "vocab", "tag6", "T6",
+    p2 = _write_item(memory_root, "tag6.md", "01JZAT06", "vocab", "tag6", "T6",
                      "body", tags="traveling")
     index_file(conn, parse_file(p1, memory_root, "en"))
     index_file(conn, parse_file(p2, memory_root, "en"))
@@ -147,9 +149,9 @@ def test_search_tags_exact_no_substring(conn: sqlite3.Connection, memory_root: P
 
 
 def test_search_tags_empty_list_no_filter(conn: sqlite3.Connection, memory_root: Path):
-    p1 = _write_item(memory_root, "tag7--01JZAT07.md", "01JZAT07", "vocab", "tag7", "T7",
+    p1 = _write_item(memory_root, "tag7.md", "01JZAT07", "vocab", "tag7", "T7",
                      "body", tags="[z]")
-    p2 = _write_item(memory_root, "tag8--01JZAT08.md", "01JZAT08", "vocab", "tag8", "T8",
+    p2 = _write_item(memory_root, "tag8.md", "01JZAT08", "vocab", "tag8", "T8",
                      "body", tags="[z]")
     index_file(conn, parse_file(p1, memory_root, "en"))
     index_file(conn, parse_file(p2, memory_root, "en"))
@@ -158,7 +160,7 @@ def test_search_tags_empty_list_no_filter(conn: sqlite3.Connection, memory_root:
 
 
 def test_search_tags_single_ignores_op(conn: sqlite3.Connection, memory_root: Path):
-    p1 = _write_item(memory_root, "tag9--01JZAT09.md", "01JZAT09", "vocab", "tag9", "T9",
+    p1 = _write_item(memory_root, "tag9.md", "01JZAT09", "vocab", "tag9", "T9",
                      "body", tags="[single]")
     index_file(conn, parse_file(p1, memory_root, "en"))
     hits_a = do_search(conn, "tag", lang="en", tags=["single"], tags_op="and", limit=10)

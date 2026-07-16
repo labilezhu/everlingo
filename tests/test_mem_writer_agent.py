@@ -234,7 +234,7 @@ def _create_vault_file_full(
 
 def _action_entry(
     operation: str = "delete",
-    file_path: str = "items/vocab/test--test123.md",
+    file_path: str = "items/vocab/test.md",
     title: str = "test",
     item_type: str = "vocab",
     body: str | None = None,
@@ -268,7 +268,7 @@ class TestFormatActionEventSection:
         assert "## Event" in section
         assert "- action: deleted" in section
         assert "- title: test" in section
-        assert "- file_path: items/vocab/test--test123.md" in section
+        assert "- file_path: items/vocab/test.md" in section
 
     def test_edit_event_section(self):
         e = _action_entry(operation="edit", body="# new body")
@@ -276,15 +276,15 @@ class TestFormatActionEventSection:
         assert "## Event" in section
         assert "- action: edited" in section
         assert "- title: test" in section
-        assert "- file_path: items/vocab/test--test123.md" in section
+        assert "- file_path: items/vocab/test.md" in section
 
 
 class TestActionDelete:
     """_delete_entry_async 走 MCP fs 工具（stat + read + delete + events）。"""
 
     def test_delete_existing_file(self, mcp_inmem_server, tmp_vault):
-        _create_vault_file(tmp_vault, "items/vocab/test--test123.md", title="test")
-        file_path = tmp_vault / "items/vocab/test--test123.md"
+        _create_vault_file(tmp_vault, "items/vocab/test.md", title="test")
+        file_path = tmp_vault / "items/vocab/test.md"
         assert file_path.exists()
 
         with mcp_inmem_server():
@@ -292,13 +292,13 @@ class TestActionDelete:
             agent = MemoryWriterAgent()
             entry = _action_entry(
                 operation="delete",
-                file_path="items/vocab/test--test123.md",
+                file_path="items/vocab/test.md",
                 title="test",
             )
             result = asyncio.run(agent._delete_entry_async(entry))
 
         assert result["ok"] is True
-        assert result["file_path"] == "items/vocab/test--test123.md"
+        assert result["file_path"] == "items/vocab/test.md"
         assert result["title"] == "test"
         assert result["item_type"] == "vocab"
         assert not file_path.exists()
@@ -309,7 +309,7 @@ class TestActionDelete:
             agent = MemoryWriterAgent()
             entry = _action_entry(
                 operation="delete",
-                file_path="items/vocab/nonexistent--ulid.md",
+                file_path="items/vocab/nonexistent.md",
             )
             result = asyncio.run(agent._delete_entry_async(entry))
 
@@ -317,14 +317,14 @@ class TestActionDelete:
         assert "file not found" in result["error"]
 
     def test_delete_writes_event(self, mcp_inmem_server, tmp_vault):
-        _create_vault_file(tmp_vault, "items/vocab/test--test123.md", title="test")
+        _create_vault_file(tmp_vault, "items/vocab/test.md", title="test")
 
         with mcp_inmem_server():
             import asyncio
             agent = MemoryWriterAgent()
             entry = _action_entry(
                 operation="delete",
-                file_path="items/vocab/test--test123.md",
+                file_path="items/vocab/test.md",
                 title="test",
                 timestamp="2026-11-21 14:58:56",
             )
@@ -335,7 +335,7 @@ class TestActionDelete:
         text = events_file.read_text(encoding="utf-8")
         assert "- action: deleted" in text
         assert "- title: test" in text
-        assert "- file_path: items/vocab/test--test123.md" in text
+        assert "- file_path: items/vocab/test.md" in text
 
     def test_delete_missing_file_path(self):
         agent = MemoryWriterAgent()
@@ -352,7 +352,7 @@ class TestActionEdit:
     def test_edit_preserves_frontmatter(self, mcp_inmem_server, tmp_vault):
         orig_body = "# original\n\noriginal content\n"
         _create_vault_file(
-            tmp_vault, "items/vocab/test--test123.md",
+            tmp_vault, "items/vocab/test.md",
             title="test", body=orig_body,
         )
 
@@ -362,17 +362,17 @@ class TestActionEdit:
             agent = MemoryWriterAgent()
             entry = _action_entry(
                 operation="edit",
-                file_path="items/vocab/test--test123.md",
+                file_path="items/vocab/test.md",
                 title="test",
                 body=new_body,
             )
             result = asyncio.run(agent._edit_entry_async(entry))
 
         assert result["ok"] is True
-        assert result["file_path"] == "items/vocab/test--test123.md"
+        assert result["file_path"] == "items/vocab/test.md"
         assert result["title"] == "test"
 
-        file_path = tmp_vault / "items/vocab/test--test123.md"
+        file_path = tmp_vault / "items/vocab/test.md"
         text = file_path.read_text(encoding="utf-8")
         # frontmatter preserved
         assert "ulid: test123" in text
@@ -399,7 +399,7 @@ class TestActionEdit:
             agent = MemoryWriterAgent()
             entry = _action_entry(
                 operation="edit",
-                file_path="items/vocab/nonexistent--ulid.md",
+                file_path="items/vocab/nonexistent.md",
                 body="# new body",
             )
             result = asyncio.run(agent._edit_entry_async(entry))
@@ -408,7 +408,7 @@ class TestActionEdit:
 
     def test_edit_writes_event(self, mcp_inmem_server, tmp_vault):
         _create_vault_file(
-            tmp_vault, "items/vocab/test--test123.md",
+            tmp_vault, "items/vocab/test.md",
             title="test", body="# original",
         )
 
@@ -417,7 +417,7 @@ class TestActionEdit:
             agent = MemoryWriterAgent()
             entry = _action_entry(
                 operation="edit",
-                file_path="items/vocab/test--test123.md",
+                file_path="items/vocab/test.md",
                 title="test",
                 body="# edited",
                 timestamp="2026-11-21 15:58:56",
@@ -429,7 +429,7 @@ class TestActionEdit:
         text = events_file.read_text(encoding="utf-8")
         assert "- action: edited" in text
         assert "- title: test" in text
-        assert "- file_path: items/vocab/test--test123.md" in text
+        assert "- file_path: items/vocab/test.md" in text
 
     def test_edit_missing_file_path(self):
         agent = MemoryWriterAgent()
@@ -444,7 +444,7 @@ class TestActionEdit:
     def test_edit_merges_frontmatter_protected_fields(self, mcp_inmem_server, tmp_vault):
         """LLM 传入改过的 ulid/slug/seen_count → 实际文件中保留原值。"""
         _create_vault_file_full(
-            tmp_vault, "items/vocab/test--test123.md",
+            tmp_vault, "items/vocab/test.md",
             title="旧标题", body="# original",
         )
 
@@ -467,7 +467,7 @@ class TestActionEdit:
             agent = MemoryWriterAgent()
             entry = _action_entry(
                 operation="edit",
-                file_path="items/vocab/test--test123.md",
+                file_path="items/vocab/test.md",
                 title="旧标题",
                 body=new_body,
                 frontmatter=frontmatter_input,
@@ -476,7 +476,7 @@ class TestActionEdit:
 
         assert result["ok"] is True
 
-        file_path = tmp_vault / "items/vocab/test--test123.md"
+        file_path = tmp_vault / "items/vocab/test.md"
         text = file_path.read_text(encoding="utf-8")
         # 保护字段保留原值（yaml.safe_dump 会把 datetime T 归一化为空格）
         assert "ulid: test123" in text
@@ -495,7 +495,7 @@ class TestActionEdit:
     def test_edit_merges_frontmatter_editable_fields(self, mcp_inmem_server, tmp_vault):
         """title/description/tags 可被 LLC 传入的新值覆盖。"""
         _create_vault_file_full(
-            tmp_vault, "items/vocab/edit-me--test.md",
+            tmp_vault, "items/vocab/edit-me.md",
             title="旧标题", body="# original",
         )
 
@@ -522,7 +522,7 @@ class TestActionEdit:
             agent = MemoryWriterAgent()
             entry = _action_entry(
                 operation="edit",
-                file_path="items/vocab/edit-me--test.md",
+                file_path="items/vocab/edit-me.md",
                 title="旧标题",
                 body=new_body,
                 frontmatter=frontmatter_input,
@@ -532,7 +532,7 @@ class TestActionEdit:
         assert result["ok"] is True
         assert result["title"] == "新标题"  # return 使用合并后的 title
 
-        text = (tmp_vault / "items/vocab/edit-me--test.md").read_text(encoding="utf-8")
+        text = (tmp_vault / "items/vocab/edit-me.md").read_text(encoding="utf-8")
         assert "title: 新标题" in text
         assert "description: 新描述" in text
         assert "description_in_target_lang: new target desc" in text
@@ -542,7 +542,7 @@ class TestActionEdit:
     def test_edit_frontmatter_updates_event_title(self, mcp_inmem_server, tmp_vault):
         """审计事件中 title 使用合并后的新值。"""
         _create_vault_file_full(
-            tmp_vault, "items/vocab/test--test123.md",
+            tmp_vault, "items/vocab/test.md",
             title="旧标题", body="# original",
         )
 
@@ -556,7 +556,7 @@ class TestActionEdit:
             agent = MemoryWriterAgent()
             entry = _action_entry(
                 operation="edit",
-                file_path="items/vocab/test--test123.md",
+                file_path="items/vocab/test.md",
                 title="旧标题",
                 body=new_body,
                 frontmatter=frontmatter_input,
@@ -568,13 +568,13 @@ class TestActionEdit:
         assert events_file.exists()
         text = events_file.read_text(encoding="utf-8")
         assert "- title: 新标题" in text
-        assert "- file_path: items/vocab/test--test123.md" in text
+        assert "- file_path: items/vocab/test.md" in text
 
     def test_edit_no_frontmatter_params_still_works(self, mcp_inmem_server, tmp_vault):
         """不传 frontmatter 参数时行为与原来一致。"""
         orig_body = "# original\n\noriginal content\n"
         _create_vault_file(
-            tmp_vault, "items/vocab/test--test123.md",
+            tmp_vault, "items/vocab/test.md",
             title="test", body=orig_body,
         )
 
@@ -585,7 +585,7 @@ class TestActionEdit:
             # 不传 frontmatter（None）
             entry = _action_entry(
                 operation="edit",
-                file_path="items/vocab/test--test123.md",
+                file_path="items/vocab/test.md",
                 title="test",
                 body=new_body,
                 frontmatter=None,
@@ -593,7 +593,7 @@ class TestActionEdit:
             result = asyncio.run(agent._edit_entry_async(entry))
 
         assert result["ok"] is True
-        text = (tmp_vault / "items/vocab/test--test123.md").read_text(encoding="utf-8")
+        text = (tmp_vault / "items/vocab/test.md").read_text(encoding="utf-8")
         assert "ulid: test123" in text
         assert "title: test" in text
         assert "original content" not in text
@@ -613,13 +613,13 @@ class TestActionDaemonDispatch:
             yield
 
     def test_process_action_delete(self, mcp_inmem_server, tmp_vault):
-        _create_vault_file(tmp_vault, "items/vocab/test--test123.md", title="test")
+        _create_vault_file(tmp_vault, "items/vocab/test.md", title="test")
 
         with mcp_inmem_server():
             agent = MemoryWriterAgent()
             entry = _action_entry(
                 operation="delete",
-                file_path="items/vocab/test--test123.md",
+                file_path="items/vocab/test.md",
             )
             import asyncio
             result = asyncio.run(agent._delete_entry_async(entry))
@@ -627,8 +627,8 @@ class TestActionDaemonDispatch:
         assert result["ok"] is True
 
     def test_run_loop_dispatches_action_request(self, mcp_inmem_server, tmp_vault):
-        _create_vault_file(tmp_vault, "items/vocab/test--test123.md", title="test")
-        file_path = tmp_vault / "items/vocab/test--test123.md"
+        _create_vault_file(tmp_vault, "items/vocab/test.md", title="test")
+        file_path = tmp_vault / "items/vocab/test.md"
         assert file_path.exists()
 
         with mcp_inmem_server():
@@ -639,7 +639,7 @@ class TestActionDaemonDispatch:
             future = concurrent.futures.Future()
             entry = _action_entry(
                 operation="delete",
-                file_path="items/vocab/test--test123.md",
+                file_path="items/vocab/test.md",
             )
             agent._queue.put(_ActionRequest(entry=entry, future=future))
             agent._queue.put(None)  # sentinel to stop the loop
@@ -872,7 +872,7 @@ class TestWriterLangSandbox:
                     await sess.call_tool(
                         "write",
                         {
-                            "path": "items/vocab/ambiguous--01JTEST0001.md",
+                            "path": "items/vocab/ambiguous.md",
                             "content": (
                                 "---\n"
                                 "ulid: 01JTEST0001\n"

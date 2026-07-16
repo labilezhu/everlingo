@@ -71,11 +71,13 @@ def conn(tmp_path: Path) -> sqlite3.Connection:
     c.close()
 
 
-def _write_item(memory_root: Path, name: str, ulid: str, type_: str, headword: str, title: str, body: str, tags: str = "") -> Path:
-    """写 kb item 文件。新布局：不含 {lang}/ 前缀。"""
+def _write_item(memory_root: Path, name: str, ulid: str, type_: str, headword: str, title: str, body: str, tags: str = "", slug: str | None = None) -> Path:
+    """写 kb item 文件。新布局：不含 {lang}/ 前缀。文件名即 {slug}.md。"""
     p = memory_root / "items" / type_ / name
     p.parent.mkdir(parents=True, exist_ok=True)
-    fm = f"---\nulid: {ulid}\nslug: {name.split('--')[0]}\ntype: {type_}\nheadword: {headword}\ntitle: {title}\n"
+    if slug is None:
+        slug = Path(name).stem
+    fm = f"---\nulid: {ulid}\nslug: {slug}\ntype: {type_}\nheadword: {headword}\ntitle: {title}\n"
     if tags:
         fm += f"tags: {tags}\n"
     p.write_text(fm + f"---\n\n{body}", encoding="utf-8")
@@ -101,7 +103,7 @@ def _index_and_embed(conn, memory_root, items):
 
 def test_semantic_returns_vec_source_and_chunk(conn, memory_root):
     _index_and_embed(conn, memory_root, [
-        ("a--01JZS0001.md", "01JZS0001", "vocab", "apple", "苹果",
+        ("a1.md", "01JZS0001", "vocab", "apple", "苹果",
          "## 解释\nred fruit"),
     ])
     emb = FakeEmbedder()
@@ -120,7 +122,7 @@ def test_semantic_returns_vec_source_and_chunk(conn, memory_root):
 def test_semantic_no_embedder_returns_empty(conn, memory_root):
     """embedder=None 时 mode=semantic 返回空（不退化到 FTS）。"""
     _index_and_embed(conn, memory_root, [
-        ("a--01JZS0004.md", "01JZS0004", "vocab", "apple", "苹果", "fruit"),
+        ("a4.md", "01JZS0004", "vocab", "apple", "苹果", "fruit"),
     ])
     hits = do_search(conn, "apple", lang="en", embedder=None, mode="semantic", limit=10)
     assert hits == []
@@ -137,7 +139,7 @@ def test_semantic_empty_index_returns_empty(conn, memory_root):
 
 def test_hybrid_uses_rrf_and_marks_source(conn, memory_root):
     _index_and_embed(conn, memory_root, [
-        ("a--01JZH0001.md", "01JZH0001", "vocab", "apple", "苹果", "fruit"),
+        ("h1.md", "01JZH0001", "vocab", "apple", "苹果", "fruit"),
     ])
     emb = FakeEmbedder()
     hits = do_search(conn, "apple", lang="en", embedder=emb, mode="hybrid", limit=10)
@@ -151,7 +153,7 @@ def test_hybrid_uses_rrf_and_marks_source(conn, memory_root):
 def test_hybrid_rrf_dedups_within_each_source(conn, memory_root):
     """同源内 RRF 去重：FTS ulid 唯一，vec (ulid, chunk_id) 唯一。"""
     _index_and_embed(conn, memory_root, [
-        ("a--01JZH0002.md", "01JZH0002", "vocab", "apple", "苹果", "fruit"),
+        ("h2.md", "01JZH0002", "vocab", "apple", "苹果", "fruit"),
     ])
     emb = FakeEmbedder()
     hits = do_search(conn, "apple", lang="en", embedder=emb, mode="hybrid", limit=10)
@@ -169,7 +171,7 @@ def test_hybrid_rrf_dedups_within_each_source(conn, memory_root):
 def test_hybrid_no_embedder_falls_back_to_fts(conn, memory_root):
     """hybrid + embedder=None → 退化为 exact 路径。"""
     _index_and_embed(conn, memory_root, [
-        ("a--01JZH0004.md", "01JZH0004", "vocab", "apple", "苹果", "fruit"),
+        ("h4.md", "01JZH0004", "vocab", "apple", "苹果", "fruit"),
     ])
     hits = do_search(conn, "apple", lang="en", embedder=None, mode="hybrid", limit=10)
     assert len(hits) == 1
@@ -200,9 +202,9 @@ def _write_and_embed(conn, memory_root, name, ulid, type_, headword, title, body
 def test_vec_tags_filter_exact(conn, memory_root):
     """vec 路径 tag 精确匹配：travel 不命中 traveling。"""
     _write_and_embed(conn, memory_root,
-        "vt1--01JZVT01.md", "01JZVT01", "vocab", "vt1", "VT1", "body a", tags="travel")
+        "vt1.md", "01JZVT01", "vocab", "vt1", "VT1", "body a", tags="travel")
     _write_and_embed(conn, memory_root,
-        "vt2--01JZVT02.md", "01JZVT02", "vocab", "vt2", "VT2", "body b", tags="traveling")
+        "vt2.md", "01JZVT02", "vocab", "vt2", "VT2", "body b", tags="traveling")
     emb = FakeEmbedder()
     hits = do_search(conn, "vt", lang="en", embedder=emb, mode="semantic",
                      tags=["travel"], limit=10)
@@ -213,9 +215,9 @@ def test_vec_tags_filter_exact(conn, memory_root):
 def test_vec_tags_or(conn, memory_root):
     """vec 路径 tags_op='or'。"""
     _write_and_embed(conn, memory_root,
-        "vt3--01JZVT03.md", "01JZVT03", "vocab", "vt3", "VT3", "body x", tags="[cats]")
+        "vt3.md", "01JZVT03", "vocab", "vt3", "VT3", "body x", tags="[cats]")
     _write_and_embed(conn, memory_root,
-        "vt4--01JZVT04.md", "01JZVT04", "vocab", "vt4", "VT4", "body y", tags="[dogs]")
+        "vt4.md", "01JZVT04", "vocab", "vt4", "VT4", "body y", tags="[dogs]")
     emb = FakeEmbedder()
     hits = do_search(conn, "vt", lang="en", embedder=emb, mode="semantic",
                      tags=["cats", "dogs"], tags_op="or", limit=10)

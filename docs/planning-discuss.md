@@ -1,3 +1,29 @@
+
+按照设计文档
+docs/impl-spec/wiki/wiki-spec.md 
+
+everlingo wiki build 产生了 /home/labile/.everlingo/workspaces/default/.wiki-dist
+其中已经有文件 /home/labile/.everlingo/workspaces/default/.wiki-dist/en/items/vocab/ufo.html
+
+但
+everlingo wiki serve 后
+访问
+http://127.0.0.1:8765/items/vocab/ufo 或 http://127.0.0.1:8765/en/items/vocab/ufo
+还是 404 了
+
+---
+
+
+src/everlingo/mem/vault/vault_specs/default/vault_spec.md 文件命名格式：
+
+```text
+{slug}--{ulid}.md
+```
+
+我打算修改为： {slug}.md 。 你分析一下影响和可行性。文件名冲突的事让 LLM ls / read / write 去处理就好。新文件名会简洁点，人直接浏览文件时，和 url 生成时，更人性化。
+
+---
+
 请分析以下功能和架构设计上的合理性和可行性：
 
 [Chat Agent](docs/impl-spec/chat-agent-spec.md) 的笔记编辑功能，不能修改笔记 markdown 文件的 Markdown Frontmatter。只能修改 body 。 现在计划支持修改所有 Markdown Frontmatter ，除了以下的 Markdown Frontmatter 字段不能修改：

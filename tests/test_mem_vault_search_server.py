@@ -43,11 +43,13 @@ def client(app, state):
         yield c
 
 
-def _write_item(memory_root: Path, name: str, ulid: str, body: str = "x") -> Path:
-    """写 kb item 文件。新布局：不含 {lang}/ 前缀。"""
+def _write_item(memory_root: Path, name: str, ulid: str, body: str = "x", slug: str | None = None) -> Path:
+    """写 kb item 文件。新布局：不含 {lang}/ 前缀。文件名即 {slug}.md。"""
     p = memory_root / "items" / "vocab" / name
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(f"---\nulid: {ulid}\nslug: {name.split('--')[0]}\ntype: vocab\ntitle: aimai\n---\n\n{body}", encoding="utf-8")
+    if slug is None:
+        slug = Path(name).stem
+    p.write_text(f"---\nulid: {ulid}\nslug: {slug}\ntype: vocab\ntitle: aimai\n---\n\n{body}", encoding="utf-8")
     return p
 
 
@@ -67,8 +69,8 @@ def test_status_after_open(client, state):
 
 
 def test_index_then_search(client, state, memory_root: Path):
-    _write_item(memory_root, "aimai--01JZD0001.md", "01JZD0001", body="あいまい means ambiguous in Japanese")
-    rel = "items/vocab/aimai--01JZD0001.md"
+    _write_item(memory_root, "aimai.md", "01JZD0001", body="あいまい means ambiguous in Japanese")
+    rel = "items/vocab/aimai.md"
     r = client.post("/en/index", json={"path": rel})
     assert r.status_code == 200
     assert r.json()["ok"] is True
@@ -82,18 +84,18 @@ def test_index_then_search(client, state, memory_root: Path):
 
 
 def test_delete(client, state, memory_root: Path):
-    _write_item(memory_root, "x--01JZD0002.md", "01JZD0002")
-    client.post("/en/index", json={"path": "items/vocab/x--01JZD0002.md"})
+    _write_item(memory_root, "x.md", "01JZD0002")
+    client.post("/en/index", json={"path": "items/vocab/x.md"})
     assert count_docs(state._lang_states["en"].conn) == 1
-    r = client.post("/en/delete", json={"path": "items/vocab/x--01JZD0002.md"})
+    r = client.post("/en/delete", json={"path": "items/vocab/x.md"})
     assert r.status_code == 200
     assert r.json()["ok"] is True
     assert count_docs(state._lang_states["en"].conn) == 0
 
 
 def test_rebuild(client, state, memory_root: Path):
-    _write_item(memory_root, "y--01JZD0003.md", "01JZD0003")
-    client.post("/en/index", json={"path": "items/vocab/y--01JZD0003.md"})
+    _write_item(memory_root, "y.md", "01JZD0003")
+    client.post("/en/index", json={"path": "items/vocab/y.md"})
     r = client.post("/en/rebuild")
     assert r.status_code == 200
     data = r.json()
@@ -103,7 +105,7 @@ def test_rebuild(client, state, memory_root: Path):
 
 
 def test_index_missing_file_returns_404(client, state):
-    r = client.post("/en/index", json={"path": "items/vocab/nonexistent--01JZZ.md"})
+    r = client.post("/en/index", json={"path": "items/vocab/nonexistent.md"})
     assert r.status_code == 404
 
 
@@ -149,7 +151,7 @@ def test_lazy_open_lang_when_dir_appears_after_startup(tmp_path: Path, monkeypat
         # 启动后创建 en/vault/ 目录 + 一个 kb item 文件
         en_vault = tmp_path / "memory" / "languages" / "en" / "vault"
         en_vault.mkdir(parents=True)
-        p = en_vault / "items" / "vocab" / "god--01JZDLAZY.md"
+        p = en_vault / "items" / "vocab" / "god.md"
         p.parent.mkdir(parents=True)
         p.write_text(
             "---\nulid: 01JZDLAZY\nslug: god\ntype: vocab\ntitle: god\n---\n\ndeity supreme being",
@@ -157,7 +159,7 @@ def test_lazy_open_lang_when_dir_appears_after_startup(tmp_path: Path, monkeypat
         )
 
         # 调用 /en/index 应触发懒加载并成功索引
-        r = c.post("/en/index", json={"path": "items/vocab/god--01JZDLAZY.md"})
+        r = c.post("/en/index", json={"path": "items/vocab/god.md"})
         assert r.status_code == 200, r.text
         assert r.json()["ok"] is True
         assert "en" in state._lang_states
@@ -184,7 +186,7 @@ def test_lazy_open_missing_vault_returns_404(tmp_path: Path, monkeypatch):
         # 只建 en/，不建 en/vault/
         (tmp_path / "memory" / "languages" / "en").mkdir(parents=True)
 
-        r = c.post("/en/index", json={"path": "items/vocab/god--01JZDLAZY2.md"})
+        r = c.post("/en/index", json={"path": "items/vocab/god2.md"})
         assert r.status_code == 404
         assert "lang not found" in r.json()["detail"]
 
@@ -205,7 +207,7 @@ def test_discovery_watcher_opens_new_lang(tmp_path: Path, monkeypatch):
         # 模拟外部进程：先 mkdir ja/vault/，再落盘一个 kb item
         ja_vault = tmp_path / "memory" / "languages" / "ja" / "vault"
         ja_vault.mkdir(parents=True)
-        p = ja_vault / "items" / "vocab" / "aimai--01JZDLAZJ.md"
+        p = ja_vault / "items" / "vocab" / "aimai.md"
         p.parent.mkdir(parents=True)
         p.write_text(
             "---\nulid: 01JZDLAZJ\nslug: aimai\ntype: vocab\ntitle: aimai\n---\n\nあいまい ambiguous",

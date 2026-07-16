@@ -109,19 +109,21 @@ description: <语言名> 学习笔记、词汇与语法
 
 ## 服务流程 `everlingo wiki serve`
 
-启动一个 uvicorn 进程，用 `StaticFiles` 挂载构建产物：
+启动一个 uvicorn 进程，用 `WikiStaticFiles`（`StaticFiles` 子类）挂载构建产物：
 
 ```python
 # 伪代码
 app = Starlette()
-app.mount("/", StaticFiles(directory=dist_dir, html=True))
+app.mount("/", WikiStaticFiles(directory=dist_dir, html=True))
 uvicorn.run(app, host="127.0.0.1", port=wiki_port)
 ```
 
-`StaticFiles(html=True)` 关键能力：
-- 目录请求自动返回 `index.html`（`/en/` → `en/index.html`）
-- 无扩展名请求自动追加 `.html`（`/en/items/vocab/ambiguous--01jzabc456` → `.../.html`）
+`WikiStaticFiles` 关键能力：
+- 目录请求自动返回 `index.html`（`/en/` → `en/index.html`）— 继承自 `StaticFiles(html=True)`
+- 无扩展名请求自动追加 `.html`（`/en/items/vocab/ufo` → `en/items/vocab/ufo.html`）— `WikiStaticFiles.lookup_path` 自定义行为
 - `/en/tags/vocab` → `en/tags/vocab.html`
+
+> **注意**：原生 `StaticFiles(html=True)` 仅提供目录 index（`index.html`）和 404 fallback（`404.html`），**不会**自动补 `.html`。`WikiStaticFiles` 覆写了 `lookup_path` 以补充此能力。详见 `src/everlingo/wiki/builder.py:WikiStaticFiles`。
 
 不监听 vault 变化（Phase 1 手动 build）。serve 进程不依赖 gateway、indexer 等其它进程。
 
@@ -226,20 +228,28 @@ plugins:
   # ...
 ```
 
-`baseUrl` 的取舍：它只影响 og:url / sitemap / RSS 中的绝对 URL（用于社交分享与 SEO），不影响页面内导航（导航全用相对 URL）。Phase 1 本地场景设为 `localhost` 即可。
+### `baseUrl` 的双重作用
+
+`baseUrl` 的 pathname 部分决定两件事：
+
+1. **og:url / sitemap / RSS 中的绝对 URL**（社交分享与 SEO）。
+2. **`<body data-basepath>` 的值**（`renderPage.tsx:342`），该值被客户端渲染组件（explorer、graph、search、stacked-pages、404 页）的 `resolveBasePath(slug)` 用做所有导航链接的前缀。
+
+因此 **per-lang build 必须令 `baseUrl` 包含 `/<lang>` 路径**，例如 `localhost/en` → `data-basepath="/en"` → 客户端组件链接正确形如 `/en/items/...`。builder 自动从 overlay 的 `baseUrl` 解析出 host（去尾斜杠），追加 `/{lang}`；overlay 只填 host 部分即可，无需人工指定每种语言的 baseUrl。
 
 ## Spike 验证记录
 
-2026-07-16 用临时测试 vault（en/ja 各含 items/events/spec/tmp，frontmatter 符合 vault spec）跑通完整流程，确认：
+2026-07-16 用临时测试 vault 跑通完整流程，后续实现验证发现以下结论需修正（2026-07-16 v2 更新）：
 
-1. **Quartz 5 所有资源用相对 URL**：CSS/JS/图片/`contentIndex.json` 全是 `../../xxx`、`./xxx`，无硬编码 `/` 前缀。
-2. **SPA routing 显式处理相对路径**：`script-11` 中的 `gu(D, u)` 用 `new URL(relativePath, fetchedPageUrl)` 把所有相对 `href`/`src` 转成绝对 pathname，自然带上 `/<lang>/` 前缀。
-3. **不需要 `--baseDir` 标志**：Quartz 的相对 URL 策略 + 浏览器对相对 href 的自动解析，已足够支撑子路径部署。`--baseDir` 是 GitHub Pages 子路径场景用的，我们的 per-lang 独立 build 不需要它。
-4. **多语言子路径布局可行**：`<dist>/{en,ja}/` 各为完整 Quartz 站点 + 根 `index.html`（语言选择页），`StaticFiles(html=True)` 可正确路由所有内部链接。
-5. **vault 根需有 `index.md`**：否则每语言站点首页 404——builder 需注入临时 `index.md`。
-6. **`baseUrl` 不能为空字符串**：`Head.tsx` 会 `new URL("https://")` 抛 `Invalid URL`。设为 `localhost` 即可。
-7. **`tmp/` 通过 `ignorePatterns` 正确排除**：4 个真实文件被索引，tmp 下的文件未进 build。
-8. **aliases 生成重定向页**：`aliases: [模棱两可]` → 生成 `模棱两可.html` 跳转到主 slug 页面 ✅。
+1. **Quartz 5 所有资源用相对 URL**：CSS/JS/图片/`contentIndex.json` 全是 `../../xxx`、`./xxx`，无硬编码 `/` 前缀 ✅。
+2. **服务端渲染内容链接正确**：文章正文内的相对链接（`../../items/`）由 SPA router 用 `new URL(relativePath, fetchedPageUrl)` 按当前页面 URL 解析，自然带上 `/<lang>/` 前缀 ✅。
+3. **客户端渲染组件需 `data-basepath`**：explorer、graph、search、stacked-pages 用 `resolveBasePath(slug)` 构造链接，该函数取 `document.body.dataset.basepath` 做前缀。因此 `baseUrl` 必须包含 `/<lang>` 路径，`data-basepath` 才正确（`/en`）。**spike 未覆盖此场景**，实际验证发现 `baseUrl: localhost` → `data-basepath=""` → explorer 链接缺失 `en/` 前缀 → 404。
+4. **不需要 `--baseDir` 标志**：Quartz 的相对 URL 策略 + `data-basepath` 已足够支撑子路径部署 ✅。（`--baseDir` 是 native `--serve` 场景用的，我们的 Starlette 部署不需要它。）
+5. **多语言子路径布局可行**：`<dist>/{en,ja}/` 各为完整 Quartz 站点 + 根 `index.html` 🔄 验证通过。
+6. **vault 根需有 `index.md`**：否则每语言站点首页 404——builder 需注入临时 `index.md` ✅。
+7. **`baseUrl` 不能为空字符串**：`Head.tsx` 会 `new URL("https://")` 抛 `Invalid URL`。此外 `baseUrl` 的 pathname 决定 `data-basepath`，故需设为 `<host>/<lang>` ✅。
+8. **`tmp/` 通过 `ignorePatterns` 正确排除**：4 个真实文件被索引，tmp 下的文件未进 build ✅。
+9. **aliases 生成重定向页**：`aliases: [模棱两可]` → 生成 `模棱两可.html` 跳转到主 slug 页面 ✅。
 
 ## 测试策略
 
