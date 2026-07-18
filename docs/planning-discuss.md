@@ -1,4 +1,26 @@
 
+请你结合 EverLingo 产品现状和目标，分析一下以下产品设计的合理性。
+
+计划为产品加入一个新 feature: 作为一个 Chrome Extension ，为任意网页提供翻译和笔记功能。
+
+1. 用户在浏览器选词后出现小工具图标的设计模仿 Google Translate Chrome Extension
+2. 用户点击小工具图标后，打开一个 [Web Channel](docs/impl-spec/web-session-acceptor.md) 小窗口
+3. 界面成功打开后，注入以下用户输入消息：
+```json
+{
+  "intent":"translate", 
+  "text_to_be_translated":"The selected text to be translated", //用户在浏览器选词
+  "text_context":"The prefix text. The selected text to be translated. The suffix text", //用户在浏览器选词的同一段落的最多 500 字的上下文。
+}
+```
+4. Web Channel 的 Chat Agent 根据 text_context，准确地翻译出 text_to_be_translated 。
+5. 用户可以在 Web Channel 中通过聊天完成笔记记录。
+6. Web Channel 小窗口因失去 Focus，或用户点击关闭而隐藏
+7. 同一网页中，二次激活翻译工具时，显示之前隐藏的 Web Channel
+
+
+---
+
 src/everlingo/mem/vault/mcp_server/mcp_server.py:320 create_vault_tool() 中，对于 `spec/` 目录下的文件，需要根据文件内容作不同的 copy 处理：
 - *.md 文件：
   - 如果 文件内容开头有 markdown frontmatters ，直接 copy 文件，不要用 compile_prompt
