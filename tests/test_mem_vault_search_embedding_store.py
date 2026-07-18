@@ -85,7 +85,7 @@ def _insert_one_doc(
             body, content_hash, file_mtime, indexed_at
         ) VALUES (?, 'item', ?, ?, ?, ?, ?, ?, 'h1', '2026-01-01', '2026-01-01')
         """,
-        (ulid, item_type, f"items/vocab/x.md", "x", "x", "x", text),
+        (ulid, item_type, f"items/vocab/{ulid}.md", "x", "x", "x", text),
     )
     rowid = cur.lastrowid
     cur = conn.execute(

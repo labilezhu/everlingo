@@ -249,31 +249,7 @@ def _build_system_prompt(
 5. 管理基本配置
 6. 未识别输入
 
-## 用户显式 `对话模式` 指定
-
-用户可以通过 `/dict`、`/translate` 等命令在会话中设定 `对话模式`。
-命令列表和`对话模式`：
-- /dict -> `dict` 
-- /translate -> `translate` 
-- / -> 无模式，自由对话
-- /help -> 命令帮助
-
-当`对话模式`被设定后，用户消息前会附加一条 SystemMessage 提示当前模式，
-格式为: 当前 `对话模式` 为 [dict/translate]。
-
-**优先级规则**：该 SystemMessage 指定的模式优先级高于自动意图识别。
-LLM 应以此模式为准，直接按指定模式处理用户消息，无需再进行意图判断。
-
-`对话模式`到`用户意图` 的映射匹配关系如下：
-- `dict` -> `查单词`
-- `translate` -> `翻译`
-
 ## 用户意图识别
-
-### Case 1: 系统消息指定了 `对话模式`
-如最近系统消息指定了 `对话模式`，务必严格按它匹配到 `用户意图`。
-
-### Case 2: 没有系统消息指定 `对话模式`
 `用户意图类型` 按识别优先级从高到低分为：
 1. 查单词
 2. 翻译
@@ -330,20 +306,12 @@ OR
 个性化增加：
 1. 根据 `用户自由偏好笔记 (USER.md)` 提供个性化的释义。只使用其中与该词相关的偏好内容。
 
-如果当前 `对话模式` 为 `dict` 。请不要输出查词释义外的其它前置或后置的用户提示、追问内容，如：
-- 当前处于 xyz 模式
-- 有什么其他单词想查的吗？
-
 ### 翻译
 翻译输出使用 `dest_lang` 语言 。适当地根据 `用户自由偏好笔记 (USER.md)` 个性化。只使用其中与本次翻译相关的偏好内容。
 
 - 标注翻译中值得注意的句式或短语
 - 如果有多种译法，列出备选方案并说明差异
 - 提供学习建议（如语法点、常见搭配等）
-
-如果当前 `对话模式` 为 `translate` 。请不要输出翻译文本外的其它前置或后置的用户提示、追问内容，如：
-- 当前处于 xyz 模式
-- 有什么其他需要翻译的吗？
 
 
 ### 管理基本配置
@@ -367,7 +335,6 @@ OR
 礼貌地提示用户输入不明确，并给出使用示例：
 - 查词示例：输入目标语言的单个词
 - 翻译示例：输入目标语言的句子
-- `对话模式` 的命令
 - 管理 USER.md 示例
 - 管理基本配置
 
@@ -596,8 +563,6 @@ class MainAgent:
         self._prompt_mtime: tuple = prompt_input_mtime()
         # Agent 的消息历史，支持多轮会话
         self._messages: list = []
-        # 用户显式意图模式: None=自动, "dict"=查词, "translate"=翻译
-        self._intent_mode: Optional[str] = None
         # ref: docs/impl-spec/memory-extract-agent-spec.md — 会话级状态 · extract 游标
         # 已提交过 extract 的 _messages 长度。每轮 invoke 末尾切片 new/context 后推进。
         # 即使 extract 失败也推进（与 daemon 可丢失语义一致），避免失败轮次被重抽。
@@ -721,47 +686,6 @@ class MainAgent:
             current_version, current_mtime, bool(self._vault_tools),
         )
 
-    def _handle_command(self, text: str) -> list[MessageEvent]:
-        """处理模式切换命令，直接返回回复（不经过 LLM）。
-
-        ref: /docs/impl-spec/chat-agent-spec.md — 用户显式模式指定
-        """
-        cmd = text.split()[0].lower()
-
-        if cmd == '/dict':
-            self._intent_mode = 'dict'
-            return [MessageEvent(
-                text="已切换到查词模式。以后发送的消息将被视为查词请求。\n"
-                     "发送 `/` 可回到自动识别模式。"
-            )]
-
-        if cmd == '/translate':
-            self._intent_mode = 'translate'
-            return [MessageEvent(
-                text="已切换到翻译模式。以后发送的消息将被视为翻译请求。\n"
-                     "发送 `/` 可回到自动识别模式。"
-            )]
-
-        if cmd == '/':
-            self._intent_mode = None
-            return [MessageEvent(text="已回到自动识别模式。")]
-
-        if cmd == '/help':
-            mode_desc = (
-                '自动识别' if self._intent_mode is None
-                else ('查词' if self._intent_mode == 'dict' else '翻译')
-            )
-            return [MessageEvent(text=(
-                "可用命令：\n"
-                "/dict      - 切换到查词模式（后续消息视为查词请求）\n"
-                "/translate - 切换到翻译模式（后续消息视为翻译请求）\n"
-                "/          - 回到自动识别意图模式\n"
-                "/help      - 显示此帮助\n\n"
-                f"当前模式：{mode_desc}"
-            ))]
-
-        return [MessageEvent(text=f"未知命令：{cmd}\n发送 /help 查看可用命令。")]
-
     async def ainvoke(self, input_msg: MessageEvent) -> list[MessageEvent]:
         """处理用户消息，返回 Agent 的回复列表（每条对应一个消息气泡）。
 
@@ -780,21 +704,8 @@ class MainAgent:
 
         text = input_msg.text.strip()
 
-        # ── 模式切换命令（不经过 LLM，不写入历史）────────────
-        if text.startswith('/'):
-            return self._handle_command(text)
-
         # ── 构建 LLM 输入消息列表 ─────────────────────────────
         messages_for_llm = list(self._messages)
-
-        # 显式模式下注入 SystemMessage 提示，不污染用户原文
-        if self._intent_mode is not None:
-            messages_for_llm.append(
-                SystemMessage(
-                    content=f"当前 `对话模式` 为 `{self._intent_mode}`"
-                )
-            )
-
         messages_for_llm.append(HumanMessage(content=text))
         # 将用户消息写入持久化历史（不含模式提示）
         self._messages.append(HumanMessage(content=text))
@@ -804,7 +715,7 @@ class MainAgent:
         if response is None:
             return [MessageEvent(text="AI 服务暂时不可用，请稍后重试 (已自动重试 2 次)")]
 
-        # 持久化 AI 回复（跳过 messages_for_llm 中注入的模式提示）
+        # 持久化 AI 回复
         # 含 ToolMessage，供多轮对话中 LLM 上下文使用
         new_messages = response["messages"][len(messages_for_llm):]
         self._messages.extend(new_messages)
@@ -831,7 +742,6 @@ class MainAgent:
             )
             self._extract_cursor = len(self._messages)
             self._extract_agent.submit(ExtractInput(
-                intent_mode=self._intent_mode,
                 new_messages=new_messages,
                 context_messages=context_messages,
                 reason=reason,

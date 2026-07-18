@@ -257,7 +257,7 @@ returns: string 。JSON 序列化的结果 dict：
 - `operation="edit"` 时可选传入 `frontmatter`（完整 YAML 文本）同步编辑 frontmatter；保护字段由 Writer 端强制保留原值。
 
 **实现机制**：
-- 工具执行体构造 `MemoryEntry(operation=operation, file_path=..., body=..., frontmatter=..., user_intent="None", entry_id=uuid4(), timestamp=now)` 并 `await memory_writer.execute_action_async(entry)`。
+- 工具执行体构造 `MemoryEntry(operation=operation, file_path=..., body=..., frontmatter=..., entry_id=uuid4(), timestamp=now)` 并 `await memory_writer.execute_action_async(entry)`。
 - Writer daemon thread 通过 `_ActionRequest` 入队串行执行，结果通过 `concurrent.futures.Future` 回传。
 - indexer 离线（MCP 连不上）时 `IndexerOfflineError` 通过 future 异常回传，工具调用抛出，由 LLM 转告用户。
 

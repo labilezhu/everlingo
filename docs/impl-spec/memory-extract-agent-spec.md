@@ -108,9 +108,6 @@ Extract Agent 的输入是**结构化对象**而非自由文本，由 `MainAgent
 ```python
 @dataclass
 class ExtractInput:
-    # —— 本轮 MainAgent._intent_mode 快照 ——
-    intent_mode: str | None      # None=自动, "dict"=查词, "translate"=翻译
-
     # —— 本轮新增 messages（自上次 extract 游标以来）——
     # 唯一允许的抽取来源。通常含本轮 HumanMessage + 其后的 AIMessage / ToolMessage。
     # 必须保留 ToolMessage —— 查词/翻译工具返回是 mean_summary 的事实来源。
@@ -162,8 +159,7 @@ class ExtractInput:
 
 便于实现与测试，明确每个字段的来源：
 
-- `chat_session_id / channel_name / user_intent / lang / interface_language`：从 Extract Agent 实例属性与 `ExtractInput.intent_mode` 透传，LLM 不应修改。实现时拿到 LLM 输出后**用实例属性值覆盖**，保证一致性。
-  - `user_intent` 映射：`intent_mode="dict"` → `"dict"`；`"translate"` → `"translate"`；`None` → `"None"`。
+- `chat_session_id / channel_name / lang / interface_language`：从 Extract Agent 实例属性透传，LLM 不应修改。实现时拿到 LLM 输出后**用实例属性值覆盖**，保证一致性。
   - `lang` = 实例属性 `target_lang`。
   - `interface_language` = 实例属性 `interface_lang`（界面语言，Memory Writer 用作 markdown 正文的主要书写语言，见 `src/everlingo/mem/vault/vault_spec.md`「Markdown 文件使用什么语言编写」）。
 - `entry_id / timestamp`：**代码生成**，不让 LLM 生成。
@@ -211,7 +207,7 @@ Extract LLM call 异常或结构化输出解析失败时：
 ### System prompt 要点
 
 - 角色：知识点抽取器，不与用户对话。
-- 输入字段含义说明（`intent_mode` / `reason` / `note` / `new_messages` / `context_messages`，以及实例属性中的会话元数据）。
+- 输入字段含义说明（`reason` / `note` / `new_messages` / `context_messages`，以及实例属性中的会话元数据）。
 - **不再自主判断"是否值得抽取"**：上游 Chat Agent 已通过 `request_memory_extraction` 工具触发，`reason` 字段即为触发原因。LLM 应按 `reason` 映射输出 `why_want_to_save_memory`（`user_explicit_request` → `用户明确要求记住知识点`，`correction` → `纠正事项`，`other` → `Chat Agent 判定`）。
 - **抽取边界硬约束**：只允许从 `new_messages` 中抽取知识点；`context_messages` 仅用于生成 `conversation_context`，其中出现过的事实不得作为 entry 输出。
 - 筛选规则（本轮仅保留结构性跳过规则：字数上限、来源边界、与 target_lang 无关跳过等）。

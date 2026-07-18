@@ -53,7 +53,6 @@ ToolMessage 的 content 是知识点内容的事实来源（仅限 new_messages 
 
 - chat_session_id
 - channel_name
-- user_intent
 - lang
 - interface_lang
 - new_messages: 同输入的 new_messages

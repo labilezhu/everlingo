@@ -381,6 +381,21 @@ def mock_agent_response():
     return {"messages": [msg]}
 
 
+@pytest.fixture
+def mock_agent_with_response():
+    """创建一个 mock agent，ainvoke 返回所有输入消息 + AI 回复。"""
+    mock = MagicMock()
+
+    async def fake_ainvoke(kwargs):
+        messages = list(kwargs["messages"])
+        ai_msg = AIMessage(content="mock reply")
+        messages.append(ai_msg)
+        return {"messages": messages}
+
+    mock.ainvoke = AsyncMock(side_effect=fake_ainvoke)
+    return mock
+
+
 def _make_main_agent(zh_en_profile):
     """用 mock 替换 create_llm / build_tools 创建 MainAgent。
 
@@ -477,144 +492,6 @@ def test_agent_rebuilds_on_each_config_change(zh_en_profile, mock_agent_with_res
         set_config.invoke({"config_to_be_merged": "user_profile:\n  language:\n    target_language: de"})
         asyncio.run(agent.ainvoke(MessageEvent(text="second")))
 
-    assert len(rebuilt_agents) == 2
-
-
-# ── 用户显式模式切换单元测试（无需 LLM）─────────────────────────────────
-
-@pytest.fixture
-def mock_agent_with_response():
-    """创建一个 mock agent，ainvoke 返回所有输入消息 + AI 回复。"""
-    mock = MagicMock()
-
-    async def fake_ainvoke(kwargs):
-        messages = list(kwargs["messages"])
-        ai_msg = AIMessage(content="mock reply")
-        messages.append(ai_msg)
-        return {"messages": messages}
-
-    mock.ainvoke = AsyncMock(side_effect=fake_ainvoke)
-    return mock
-
-
-def test_dict_command_switches_mode(zh_en_profile):
-    """/dict 命令应切换到查词模式。"""
-    agent = _make_main_agent(zh_en_profile)
-    replies = agent._handle_command("/dict")
-
-    assert "查词" in replies[0].text
-    assert agent._intent_mode == "dict"
-
-
-def test_translate_command_switches_mode(zh_en_profile):
-    """/translate 命令应切换到翻译模式。"""
-    agent = _make_main_agent(zh_en_profile)
-    replies = agent._handle_command("/translate")
-
-    assert "翻译" in replies[0].text
-    assert agent._intent_mode == "translate"
-
-
-def test_slash_command_resets_mode(zh_en_profile):
-    """/ 命令应重置为自动模式。"""
-    agent = _make_main_agent(zh_en_profile)
-    agent._handle_command("/dict")
-    assert agent._intent_mode == "dict"
-
-    replies = agent._handle_command("/")
-    assert "自动" in replies[0].text
-    assert agent._intent_mode is None
-
-
-def test_help_command(zh_en_profile):
-    """/help 应返回命令列表和当前模式。"""
-    agent = _make_main_agent(zh_en_profile)
-    replies = agent._handle_command("/help")
-
-    assert "/dict" in replies[0].text
-    assert "/translate" in replies[0].text
-    assert "自动识别" in replies[0].text
-
-
-def test_help_shows_current_mode(zh_en_profile):
-    """/help 应显示当前模式。"""
-    agent = _make_main_agent(zh_en_profile)
-    agent._handle_command("/dict")
-
-    replies = agent._handle_command("/help")
-    assert "查词" in replies[0].text
-
-
-def test_unknown_command(zh_en_profile):
-    """未知命令应提示错误。"""
-    agent = _make_main_agent(zh_en_profile)
-    replies = agent._handle_command("/unknown")
-
-    assert "未知命令" in replies[0].text
-    assert "/help" in replies[0].text
-
-
-def test_original_text_not_polluted(zh_en_profile, mock_agent_with_response):
-    """模式提示不应污染用户原文。"""
-    agent = _make_main_agent(zh_en_profile)
-    agent._handle_command("/dict")
-
-    with patch("everlingo.agents.agent.create_agent", return_value=mock_agent_with_response), \
-         patch.object(agent, '_ensure_mcp_stream', AsyncMock()), \
-         patch("everlingo.agents.agent.get_config_version", return_value=999), \
-         patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
-         patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
-         patch("everlingo.agents.agent.load_user_doc", return_value=""):
-        asyncio.run(agent.ainvoke(MessageEvent(text="hello")))
-
-    messages = mock_agent_with_response.ainvoke.call_args[0][0]["messages"]
-
-    # SystemMessage 和 HumanMessage 应分开，不拼接在原文中
-    user_msgs = [m for m in messages if isinstance(m, HumanMessage)]
-    assert any(m.content == "hello" for m in user_msgs)
-
-
-def test_mode_commands_not_in_history(zh_en_profile, mock_agent_with_response):
-    """模式切换命令不应写入会话历史。"""
-    agent = _make_main_agent(zh_en_profile)
-    agent._handle_command("/dict")
-    with patch("everlingo.agents.agent.create_agent", return_value=mock_agent_with_response), \
-         patch.object(agent, '_ensure_mcp_stream', AsyncMock()), \
-         patch("everlingo.agents.agent.get_config_version", return_value=999), \
-         patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
-         patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
-         patch("everlingo.agents.agent.load_user_doc", return_value=""):
-        asyncio.run(agent.ainvoke(MessageEvent(text="hello")))
-    agent._handle_command("/translate")
-    with patch("everlingo.agents.agent.create_agent", return_value=mock_agent_with_response), \
-         patch.object(agent, '_ensure_mcp_stream', AsyncMock()), \
-         patch("everlingo.agents.agent.get_config_version", return_value=999), \
-         patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
-         patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
-         patch("everlingo.agents.agent.load_user_doc", return_value=""):
-        asyncio.run(agent.ainvoke(MessageEvent(text="world")))
-
-    # 历史应只包含实际对话，不含命令
-    history_texts = [
-        m.content for m in agent._messages
-        if isinstance(m, HumanMessage)
-    ]
-    assert history_texts == ["hello", "world"]
-
-
-def test_mode_history_contains_no_system_message(zh_en_profile, mock_agent_with_response):
-    """mode hint SystemMessage 不应被持久化到 self._messages。"""
-    agent = _make_main_agent(zh_en_profile)
-    agent._handle_command("/dict")
-    with patch("everlingo.agents.agent.create_agent", return_value=mock_agent_with_response), \
-         patch.object(agent, '_ensure_mcp_stream', AsyncMock()), \
-         patch("everlingo.agents.agent.get_config_version", return_value=999), \
-         patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
-         patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
-         patch("everlingo.agents.agent.load_user_doc", return_value=""):
-        asyncio.run(agent.ainvoke(MessageEvent(text="hello")))
-
-    assert not any(isinstance(m, SystemMessage) for m in agent._messages)
 
 
 # ── USER.md / mtime 驱动的 agent 重建单元测试 ──────────────────────────

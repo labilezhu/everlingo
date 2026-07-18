@@ -44,7 +44,6 @@
 - channel_name: WechatChannel  
 - item_type: vocab  
 - why_want_to_save_memory: 用户明确要求记住知识点  
-- user_intent: dict  
 - lang: ja  
 - title: 曖昧  
 
@@ -72,6 +71,6 @@
 - `deleted` — 笔记删除
 - `edited` — 笔记编辑
 
-删除/编辑事件**不包含**创建事件的 `why_want_to_save_memory` / `user_intent` / `entry_id` / `conversation_context` 字段，但多了 `action` 与 `file_path` 字段。
+删除/编辑事件**不包含**创建事件的 `why_want_to_save_memory` / `entry_id` / `conversation_context` 字段，但多了 `action` 与 `file_path` 字段。
 
 

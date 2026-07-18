@@ -35,9 +35,9 @@ def test_clean_content_dir_empties(tmp_path: Path):
 
 def test_generate_index_md():
     result = _generate_index_md("en")
-    assert "title: English 知识库" in result
-    assert "description: English 学习笔记与知识点" in result
-    assert "# English 知识库" in result
+    assert "title: 🇬🇧🇺🇸English 知识库" in result
+    assert "description: 🇬🇧🇺🇸English 学习笔记与知识点" in result
+    assert "# 🇬🇧🇺🇸English 知识库" in result
 
 
 def test_generate_index_md_unknown_lang():

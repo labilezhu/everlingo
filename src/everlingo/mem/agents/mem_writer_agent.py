@@ -308,7 +308,6 @@ def _format_event_section(
         ("channel_name", entry.channel_name),
         ("item_type", entry.item_type),
         ("why_want_to_save_memory", entry.why_want_to_save_memory),
-        ("user_intent", entry.user_intent),
         ("lang", entry.lang),
         ("title", entry.title),
     ]
@@ -385,7 +384,7 @@ def _format_action_event_section(
 ) -> str:
     """按 events_spec.md 删除/编辑事件格式构造 event markdown 段落。
 
-    delete/edit 事件字段比 create 少（无 why_want_to_save_memory / user_intent /
+    delete/edit 事件字段比 create 少（无 why_want_to_save_memory /
     new_messages / context_messages / conversation_context），但多了 action 与 file_path。
     """
     fields = [

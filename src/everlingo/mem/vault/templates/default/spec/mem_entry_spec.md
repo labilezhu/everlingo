@@ -7,7 +7,6 @@
   "entry_id": "", // 新生成 uuid
   "timestamp": "2026-11-21 14:58:56", //yyyymmdd HH:mm:ss
   "channel_name": "WechatChannel", //session 相关的 channel name
-  "user_intent": "dict", // 用户在 chatbot 上的意图： None=其它, "dict"=查词, "translate"=翻译
   "lang": "ja", 
   "interface_language": "zh-CN",
   "why_want_to_save_memory": "用户明确要求记住知识点", 

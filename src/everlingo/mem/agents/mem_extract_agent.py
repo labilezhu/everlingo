@@ -72,16 +72,6 @@ def _render_context_messages(messages) -> str:
     return "\n".join(lines)
 
 
-def _intent_mode_label(intent_mode: Optional[str]) -> str:
-    """ExtractInput.intent_mode -> user_intent 字符串。
-
-    ref: memory-extract-agent-spec.md — 字段来源约定 · user_intent
-    """
-    if intent_mode is None:
-        return "None"
-    return intent_mode
-
-
 _SPEC_COMPILE_TOOLS: frozenset[str] = frozenset({"vault_mcp_compile_prompt"})
 
 
@@ -230,7 +220,6 @@ class MemoryExtractAgent:
     def _post_process(
         self,
         llm_entries: list[LLMGeneratedEntry],
-        user_intent: str,
         new_messages_text: str = "",
         context_messages_text: str = "",
         reason: str | None = None,
@@ -249,7 +238,6 @@ class MemoryExtractAgent:
                 timestamp=ts,
                 chat_session_id=self._chat_session_id,
                 channel_name=self._channel_name,
-                user_intent=user_intent,
                 lang=self._target_lang,
                 interface_language=self._interface_lang,
                 new_messages=new_messages_text,
@@ -282,13 +270,11 @@ class MemoryExtractAgent:
             vault_spec_content=vault_spec,
         )
 
-        intent_label = _intent_mode_label(extract_input.intent_mode)
         new_text = _render_context_messages(extract_input.new_messages)
         context_text = _render_context_messages(extract_input.context_messages)
         reason_info = f"reason: {extract_input.reason}"
         note_info = f"note: {extract_input.note}" if extract_input.note else ""
         user_msg = (
-            f"intent_mode: {intent_label}\n"
             f"{reason_info}\n"
             f"{note_info}\n\n"
             f"=== 背景上下文（仅供理解对话场景，禁止从中抽取知识点）===\n"
@@ -305,7 +291,7 @@ class MemoryExtractAgent:
         ])
 
         entries = self._post_process(
-            result.entries, intent_label, new_text, context_text,
+            result.entries, new_text, context_text,
             reason=extract_input.reason,
         )
 
@@ -313,12 +299,12 @@ class MemoryExtractAgent:
         for e in entries:
             logger.info(
                 "memory extract entry: entry_id=%s chat_session_id=%s timestamp=%s "
-                "channel_name=%s item_type=%s why=%s user_intent=%s lang=%s "
+                "channel_name=%s item_type=%s why=%s lang=%s "
                 "interface_language=%s "
                 "title=%s new_messages=%r context_messages=%r",
                 e.entry_id, e.chat_session_id, e.timestamp,
                 e.channel_name, e.item_type, e.why_want_to_save_memory,
-                e.user_intent, e.lang, e.interface_language,
+                e.lang, e.interface_language,
                 e.title, e.new_messages, e.context_messages,
             )
 

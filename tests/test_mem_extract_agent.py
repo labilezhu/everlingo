@@ -32,7 +32,6 @@ from everlingo.mem.agents.mem_entries import (
 from everlingo.mem.agents.mem_extract_agent import (
     MemoryExtractAgent,
     _build_system_prompt,
-    _intent_mode_label,
     _now_gmt8_str,
     _render_context_messages,
 )
@@ -94,15 +93,6 @@ def extract_spec_text():
 
 
 class TestUtilityFunctions:
-    def test_intent_mode_label_dict(self):
-        assert _intent_mode_label("dict") == "dict"
-
-    def test_intent_mode_label_translate(self):
-        assert _intent_mode_label("translate") == "translate"
-
-    def test_intent_mode_label_none(self):
-        assert _intent_mode_label(None) == "None"
-
     def test_now_gmt8_str_format(self):
         s = _now_gmt8_str()
         # yyyy-mm-dd HH:MM:SS
@@ -283,7 +273,6 @@ class TestExtractSync:
             _entry(title="gcc"),
         ]))
         entries = agent._extract(ExtractInput(
-            intent_mode="dict",
             new_messages=[HumanMessage(content="gcc")],
             context_messages=[],
         ))
@@ -293,7 +282,6 @@ class TestExtractSync:
         assert e.chat_session_id == "cs-1"
         assert e.channel_name == "StdioChannel"
         assert e.lang == "en"
-        assert e.user_intent == "dict"  # intent_mode="dict" → "dict"
         # LLM 生成字段透传
         assert e.title == "gcc"
         # 对话消息渲染
@@ -305,19 +293,10 @@ class TestExtractSync:
         # timestamp 是 yyyy-mm-dd HH:MM:SS 格式
         assert len(e.timestamp) == 19
 
-    def test_user_intent_none_label(self, fake_writer, llm_response_factory):
-        agent = self._make_agent(fake_writer, llm_response_factory([
-            _entry(title="x"),
-        ]))
-        entries = agent._extract(ExtractInput(
-            intent_mode=None, new_messages=[], context_messages=[]
-        ))
-        assert entries[0].user_intent == "None"
-
     def test_empty_entries_skip_enqueue(self, fake_writer, llm_response_factory):
         agent = self._make_agent(fake_writer, llm_response_factory([]))
         entries = agent._extract(ExtractInput(
-            intent_mode=None, new_messages=[], context_messages=[]
+            new_messages=[], context_messages=[]
         ))
         assert entries == []
         fake_writer.enqueue.assert_not_called()
@@ -328,7 +307,7 @@ class TestExtractSync:
             _entry(title="kernel"),
         ]))
         entries = agent._extract(ExtractInput(
-            intent_mode=None, new_messages=[], context_messages=[]
+            new_messages=[], context_messages=[]
         ))
         fake_writer.enqueue.assert_called_once()
         assert len(fake_writer.enqueue.call_args[0][0]) == 2
@@ -350,7 +329,7 @@ class TestExtractSync:
 
         agent._llm.invoke.side_effect = first_invoke
         agent.submit(ExtractInput(
-            intent_mode=None, new_messages=[], context_messages=[]
+            new_messages=[], context_messages=[]
         ))
 
         # 等第一次 invoke 真正发生（daemon thread 已进入 _extract，异常已被 logger.exception 吞掉）
@@ -364,7 +343,7 @@ class TestExtractSync:
             return_value=llm_response_factory([_entry(title="ok")])
         )
         agent.submit(ExtractInput(
-            intent_mode=None, new_messages=[], context_messages=[]
+            new_messages=[], context_messages=[]
         ))
 
         # 等第二次成功 enqueue
@@ -396,7 +375,7 @@ class TestExtractSync:
 
         t0 = time.time()
         agent.submit(ExtractInput(
-            intent_mode=None, new_messages=[], context_messages=[]
+            new_messages=[], context_messages=[]
         ))
         elapsed = time.time() - t0
         # 远小于 slow_invoke 的 0.3s
@@ -413,7 +392,7 @@ class TestExtractSync:
         ]))
         with caplog.at_level(_logging.INFO, logger="everlingo"):
             agent._extract(ExtractInput(
-                intent_mode="dict", new_messages=[], context_messages=[]
+                new_messages=[], context_messages=[]
             ))
 
         records = [r for r in caplog.records if "memory extract entry" in r.message]
@@ -421,7 +400,7 @@ class TestExtractSync:
         msg = records[0].message
         # 关键字段名都应在日志中（顺序与实现对齐）
         for field in ["entry_id=", "chat_session_id=", "timestamp=", "channel_name=",
-                      "item_type=", "why=", "user_intent=", "lang=",
+                      "item_type=", "why=", "lang=",
                       "title=", "new_messages=", "context_messages="]:
             assert field in msg
 
@@ -461,7 +440,6 @@ class TestMainAgentWiring:
         mock_inner.ainvoke = AsyncMock(return_value=mock_agent_response)
         agent, mock_extract_inst = _make_main_agent(zh_en_profile)
 
-        asyncio.run(agent.ainvoke(MessageEvent(text="/dict")))
         with patch("everlingo.agents.agent.create_agent", return_value=mock_inner), \
              patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
              patch("everlingo.agents.agent.load_user_doc", return_value=""), \
@@ -479,14 +457,12 @@ class TestMainAgentWiring:
         mock_inner.ainvoke = AsyncMock(return_value=mock_agent_response)
         agent, mock_extract_inst = _make_main_agent(zh_en_profile)
 
-        # 设置为 dict 模式，然后两次对话（第一次 submit，第二次也 submit）
+        # 两次对话（第一次 submit，第二次也 submit）
         with patch("everlingo.agents.agent.create_agent", return_value=mock_inner), \
              patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
              patch("everlingo.agents.agent.load_user_doc", return_value=""), \
              patch("everlingo.agents.agent.get_config_version", return_value=999), \
              patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0):
-            asyncio.run(agent.ainvoke(MessageEvent(text="/dict")))
-
             # 模拟 request_memory_extraction 工具调用
             agent._pending_extract = ("user_explicit_request", "记住 gcc")
             asyncio.run(agent.ainvoke(MessageEvent(text="gcc")))
@@ -496,18 +472,17 @@ class TestMainAgentWiring:
             agent._pending_extract = ("correction", "纠正 goes→go")
             asyncio.run(agent.ainvoke(MessageEvent(text="I goes to school")))
 
-        # submit 应被调用 2 次（命令路径不 submit）
+        # submit 应被调用 2 次（未触发工具的轮次不 submit）
         assert mock_extract_inst.submit.call_count == 2
 
         # 第一次 submit 的 ExtractInput 字段验证
         first = mock_extract_inst.submit.call_args_list[0][0][0]
         assert isinstance(first, ExtractInput)
-        assert first.intent_mode == "dict"
         assert first.reason == "user_explicit_request"
         assert first.note == "记住 gcc"
         assert any(isinstance(m, HumanMessage) and m.content == "gcc"
                    for m in first.new_messages)
-        # 首轮 context_messages 应为空（游标从 0 起步，/dict 不推进游标）
+        # 首轮 context_messages 应为空（游标从 0 起步）
         assert first.context_messages == []
 
         # 第二次 submit：new_messages 应含 "I goes to school" 轮
@@ -546,15 +521,6 @@ class TestMainAgentWiring:
                       if isinstance(m, HumanMessage)]
         assert "turn1" in ctx_humans
         assert "turn2" in ctx_humans
-
-    def test_command_path_does_not_submit(self, zh_en_profile, mock_agent_response):
-        """/dict 等命令路径不应触发 submit。"""
-        agent, mock_extract_inst = _make_main_agent(zh_en_profile)
-
-        asyncio.run(agent.ainvoke(MessageEvent(text="/dict")))
-        asyncio.run(agent.ainvoke(MessageEvent(text="/help")))
-
-        mock_extract_inst.submit.assert_not_called()
 
     def test_extract_agent_uses_session_id_and_channel_name(self, zh_en_profile):
         """Extract Agent 构造时应传入 session_id 与 channel_name（来自 channel_metadata）。"""

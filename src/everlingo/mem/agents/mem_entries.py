@@ -29,9 +29,6 @@ class ExtractInput:
     Extract Agent 自身无状态。
     """
 
-    # 本轮 MainAgent._intent_mode 快照：None=自动, "dict"=查词, "translate"=翻译
-    intent_mode: Optional[str]
-
     # 本轮新增 messages（自上次 extract 游标以来）。
     # 唯一允许的抽取来源。通常含本轮 HumanMessage + 其后的 AIMessage / ToolMessage；
     # 必须保留 ToolMessage —— 查词/翻译工具返回是 mean_summary 的事实来源。
@@ -68,7 +65,7 @@ class ExtractLLMOutput(BaseModel):
     """LLM 结构化输出 schema：只暴露 LLM 应负责生成的字段。
 
     其余字段（chat_session_id / entry_id / timestamp / channel_name /
-    user_intent / lang）由 Extract Agent 在 post-process 阶段用实例属性与
+    lang）由 Extract Agent 在 post-process 阶段用实例属性与
     uuid4 / GMT+8 时间戳填充，LLM 不参与生成，避免不一致或幻觉。
 
     ref: docs/impl-spec/memory-extract-agent-spec.md — 输出规范 · 字段来源约定
@@ -121,7 +118,6 @@ class MemoryEntry(BaseModel):
     # 会话元数据（实例属性覆盖）
     chat_session_id: str
     channel_name: str
-    user_intent: str  # "dict" / "translate" / "None"
     lang: str         # target_lang 语言代码
     # ref: docs/impl-spec/memory-writer-agent-spec.md — interface_language
     interface_language: str  # 界面语言

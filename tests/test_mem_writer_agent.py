@@ -62,7 +62,6 @@ def _entry(
     timestamp="2026-11-21 14:58:56",
     chat_session_id="cs-1",
     channel_name="StdioChannel",
-    user_intent="dict",
     new_messages="",
     context_messages="",
 ) -> MemoryEntry:
@@ -71,7 +70,6 @@ def _entry(
         timestamp=timestamp,
         chat_session_id=chat_session_id,
         channel_name=channel_name,
-        user_intent=user_intent,
         lang=lang,
         interface_language=interface_language,
         new_messages=new_messages,
@@ -112,7 +110,6 @@ class TestFormatEventSection:
         assert "- channel_name: StdioChannel" in section
         assert "- item_type: vocab" in section
         assert "- why_want_to_save_memory: 用户明确要求记住知识点" in section
-        assert "- user_intent: dict" in section
         assert "- lang: en" in section
         assert "- title: gcc" in section
         assert "### mean_summary" not in section
@@ -243,14 +240,13 @@ def _action_entry(
     chat_session_id: str = "cs-1",
     channel_name: str = "StdioChannel",
     timestamp: str = "2026-11-21 14:58:56",
-) -> MemoryEntry:
-    return MemoryEntry(
-        operation=operation,
-        entry_id="action-uuid-1",
-        timestamp=timestamp,
-        chat_session_id=chat_session_id,
-        channel_name=channel_name,
-        user_intent="None",
+    ) -> MemoryEntry:
+        return MemoryEntry(
+            operation=operation,
+            entry_id="action-uuid-1",
+            timestamp=timestamp,
+            chat_session_id=chat_session_id,
+            channel_name=channel_name,
         lang=lang,
         interface_language="zh-CN",
         item_type=item_type,
@@ -692,7 +688,7 @@ class TestWriterSystemPrompt:
         assert "## 输入给你的 entry 结构" in prompt
         for field in (
             "chat_session_id", "entry_id", "timestamp", "channel_name",
-            "item_type", "why_want_to_save_memory", "user_intent",
+            "item_type", "why_want_to_save_memory",
             "lang", "interface_language", "title",
             "new_messages", "context_messages",
         ):

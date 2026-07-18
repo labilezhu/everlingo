@@ -284,7 +284,7 @@ def test_index_file_events_kind_event_ulid(conn: sqlite3.Connection, memory_root
     p = memory_root / "events" / "2026" / "06" / "2026-06-26.md"
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(
-        "# 当天事件\n\n## Event\n- chat_session_id: s1\n- entry_id: e1\n- timestamp: 2026-06-26 10:00:00\n- channel_name: stdio\n- item_type: vocab\n- why_want_to_save_memory: w\n- user_intent: i\n- lang: ja\n- headword: 曖昧\n\n### mean_summary\n意味がはっきりしない。\n",
+        "# 当天事件\n\n## Event\n- chat_session_id: s1\n- entry_id: e1\n- timestamp: 2026-06-26 10:00:00\n- channel_name: stdio\n- item_type: vocab\n- why_want_to_save_memory: w\n- lang: ja\n- headword: 曖昧\n\n### mean_summary\n意味がはっきりしない。\n",
         encoding="utf-8",
     )
     parsed = parse_file(p, memory_root, "ja")

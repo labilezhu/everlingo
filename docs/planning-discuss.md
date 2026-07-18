@@ -37,7 +37,7 @@
 这里：
 
 - `chat.message`：用户当前输入（可能为空，例如只是点击"翻译"）。
-- `task`：UI 希望优先完成的任务（translate、save_note、review 等），可以作为 Agent 的先验意图。
+- `task`：UI 希望优先完成的任务（ translate、 look_up 等），可以作为 Agent 的先验意图。
 - `selection`、`context`、`page`：浏览器提供的结构化上下文。
 
 这样设计有一个很大的优势：**`task` 不需要决定 Agent 的行为，只需要影响 Agent 的默认行为。**
@@ -45,7 +45,7 @@
 例如：
 
 - `task = translate`，用户又问："顺便解释一下为什么这里用 bank。"——Agent 可以先翻译，再解释。
-- `task = note`，用户输入："帮我补充一个例句。"——Agent 会围绕当前笔记继续工作，而不是重新开始。
+- `task = look_up`，用户输入："帮我补充一个例句。"——Agent 会围绕当前笔记继续工作，而不是重新开始。
 
 换句话说，`task` 或 `mode` 更像是**会话上下文（conversation mode）**，而不是一个必须严格执行的 RPC 命令。这种设计与 Chatbot 的交互方式更契合，同时也保留了结构化输入带来的稳定性和可扩展性。
 
