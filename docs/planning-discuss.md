@@ -1,19 +1,55 @@
 
+我计划把现在 [Chat Agent](docs/impl-spec/chat-agent-spec.md) 的 "## 用户显式模式指定" 功能删除。原因是：我后面计划引入 json 结构的输入格式去表达用户意图，在应用的 UI 中用户直接在 UI 中通过点击按钮表达意图。
+
+
+---
+
 请你结合 EverLingo 产品现状和目标，分析一下以下产品设计的合理性。
 
 计划为产品加入一个新 feature: 作为一个 Chrome Extension ，为任意网页提供翻译和笔记功能。
 
-1. 用户在浏览器选词后出现小工具图标的设计模仿 Google Translate Chrome Extension
-2. 用户点击小工具图标后，打开一个 [Web Channel](docs/impl-spec/web-session-acceptor.md) 小窗口
+1. 用户在浏览器选词后出现翻译小工具图标的设计模仿 Google Translate Chrome Extension
+2. 用户点击翻译小工具图标后，打开一个 UI 类似 [Web Session UI - Web Chatbox Web UI](docs/impl-spec/web-session-ui.md) 的右则栏 panel(Web Sidecar)
 3. 界面成功打开后，注入以下用户输入消息：
 ```json
 {
-  "intent":"translate", 
-  "text_to_be_translated":"The selected text to be translated", //用户在浏览器选词
-  "text_context":"The prefix text. The selected text to be translated. The suffix text", //用户在浏览器选词的同一段落的最多 500 字的上下文。
+  "task": "translate",
+
+  "chat": {
+    "message": "为什么这里不是银行？"
+  },
+
+  "selection": {
+    "text": "bank" //用户在浏览器选词
+  },
+
+  "context": {
+    "text": "I sat on the bank of the river." //用户在浏览器选词的同一段落的最多 500 字的上下文。
+  },
+
+  "page": {
+    "url": "...",
+    "title": "...",
+  }
 }
 ```
-4. Web Channel 的 Chat Agent 根据 text_context，准确地翻译出 text_to_be_translated 。
+
+这里：
+
+- `chat.message`：用户当前输入（可能为空，例如只是点击"翻译"）。
+- `task`：UI 希望优先完成的任务（translate、save_note、review 等），可以作为 Agent 的先验意图。
+- `selection`、`context`、`page`：浏览器提供的结构化上下文。
+
+这样设计有一个很大的优势：**`task` 不需要决定 Agent 的行为，只需要影响 Agent 的默认行为。**
+
+例如：
+
+- `task = translate`，用户又问："顺便解释一下为什么这里用 bank。"——Agent 可以先翻译，再解释。
+- `task = note`，用户输入："帮我补充一个例句。"——Agent 会围绕当前笔记继续工作，而不是重新开始。
+
+换句话说，`task` 或 `mode` 更像是**会话上下文（conversation mode）**，而不是一个必须严格执行的 RPC 命令。这种设计与 Chatbot 的交互方式更契合，同时也保留了结构化输入带来的稳定性和可扩展性。
+
+4. Web Sidecar Chat Agent 根据 context ，准确地翻译出 selection 。
 5. 用户可以在 Web Channel 中通过聊天完成笔记记录。
 6. Web Channel 小窗口因失去 Focus，或用户点击关闭而隐藏
 7. 同一网页中，二次激活翻译工具时，显示之前隐藏的 Web Channel
