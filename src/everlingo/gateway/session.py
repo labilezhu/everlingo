@@ -1,6 +1,6 @@
 # ref: gateway.md — Session 封装 Channel 实例与 Agent 实例的绑定
 # 每个 Session 对象有自己的线程，loop 阻塞读取 channel 的消息。
-# 2026-07 改为事件队列模式：channel.recv() 与系统事件混合为统一事件源。
+# 2026-07 改为事件队列模式：channel.recv_envelope() 与系统事件混合为统一事件源。
 
 import asyncio
 import logging
@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime
 
 from .channels.channel import Channel, ChannelMetadata
+from .channels.envelope import render_envelope_to_message_text
 from .session_events import QuitEvent, SystemNotice, UserMessage
 from ..agents.agent import MainAgent, MessageEvent
 from ..models import UserProfile
@@ -58,7 +59,7 @@ class Session:
         await self.channel.init()
         self._loop = asyncio.get_running_loop()
 
-        # 后台协程：把 channel.recv() 转换成 UserMessage / QuitEvent 入队
+        # 后台协程：把 channel.recv_envelope() 转换成 UserMessage / QuitEvent 入队
         listener = asyncio.create_task(self._channel_listener())
 
         try:
@@ -67,7 +68,7 @@ class Session:
                 if isinstance(ev, QuitEvent):
                     break
                 if isinstance(ev, UserMessage):
-                    await self._handle_user_message(ev.text)
+                    await self._handle_user_message(ev)
                 elif isinstance(ev, SystemNotice):
                     await self._handle_system_notice(ev)
         finally:
@@ -75,22 +76,27 @@ class Session:
             await self.agent.aclose()
 
     async def _channel_listener(self) -> None:
-        """后台读取 channel，把用户输入转成事件入队。"""
+        """后台读取 channel（envelope 格式），把用户输入转成事件入队。"""
         while True:
-            text = await self.channel.recv()
-            if text is None:
+            env = await self.channel.recv_envelope()
+            if env is None:
                 logger.info("session %s: channel closed, posting QuitEvent", self.id)
                 await self._event_queue.put(QuitEvent())
                 return
-            await self._event_queue.put(UserMessage(text=text))
+            await self._event_queue.put(UserMessage(envelope=env))
 
-    async def _handle_user_message(self, text: str) -> None:
-        """处理用户消息：typing hint → ainvoke → send replies。"""
+    async def _handle_user_message(self, ev: UserMessage) -> None:
+        """处理用户消息：typing hint → ainvoke → send replies。
+
+        ref: ADR 20260719 — 从 envelope 渲染文本后传给 agent.ainvoke
+        """
         self.update_time = datetime.now()
+        env_json = ev.envelope.model_dump_json(ensure_ascii=False)
         logger.debug(
-            "[ChatAgent] IN session=%s channel=%s text=%r",
-            self.id, self.channel_metadata.name, text,
+            "[ChatAgent] IN session=%s channel=%s envelope=%s",
+            self.id, self.channel_metadata.name, env_json,
         )
+        text = render_envelope_to_message_text(ev.envelope)
         input_msg = MessageEvent(text=text)
         await self.channel.send_typing_hint()
         try:

@@ -32,6 +32,10 @@ agent = create_agent("openai:gpt-5.5", tools=tools)
 Agent 的`用户意图分析` 与 `用户意图的执行与回复响应` 见 Agent 的 system prompt:
 `src/everlingo/agents/agent.py` 中的 `_build_system_prompt()`
 
+#### 结构化用户输入（envelope）（2026-07）
+
+system prompt 在 `## 用户意图分类` 之前新增 `## 结构化用户输入（envelope）` 节，说明 `<envelope>` 标签包裹的 JSON 输入格式及各字段含义。所有 Channel 统一产 `UserInputEnvelope`（详见 [envelope-spec.md](envelope-spec.md)），LLM 看到的用户消息始终是 `{envelope}` 序列化格式。
+
 ### invoke -> ainvoke
 
 `MainAgent.invoke` 为 async 方法 `ainvoke`，因为 MCP 工具（vault 只读）需要异步 session。

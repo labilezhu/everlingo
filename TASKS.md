@@ -22,6 +22,19 @@
    - 测试用例从 dict 字面量改为 `_MemoryEntryDraft(...)` 实例，新增 `test_pydantic_drafts_regression` 回归测试
    - `session.py`：`_handle_user_message` / `_handle_system_notice` 包 try/except，ainvoke 异常不崩整个会话
 
+- 2026-07-19 | **ADR**: 引入 `UserInputEnvelope` 统一结构化用户输入协议
+  - 新增 `envelope.py`：`UserInputEnvelope` pydantic 模型（schema_version 1, task: translate/look_up/none, source tagged union: plain/web/pdf/epub/ios_app） + `wrap_plain_text()` + `render_envelope_to_message_text()`
+  - `channel.py`：删除 `recv()` 抽象方法，新增 `recv_envelope()` 抽象方法
+  - `stdio_channel.py` / `wechat_channel.py`：`recv()` → `recv_envelope()`，用 `wrap_plain_text()` 包装用户输入
+  - `web_channel.py`：`recv()` → `recv_envelope()`，`_incoming` 队列类型改为 `UserInputEnvelope`
+  - `web_acceptor.py`：`MessageBody` 改为 union（`text` / `envelope`），旧 `{text}` 自动包装
+  - `session_events.py`：`UserMessage.text` → `UserMessage.envelope`
+  - `session.py`：`_channel_listener` 调 `recv_envelope()`；`_handle_user_message` 渲染 envelope 后传给 `agent.ainvoke`；日志格式改为 `envelope={JSON}`
+  - `agent.py`：system prompt 在 `## 用户意图分类` 前新增 `## 结构化用户输入（envelope）` 节
+  - 新增 `tests/test_envelope.py`（14 用例）；更新 `test_web_channel.py` / `test_wechat_channel.py` / `test_web_acceptor.py` / `test_session_event_queue.py`
+  - ADR 文档：`docs/ADR/20260719-envelope.md`；设计文档：`docs/impl-spec/envelope-spec.md`
+  - 更新 `channel.md` / `session.md` / `chat-agent-spec.md` / `web-session-acceptor.md`
+
 - 2026-07-19 | **用户交互日志**：在 Session 层记录所有用户输入与 Agent 回复文本（debug 级别，`[ChatAgent]` 前缀）
    - `session.py`：`_handle_user_message` 入口记 `[ChatAgent] IN`、出口记 `[ChatAgent] OUT`（逐条）；`_handle_system_notice` 同理记 `[ChatAgent] NOTICE IN` / `NOTICE OUT`
    - `session.md`：新增「交互日志」节，说明前缀、格式、日志级别

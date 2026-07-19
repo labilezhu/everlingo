@@ -9,6 +9,7 @@ import logging
 from datetime import datetime, timezone
 
 from everlingo.gateway.channels.channel import Channel, ChannelMetadata
+from everlingo.gateway.channels.envelope import UserInputEnvelope
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ class WebChannel(Channel):
         self._idle_check_interval = idle_check_interval
         self._disconnect_grace = disconnect_grace
         self._absolute_idle_timeout = absolute_idle_timeout
-        self._incoming: asyncio.Queue[str | None] = asyncio.Queue()
+        self._incoming: asyncio.Queue[UserInputEnvelope | None] = asyncio.Queue()
         self._sse_queues: list[asyncio.Queue[SSEEvent]] = []
         self._lock = asyncio.Lock()
 
@@ -69,9 +70,10 @@ class WebChannel(Channel):
     async def send(self, content: str) -> None:
         await self._broadcast(SSEEvent("message", text=content))
 
-    async def recv(self) -> str | None:
-        """读取前端消息，支持超时回收。
+    async def recv_envelope(self) -> UserInputEnvelope | None:
+        """读取前端消息（envelope 格式），支持超时回收。
 
+        ref: ADR 20260719 — 使用 recv_envelope 替代 recv
         - 每 IDLE_CHECK_INTERVAL 秒轮询一次 _incoming 队列
         - 无 SSE client 超过 DISCONNECT_GRACE → 返回 None（触发 QuitEvent）
         - 绝对空闲超过 ABSOLUTE_IDLE_TIMEOUT → 返回 None（触发 QuitEvent）

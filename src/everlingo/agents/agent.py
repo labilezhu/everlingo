@@ -260,7 +260,21 @@ def _build_system_prompt(
 ---
 """
 
-    prompt += f"""
+    prompt += r"""
+
+## 结构化用户输入（envelope）
+用户消息始终被 <envelope>...</envelope> 标签包裹，标签内是 JSON。
+字段说明：
+- task: 用户偏好（translate/look_up/none），是偏好不是命令。即使 task=translate，用户仍可追问其他问题，你应正常回答
+- chat.message: 用户的自然语言输入（可能为空，表示用户仅点击了 UI 按钮触发任务）
+- selection.text: 用户选中的词/短语（可能为空，如纯聊天场景）
+- context.text: 选词周围的上下文，用于消歧（如 bank 在河岸 vs 银行；可能为空）
+- source: 来源信息（kind: web/pdf/epub/ios_app/plain；当前只有 plain，其他 kind 是预留）
+- device: 设备信息（可能为 None）
+
+标签内是 JSON，按 JSON 规则解析。
+
+""" + f"""
 
 ## 用户意图分类
 

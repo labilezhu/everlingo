@@ -3,6 +3,7 @@
 
 ref: TEST_STYLE.md — 只测核心流程和用户输入边缘情况
 ref: web-session-acceptor.md — Web Channel 实现
+ref: ADR 20260719 — recv 已替换为 recv_envelope
 """
 import asyncio
 import base64
@@ -10,74 +11,77 @@ import logging
 
 import pytest
 
+from everlingo.gateway.channels.envelope import UserInputEnvelope, wrap_plain_text
 from everlingo.gateway.channels.web_channel import WebChannel, SSEEvent
 
 
-class TestWebChannelRecv:
-    """ref: web-session-acceptor.md — recv 行为"""
+class TestWebChannelRecvEnvelope:
+    """ref: web-session-acceptor.md — recv_envelope 行为"""
 
     @pytest.mark.asyncio
-    async def test_recv_returns_message_from_queue(self):
-        """recv() 从队列中读取并返回消息文字。"""
+    async def test_recv_envelope_returns_message_from_queue(self):
+        """recv_envelope() 从队列中读取并返回 envelope。"""
         channel = WebChannel()
-        await channel._incoming.put("hello")
-        result = await channel.recv()
-        assert result == "hello"
+        await channel._incoming.put(wrap_plain_text("hello"))
+        result = await channel.recv_envelope()
+        assert isinstance(result, UserInputEnvelope)
+        assert result.chat.message == "hello"
 
     @pytest.mark.asyncio
-    async def test_recv_returns_none_on_channel_end(self):
-        """recv() 收到 None 时返回 None。"""
+    async def test_recv_envelope_returns_none_on_channel_end(self):
+        """recv_envelope() 收到 None 时返回 None。"""
         channel = WebChannel()
         await channel._incoming.put(None)
-        result = await channel.recv()
+        result = await channel.recv_envelope()
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_recv_blocks_until_message_available(self):
-        """recv() 阻塞直到有消息可用。"""
+    async def test_recv_envelope_blocks_until_message_available(self):
+        """recv_envelope() 阻塞直到有消息可用。"""
         channel = WebChannel()
 
         async def delayed_put():
             await asyncio.sleep(0.01)
-            await channel._incoming.put("delayed")
+            await channel._incoming.put(wrap_plain_text("delayed"))
 
         task = asyncio.create_task(delayed_put())
-        result = await channel.recv()
+        result = await channel.recv_envelope()
         await task
-        assert result == "delayed"
+        assert isinstance(result, UserInputEnvelope)
+        assert result.chat.message == "delayed"
 
     @pytest.mark.asyncio
     async def test_multiple_messages_in_order(self):
-        """多条消息按顺序 recv。"""
+        """多条消息按顺序 recv_envelope。"""
         channel = WebChannel()
-        await channel._incoming.put("first")
-        await channel._incoming.put("second")
+        await channel._incoming.put(wrap_plain_text("first"))
+        await channel._incoming.put(wrap_plain_text("second"))
         await channel._incoming.put(None)
 
-        assert (await channel.recv()) == "first"
-        assert (await channel.recv()) == "second"
-        assert (await channel.recv()) is None
+        assert (await channel.recv_envelope()).chat.message == "first"
+        assert (await channel.recv_envelope()).chat.message == "second"
+        assert (await channel.recv_envelope()) is None
 
 
 class TestWebChannelRecvTimeout:
-    """recv() 超时回收测试（短超时值，避免等真实 5/60 分钟）。
+    """recv_envelope() 超时回收测试（短超时值，避免等真实 5/60 分钟）。
 
     ref: web-session-acceptor.md — Session 超时回收
     """
 
     @pytest.mark.asyncio
-    async def test_recv_returns_none_after_disconnect_grace(self):
-        """无 SSE client 超过宽限期 → recv() 返回 None。"""
+    async def test_recv_envelope_returns_none_after_disconnect_grace(self):
+        """无 SSE client 超过宽限期 → recv_envelope() 返回 None。"""
         channel = WebChannel(
             session_id="test-session",
             idle_check_interval=0.1,
             disconnect_grace=0.3,
         )
-        result = await asyncio.wait_for(channel.recv(), timeout=5.0)
+        result = await asyncio.wait_for(channel.recv_envelope(), timeout=5.0)
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_recv_does_not_return_none_with_sse_client(self):
+    async def test_recv_envelope_does_not_return_none_with_sse_client(self):
         """有 SSE client 时，即使轮询超时也不返回 None（直到收到消息）。"""
         channel = WebChannel(
             session_id="test-session",
@@ -86,24 +90,25 @@ class TestWebChannelRecvTimeout:
             absolute_idle_timeout=9999,
         )
         channel.add_sse_client()
-        await channel._incoming.put("hello")
-        result = await channel.recv()
-        assert result == "hello"
+        await channel._incoming.put(wrap_plain_text("hello"))
+        result = await channel.recv_envelope()
+        assert isinstance(result, UserInputEnvelope)
+        assert result.chat.message == "hello"
 
     @pytest.mark.asyncio
-    async def test_recv_returns_none_after_absolute_idle_timeout(self):
-        """绝对空闲超时（即使有 SSE client）→ recv() 返回 None。"""
+    async def test_recv_envelope_returns_none_after_absolute_idle_timeout(self):
+        """绝对空闲超时（即使有 SSE client）→ recv_envelope() 返回 None。"""
         channel = WebChannel(
             session_id="test-session",
             idle_check_interval=0.1,
             absolute_idle_timeout=0.3,
         )
         channel.add_sse_client()
-        result = await asyncio.wait_for(channel.recv(), timeout=5.0)
+        result = await asyncio.wait_for(channel.recv_envelope(), timeout=5.0)
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_recv_logs_disconnect_grace(self, caplog):
+    async def test_recv_envelope_logs_disconnect_grace(self, caplog):
         """DISCONNECT_GRACE 超时时输出 info 日志含 session id。"""
         channel = WebChannel(
             session_id="test-session-123",
@@ -111,13 +116,13 @@ class TestWebChannelRecvTimeout:
             disconnect_grace=0.3,
         )
         with caplog.at_level(logging.INFO, logger="everlingo.gateway.channels.web_channel"):
-            result = await asyncio.wait_for(channel.recv(), timeout=5.0)
+            result = await asyncio.wait_for(channel.recv_envelope(), timeout=5.0)
         assert result is None
         assert "test-session-123" in caplog.text
         assert "DISCONNECT_GRACE" in caplog.text
 
     @pytest.mark.asyncio
-    async def test_recv_logs_absolute_idle_timeout(self, caplog):
+    async def test_recv_envelope_logs_absolute_idle_timeout(self, caplog):
         """ABSOLUTE_IDLE_TIMEOUT 超时时输出 info 日志含 session id。"""
         channel = WebChannel(
             session_id="test-session-456",
@@ -126,7 +131,7 @@ class TestWebChannelRecvTimeout:
         )
         channel.add_sse_client()
         with caplog.at_level(logging.INFO, logger="everlingo.gateway.channels.web_channel"):
-            result = await asyncio.wait_for(channel.recv(), timeout=5.0)
+            result = await asyncio.wait_for(channel.recv_envelope(), timeout=5.0)
         assert result is None
         assert "test-session-456" in caplog.text
         assert "ABSOLUTE_IDLE_TIMEOUT" in caplog.text

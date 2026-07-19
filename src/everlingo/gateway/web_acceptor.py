@@ -5,21 +5,29 @@ import asyncio
 import json
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Union
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
+from everlingo.gateway.channels.envelope import UserInputEnvelope, wrap_plain_text
 from everlingo.gateway.channels.web_channel import WebChannel
 from everlingo.gateway.session_acceptor import SessionAcceptor
 
 app = FastAPI()
 
 
-class MessageBody(BaseModel):
+class TextMessageBody(BaseModel):
     text: str
+
+
+class EnvelopeMessageBody(BaseModel):
+    envelope: UserInputEnvelope
+
+
+MessageBody = Union[TextMessageBody, EnvelopeMessageBody]
 
 
 # 全局状态，由 acceptor 初始化时注入
@@ -46,14 +54,19 @@ async def create_session():
 
 @app.post("/api/session/{session_id}/message")
 async def send_message(session_id: str, body: MessageBody):
-    """接收用户消息，放入对应 WebChannel 的消息队列。
+    """接收用户消息（纯文本或 envelope），放入对应 WebChannel 的消息队列。
 
     ref: web-session-acceptor.md — 后端
+    ref: ADR 20260719 — MessageBody 改为 union（text / envelope）
     """
     channel = _channels.get(session_id)
     if channel is None:
         raise HTTPException(status_code=404, detail="Session not found")
-    await channel._incoming.put(body.text)
+    if isinstance(body, EnvelopeMessageBody):
+        env = body.envelope
+    else:
+        env = wrap_plain_text(body.text)
+    await channel._incoming.put(env)
     return {"ok": True}
 
 

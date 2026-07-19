@@ -9,7 +9,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from everlingo.gateway.web_acceptor import app, _channels, create_session, send_message, MessageBody
+from everlingo.gateway.channels.envelope import UserInputEnvelope
+from everlingo.gateway.web_acceptor import app, _channels, create_session, send_message, TextMessageBody
 from everlingo.gateway.channels.web_channel import WebChannel, SSEEvent
 
 
@@ -102,12 +103,14 @@ class TestSendMessage:
         session_id = resp["session_id"]
 
         # 模拟发送消息
-        await send_message(session_id, MessageBody(text="你好世界"))
+        await send_message(session_id, TextMessageBody(text="你好世界"))
 
-        # 验证消息在队列中
+        # 验证消息在队列中（envelope 格式）
         channel = _channels[session_id]
-        msg = await channel.recv()
-        assert msg == "你好世界"
+        msg = await channel.recv_envelope()
+        assert msg is not None
+        assert isinstance(msg, UserInputEnvelope)
+        assert msg.chat.message == "你好世界"
 
     def test_404_for_unknown_session(self):
         client = TestClient(app)

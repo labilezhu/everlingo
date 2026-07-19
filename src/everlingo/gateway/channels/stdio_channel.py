@@ -1,19 +1,21 @@
 # ref: channel-stdio.md — Stdio Channel 实现
-# send 输出到 stdout，recv 阻塞读取 stdin 一行。
-# /quit 命令或 EOF/KeyboardInterrupt 时 recv 返回 None，Session 据此退出循环。
+# send 输出到 stdout，recv_envelope 阻塞读取 stdin 一行。
+# /quit 命令或 EOF/KeyboardInterrupt 时返回 None，Session 据此退出循环。
 
 
 import asyncio
 
 from everlingo.gateway.channels.channel import Channel
+from everlingo.gateway.channels.envelope import UserInputEnvelope, wrap_plain_text
 
 
 class StdioChannel(Channel):
     """Stdio Channel 实现。
     
     ref: /docs/impl-spec/channel-stdio.md
+    ref: ADR 20260719 — 使用 recv_envelope 替代 recv
     - send: 输出到 stdout，消息内容后加换行符
-    - recv: 阻塞读取 stdin 一行；收到 /quit、EOF 或 KeyboardInterrupt 时返回 None
+    - recv_envelope: 读取 stdin 一行并包装为 envelope；收到 /quit、EOF 或 KeyboardInterrupt 时返回 None
     """
 
     async def init(self) -> None:
@@ -41,11 +43,11 @@ class StdioChannel(Channel):
         """
         print(f"\n{content}\n")
 
-    async def recv(self) -> str | None:
-        """阻塞读取 stdin 一行。
+    async def recv_envelope(self) -> UserInputEnvelope | None:
+        """阻塞读取 stdin 一行，包装为 UserInputEnvelope。
         
         Returns:
-            用户输入的文字；若用户输入 /quit、触发 EOF 或 KeyboardInterrupt 则返回 None
+            包装后的 envelope；若用户输入 /quit、触发 EOF 或 KeyboardInterrupt 则返回 None
         """
         try:
             line = (await asyncio.to_thread(input, "\n> ")).strip()
@@ -57,4 +59,6 @@ class StdioChannel(Channel):
             print("再见！")
             return None
 
-        return line if line else await self.recv()
+        if not line:
+            return await self.recv_envelope()
+        return wrap_plain_text(line)

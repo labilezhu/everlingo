@@ -14,14 +14,16 @@ from wechatbot import WeChatBot
 
 from everlingo import workspace
 from everlingo.gateway.channels.channel import Channel, ChannelMetadata
+from everlingo.gateway.channels.envelope import UserInputEnvelope, wrap_plain_text
 
 
 class WechatChannel(Channel):
     """Wechat(微信) 消息 Channel 实现。
 
     ref: /docs/impl-spec/channel-wechat-ilink.md
+    ref: ADR 20260719 — 使用 recv_envelope 替代 recv
     - init: 创建 WeChatBot 单例，注册消息回调，在独立线程启动 bot.run()
-    - recv: 从线程安全的同步 Queue 阻塞读取消息，返回消息文字；Channel 结束返回 None
+    - recv_envelope: 从线程安全的同步 Queue 读取消息并包装为 envelope；返回 None 表示 Channel 结束
     - send: 使用最近一次保存的 user_id 调用 bot.send() 主动发送消息
     """
 
@@ -75,13 +77,14 @@ class WechatChannel(Channel):
         bot_thread = threading.Thread(target=self._bot.run, daemon=True)
         bot_thread.start()
 
-    async def recv(self) -> Optional[str]:
-        """阻塞读取微信消息。
+    async def recv_envelope(self) -> UserInputEnvelope | None:
+        """阻塞读取微信消息，包装为 UserInputEnvelope。
 
         ref: /docs/impl-spec/channel-wechat-ilink.md
         从线程安全的同步 Queue 阻塞读取；返回 None 表示 Channel 结束。
         """
-        return await asyncio.to_thread(self._queue.get)
+        text = await asyncio.to_thread(self._queue.get)
+        return None if text is None else wrap_plain_text(text)
     
     async def send_typing_hint(self) -> None:
         if self._bot is None:

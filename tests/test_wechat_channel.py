@@ -128,21 +128,21 @@ class TestWechatChannelRecv:
 
         return channel
 
-    def test_recv_returns_message_from_queue(self, isolated_workspace):
-        """recv() 从队列中读取并返回消息文字。"""
+    def test_recv_envelope_returns_message_from_queue(self, isolated_workspace):
+        """recv_envelope() 从队列中读取并返回包装后的 envelope。"""
         channel = self._make_initialized_channel(isolated_workspace)
-        # 手动将消息放入队列
         channel._queue.put("你好")
 
-        result = asyncio.run(channel.recv())
-        assert result == "你好"
+        result = asyncio.run(channel.recv_envelope())
+        assert result is not None
+        assert result.chat.message == "你好"
 
-    def test_recv_returns_none_when_channel_closed(self, isolated_workspace):
-        """recv() 收到 None 时（Channel 结束信号）返回 None。"""
+    def test_recv_envelope_returns_none_when_channel_closed(self, isolated_workspace):
+        """recv_envelope() 收到 None 时（Channel 结束信号）返回 None。"""
         channel = self._make_initialized_channel(isolated_workspace)
         channel._queue.put(None)
 
-        result = asyncio.run(channel.recv())
+        result = asyncio.run(channel.recv_envelope())
         assert result is None
 
 

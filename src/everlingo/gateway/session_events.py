@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Protocol
 
+from everlingo.gateway.channels.envelope import UserInputEnvelope
+
 
 class SessionEvent:
     """Base type for all events flowing through Session's event queue."""
@@ -10,8 +12,8 @@ class SessionEvent:
 
 @dataclass
 class UserMessage(SessionEvent):
-    """User input from channel.recv()."""
-    text: str
+    """User input from channel.recv_envelope()."""
+    envelope: UserInputEnvelope
 
 
 @dataclass

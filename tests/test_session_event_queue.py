@@ -10,9 +10,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from everlingo.agents.agent import MessageEvent
+from everlingo.gateway.channels.channel import ChannelMetadata
+from everlingo.gateway.channels.envelope import (
+    UserInputEnvelope,
+    render_envelope_to_message_text,
+    wrap_plain_text,
+)
 from everlingo.gateway.session import Session
 from everlingo.gateway.session_events import SystemNotice
-from everlingo.gateway.channels.channel import ChannelMetadata
 from everlingo.models import UserProfile, UserLanguage
 
 
@@ -28,7 +33,7 @@ def _make_session(recv_side_effects, profile=None):
     channel.send = AsyncMock()
     channel.send_typing_hint = AsyncMock()
     channel.stop_typing_hint = AsyncMock()
-    channel.recv = AsyncMock(side_effect=recv_side_effects)
+    channel.recv_envelope = AsyncMock(side_effect=recv_side_effects)
     channel.get_metadata = MagicMock(
         return_value=ChannelMetadata(name="MockChannel")
     )
@@ -50,32 +55,34 @@ class TestSessionEventQueue:
 
     def test_user_message_triggers_ainvoke(self):
         """UserMessage 事件触发 agent.ainvoke 并发送回复。"""
-        session, channel, agent = _make_session(["hello", None])
+        hello_env = wrap_plain_text("hello")
+        session, channel, agent = _make_session([hello_env, None])
         asyncio.run(session.run())
 
         assert agent.ainvoke.call_count == 1
         call_arg = agent.ainvoke.call_args[0][0]
-        assert call_arg.text == "hello"
+        rendered = render_envelope_to_message_text(hello_env)
+        assert call_arg.text == rendered
         channel.send.assert_called_once_with("agent reply")
 
     def test_system_notice_triggers_ahandle_system_notice(self):
         """SystemNotice 事件触发 agent.ahandle_system_notice 并发送回复。
 
-        使用 asyncio.Queue 模拟 channel.recv，精确控制读取时序，
+        使用 asyncio.Queue 模拟 channel.recv_envelope，精确控制读取时序，
         避免 listener 过早退出导致 QueueEvent 淹没系统通知。
         """
         recv_queue: asyncio.Queue = asyncio.Queue()
 
-        async def controlled_recv():
+        async def controlled_recv_envelope():
             return await recv_queue.get()
 
         session, channel, agent = _make_session([], profile=None)
-        channel.recv = AsyncMock(side_effect=controlled_recv)
+        channel.recv_envelope = AsyncMock(side_effect=controlled_recv_envelope)
 
         async def run_with_post():
             async def producer():
                 # 先送一个用户消息，让 run 进入处理状态
-                await recv_queue.put("hello")
+                await recv_queue.put(wrap_plain_text("hello"))
                 await asyncio.sleep(0.01)
                 # 再送系统通知
                 session.post_event(SystemNotice(
@@ -100,7 +107,7 @@ class TestSessionEventQueue:
 
     def test_quit_event_exits_loop(self):
         """QuitEvent 退出消息循环。"""
-        # _channel_listener 在 channel.recv 返回 None 时会自己入 QuitEvent
+        # _channel_listener 在 channel.recv_envelope 返回 None 时会自己入 QuitEvent
         session, channel, agent = _make_session([None])
         asyncio.run(session.run())
 
@@ -114,11 +121,13 @@ class TestSessionEventQueue:
     def test_user_message_logs_input_output(self, caplog):
         """用户消息处理时记录 [ChatAgent] IN / OUT 日志。"""
         caplog.set_level(logging.DEBUG, logger="everlingo.gateway.session")
-        session, channel, agent = _make_session(["hello", None])
+        hello_env = wrap_plain_text("hello")
+        session, channel, agent = _make_session([hello_env, None])
         asyncio.run(session.run())
 
         assert "[ChatAgent] IN" in caplog.text
-        assert "'hello'" in caplog.text
+        assert "envelope=" in caplog.text
+        assert '"message":"hello"' in caplog.text
         assert "[ChatAgent] OUT[0]" in caplog.text
         assert "'agent reply'" in caplog.text
 
@@ -139,7 +148,9 @@ class TestSessionEventQueue:
         channel.send = AsyncMock()
         channel.send_typing_hint = AsyncMock()
         channel.stop_typing_hint = AsyncMock()
-        channel.recv = AsyncMock(side_effect=["hi", None])
+        channel.recv_envelope = AsyncMock(
+            side_effect=[wrap_plain_text("hi"), None]
+        )
         channel.get_metadata = MagicMock(
             return_value=ChannelMetadata(name="MockChannel")
         )
@@ -164,15 +175,15 @@ class TestSessionEventQueue:
 
         recv_queue: asyncio.Queue = asyncio.Queue()
 
-        async def controlled_recv():
+        async def controlled_recv_envelope():
             return await recv_queue.get()
 
         session, channel, agent = _make_session([], profile=None)
-        channel.recv = AsyncMock(side_effect=controlled_recv)
+        channel.recv_envelope = AsyncMock(side_effect=controlled_recv_envelope)
 
         async def run_with_post():
             async def producer():
-                await recv_queue.put("hello")
+                await recv_queue.put(wrap_plain_text("hello"))
                 await asyncio.sleep(0.01)
                 session.post_event(SystemNotice(
                     source="memory_writer",
@@ -202,7 +213,9 @@ class TestSessionEventQueue:
         channel.send = AsyncMock()
         channel.send_typing_hint = AsyncMock()
         channel.stop_typing_hint = AsyncMock()
-        channel.recv = AsyncMock(side_effect=["crash", None])
+        channel.recv_envelope = AsyncMock(
+            side_effect=[wrap_plain_text("crash"), None]
+        )
         channel.get_metadata = MagicMock(
             return_value=ChannelMetadata(name="MockChannel")
         )
@@ -234,11 +247,11 @@ class TestSessionEventQueue:
         """post_event 入队的 SystemNotice 最终到达 agent.ahandle_system_notice。"""
         recv_queue: asyncio.Queue = asyncio.Queue()
 
-        async def controlled_recv():
+        async def controlled_recv_envelope():
             return await recv_queue.get()
 
         session, channel, agent = _make_session([], profile=None)
-        channel.recv = AsyncMock(side_effect=controlled_recv)
+        channel.recv_envelope = AsyncMock(side_effect=controlled_recv_envelope)
 
         notice = SystemNotice(
             source="memory_writer",
@@ -250,7 +263,7 @@ class TestSessionEventQueue:
 
         async def run_with_post():
             async def producer():
-                await recv_queue.put("user msg")
+                await recv_queue.put(wrap_plain_text("user msg"))
                 await asyncio.sleep(0.01)
                 session.post_event(notice)
                 await asyncio.sleep(0.01)

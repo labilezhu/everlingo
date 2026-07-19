@@ -17,34 +17,31 @@ Web Session Acceptor 的实现包括两部分：
 ## 后端
 FastAPI 的 API。
 
-在收到用户输入的消息后，`WebChannel` 的 `async def recv(self) -> str` 方法返回消息文本内容给相关的 Session。
+在收到用户输入的消息后，`WebChannel` 的 `async def recv_envelope(self) -> UserInputEnvelope | None` 方法返回结构化 `UserInputEnvelope`（详见 [envelope-spec.md](envelope-spec.md)）给相关的 Session。
 
 ## 前后端协议
 
-消息数据结构示例，请使用 pydantic 实现：
-```python
-class WebChatBotMessage:
-    """Web 前后端协议消息体
-    """
+前端通过 `POST /api/session/{session_id}/message` 发送用户输入。请求体为 union 格式（2026-07 起）：
 
-    # 消息正文
-    text: str
+**格式一：纯文本（兼容旧前端）**
+```json
+{"text": "想翻译的文本"}
+```
+后端自动包装为最小 `UserInputEnvelope`（`task=none`, `source.kind=plain`）。
 
-    # 消息 id, 生成消息时，同时生成 uuid
-    message_id: str = None
-
-    # 消息相关的 session id
-    session_id: str = None
-
-    # 时间戳，生成消息的时间
-    timestamp: datetime
-
-    # 消息来源，webpage / server 枚举二选一
-    from: str
-
-    # 系统指令类型的消息。
-    # 当 from=server 时，可以为： send / send_typing_hint / stop_typing_hint / send_sound
-    command: str = None
+**格式二：结构化 envelope（新前端）**
+```json
+{
+  "envelope": {
+    "schema_version": 1,
+    "task": "translate",
+    "chat": {"message": "为什么这里不是银行？"},
+    "selection": {"text": "bank"},
+    "context": {"text": "I sat on the bank of the river."},
+    "source": {"kind": "web", "url": "https://..."},
+    "device": {"platform": "chrome_ext", "locale": "zh-CN"}
+  }
+}
 ```
 
 ### chatbot 服务端消息推送
