@@ -22,6 +22,7 @@ from everlingo.agents.agent import (
     _render_context_messages,
     _tail_recent_turns,
 )
+from everlingo.tools.request_memory_extract import _MemoryEntryDraft
 from everlingo.gateway.channels.channel import ChannelMetadata
 from everlingo.models import UserLanguage, UserProfile
 
@@ -159,14 +160,14 @@ class TestPendingDrafts:
                 session_id="s-1",
             )
         agent._add_pending_drafts([
-            {"item_type": "vocab", "why_want_to_save_memory": "用户明确要求记住知识点", "title": "hello"},
+            _MemoryEntryDraft(item_type="vocab", why_want_to_save_memory="用户明确要求记住知识点", title="hello"),
         ])
         agent._add_pending_drafts([
-            {"item_type": "grammar", "why_want_to_save_memory": "纠正事项", "title": "go→goes"},
+            _MemoryEntryDraft(item_type="grammar", why_want_to_save_memory="纠正事项", title="go→goes"),
         ])
         assert len(agent._pending_drafts) == 2
-        assert agent._pending_drafts[0]["title"] == "hello"
-        assert agent._pending_drafts[1]["title"] == "go→goes"
+        assert agent._pending_drafts[0].title == "hello"
+        assert agent._pending_drafts[1].title == "go→goes"
 
 
 # ── MainAgent 接入测试 ────────────────────────────────────────────────
@@ -224,7 +225,7 @@ class TestMainAgentWiring:
              patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
              patch("everlingo.agents.agent._get_memory_writer", return_value=mock_writer):
             agent._add_pending_drafts([
-                {"item_type": "vocab", "why_want_to_save_memory": "用户明确要求记住知识点", "title": "gcc"},
+                _MemoryEntryDraft(item_type="vocab", why_want_to_save_memory="用户明确要求记住知识点", title="gcc"),
             ])
             asyncio.run(agent.ainvoke(MessageEvent(text="gcc")))
 
@@ -262,10 +263,10 @@ class TestMainAgentWiring:
              patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
              patch("everlingo.agents.agent._get_memory_writer", return_value=mock_writer):
             agent._add_pending_drafts([
-                {"item_type": "vocab", "why_want_to_save_memory": "用户明确要求记住知识点", "title": "gcc"},
+                _MemoryEntryDraft(item_type="vocab", why_want_to_save_memory="用户明确要求记住知识点", title="gcc"),
             ])
             agent._add_pending_drafts([
-                {"item_type": "grammar", "why_want_to_save_memory": "纠正事项", "title": "go→goes"},
+                _MemoryEntryDraft(item_type="grammar", why_want_to_save_memory="纠正事项", title="go→goes"),
             ])
             asyncio.run(agent.ainvoke(MessageEvent(text="test")))
 
@@ -294,7 +295,7 @@ class TestMainAgentWiring:
             asyncio.run(agent.ainvoke(MessageEvent(text="turn2")))
             # 第三轮触发
             agent._add_pending_drafts([
-                {"item_type": "vocab", "why_want_to_save_memory": "Chat Agent 判定", "title": "turn3"},
+                _MemoryEntryDraft(item_type="vocab", why_want_to_save_memory="Chat Agent 判定", title="turn3"),
             ])
             asyncio.run(agent.ainvoke(MessageEvent(text="turn3")))
 
@@ -307,3 +308,29 @@ class TestMainAgentWiring:
         # context 含前两轮
         assert "[human] turn1" in e.context_messages
         assert "[human] turn2" in e.context_messages
+
+    def test_pydantic_drafts_regression(self, zh_en_profile, mock_agent_response):
+        """回归测试：通过 _add_pending_drafts 传入 pydantic _MemoryEntryDraft 后
+        ainvoke 不抛 TypeError（Bug：dict 下标访问 pydantic 实例）。"""
+        mock_inner = MagicMock()
+        mock_inner.ainvoke = AsyncMock(return_value=mock_agent_response)
+        agent, mock_writer = _make_main_agent(zh_en_profile)
+
+        with patch("everlingo.agents.agent.create_agent", return_value=mock_inner), \
+             patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+             patch("everlingo.agents.agent.load_user_doc", return_value=""), \
+             patch("everlingo.agents.agent.get_config_version", return_value=999), \
+             patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
+             patch("everlingo.agents.agent._get_memory_writer", return_value=mock_writer):
+            agent._add_pending_drafts([
+                _MemoryEntryDraft(item_type="vocab", why_want_to_save_memory="用户明确要求记住知识点", title="ambiguous"),
+            ])
+            replies = asyncio.run(agent.ainvoke(MessageEvent(text="记住 ambiguous 这个词")))
+
+        # 不抛异常、drafts 已清空、writer 收到 entry
+        assert agent._pending_drafts == []
+        mock_writer.enqueue.assert_called_once()
+        entries = mock_writer.enqueue.call_args[0][0]
+        assert len(entries) == 1
+        assert entries[0].title == "ambiguous"
+        assert entries[0].item_type == "vocab"

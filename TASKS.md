@@ -14,3 +14,10 @@
   - 删除测试文件 `test_mem_extract_agent.py`；创建 `test_main_agent.py`（13 个用例）
   - 更新 `chat-agent-spec.md` / `memory-writer-agent-spec.md` / `chat-agent-tools-spec.md`
   - ADR 文档：`docs/ADR/20260719-remove_memory_extractor_agent.md`
+
+- 2026-07-19 | **Bug 修复**：Chat Agent 无响应 — `dict` 下标访问 pydantic `_MemoryEntryDraft` 实例引发 `TypeError`
+  - 根因：`request_memory_extraction` 工具按 `args_schema` 解析后产 pydantic 实例，`MainAgent.ainvoke()` 末尾用 `d["item_type"]`（dict 下标）访问，pydantic BaseModel 不支持 `__getitem__`
+  - 修复：`agent.py` 改用属性访问 `d.item_type` / `d.why_want_to_save_memory` / `d.title`
+  - `request_memory_extract.py`：`_MemoryEntryDraft` 字段类型收紧为 `Literal[...]`（与 ADR §4.1 对齐）
+  - 测试用例从 dict 字面量改为 `_MemoryEntryDraft(...)` 实例，新增 `test_pydantic_drafts_regression` 回归测试
+  - `session.py`：`_handle_user_message` / `_handle_system_notice` 包 try/except，ainvoke 异常不崩整个会话

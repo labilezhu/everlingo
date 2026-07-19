@@ -769,9 +769,9 @@ class MainAgent:
                     interface_language=self._profile.language.interface_language,
                     new_messages=new_text,
                     context_messages=ctx_text,
-                    item_type=d["item_type"],
-                    why_want_to_save_memory=d["why_want_to_save_memory"],
-                    title=d["title"],
+                    item_type=d.item_type,
+                    why_want_to_save_memory=d.why_want_to_save_memory,
+                    title=d.title,
                 )
                 for d in drafts
             ]

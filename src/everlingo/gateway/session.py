@@ -89,13 +89,23 @@ class Session:
         self.update_time = datetime.now()
         input_msg = MessageEvent(text=text)
         await self.channel.send_typing_hint()
-        replies = await self.agent.ainvoke(input_msg)
+        try:
+            replies = await self.agent.ainvoke(input_msg)
+        except Exception:
+            logger.exception("_handle_user_message: ainvoke failed")
+            await self.channel.stop_typing_hint()
+            await self.channel.send("出错了，请稍后重试")
+            return
         await self.channel.stop_typing_hint()
         for r in replies:
             await self.channel.send(r.text)
 
     async def _handle_system_notice(self, notice: SystemNotice) -> None:
         """处理系统通知：交给 Chat Agent（LLM 中介），不发 typing hint。"""
-        replies = await self.agent.ahandle_system_notice(notice)
+        try:
+            replies = await self.agent.ahandle_system_notice(notice)
+        except Exception:
+            logger.exception("_handle_system_notice failed")
+            return
         for r in replies:
             await self.channel.send(r.text)

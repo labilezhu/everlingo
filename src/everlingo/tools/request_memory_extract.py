@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Literal
 
 from langchain_core.tools import StructuredTool, tool
 from pydantic import BaseModel, Field
@@ -9,10 +9,14 @@ from . import log_tool_call
 class _MemoryEntryDraft(BaseModel):
     """LLM 应负责生成的 entry 字段（系统字段由 MainAgent 代码补全）。"""
 
-    item_type: str = Field(
+    item_type: Literal["vocab", "phrase", "grammar", "pragmatics", "others"] = Field(
         description="知识类型：vocab（单词） / phrase（短语） / grammar（语法点） / pragmatics（语用） / others（其他）",
     )
-    why_want_to_save_memory: str = Field(
+    why_want_to_save_memory: Literal[
+        "用户明确要求记住知识点",
+        "纠正事项",
+        "Chat Agent 判定",
+    ] = Field(
         description="为什么要记住：用户明确要求记住知识点 / 纠正事项 / Chat Agent 判定",
     )
     title: str = Field(
