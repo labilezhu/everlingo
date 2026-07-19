@@ -87,6 +87,10 @@ class Session:
     async def _handle_user_message(self, text: str) -> None:
         """处理用户消息：typing hint → ainvoke → send replies。"""
         self.update_time = datetime.now()
+        logger.debug(
+            "[ChatAgent] IN session=%s channel=%s text=%r",
+            self.id, self.channel_metadata.name, text,
+        )
         input_msg = MessageEvent(text=text)
         await self.channel.send_typing_hint()
         try:
@@ -97,15 +101,32 @@ class Session:
             await self.channel.send("出错了，请稍后重试")
             return
         await self.channel.stop_typing_hint()
+        logger.debug(
+            "[ChatAgent] OUT session=%s channel=%s replies=%d",
+            self.id, self.channel_metadata.name, len(replies),
+        )
+        for i, r in enumerate(replies):
+            logger.debug("[ChatAgent] OUT[%d] %r", i, r.text)
         for r in replies:
             await self.channel.send(r.text)
 
     async def _handle_system_notice(self, notice: SystemNotice) -> None:
         """处理系统通知：交给 Chat Agent（LLM 中介），不发 typing hint。"""
+        logger.debug(
+            "[ChatAgent] NOTICE IN session=%s channel=%s title=%r files=%s",
+            self.id, self.channel_metadata.name, notice.title,
+            ", ".join(notice.updated_files),
+        )
         try:
             replies = await self.agent.ahandle_system_notice(notice)
         except Exception:
             logger.exception("_handle_system_notice failed")
             return
+        logger.debug(
+            "[ChatAgent] NOTICE OUT session=%s channel=%s replies=%d",
+            self.id, self.channel_metadata.name, len(replies),
+        )
+        for i, r in enumerate(replies):
+            logger.debug("[ChatAgent] NOTICE OUT[%d] %r", i, r.text)
         for r in replies:
             await self.channel.send(r.text)

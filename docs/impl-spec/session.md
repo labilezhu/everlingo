@@ -67,3 +67,20 @@ SystemNotice 走 `agent.ahandle_system_notice()`（LLM 中介），由 Chat Agen
 详见：
 - [chat-agent-spec.md](/docs/impl-spec/chat-agent-spec.md) — 多消息回复 / 系统事件通知
 - [memory-writer-agent-spec.md](/docs/impl-spec/memory-writer-agent-spec.md) — 写入确认通知
+
+## 交互日志
+
+所有与用户交互的输入、输出文本，均在 `_handle_user_message` 与 `_handle_system_notice` 中以 `logger.debug` 记录，便于问题 debug。
+
+日志前缀 `[ChatAgent]`，格式：
+
+| 方向 | 前缀 | 示例 |
+|------|------|------|
+| 用户输入 | `[ChatAgent] IN` | `[ChatAgent] IN session=xxx channel=wechat text='hello'` |
+| 系统通知输入 | `[ChatAgent] NOTICE IN` | `[ChatAgent] NOTICE IN session=xxx channel=wechat title=xxx files=...` |
+| 回复输出 | `[ChatAgent] OUT` | `[ChatAgent] OUT[0] '回复文本'` |
+| 通知回复输出 | `[ChatAgent] NOTICE OUT` | `[ChatAgent] NOTICE OUT[0] '通知回复'` |
+
+OUT 先有一行 `OUT session=xxx channel=xxx replies=N` 记录回复条数，然后逐条 `OUT[i]` 记录每条文本内容。
+
+日志 level 为 `debug`，需要将对应 logger（`everlingo.gateway.session`）的 level 调到 `DEBUG` 才能输出。

@@ -19,5 +19,11 @@
   - 根因：`request_memory_extraction` 工具按 `args_schema` 解析后产 pydantic 实例，`MainAgent.ainvoke()` 末尾用 `d["item_type"]`（dict 下标）访问，pydantic BaseModel 不支持 `__getitem__`
   - 修复：`agent.py` 改用属性访问 `d.item_type` / `d.why_want_to_save_memory` / `d.title`
   - `request_memory_extract.py`：`_MemoryEntryDraft` 字段类型收紧为 `Literal[...]`（与 ADR §4.1 对齐）
-  - 测试用例从 dict 字面量改为 `_MemoryEntryDraft(...)` 实例，新增 `test_pydantic_drafts_regression` 回归测试
-  - `session.py`：`_handle_user_message` / `_handle_system_notice` 包 try/except，ainvoke 异常不崩整个会话
+   - 测试用例从 dict 字面量改为 `_MemoryEntryDraft(...)` 实例，新增 `test_pydantic_drafts_regression` 回归测试
+   - `session.py`：`_handle_user_message` / `_handle_system_notice` 包 try/except，ainvoke 异常不崩整个会话
+
+- 2026-07-19 | **用户交互日志**：在 Session 层记录所有用户输入与 Agent 回复文本（debug 级别，`[ChatAgent]` 前缀）
+   - `session.py`：`_handle_user_message` 入口记 `[ChatAgent] IN`、出口记 `[ChatAgent] OUT`（逐条）；`_handle_system_notice` 同理记 `[ChatAgent] NOTICE IN` / `NOTICE OUT`
+   - `session.md`：新增「交互日志」节，说明前缀、格式、日志级别
+   - `observability.md`：在「Logging」节添加指引指向 session.md
+   - `chat-agent-spec.md`：`Observability` 节增加用户交互 IO 日志的指引

@@ -19,6 +19,11 @@ _LOG_LEVEL_MAP: dict[str, int] = {
 }
 ```
 
+### Chat Agent 用户交互 IO 日志
+
+用户消息输入与 Agent 回复文本的日志记录在 `Session` 层（`src/everlingo/gateway/session.py`），统一前缀 `[ChatAgent]`，level `debug`。
+格式与字段说明见 [session.md — 交互日志](/docs/impl-spec/session.md#交互日志)。
+
 ### logging format
 
 2026-06-28 15:42:25.123 [$logging_level] [$thread_id] [$thread_name] [$module] [$logger_name] : $message

@@ -1,4 +1,8 @@
 
+把 [Chat Agent](docs/impl-spec/chat-agent-spec.md) 的所有与用户交互的输入、输出 文本内容，打印到日志中，这样方便问题 debug。同时同步更新设计文档。
+
+---
+
 
 
 你评估一下这个设计的合理性和可行性：

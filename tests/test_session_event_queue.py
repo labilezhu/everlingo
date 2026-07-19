@@ -4,6 +4,7 @@
 ref: session.md — 系统事件源
 """
 import asyncio
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -105,6 +106,120 @@ class TestSessionEventQueue:
 
         assert agent.ainvoke.call_count == 0
         assert agent.aclose.called
+
+    # ── 交互日志 ──────────────────────────────────────────────────────
+    # ref: session.md — 交互日志
+    # 验证 [ChatAgent] IN/OUT/NOTICE 日志输出
+
+    def test_user_message_logs_input_output(self, caplog):
+        """用户消息处理时记录 [ChatAgent] IN / OUT 日志。"""
+        caplog.set_level(logging.DEBUG, logger="everlingo.gateway.session")
+        session, channel, agent = _make_session(["hello", None])
+        asyncio.run(session.run())
+
+        assert "[ChatAgent] IN" in caplog.text
+        assert "'hello'" in caplog.text
+        assert "[ChatAgent] OUT[0]" in caplog.text
+        assert "'agent reply'" in caplog.text
+
+    def test_user_message_logs_reply_count(self, caplog):
+        """多条回复逐条记录 OUT[N]。"""
+        caplog.set_level(logging.DEBUG, logger="everlingo.gateway.session")
+
+        agent = MagicMock()
+        agent.ainvoke = AsyncMock(return_value=[
+            MessageEvent(text="first reply"),
+            MessageEvent(text="second reply"),
+        ])
+        agent.ahandle_system_notice = AsyncMock(return_value=[])
+        agent.aclose = AsyncMock()
+
+        channel = MagicMock()
+        channel.init = AsyncMock()
+        channel.send = AsyncMock()
+        channel.send_typing_hint = AsyncMock()
+        channel.stop_typing_hint = AsyncMock()
+        channel.recv = AsyncMock(side_effect=["hi", None])
+        channel.get_metadata = MagicMock(
+            return_value=ChannelMetadata(name="MockChannel")
+        )
+
+        with patch("everlingo.gateway.session.MainAgent", return_value=agent):
+            session = Session(channel, UserProfile(
+                language=UserLanguage(interface_language="zh-CN", target_language="en"),
+            ))
+
+        asyncio.run(session.run())
+
+        assert "[ChatAgent] OUT session=" in caplog.text
+        assert "replies=2" in caplog.text
+        assert "[ChatAgent] OUT[0]" in caplog.text
+        assert "'first reply'" in caplog.text
+        assert "[ChatAgent] OUT[1]" in caplog.text
+        assert "'second reply'" in caplog.text
+
+    def test_system_notice_logs_input_output(self, caplog):
+        """系统通知处理时记录 [ChatAgent] NOTICE IN / OUT 日志。"""
+        caplog.set_level(logging.DEBUG, logger="everlingo.gateway.session")
+
+        recv_queue: asyncio.Queue = asyncio.Queue()
+
+        async def controlled_recv():
+            return await recv_queue.get()
+
+        session, channel, agent = _make_session([], profile=None)
+        channel.recv = AsyncMock(side_effect=controlled_recv)
+
+        async def run_with_post():
+            async def producer():
+                await recv_queue.put("hello")
+                await asyncio.sleep(0.01)
+                session.post_event(SystemNotice(
+                    source="memory_writer",
+                    updated_files=["items/vocab/ufo.md"],
+                    update_summary="test summary",
+                    title="ufo",
+                    lang="en",
+                ))
+                await asyncio.sleep(0.01)
+                await recv_queue.put(None)
+
+            await asyncio.gather(session.run(), producer())
+
+        asyncio.run(run_with_post())
+
+        assert "[ChatAgent] NOTICE IN" in caplog.text
+        assert "'ufo'" in caplog.text
+        assert "[ChatAgent] NOTICE OUT[0]" in caplog.text
+        assert "'notice reply'" in caplog.text
+
+    def test_user_message_no_out_log_on_error(self, caplog):
+        """ainvoke 异常时不应有 [ChatAgent] OUT 日志。"""
+        caplog.set_level(logging.DEBUG, logger="everlingo.gateway.session")
+
+        channel = MagicMock()
+        channel.init = AsyncMock()
+        channel.send = AsyncMock()
+        channel.send_typing_hint = AsyncMock()
+        channel.stop_typing_hint = AsyncMock()
+        channel.recv = AsyncMock(side_effect=["crash", None])
+        channel.get_metadata = MagicMock(
+            return_value=ChannelMetadata(name="MockChannel")
+        )
+
+        agent = MagicMock()
+        agent.ainvoke = AsyncMock(side_effect=RuntimeError("LLM crash"))
+        agent.aclose = AsyncMock()
+
+        with patch("everlingo.gateway.session.MainAgent", return_value=agent):
+            session = Session(channel, UserProfile(
+                language=UserLanguage(interface_language="zh-CN", target_language="en"),
+            ))
+
+        asyncio.run(session.run())
+
+        # 不应有 OUT 日志行
+        assert "[ChatAgent] OUT" not in caplog.text
 
     def test_post_event_before_run_raises(self):
         """run() 启动前调用 post_event 应抛 RuntimeError。"""
