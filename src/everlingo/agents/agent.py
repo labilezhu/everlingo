@@ -26,8 +26,7 @@ from openai import (
 from ..gateway.channels.channel import ChannelMetadata
 from ..gateway.session_events import SystemNotice
 from ..llm import create_agent, create_llm
-from ..mem.agents.mem_entries import ExtractInput
-from ..mem.agents.mem_extract_agent import MemoryExtractAgent
+from ..mem.agents.mem_entries import MemoryEntry
 from ..mem.agents.mem_writer_mcp_client import (
     CHAT_AGENT_WANTED_TOOLS,
     IndexerOfflineError,
@@ -170,6 +169,32 @@ def _tail_recent_turns(messages: list, limit: int = _CONTEXT_TURNS_LIMIT) -> lis
     # 取最近 limit 个 turn 的起点：第 (len-limit) 个 HumanMessage 位置
     start = human_indexes[len(human_indexes) - limit]
     return list(messages[start:])
+
+
+from datetime import timezone, timedelta
+
+_GMT8 = timezone(timedelta(hours=8))
+
+
+def _now_gmt8_str() -> str:
+    """GMT+8 时间戳字符串，格式 yyyy-mm-dd HH:MM:SS。"""
+    from datetime import datetime
+    return datetime.now(_GMT8).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _render_context_messages(messages) -> str:
+    """把 messages 序列化为 LLM 可读的多行文本。
+
+    按发言者与内容线性展开，保留 ToolMessage（查词/翻译工具结果是事实来源）。
+    """
+    lines: list[str] = []
+    for m in messages:
+        role = getattr(m, "type", "") or m.__class__.__name__
+        content = getattr(m, "content", "") or ""
+        if isinstance(content, list):
+            content = str(content)
+        lines.append(f"[{role}] {content}")
+    return "\n".join(lines)
 
 
 def _build_system_prompt(
@@ -397,9 +422,9 @@ OR
 
 #### 何时是 `抽取对话内容到笔记` 意图
 
-1. **用户明确要求记住**：用户说"记住 / 记下 / 帮我记"某知识点时 —— 调用 `request_memory_extraction(reason="user_explicit_request")`
-2. **纠正事项**：你发现并纠正了用户未预期的目标学习语言错误 —— 调用 `request_memory_extraction(reason="correction")`
-3. **其他你觉得值得记录的情形** —— 调用 `request_memory_extraction(reason="other", note="简要说明")`
+1. **用户明确要求记住**：用户说"记住 / 记下 / 帮我记"某知识点时 —— entries 中 `why_want_to_save_memory` 设为 `"用户明确要求记住知识点"`
+2. **纠正事项**：你发现并纠正了用户未预期的目标学习语言错误 —— entries 中 `why_want_to_save_memory` 设为 `"纠正事项"`
+3. **其他你觉得值得记录的情形** —— entries 中 `why_want_to_save_memory` 设为 `"Chat Agent 判定"`
 
 #### 何时不是 `抽取对话内容到笔记` 意图
 
@@ -407,23 +432,24 @@ OR
 - 纯查词或翻译，没有纠正也没有显式要求记住
 - 用户偏好类内容（应通过 user_doc 工具写入 USER.md）
 - 琐碎/显而易见的信息
+- 单条消息文本超过 1000 字时，该消息内容不作为知识点的事实来源
 
 #### 执行 `抽取对话内容到笔记` 前必须
 
 - 已在本轮回复中产出该知识点的实际内容（释义/解释/用法/举例）
-- 这是下游 Extract Agent 抽取事实的唯一来源（它没有查词工具，也不能引入外部知识）
+- 这是下游 Memory Writer Agent 生成 conversation_context 与笔记正文的唯一事实来源
 
 **当用户要求"记住 / 记下 / 帮我记"某目标学习语言的知识点（单词/短语/语法点/语用）时**：
-- **必须先在本轮回复中产出该知识点的实际内容**——用 dest_lang 给出含义/释义、用法、必要时举例（参考上文「查单词」与「翻译」响应要求）。这是 Memory Extract Agent 抽取的唯一事实来源（它没有查词工具，也不能引入外部知识，只能从本轮 new_messages 里的 AIMessage.content 取事实）。
-- **不能**只回复"已提交笔记请求"而不产出知识内容——会导致下游什么知识点都抽不到。
+- **必须先在本轮回复中产出该知识点的实际内容**——用 dest_lang 给出含义/释义、用法、必要时举例（参考上文「查单词」与「翻译」响应要求）。这是 downstream 生成笔记正文与对话场景的唯一事实来源。
+- **不能**只回复"已提交笔记请求"而不产出知识内容——会导致下游什么笔记正文都写不出来。
 - 错误示例：用户说"记住 god 这个单词"，只回"已提交笔记请求"。
 - 正确示例：用户说"记住 god 这个单词"，回复"god：名词，意为'神、神灵'。首字母大写 God 通常指一神论中的独一真神，小写 god 指多神教中的某位神祇或比喻义。"
 
-
 #### 当需要执行 `抽取对话内容到笔记` 时，按以下流程操作
-1. 你通过 `request_memory_extraction` 工具显式触发 Memory Extract Agent 的记忆抽取流程和笔记写入流程
-2. 回复用户：已提交后台笔记请求。
-3. 下游 Memory Extract Agent 会异步提取结构化知识点并写入笔记库。你不需要直接调用读写笔记的工具。
+1. 先调用 `vault_mcp_read(path="spec/memory_extract_output_spec.md")` 加载 entries 输出规范与字段说明
+2. 按规范构造 entries，调用 `request_memory_extraction(entries=[...])`
+3. 回复用户：已提交后台笔记请求
+4. 下游 Memory Writer Agent 会异步将 entries 写入笔记库。你不需要直接调用读写笔记的工具
 
 
 ### 笔记删除
@@ -563,37 +589,26 @@ class MainAgent:
         self._prompt_mtime: tuple = prompt_input_mtime()
         # Agent 的消息历史，支持多轮会话
         self._messages: list = []
-        # ref: docs/impl-spec/memory-extract-agent-spec.md — 会话级状态 · extract 游标
-        # 已提交过 extract 的 _messages 长度。每轮 invoke 末尾切片 new/context 后推进。
-        # 即使 extract 失败也推进（与 daemon 可丢失语义一致），避免失败轮次被重抽。
+        # extract 游标：已提交过 extract 的 _messages 长度。
+        # 每轮 invoke 末尾切片 new/context 后推进。
+        # 即使故障也推进（可接受丢失），避免失败轮次被重抽。
         self._extract_cursor: int = 0
 
-        # request_memory_extraction 工具调用后设置的 pending 标记。
-        # (reason, note)；invoke 末尾据此决定是否 submit ExtractInput。
-        self._pending_extract: tuple[str, str] | None = None
+        # request_memory_extraction 工具累积的 entries drafts。
+        # invoke 末尾据此构造 MemoryEntry 并入队 Writer。
+        self._pending_drafts: list = []
 
-        # ── Memory Extract Agent ──────────────────────────────────────
-        # ref: docs/impl-spec/memory-extract-agent-spec.md — 生命周期与状态
-        # 每个 MainAgent 实例持有自己的 Extract Agent 实例（会话级状态相关）；
-        # 进程级单例 memory_writer 通过 gateway 模块级导入。
-        # session_id 为 None 时（极少数测试场景）生成稳定 id 避免空字符串污染日志。
+        # session_id 为 None 时（极少数测试场景）生成稳定 id。
         self._session_id = session_id or "no-session-id"
-        self._extract_agent = MemoryExtractAgent(
-            memory_writer=_get_memory_writer(),
-            chat_session_id=self._session_id,
-            channel_name=channel_metadata.name,
-            target_lang=profile.language.target_language,
-            interface_lang=profile.language.interface_language,
-        )
-        self._extract_agent.start()
 
-    def _set_pending_extract(self, reason: str, note: str) -> None:
-        """request_memory_extraction 工具回调：记录 pending 标记。
+    def _add_pending_drafts(self, drafts: list) -> None:
+        """request_memory_extraction 工具回调：累积 drafts。
 
         工具在 LLM 多步循环中被调用，此时 invoke 尚未结束、
-        new_messages 切片未就绪。工具只设标记，不直接 submit。
+        new_messages 切片未就绪。工具只累积 drafts，不直接入队。
+        一轮内多次调用工具会顺序累积所有 drafts。
         """
-        self._pending_extract = (reason, note)
+        self._pending_drafts.extend(drafts)
 
     async def _ensure_mcp_stream(self) -> None:
         """懒打开到 Vault MCP Server 的长连接，配置会话 lang，加载只读工具。
@@ -659,7 +674,7 @@ class MainAgent:
         await self._ensure_mcp_stream()
 
         user_doc = load_user_doc()
-        extract_tool = make_request_memory_extract_tool(self._set_pending_extract)
+        extract_tool = make_request_memory_extract_tool(self._add_pending_drafts)
         memory_writer = _get_memory_writer().get_agent()
         memory_writer_tool = make_memory_writer_action_tool(
             memory_writer=memory_writer,
@@ -727,26 +742,40 @@ class MainAgent:
             if isinstance(m, AIMessage) and m.content and m.content.strip()
         ]
 
-        # ── 提交 Memory Extract Agent（异步，不阻塞回复） ──────────
-        # ref: docs/impl-spec/memory-extract-agent-spec.md — 异步执行 / 输入规范
+        # ── 直接构造 MemoryEntry 入队 Writer（异步，不阻塞回复） ──
         # 由 Chat Agent 通过 request_memory_extraction 工具显式触发。
-        # new_messages = 自上次 extract 游标以来新增的 messages（本轮往返，唯一抽取来源）
-        # context_messages = 游标之前的最近 19 轮（背景上下文，仅供 conversation_context）
+        # new_messages = 自上次 extract 游标以来新增的 messages
+        # context_messages = 游标之前的最近 19 轮（仅供 conversation_context）
         # 游标始终推进；未触发时本轮自然并入未来 context_messages。
-        if self._pending_extract is not None:
-            reason, note = self._pending_extract
-            self._pending_extract = None
-            new_messages = list(self._messages[self._extract_cursor:])
-            context_messages = _tail_recent_turns(
+        if self._pending_drafts:
+            drafts = self._pending_drafts
+            self._pending_drafts = []
+            new_msgs = list(self._messages[self._extract_cursor:])
+            ctx_msgs = _tail_recent_turns(
                 self._messages[:self._extract_cursor]
             )
             self._extract_cursor = len(self._messages)
-            self._extract_agent.submit(ExtractInput(
-                new_messages=new_messages,
-                context_messages=context_messages,
-                reason=reason,
-                note=note,
-            ))
+            new_text = _render_context_messages(new_msgs)
+            ctx_text = _render_context_messages(ctx_msgs)
+            ts = _now_gmt8_str()
+            import uuid
+            entries = [
+                MemoryEntry(
+                    entry_id=str(uuid.uuid4()),
+                    timestamp=ts,
+                    chat_session_id=self._session_id,
+                    channel_name=self._channel_metadata.name,
+                    lang=self._target_lang,
+                    interface_language=self._profile.language.interface_language,
+                    new_messages=new_text,
+                    context_messages=ctx_text,
+                    item_type=d["item_type"],
+                    why_want_to_save_memory=d["why_want_to_save_memory"],
+                    title=d["title"],
+                )
+                for d in drafts
+            ]
+            _get_memory_writer().enqueue(entries)
         else:
             # 未触发抽取：游标仍推进，本轮内容自然成为未来 context
             self._extract_cursor = len(self._messages)

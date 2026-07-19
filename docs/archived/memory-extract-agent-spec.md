@@ -1,3 +1,5 @@
+> 已废弃（2026-07-19）：Memory Extract Agent 已删除。Chat Agent 直接对接 Memory Writer Agent。此文件保留用作历史参考。
+
 # Memory Extract Agent
 
 负责从由 Chat Agent 通过 `request_memory_extraction` 工具显式触发的一轮对话中，提取结构化知识点 entries，转交给 [Memory Writer Agent](/docs/impl-spec/memory-writer-agent-spec.md) 异步写入。

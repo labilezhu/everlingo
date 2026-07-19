@@ -2,7 +2,7 @@
 
 负责写入 [memory vault](/docs/impl-spec/worksplace/memory-vault-spec.md) 。
 
-Memory Writer Agent 负责验证、合并 [Memory Extract Agent](/docs/impl-spec/memory-extract-agent-spec.md) 的输出，并写入 memory vault 。
+Memory Writer Agent 负责验证、合并 Chat Agent 构造的 entries，并写入 memory vault 。
 
 除"创建/合并笔记"主流程外，Writer 还接收 Chat Agent 同步触发的"删除 / 编辑"请求，**走代码路径，不调 LLM**（见下文「笔记删除与编辑」节）。
 
@@ -18,7 +18,7 @@ Memory Writer Agent 用一个队列接收请求，然后**异步**处理。Memor
 ## 输入
 见： [Memory Entry 结构说明](/src/everlingo/mem/vault/templates/default/spec/mem_entry_spec.md) 。
 
-Memory Extract Agent 转交每条 entry 时会填充 `chat_session_id` / `entry_id` / `timestamp` / `channel_name` / `lang` / `interface_language` 等系统字段；Writer Agent 不应自行生成或改写这些字段。
+Chat Agent 在 `MainAgent.invoke()` 末尾为每条 entry 填充 `chat_session_id` / `entry_id` / `timestamp` / `channel_name` / `lang` / `interface_language` 等系统字段；Writer Agent 不应自行生成或改写这些字段。
 
 
 ## 处理 Memory Entry

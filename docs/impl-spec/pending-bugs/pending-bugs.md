@@ -1,4 +1,17 @@
 
+在实现 docs/ADR/20260719-remove_memory_extractor_agent.md 后，手工测试，出现一个问题：
+
+用户在 Chat Agent 中输入消息：
+记住 ambiguous 这个词
+
+Chat Agent 没有返回消息。
+
+日志：/home/labile/.everlingo/workspaces/default/logs/everlingo.log:4
+
+
+
+---
+
 我在手工测试应用，在:
 为 ufo 笔记加 tag: FBI 
 时，出错了。日志见： /home/labile/.everlingo/workspaces/default/logs/everlingo.log:73

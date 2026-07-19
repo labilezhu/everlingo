@@ -49,7 +49,7 @@ WANTED_TOOLS: frozenset[str] = frozenset(
 
 
 # ref: docs/impl-spec/chat-agent-spec.md — Chat Agent 只读工具子集
-# Chat Agent 不需要写 vault（由 Memory Extract Agent + Writer 异步完成），
+# Chat Agent 不需要写 vault（由 Chat Agent 构造 entries 后 Writer 异步完成），
 # 所以只加载 search / fs 只读工具子集 + grep / find 搜索。
 CHAT_AGENT_WANTED_TOOLS: frozenset[str] = frozenset(
     {"vault_mcp_read", "vault_mcp_ls", "vault_mcp_find", "vault_mcp_search", "vault_mcp_grep", "vault_mcp_list_tags"}

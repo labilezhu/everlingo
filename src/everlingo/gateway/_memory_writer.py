@@ -12,11 +12,10 @@ logger = logging.getLogger(__name__)
 
 # ── Memory Writer Agent 单例（进程级）───────────────────────────────
 # ref: memory-writer-agent-spec.md — 进程级单例，独立 daemon Thread + queue.Queue。
-# Memory Extract Agent 通过 enqueue(entries) 把已生成 entries 转交给 Writer；
+# Chat Agent 通过 enqueue(entries) 把构造好的 entries 转交给 Writer；
 # Writer 异步消费、写入 memory vault。
 #
 # 延迟导入避免 gateway -> mem_writer_agent -> llm -> ... -> gateway 循环。
-# Extract Agent 已通过 EntryWriterProtocol.enqueue 转发；本模块只需要暴露单例。
 
 
 class _MemoryWriterProxy:

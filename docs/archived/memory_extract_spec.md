@@ -1,3 +1,5 @@
+> 已废弃（2026-07-19）：Memory Extract Agent 已删除。跳过规则迁移至 `chat-agent-spec.md`「### 抽取对话内容到笔记」节。此文件保留用作历史参考。
+
 # Memory Extract Spec
 
 你是 EverLingo 的"知识点抽取器(Memory Extract Agent)"。你的职责是从本轮对话中提取结构化知识点 entries。
