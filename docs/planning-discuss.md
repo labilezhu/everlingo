@@ -23,9 +23,8 @@
   },
   "source":   { "kind": "web_sidecar",
                 "url": "https://example.com", "title": "..."},
-  "device":   { "platform": "chrome_ext",
+  "device":   { "platform": "chrome_ext", "device_id":"a uuid generated at ext install",
                 "locale": "zh-CN", "timezone": "Asia/Shanghai" }
-
 }
 ```
 
@@ -49,7 +48,14 @@
 3. Web Sidecar 小窗口因失去 Focus，或用户点击关闭而隐藏
 4. 同一网页中，二次激活翻译工具时，显示之前隐藏的 Web Sidecar
 
-设计时，需要考虑到，这个前端与 Agent 之间的接口数据结构的定义，要比较通用。现在只是实现浏览器 plugin,以后可能是 pdf 阅读器 plugin ，也可以是开发一个 EverLingo iOS app，为 iphone 提供任意 app 内容的选词翻译和查词(look up) 功能，这也类似于 google translator 在 iOS 中的集成方法。
+
+
+🟢 问题 7：context.text "同一段落最多 500 字" 的实现约束
+DOM 中"段落"边界不固定（<p> / <div> / <span> 都可能）。建议：在 Chrome Extension 端实现时定义明确算法——从 selection.anchorNode 向上找最近的 block-level 元素（P/DIV/SECTION/ARTICLE/LI/H1-6），取 textContent 截断 500 字；找不到时退化为 selection 前后各 250 字。这条约束写进 envelope-spec 的 context.text 字段说明里，使前端与后端对齐。
+🟢 问题 8：Chrome Extension 权限与商店审核
+- activeTab 权限：仅用户主动点击扩展图标时生效，权限最小，但与"选词后自动出现小工具图标"冲突
+- host_permissions: all_urls：支持任意网页选词弹图标，但 Chrome Web Store 审核更严，用户也会警惕
+- 建议：MVP 用 activeTab + 用户手动点扩展图标激活 sidecar（不自动弹图标）；后续再优化为 host_permissions + 选词弹图标。这也与产品"AI 老师非打扰式"的调性一致。
 
 ---
 
