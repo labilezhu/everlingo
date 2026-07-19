@@ -1,4 +1,16 @@
 
+你评估一下这个设计的合理性和可行性：
+
+现在从聊天中抽取记忆和写入笔记的流程比较长：
+
+[Chat Agent](docs/impl-spec/chat-agent-spec.md) -> [Memory Extract Agent](/docs/impl-spec/memory-extract-agent-spec.md) -> [Memory Writer Agent](docs/impl-spec/memory-writer-agent-spec.md) 
+
+其中 Chat Agent 到 Memory Extract Agent 的流程增加了复杂度，与有相同数据、类似逻辑重复用 LLM 处理的情况。所以我计划删除 Memory Extract Agent。 直接让 Chat Agent 调用现有的 request_memory_extraction 工具。
+request_memory_extraction 工具的入参修改为 ： src/everlingo/mem/vault/templates/default/spec/memory_extract_output_spec.md 。这个工具直接把入参提交给 Memory Writer Agent。
+
+
+---
+
 我计划把现在 [Chat Agent](docs/impl-spec/chat-agent-spec.md) 的 "## 用户显式模式指定" 功能删除。原因是：我后面计划引入 json 结构的输入格式去表达用户意图，在应用的 UI 中用户直接在 UI 中通过点击按钮表达意图。
 
 
