@@ -6,7 +6,12 @@
 [Chat Agent](docs/impl-spec/chat-agent-spec.md) -> [Memory Extract Agent](/docs/impl-spec/memory-extract-agent-spec.md) -> [Memory Writer Agent](docs/impl-spec/memory-writer-agent-spec.md) 
 
 其中 Chat Agent 到 Memory Extract Agent 的流程增加了复杂度，与有相同数据、类似逻辑重复用 LLM 处理的情况。所以我计划删除 Memory Extract Agent。 直接让 Chat Agent 调用现有的 request_memory_extraction 工具。
-request_memory_extraction 工具的入参修改为 ： src/everlingo/mem/vault/templates/default/spec/memory_extract_output_spec.md 。这个工具直接把入参提交给 Memory Writer Agent。
+request_memory_extraction 工具的入参修改为 ： src/everlingo/mem/vault/templates/default/spec/memory_extract_output_spec.md 。这个工具直接把入参提交给 Memory Writer Agent。 Memory Writer Agent 作异步写入笔记，并在完成后反馈给 Chat Agent ，这个异步写入和反馈和现在一致。
+
+
+一些实现上的想法：
+Chat Agent 不要直接在 system prompt 上写死 src/everlingo/mem/vault/templates/default/spec/memory_extract_output_spec.md， 而应该像 
+src/everlingo/mem/agents/mem_writer_agent.py:204 一样，让它在确定要写笔记和抽聊天知识时，才调用 read(path="spec/memory_extract_output_spec.md") 工具动态加载抽取和输出规则。
 
 
 ---
