@@ -783,6 +783,8 @@ export default function TaskSelector({
 - `index.css`
 - `types/chat.ts`
 
+> **字号设定**：sidecar 面板宽度在 360–480px 之间，`index.css` 中设置 `html { font-size: 17px }` 以提升可读性，所有 Tailwind `text-*` rem 类按此基准等比放大。
+
 ---
 
 ## 11. 测试

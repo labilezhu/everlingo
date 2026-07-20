@@ -5,6 +5,7 @@
 ## 完成的任务
 格式：完成日期与时间(GMT+8 timezone) | 任务描述 。 示例： " - 2026-06-20 19:28 | 生成主入口代码"
 
+- 2026-07-20 | **侧边栏 fontSize 调大**: `extension/src/index.css` 设置 `html { font-size: 17px }`，等比放大所有 `text-*` rem 类，提升 sidecar 可读性；同步更新 `chrome-extension-impl-spec.md` §10 注释
 - 2026-07-20 | **设计 + 实现**: Chrome Extension 选词翻译 sidecar
   - **设计文档**：[chrome-extension-spec.md](/docs/impl-spec/chrome-extension-spec.md)（架构/session 生命周期/envelope 构造/UI history）+
     [chrome-extension-impl-spec.md](/extension/chrome-extension-impl-spec.md)（实现详细设计）
