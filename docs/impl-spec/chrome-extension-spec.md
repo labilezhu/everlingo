@@ -26,6 +26,7 @@ Envelope 协议在设计时已为 Chrome Extension 预留了 `source.kind="web"`
 - 自动注入 envelope：`task=translate` / `look_up`，携带 `selection.text` 与 `context.text`
 - Agent 翻译选词，并支持在 sidecar 内通过聊天完成笔记记录
 - 同一 tab 内 sidecar 隐藏后，二次激活在 20 分钟内复用原 session
+- sidecar 仅在用户激活过扩展的 tab 上显示；切换到未激活 tab 时自动隐藏，切回已激活 tab 时自动显示，React 应用实例与 session 状态保留
 
 ### MVP 不做
 
@@ -119,13 +120,16 @@ everlingo/
 sessionId 由 sidecar panel 启动后主动向 background 查询，**不**通过 URL query 传递。所有 session 创建/复用/超时探活逻辑集中在 background service worker 的消息处理函数中，sidecar panel 职责单一：启动 → 恢复 UI history → 查 session → 连 SSE → 发 envelope。
 
 ```
+扩展安装时（onInstalled）:
+  0. chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
+     全局 panel：点图标 toggle 显示/隐藏，切 tab 时 panel 保持显示
+
 用户点扩展图标
   ↓
-background service worker:
-  1. chrome.sidePanel.open({ tabId })  →  打开 sidecar panel
-     （background 不主动获取/创建 session）
+（Chrome 自动 toggle side panel，不再触发 action.onClicked）
   ↓
-sidecar panel (React app) 启动:
+sidecar panel (React app) 启动 / 恢复:
+  1. 若首次启动，读 chrome.storage.local 获取 device_id + apiBaseUrl
   2a. 从 chrome.storage.session 读取 msgs:${tabId}，恢复 UI message history
   2b. 通过 chrome.runtime.sendMessage({ type: "GET_SESSION" })
       向 background 询问 sessionId
@@ -147,16 +151,30 @@ sidecar panel 收到响应:
   8. 建立 SSE 连接
   9. 构造首次 envelope（含 selection/context/source/device）
   10. POST /api/session/{id}/message { envelope: {...} }
+  ↓
+  11. 注册 chrome.tabs.onActivated 监听：切 tab 时自动重复步骤 2a-8
+      （不 capture snapshot，不 auto-send，避免权限与打扰问题）
 ```
 
 **设计要点**：
 
 - **不在打开 sidecar 前预创建 session**：避免用户立即关闭 sidecar 产生孤儿 session（session 已在后端建立却无人连接）。改为 sidecar 启动后主动查询，session 创建与 sidecar 实际使用绑定。
 - **session 管理集中在 background**：sidecar panel 不直接读写 `chrome.storage.session` 的 `sid:${tabId}`，session 状态由 background 统一管理（UI history 的读写见 §7.4）。
-- **sidecar panel 销毁重建后可恢复**：sidecar panel 被 Chrome 销毁重建（如切换 tab 后回来）时，仍能通过 `chrome.runtime.sendMessage` 从 background 找回 sessionId，并从 storage 恢复 UI history。
+- **全局 panel + tab 切换刷新内容**：`setPanelBehavior({ openPanelOnActionClick: true })` 使 panel 全局化——点图标 toggle，切 tab 时 panel 保持显示。sidecar 监听 `chrome.tabs.onActivated`，切 tab 时自动调用 `switchToTab()`：关旧 SSE → 查新 tab session → 加载 UI history → 连新 SSE。不同 tab 的 sidecar 状态互相隔离，切换不串扰。切 tab 时不 capture snapshot 也不 auto-send（因无 `activeTab` 授权 + 避免频繁打扰）。
 - **UI history 与 Agent 上下文同步**：session 重建时 background 先 `remove(msgs:${tabId})` 再返回 `fresh=true`，sidecar 据此清空 UI，避免"UI 有历史但 Agent 不记得"的错配。详见 §7.4。
 
 ### 5.3 隐藏与二次激活
+
+#### 5.3.1 Tab 切换（panel 保持显示，内容刷新）
+
+- `setPanelBehavior({ openPanelOnActionClick: true })` 使 panel 全局化——切 tab 时 panel **保持显示**，不隐藏
+- sidecar React 应用监听 `chrome.tabs.onActivated`（带 `windowId` 过滤，仅响应本窗口切换），切 tab 时自动执行 `switchToTab()` 流程：
+  - 关旧 SSE → 查新 tab session → 加载 UI history → 连新 SSE
+- 切 tab 时不 capture snapshot（因新 tab 无 `activeTab` 授权）、不 auto-send envelope（避免频繁打扰）
+- 不同 tab 的 sidecar 状态互相隔离：tab A 与 tab B 各自维护独立的 `sid:${tabId}` 与 `msgs:${tabId}`，切换不串扰
+- 用户如需主动触发翻译，使用右键菜单"用小记🐹翻译"——background 收到后 `open({ tabId })`（打开全局 panel）并发送 `TRIGGER_TRANSLATE` 消息，sidecar 收到后 capture snapshot + send envelope
+
+#### 5.3.2 用户主动关闭 panel 后的二次激活
 
 - Sidecar 隐藏（失焦、点关闭）→ 前端关闭 SSE 连接
 - 后端 `WebChannel` 检测到 `len(_sse_queues)==0`，进入 `DISCONNECT_GRACE` 倒计时
@@ -172,7 +190,7 @@ sidecar panel 收到响应:
 
 ### 5.5 边界
 
-- **不支持跨 tab 共享 session**：每个 tab 独立 session，避免多 tab 同时操作时 Agent 上下文混淆
+- **不支持跨 tab 共享 session**：每个 tab 独立 session（`sid:${tabId}` 隔离），切换 tab 时 sidecar 显示对应 tab 的 session 内容，避免多 tab 同时操作时 Agent 上下文混淆
 - **不支持浏览器重启恢复 session**：`chrome.storage.session` 在浏览器关闭时清空（`sid:${tabId}` 与 `msgs:${tabId}` 一并消失），重启后所有 tab 都需新建 session
 - **接受会话丢失**：20 分钟超时后新建 session，UI history 与 Agent 上下文同步丢失。未来优化方向见 §10
 
@@ -281,8 +299,8 @@ function isBlockElement(el: Element | null): boolean {
 
 - sidecar 打开后，若检测到 `selection.text` 非空 → 自动用首次构造的 envelope 发起一次请求（即使用户没在输入框输入文字）；若 `selection.text` 为空 → 不自动发起请求，仅显示输入框等待用户操作
 - 顶部有 task 切换按钮：翻译 / 查词 / 自由聊天
-- 用户在输入框继续追问时，`task` 保持当前选择，`selection`/`context` 字段保留为**本次 sidecar 打开周期内**的快照（不重新抓取），`chat.message` 为用户新输入
-- 二次激活（隐藏后重新打开）视为新的"打开周期"：重新抓取 selection/context，按上一条规则决定是否自动发起请求
+- 用户在输入框继续追问时，`task` 保持当前选择，`selection`/`context` 字段保留为**本次 per-tab 激活周期内**的快照（不重新抓取），`chat.message` 为用户新输入
+- 二次激活（隐藏后重新打开，或 tab 切换后 Chrome 重建 panel）视为新的"激活周期"：重新抓取 selection/context，按上一条规则决定是否自动发起请求
 - Agent 回复通过 SSE 推送，前端渲染为消息气泡
 - **UI message history 持久化**：sidecar 每发送一条 user message、每收到一条 SSE `message` 事件时，均 append 到 `chrome.storage.session` 的 `msgs:${tabId}`（详见 §7.4）。sidecar 启动时先读 storage 恢复 UI history，再向 background 查询 session。这样 sidecar 隐藏/重开 20 分钟内可恢复完整聊天记录。
 
@@ -361,6 +379,6 @@ type MsgsStorageValue = UIMessageRecord[];
 - **截图记忆锚点**：实现 `chrome.tabs.captureVisibleTab` 填充 `context.screenshot`，对齐 [product-phase-2.md](../phases/phase2/product-phase-2.md) 的"原屏幕截图"目标
 - **Session 持久化**：`Session` 对话历史落盘（[session.md](session.md) 明确"暂时不需要支持持久化"），支持浏览器重启后恢复
 - **服务端 message history API 作为权威源**：当前方案 B（§7.4）依赖 client storage，未来可加 `GET /api/session/{id}/messages?since=<seq>` 作为单一事实源，解决多设备/多 sidecar 实例同步问题
-- **跨 tab 共享 session**：用户主动切换时合并对话上下文
+- **跨 tab 共享 session**：当前 sidecar 切换 tab 时各 tab 独立 session（§5.5），未来可支持用户主动合并多 tab 对话上下文
 - **鉴权**：extension_id 白名单 或 一次性 token
 - **PDF / EPUB 阅读器内嵌**：复用 envelope `source.kind=pdf` / `epub` 预留字段

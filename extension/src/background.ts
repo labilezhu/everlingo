@@ -1,7 +1,9 @@
 import { getApiBaseUrl } from '@/config';
 
-// ── 安装时生成 device_id + 创建右键菜单 ──────────────────────────
+// ── 安装时生成 device_id + 创建右键菜单 + 设全局 side panel ──────────
 chrome.runtime.onInstalled.addListener(async () => {
+  await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+
   const { device_id } = await chrome.storage.local.get('device_id');
   if (!device_id) {
     await chrome.storage.local.set({ device_id: crypto.randomUUID() });
@@ -14,13 +16,6 @@ chrome.runtime.onInstalled.addListener(async () => {
   });
 });
 
-// ── 点击扩展图标 → 打开 sidecar + 触发翻译 ──────────────────────
-chrome.action.onClicked.addListener((tab) => {
-  if (tab.id != null) {
-    triggerTranslate(tab.id);
-  }
-});
-
 // ── 右键菜单点击 ──────────────────────────────────────────────
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === 'translate-selection' && tab?.id != null) {
@@ -28,9 +23,9 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   }
 });
 
-// ── 触发翻译：打开 sidecar（已开则 no-op）→ sidecar 注册了 TRIGGER_TRANSLATE 监听 ──
+// ── 触发翻译：打开 sidecar（全局 panel，右键菜单时确保可见）→ sidecar 注册了 TRIGGER_TRANSLATE 监听 ──
 async function triggerTranslate(tabId: number) {
-  await chrome.sidePanel.open({ tabId });
+  await chrome.sidePanel.open({ tabId });  // 全局 panel（setPanelBehavior 控制），tabId 仅用于定位窗口
   try {
     await chrome.runtime.sendMessage({ type: 'TRIGGER_TRANSLATE', task: 'translate' });
   } catch {

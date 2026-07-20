@@ -206,3 +206,39 @@ class TestWebChannelIntegration:
         assert "event: message" in text
         assert '"text": "hello"' in text
         assert text.endswith("\n\n")
+
+
+class TestGracefulShutdown:
+    """WebSessionAcceptor uvicorn 配置中的 shutdown 超时。"""
+
+    @pytest.mark.asyncio
+    async def test_timeout_graceful_shutdown_is_2_seconds(self):
+        from unittest.mock import patch, MagicMock, AsyncMock
+
+        import everlingo.gateway.web_acceptor as wa
+
+        captured_kwargs = {}
+        original_config = wa.uvicorn.Config
+
+        class CaptureConfig(original_config):
+            def __init__(self, *args, **kwargs):
+                captured_kwargs.update(kwargs)
+                super().__init__(*args, **kwargs)
+
+        mock_server = MagicMock()
+        mock_server.serve = AsyncMock(return_value=None)
+
+        with patch.object(wa, "uvicorn") as mock_uvicorn:
+            mock_uvicorn.Config = CaptureConfig
+            mock_uvicorn.Server = MagicMock(return_value=mock_server)
+
+            acc = wa.WebSessionAcceptor()
+            gateway = MagicMock()
+            task = await acc.start(gateway)
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        assert captured_kwargs.get("timeout_graceful_shutdown") == 2.0

@@ -254,8 +254,8 @@ export default defineConfig({
 
 ### 职责
 
-1. **onInstalled**：生成 `device_id` (uuid v4) 存 `chrome.storage.local`
-2. **action.onClicked**：`chrome.sidePanel.open({ tabId })` 打开 sidecar
+1. **onInstalled**：生成 `device_id` (uuid v4) 存 `chrome.storage.local`；创建右键菜单；调用 `chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })` 设全局 panel（点图标 toggle，切 tab 保持显示）
+2. **contextMenus.onClicked**：用户右键菜单"用小记🐹翻译"时触发 `triggerTranslate(tabId)`（图标点击由 `setPanelBehavior` 接管，不再触发 `onClicked`）
 3. **runtime.onMessage**：处理 `GET_SESSION` 消息（spec §5.2 步骤 3-6）
 
 ### 消息协议
@@ -273,18 +273,26 @@ export default defineConfig({
 ### 实现伪代码
 
 ```ts
-// 安装时生成 device_id
+// 安装时生成 device_id + 创建右键菜单 + 设全局 panel
 chrome.runtime.onInstalled.addListener(async () => {
+  await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+
   const { device_id } = await chrome.storage.local.get('device_id');
   if (!device_id) {
     await chrome.storage.local.set({ device_id: crypto.randomUUID() });
   }
+
+  chrome.contextMenus.create({
+    id: 'translate-selection',
+    title: '用小记🐹翻译',
+    contexts: ['selection'],
+  });
 });
 
-// 点击扩展图标 → 打开 sidecar
-chrome.action.onClicked.addListener((tab) => {
-  if (tab.id != null) {
-    chrome.sidePanel.open({ tabId: tab.id });
+// 右键菜单点击 → 触发翻译（图标点击由 setPanelBehavior 接手，不再触发 onClicked）
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === 'translate-selection' && tab?.id != null) {
+    triggerTranslate(tab.id);
   }
 });
 
@@ -941,12 +949,17 @@ npm run build  # tsc 类型检查 + vite build
 - **存储**：`chrome.storage.local` 的 `server_url` 键，默认 `http://localhost:8000`
 - **manifest**：`"options_ui": { "page": "options.html", "open_in_tab": true }`
 
-### 14.2 扩展图标 + 右键菜单触发翻译
+### 14.2 扩展图标与右键菜单
 
-**Trigger 流程**：
-1. 用户点击扩展图标或右键菜单"用小记🐹翻译"
+**图标点击**（`setPanelBehavior({ openPanelOnActionClick: true })`）：
+- Chrome 自动 toggle 全局 panel，不触发 `action.onClicked` 事件
+- panel 首次打开时 sidecar init 流程自动 capture snapshot + 发 envelope（若 selection 非空）
+- panel 已打开时重复点击仅隐藏/显示面板，不触发翻译
+
+**右键菜单"用小记🐹翻译"**：
+1. 用户选中文本后右键菜单
 2. Background `triggerTranslate(tabId)`：
-   - `chrome.sidePanel.open({ tabId })`（已开则 no-op）
+   - `chrome.sidePanel.open({ tabId })`（打开全局 panel，确保可见。全局 panel 模式下 `open({ tabId })` 仅用于定位窗口，不影响全局性）
    - `chrome.runtime.sendMessage({ type: 'TRIGGER_TRANSLATE', task: 'translate' })`
 3. Sidecar `chrome.runtime.onMessage` 监听 `TRIGGER_TRANSLATE`：
    - `sessionId` 未就绪 → 忽略（init 流程会处理首次抓取+发送）

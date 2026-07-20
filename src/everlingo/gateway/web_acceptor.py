@@ -149,6 +149,7 @@ class WebSessionAcceptor(SessionAcceptor):
             port=self.port,
             loop="asyncio",
             log_level="info",
+            timeout_graceful_shutdown=2.0,
         )
         server = uvicorn.Server(config)
         return asyncio.create_task(server.serve())

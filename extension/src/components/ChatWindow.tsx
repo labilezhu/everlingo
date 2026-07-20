@@ -35,6 +35,7 @@ export default function ChatWindow() {
   const tabIdRef = useRef<number>(0);
   const deviceIdRef = useRef<string>('');
   const baseUrlRef = useRef<string>('');
+  const cleanupRef = useRef<(() => void) | undefined>(undefined);
 
   function playAudio(url: string) {
     if (audioRef.current) {
@@ -86,48 +87,73 @@ export default function ChatWindow() {
     }
   }
 
+  // ── tab 切换刷新 ────────────────────────────────────────────
+  async function switchToTab() {
+    cleanupRef.current?.();
+    cleanupRef.current = undefined;
+    setThinking(false);
+    setPending(false);
+
+    const { sessionId: sid, fresh, tabId: newTabId } = await getSession();
+    setSessionId(sid);
+    sessionIdRef.current = sid;
+    tabIdRef.current = newTabId;
+
+    const defaultMsg: Message = {
+      id: uid(),
+      text: '你好！我是小记🐹，你的 AI 外语老师。有什么可以帮你的吗？',
+      from: 'bot',
+    };
+    if (fresh) {
+      setMessages([defaultMsg]);
+    } else {
+      const history = await loadHistory(newTabId);
+      setMessages([
+        defaultMsg,
+        ...history.map((h) => ({
+          id: uid(),
+          text: h.text,
+          from: h.role === 'user' ? 'user' as const : 'bot' as const,
+        })),
+      ]);
+    }
+
+    cleanupRef.current = connectSSE(
+      baseUrlRef.current,
+      sid,
+      (e: SSEEvent) => handleSSEEvent(e, newTabId),
+      () => { setError('连接断开，请刷新页面重试'); },
+    );
+  }
+
+  // ── tabs.onActivated 监听（切 tab 时刷新内容） ────────────────
+  useEffect(() => {
+    const handler = async (activeInfo: { tabId: number; windowId: number }) => {
+      const win = await chrome.windows.getCurrent();
+      if (activeInfo.windowId !== (win.id ?? -1)) return;
+      try { await switchToTab(); }
+      catch { setError('切换 tab 失败'); }
+    };
+    chrome.tabs.onActivated.addListener(handler);
+    return () => chrome.tabs.onActivated.removeListener(handler);
+  }, []);
+
   // ── 初始化 ──────────────────────────────────────────────────
   useEffect(() => {
-    let cleanup: (() => void) | undefined;
     (async () => {
       try {
-        // 读配置
+        baseUrlRef.current = await getApiBaseUrl();
         const { device_id } = await chrome.storage.local.get('device_id');
         deviceIdRef.current = device_id || '';
-        baseUrlRef.current = await getApiBaseUrl();
 
-        // 查 session（background 返回 sessionId + fresh + tabId）
-        const { sessionId: sid, fresh, tabId } = await getSession();
-        setSessionId(sid);
-        sessionIdRef.current = sid;
-        tabIdRef.current = tabId;
+        await switchToTab();
 
-        // 恢复 UI history
-        if (!fresh) {
-          const history = await loadHistory(tabId);
-          setMessages((prev) => {
-            const historyMsgs = history.map((h) => ({
-              id: uid(),
-              text: h.text,
-              from: h.role === 'user' ? 'user' as const : 'bot' as const,
-            }));
-            return [...prev, ...historyMsgs];
-          });
-        }
+        const sid = sessionIdRef.current;
+        if (!sid) return;
 
-        // capture snapshot
         const snapshot = await captureSnapshot();
         snapshotRef.current = snapshot;
 
-        // 连 SSE
-        cleanup = connectSSE(
-          baseUrlRef.current,
-          sid,
-          (e: SSEEvent) => handleSSEEvent(e, tabId),
-          () => { setError('连接断开，请刷新页面重试'); },
-        );
-
-        // 若 selection 非空，自动发首次请求
         if (snapshot.selection) {
           setPending(true);
           try {
@@ -136,7 +162,7 @@ export default function ChatWindow() {
               deviceId: deviceIdRef.current,
             });
             await sendEnvelope(baseUrlRef.current, sid, env);
-            await appendMessage(tabId, {
+            await appendMessage(tabIdRef.current, {
               role: 'user',
               text: '',
               timestamp: new Date().toISOString(),
@@ -150,7 +176,7 @@ export default function ChatWindow() {
       }
     })();
     return () => {
-      cleanup?.();
+      cleanupRef.current?.();
       audioRef.current?.pause();
     };
   }, []);

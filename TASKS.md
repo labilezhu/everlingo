@@ -39,3 +39,12 @@
   - `manifest.json` `action` 块增加 `default_icon` 显式声明工具栏图标
   - 更新 `chrome-extension-impl-spec.md` §2 目录注释 + §4 manifest 示例 + §13 Step 6 措辞
   - 重构建 `dist/` 生效
+- 2026-07-20 | **Ctrl+C 无法退出 gateway --channel_web**：`WebSessionAcceptor.start()` 未设置 `timeout_graceful_shutdown`（默认 None），导致 SSE 长连接阻塞 shutdown 无限等待。在 `uvicorn.Config` 中加入 `timeout_graceful_shutdown=2.0`，超时后 uvicorn 自动 cancel 所有 task（含 SSE 生成器）→ 进程退出。补回归测试 `TestGracefulShutdown::test_timeout_graceful_shutdown_is_2_seconds` 断言配置正确。
+- 2026-07-20 | **全局 side panel + tab 切换刷新内容**
+  - 痛点：原 `open({ tabId })` per-tab 行为导致切 tab 时 panel 隐藏，每次需手动关开才能同步
+  - 方案：`setPanelBehavior({ openPanelOnActionClick: true })` 全局 panel（切 tab 保持显示）+ sidecar 监听 `tabs.onActivated` 刷新 session/history
+  - 代码改动：
+    - `background.ts`：`onInstalled` 加 `setPanelBehavior`；移除 `action.onClicked`（被 `openPanelOnActionClick: true` 接管）；`triggerTranslate` 保留 `open({ tabId })` 供右键菜单用
+    - `ChatWindow.tsx`：抽 `switchToTab()`（关旧 SSE → 查新 session → 加载 history → 连新 SSE）；加 `tabs.onActivated` 监听（带 `windowId` 过滤，仅同窗口）；init useEffect 改为调 `switchToTab()` + 首次 capture + auto-send
+  - 文档同步：更新两个 spec 文档的 §5.2 打开流程、§5.3 tab 切换、§6 background、§14.2 触发翻译
+  - 验证：`npm run build` 通过 + `npm test` 17 个单测全绿
