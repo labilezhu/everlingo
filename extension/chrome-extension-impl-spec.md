@@ -9,12 +9,14 @@
 ## 1. 决策汇总
 
 | # | 决策 | 理由 |
-|---|---|---|
-| 1 | 手动 Vite multi-entry，不使用 `@crxjs/vite-plugin` | 只需 1 background + 1 sidecar HTML，加一个依赖换 HMR 价值不高 |
+|---|---|---|---|
+| 1 | 手动 Vite multi-entry，不使用 `@crxjs/vite-plugin` | 只需 1 background + 1 sidecar + 1 options HTML，加一个依赖换 HMR 价值不高 |
 | 2 | deps 列表与 `web/` 相同 + `@types/chrome` + `vitest` | 复用现有技术栈，不引入新框架 |
-| 3 | API base URL 硬编码在 `extension/src/config.ts` | MVP 简单直接，生产前修改 |
-| 4 | 7 步全部实现，产出可 load unpacked 的 CRX | 一步到位 |
-| 5 | vitest 对纯函数（envelope 构造 + context 提取）写单测 | 核心逻辑回归保护，UI 不测 |
+| 3 | API base URL 通过 options 页面配置到 `chrome.storage.local`，运行时通过 `getApiBaseUrl()` 异步读取 | 支持用户自定义服务端地址 |
+| 4 | 扩展图标点击 / 右键菜单选中文本 → 发 `TRIGGER_TRANSLATE` 消息给 sidecar → sidecar 重新抓取选词并发起翻译 | 支持 sidecar 已打开时重复触发 |
+| 5 | 右键菜单固定 task=translate（菜单文本"用小记🐹翻译"），与 sidecar 内 task 切换无关 | 用户确认"始终 translate" |
+| 6 | 7 步全部实现，产出可 load unpacked 的 CRX | 一步到位 |
+| 7 | vitest 对纯函数（envelope 构造 + context 提取 + URL 规范化）写单测 | 核心逻辑回归保护，UI 不测 |
 
 ---
 
@@ -31,15 +33,17 @@ extension/
 ├── README.md                   # 开发 / 构建 / 加载流程
 ├── public/
 │   └── icons/
-│       ├── icon16.png          # 占位图标
+│       ├── icon16.png          # 由 docs/arts/chrome-icon.png 缩放
 │       ├── icon48.png
 │       └── icon128.png
 └── src/
     ├── background.ts           # service worker
     ├── sidecar.html            # sidecar HTML 入口
     ├── sidecar.tsx             # React 入口
+    ├── options.html            # options 页面 HTML 入口
+    ├── options.tsx             # options 页面 React 入口
     ├── index.css               # Tailwind + 主题（从 web/ 拷贝）
-    ├── config.ts               # API_BASE_URL 等常量
+    ├── config.ts               # server_url 读写 + URL 规范化
     ├── types/
     │   ├── chat.ts             # 从 web/ 拷贝
     │   └── envelope.ts         # envelope TS 类型（对应 Python schema）
@@ -130,9 +134,18 @@ extension/
   "name": "记了么 - EverLingo",
   "version": "0.1.0",
   "description": "有记忆的 AI 外语老师 - 浏览器选词翻译与笔记",
-  "permissions": ["activeTab", "sidePanel", "storage", "scripting"],
+  "permissions": ["activeTab", "sidePanel", "storage", "scripting", "contextMenus"],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
   "action": {
-    "default_title": "打开小记🐹"
+    "default_title": "打开小记🐹",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
   "side_panel": {
     "default_path": "sidecar.html"
@@ -330,10 +343,35 @@ async function createSession(): Promise<string> {
 ### `extension/src/config.ts`
 
 ```ts
-// 后端 API 基础 URL
-// 开发时指向本地 gateway；生产部署前修改为线上地址
-export const API_BASE_URL = 'http://localhost:8000';
+export const DEFAULT_API_BASE_URL = 'http://localhost:8000';
+export const SERVER_URL_STORAGE_KEY = 'server_url';
+
+// 规范化：去除首尾空格，校验 scheme，去除尾斜杠
+export function normalizeUrl(input: string): string {
+  let url = input.trim();
+  if (!url) return DEFAULT_API_BASE_URL;
+  if (!/^https?:\/\//i.test(url)) {
+    throw new Error('URL 必须以 http:// 或 https:// 开头');
+  }
+  url = url.replace(/\/+$/, '');
+  return url;
+}
+
+// 从 chrome.storage.local 读取用户配置的 server_url，未设置时返回默认值
+export async function getApiBaseUrl(): Promise<string> {
+  const { [SERVER_URL_STORAGE_KEY]: stored } = await chrome.storage.local.get(SERVER_URL_STORAGE_KEY);
+  if (typeof stored === 'string' && stored) {
+    try {
+      return normalizeUrl(stored);
+    } catch {
+      return DEFAULT_API_BASE_URL;
+    }
+  }
+  return DEFAULT_API_BASE_URL;
+}
 ```
+
+调用方（background、sidecar）各自在初始化时 `await getApiBaseUrl()` 获取 base URL，传递给 services 层的 `sendEnvelope(baseUrl, ...)` / `connectSSE(baseUrl, ...)`。修改配置后需重新打开 sidecar 生效。
 
 ### `extension/src/types/envelope.ts`
 
@@ -473,14 +511,15 @@ export async function getSession(): Promise<GetSessionResponse> {
 改造自 `web/src/services/sseClient.ts`：
 
 ```ts
-import { API_BASE_URL } from '@/config';
 import type { UserInputEnvelope } from '@/types/envelope';
 import type { SSEEvent } from '@/types/chat';
 
-// 删除 createSession() — session 由 background 创建
-
-export async function sendEnvelope(sessionId: string, env: UserInputEnvelope): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/api/session/${sessionId}/message`, {
+export async function sendEnvelope(
+  baseUrl: string,
+  sessionId: string,
+  env: UserInputEnvelope,
+): Promise<void> {
+  const res = await fetch(`${baseUrl}/api/session/${sessionId}/message`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ envelope: env }),
@@ -489,18 +528,19 @@ export async function sendEnvelope(sessionId: string, env: UserInputEnvelope): P
 }
 
 export function connectSSE(
+  baseUrl: string,
   sessionId: string,
   onEvent: (e: SSEEvent) => void,
   onError?: () => void,
 ): () => void {
-  const es = new EventSource(`${API_BASE_URL}/api/session/${sessionId}/events`);
+  const es = new EventSource(`${baseUrl}/api/session/${sessionId}/events`);
   // ... 与 web/sseClient.ts 一致
   return () => es.close();
 }
 ```
 
 **关键差异**（与 `web/sseClient.ts`）：
-- URL 用绝对地址 `${API_BASE_URL}/api/...`
+- URL 用绝对地址 `${baseUrl}/api/...`，`baseUrl` 由调用方通过 `getApiBaseUrl()` 获取
 - 新增 `sendEnvelope` 替代 `sendMessage`，body 为 `{ envelope }` 而非 `{ text }`
 - 移除 `createSession`（由 background 通过 `backgroundClient.getSession()` 处理）
 
@@ -881,8 +921,41 @@ npm run build  # tsc 类型检查 + vite build
 - 拷贝 `ChatInput` / `MessageBubble` / `MarkdownRenderer` / `ui/*` / `index.css`
 - 验证：load unpacked 后 sidecar 能渲染聊天界面，选词能触发翻译
 
-### Step 6: 占位图标
-- 生成 3 个占位 PNG（16/48/128）
+### Step 6: 图标
+- 使用 `docs/arts/chrome-icon.png` 缩放生成 3 个 PNG（16/48/128，保留 alpha）
+- 在 `manifest.json` 的 `action` 块中显式添加 `default_icon`，指向 icons 目录
 
 ### Step 7: README
 - 写 `extension/README.md`（§12 开发与构建流程）
+
+---
+
+## 14. Options 页面与右键菜单
+
+### 14.1 Options 页面
+
+- **入口**：`extension/options.html` → `extension/src/options.tsx` → `extension/src/components/OptionsForm.tsx`
+- **技术栈**：React + Tailwind，与 sidecar 一致
+- **功能**：一个文本输入框设置 `server_url` + 保存按钮
+- **校验**：`normalizeUrl()` — 去首尾空格、必须 `http://` 或 `https://` 开头、去尾斜杠
+- **存储**：`chrome.storage.local` 的 `server_url` 键，默认 `http://localhost:8000`
+- **manifest**：`"options_ui": { "page": "options.html", "open_in_tab": true }`
+
+### 14.2 扩展图标 + 右键菜单触发翻译
+
+**Trigger 流程**：
+1. 用户点击扩展图标或右键菜单"用小记🐹翻译"
+2. Background `triggerTranslate(tabId)`：
+   - `chrome.sidePanel.open({ tabId })`（已开则 no-op）
+   - `chrome.runtime.sendMessage({ type: 'TRIGGER_TRANSLATE', task: 'translate' })`
+3. Sidecar `chrome.runtime.onMessage` 监听 `TRIGGER_TRANSLATE`：
+   - `sessionId` 未就绪 → 忽略（init 流程会处理首次抓取+发送）
+   - `sessionId` 已就绪 → 重新 `captureSnapshot()` → 若 `selection` 非空 → 用 `task='translate'` 构造 envelope → `sendEnvelope` → append UI history
+
+**竞态处理**：sidecar 刚打开时 `runtime.sendMessage` 可能因 listener 尚未注册而被静默丢包 → init 流程的 capture+send 作为兜底。
+
+### 14.3 右键菜单
+
+- **权限**：`"contextMenus"`（manifest permissions）
+- **创建**：`onInstalled` 时 `chrome.contextMenus.create({ id: 'translate-selection', title: '用小记🐹翻译', contexts: ['selection'] })`
+- **响应**：`chrome.contextMenus.onClicked` → 触发 `triggerTranslate(tabId)`，与图标点击共享同一路径

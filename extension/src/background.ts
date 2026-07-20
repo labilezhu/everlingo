@@ -1,19 +1,42 @@
-import { API_BASE_URL } from '@/config';
+import { getApiBaseUrl } from '@/config';
 
-// ── 安装时生成 device_id ──────────────────────────────────────
+// ── 安装时生成 device_id + 创建右键菜单 ──────────────────────────
 chrome.runtime.onInstalled.addListener(async () => {
   const { device_id } = await chrome.storage.local.get('device_id');
   if (!device_id) {
     await chrome.storage.local.set({ device_id: crypto.randomUUID() });
   }
+
+  chrome.contextMenus.create({
+    id: 'translate-selection',
+    title: '用小记🐹翻译',
+    contexts: ['selection'],
+  });
 });
 
-// ── 点击扩展图标 → 打开 sidecar panel ────────────────────────
+// ── 点击扩展图标 → 打开 sidecar + 触发翻译 ──────────────────────
 chrome.action.onClicked.addListener((tab) => {
   if (tab.id != null) {
-    chrome.sidePanel.open({ tabId: tab.id });
+    triggerTranslate(tab.id);
   }
 });
+
+// ── 右键菜单点击 ──────────────────────────────────────────────
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === 'translate-selection' && tab?.id != null) {
+    triggerTranslate(tab.id);
+  }
+});
+
+// ── 触发翻译：打开 sidecar（已开则 no-op）→ sidecar 注册了 TRIGGER_TRANSLATE 监听 ──
+async function triggerTranslate(tabId: number) {
+  await chrome.sidePanel.open({ tabId });
+  try {
+    await chrome.runtime.sendMessage({ type: 'TRIGGER_TRANSLATE', task: 'translate' });
+  } catch {
+    // sidecar panel 尚未就绪时忽略（init 流程会处理首次抓取+发送）
+  }
+}
 
 // ── 消息处理 ──────────────────────────────────────────────────
 interface GetSessionResponse {
@@ -59,9 +82,10 @@ async function handleGetSession(): Promise<GetSessionResponse> {
 
 async function probeSession(sid: string): Promise<boolean> {
   try {
+    const base = await getApiBaseUrl();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch(`${API_BASE_URL}/api/session/${sid}/events`, {
+    const res = await fetch(`${base}/api/session/${sid}/events`, {
       method: 'GET',
       headers: { Accept: 'text/event-stream' },
       signal: controller.signal,
@@ -75,7 +99,8 @@ async function probeSession(sid: string): Promise<boolean> {
 }
 
 async function createSession(): Promise<string> {
-  const res = await fetch(`${API_BASE_URL}/api/session`, { method: 'POST' });
+  const base = await getApiBaseUrl();
+  const res = await fetch(`${base}/api/session`, { method: 'POST' });
   if (!res.ok) {
     throw new Error(`Failed to create session: ${res.status}`);
   }

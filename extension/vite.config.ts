@@ -14,6 +14,7 @@ export default defineConfig({
       input: {
         sidecar: 'sidecar.html',
         background: 'src/background.ts',
+        options: 'options.html',
       },
       output: {
         entryFileNames: '[name].js',

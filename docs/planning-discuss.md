@@ -1,26 +1,19 @@
-
-实现完 extension/chrome-extension-impl-spec.md 后，手工在浏览器上测试，发现问题：
-浏览器中，side panel 可以显示，但提示： 连接断开，请刷新页面重试
-服务端 `.venv/bin/python -m everlingo.gateway.gateway --channel_web` 有错误日志：
-```log
-INFO:     Started server process [3606065]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     127.0.0.1:60518 - "POST /api/session HTTP/1.1" 200 OK
-INFO:     127.0.0.1:60518 - "OPTIONS /api/session/undefined/message HTTP/1.1" 405 Method Not Allowed
-INFO:     127.0.0.1:60530 - "GET /api/session/undefined/events HTTP/1.1" 404 Not Found
-```
-
-补充以下 Chrome Extension DevTools Console 提示：
-```log
-sidecar.html:1 Access to fetch at 'http://localhost:8000/api/session/undefined/message' from origin 'chrome-extension://fahmknjmbjccegjancflflfceobbcmld' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.
-localhost:8000/api/session/undefined/message:1  Failed to load resource: net::ERR_FAILED
-sidecar.html:1 Access to resource at 'http://localhost:8000/api/session/undefined/events' from origin 'chrome-extension://fahmknjmbjccegjancflflfceobbcmld' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
-localhost:8000/api/session/undefined/events:1  Failed to load resource: net::ERR_FAILED
-```
+docs/impl-spec/chrome-extension-spec.md
+extension/chrome-extension-impl-spec.md
+Chrome Extension 使用 docs/arts/chrome-icon.png 作为图标。需要时，你调整一下分辨率
 
 ---
+
+
+计划作以下增强：
+1. Chrome Extension 加入 option:
+    - server_url 。 服务端地址。 默认是现在 hard code 的 http://localhost:8000/
+2. 现在如果浏览器已经显示了 side panel ，再选词后点击 Chrome Extension 后，没有任何反应。期望是对选词作翻译
+3. 选词后，可以鼠标右键菜单发起翻译。
+4. Chrome Extension 使用 docs/arts/chrome-icon.png 作为图标。需要时，你调整一下比例
+
+---
+
 
 请你结合 EverLingo 产品现状和目标，分析一下以下产品设计的合理性，以及你的建议。
 

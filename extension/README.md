@@ -46,13 +46,9 @@ npm test          # vitest run
 
 ## 配置
 
-后端地址在 `src/config.ts` 中配置：
+打开 Chrome 扩展管理页面 → 记了么 - EverLingo → 「扩展程序选项」→ 修改「服务端地址」后保存。
 
-```ts
-export const API_BASE_URL = 'http://localhost:8000';
-```
-
-生产部署前修改为线上地址。
+默认地址 `http://localhost:8000`。修改后需重新打开 sidecar 面板生效。
 
 ## 验证流程
 

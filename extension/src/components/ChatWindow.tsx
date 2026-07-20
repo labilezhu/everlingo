@@ -8,6 +8,7 @@ import { loadHistory, appendMessage, clearHistory } from '@/services/messageHist
 import { buildEnvelope, type TaskKind } from '@/types/envelope';
 import type { Message, SSEEvent } from '@/types/chat';
 import { uid } from '@/types/chat';
+import { getApiBaseUrl } from '@/config';
 
 interface PageSnapshot {
   selection: string;
@@ -33,6 +34,7 @@ export default function ChatWindow() {
   const sessionIdRef = useRef<string | null>(null);
   const tabIdRef = useRef<number>(0);
   const deviceIdRef = useRef<string>('');
+  const baseUrlRef = useRef<string>('');
 
   function playAudio(url: string) {
     if (audioRef.current) {
@@ -47,25 +49,63 @@ export default function ChatWindow() {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, thinking]);
 
+  // ── TRIGGER_TRANSLATE 消息监听（来自 background） ──────────────
+  useEffect(() => {
+    const handler = (msg: { type?: string; task?: TaskKind }) => {
+      if (msg.type !== 'TRIGGER_TRANSLATE') return;
+      handleTriggerTranslate();
+    };
+    chrome.runtime.onMessage.addListener(handler);
+    return () => chrome.runtime.onMessage.removeListener(handler);
+  }, []);
+
+  async function handleTriggerTranslate() {
+    const sid = sessionIdRef.current;
+    const base = baseUrlRef.current;
+    if (!sid) return;
+
+    const snapshot = await captureSnapshot();
+    snapshotRef.current = snapshot;
+    if (!snapshot.selection) return;
+
+    setPending(true);
+    try {
+      const env = buildEnvelope('translate', '', {
+        ...snapshot,
+        deviceId: deviceIdRef.current,
+      });
+      await sendEnvelope(base, sid, env);
+      await appendMessage(tabIdRef.current, {
+        role: 'user',
+        text: '',
+        timestamp: new Date().toISOString(),
+      });
+    } catch {
+      setPending(false);
+      setError('翻译失败');
+    }
+  }
+
+  // ── 初始化 ──────────────────────────────────────────────────
   useEffect(() => {
     let cleanup: (() => void) | undefined;
     (async () => {
       try {
-        // 读 device_id
+        // 读配置
         const { device_id } = await chrome.storage.local.get('device_id');
         deviceIdRef.current = device_id || '';
+        baseUrlRef.current = await getApiBaseUrl();
 
-        // 步骤 2a: 查 session（background 返回 sessionId + fresh + tabId）
+        // 查 session（background 返回 sessionId + fresh + tabId）
         const { sessionId: sid, fresh, tabId } = await getSession();
         setSessionId(sid);
         sessionIdRef.current = sid;
         tabIdRef.current = tabId;
 
-        // 步骤 2a: 恢复 UI history
+        // 恢复 UI history
         if (!fresh) {
           const history = await loadHistory(tabId);
           setMessages((prev) => {
-            // 保留欢迎消息，后面接历史
             const historyMsgs = history.map((h) => ({
               id: uid(),
               text: h.text,
@@ -75,16 +115,19 @@ export default function ChatWindow() {
           });
         }
 
-        // 步骤 7: capture snapshot
+        // capture snapshot
         const snapshot = await captureSnapshot();
         snapshotRef.current = snapshot;
 
-        // 步骤 8: 连 SSE
-        cleanup = connectSSE(sid, (e: SSEEvent) => handleSSEEvent(e, tabId), () => {
-          setError('连接断开，请刷新页面重试');
-        });
+        // 连 SSE
+        cleanup = connectSSE(
+          baseUrlRef.current,
+          sid,
+          (e: SSEEvent) => handleSSEEvent(e, tabId),
+          () => { setError('连接断开，请刷新页面重试'); },
+        );
 
-        // 步骤 9: 若 selection 非空，自动发首次请求
+        // 若 selection 非空，自动发首次请求
         if (snapshot.selection) {
           setPending(true);
           try {
@@ -92,7 +135,7 @@ export default function ChatWindow() {
               ...snapshot,
               deviceId: deviceIdRef.current,
             });
-            await sendEnvelope(sid, env);
+            await sendEnvelope(baseUrlRef.current, sid, env);
             await appendMessage(tabId, {
               role: 'user',
               text: '',
@@ -143,6 +186,7 @@ export default function ChatWindow() {
   const handleSend = useCallback(
     async (text: string) => {
       const sid = sessionIdRef.current;
+      const base = baseUrlRef.current;
       if (!sid) return;
       const tabId = tabIdRef.current;
       setMessages((prev) => [
@@ -157,7 +201,7 @@ export default function ChatWindow() {
           ...snapshotRef.current,
           deviceId: deviceIdRef.current,
         });
-        await sendEnvelope(sid, env);
+        await sendEnvelope(base, sid, env);
       } catch {
         setPending(false);
         setError('发送消息失败');
@@ -241,7 +285,6 @@ async function captureSnapshot(tabId?: number): Promise<PageSnapshot> {
   const ownSelection = window.getSelection()?.toString();
   const ownUrl = location.href;
   if (ownSelection && ownUrl !== 'chrome-extension://') {
-    // 可能在开发/测试模式下 sidecar 自身有选词
     let context = '';
     const sel = window.getSelection();
     if (sel && sel.rangeCount) {

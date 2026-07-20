@@ -95,9 +95,10 @@ everlingo/
 |---|---|
 | `activeTab` | 用户主动点扩展图标时获取当前 tab 信息（url/title），不需要 `host_permissions` |
 | `sidePanel` | 使用 `chrome.sidePanel` API 打开右侧 panel（Chrome 114+） |
-| `storage` | 持久化 `device_id`（`chrome.storage.local`）与 tab → session_id 映射（`chrome.storage.session`） |
+| `storage` | 持久化 `device_id`（`chrome.storage.local`）、`server_url`（`chrome.storage.local`）与 tab → session_id 映射（`chrome.storage.session`） |
+| `contextMenus` | 选中文本后，右键菜单显示"用小记🐹翻译"入口 |
 
-**不申请** `host_permissions`：MVP 不实现"选词后自动弹翻译小工具图标"。用户必须主动点扩展图标激活 sidecar，激活后从 `chrome.tabs.query({active:true})` 读取当前 tab 的 url/title，以及通过 `chrome.scripting.executeScript` 在页面执行脚本取 `window.getSelection().toString()` 与上下文。
+**不申请** `host_permissions`：MVP 不实现"选词后自动弹翻译小工具图标"。用户必须通过扩展图标或右键菜单激活翻译，激活后从 `chrome.tabs.query({active:true})` 读取当前 tab 的 url/title，以及通过 `chrome.scripting.executeScript` 在页面执行脚本取 `window.getSelection().toString()` 与上下文。
 
 ---
 
@@ -356,7 +357,7 @@ type MsgsStorageValue = UIMessageRecord[];
 
 ## 10. 未来优化方向
 
-- **选词自动弹图标**：申请 `host_permissions` + content script 监听 `mouseup`，仿 Google Translate Extension 体验
+- **选词自动弹图标**：申请 `host_permissions` + content script 监听 `mouseup`，仿 Google Translate Extension 体验（当前已通过右键菜单 + 扩展图标点击实现翻译触发，用户可主动调起）
 - **截图记忆锚点**：实现 `chrome.tabs.captureVisibleTab` 填充 `context.screenshot`，对齐 [product-phase-2.md](../phases/phase2/product-phase-2.md) 的"原屏幕截图"目标
 - **Session 持久化**：`Session` 对话历史落盘（[session.md](session.md) 明确"暂时不需要支持持久化"），支持浏览器重启后恢复
 - **服务端 message history API 作为权威源**：当前方案 B（§7.4）依赖 client storage，未来可加 `GET /api/session/{id}/messages?since=<seq>` 作为单一事实源，解决多设备/多 sidecar 实例同步问题

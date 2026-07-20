@@ -3,9 +3,18 @@
   "name": "记了么 - EverLingo",
   "version": "0.1.0",
   "description": "有记忆的 AI 外语老师 - 浏览器选词翻译与笔记",
-  "permissions": ["activeTab", "sidePanel", "storage", "scripting"],
+  "permissions": ["activeTab", "sidePanel", "storage", "scripting", "contextMenus"],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
   "action": {
-    "default_title": "打开小记🐹"
+    "default_title": "打开小记🐹",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
   "side_panel": {
     "default_path": "sidecar.html"
