@@ -115,7 +115,7 @@ everlingo/
 
 ### 5.2 Sidecar 打开流程
 
-sessionId 由 sidecar panel 启动后主动向 background 查询，**不**通过 URL query 传递。所有 session 创建/复用/超时探活逻辑集中在 background service worker 的消息处理函数中，sidecar panel 职责单一：启动 → 查 session → 连 SSE → 发 envelope。
+sessionId 由 sidecar panel 启动后主动向 background 查询，**不**通过 URL query 传递。所有 session 创建/复用/超时探活逻辑集中在 background service worker 的消息处理函数中，sidecar panel 职责单一：启动 → 恢复 UI history → 查 session → 连 SSE → 发 envelope。
 
 ```
 用户点扩展图标
@@ -125,39 +125,43 @@ background service worker:
      （background 不主动获取/创建 session）
   ↓
 sidecar panel (React app) 启动:
-  2. 通过 chrome.runtime.sendMessage({ type: "GET_SESSION" })
-     向 background 询问 sessionId
+  2a. 从 chrome.storage.session 读取 msgs:${tabId}，恢复 UI message history
+  2b. 通过 chrome.runtime.sendMessage({ type: "GET_SESSION" })
+      向 background 询问 sessionId
   ↓
 background 收到 GET_SESSION 消息:
   3. tabId = (await chrome.tabs.query({active:true}))[0].id
   4. sessionId = await chrome.storage.session.get(`sid:${tabId}`)
   5. 若有 sessionId → GET /api/session/{id}/events (SSE 探活)
-     ├─ 200 → 复用，返回 { sessionId }
-     └─ 404 → 走新建流程
+      ├─ 200 → 复用，返回 { sessionId, fresh: false }
+      └─ 404 → 走新建流程
   6. 若无或 404:
+     - chrome.storage.session.remove(`msgs:${tabId}`)  ← 清理旧 UI history
      - POST /api/session  →  拿到新 sessionId
      - chrome.storage.session.set(`sid:${tabId}`, sessionId)
-     - 返回 { sessionId }
+     - 返回 { sessionId, fresh: true }
   ↓
-sidecar panel 收到 sessionId:
-  7. 建立 SSE 连接
-  8. 构造首次 envelope（含 selection/context/source/device）
-  9. POST /api/session/{id}/message { envelope: {...} }
+sidecar panel 收到响应:
+  7. 若 fresh=true → 清空 UI（与 storage 已被 background 清除同步）
+  8. 建立 SSE 连接
+  9. 构造首次 envelope（含 selection/context/source/device）
+  10. POST /api/session/{id}/message { envelope: {...} }
 ```
 
 **设计要点**：
 
 - **不在打开 sidecar 前预创建 session**：避免用户立即关闭 sidecar 产生孤儿 session（session 已在后端建立却无人连接）。改为 sidecar 启动后主动查询，session 创建与 sidecar 实际使用绑定。
-- **session 管理集中在 background**：sidecar panel 不直接读写 `chrome.storage.session`，所有 session 状态由 background 统一管理。
-- **sidecar panel 销毁重建后可恢复**：sidecar panel 被 Chrome 销毁重建（如切换 tab 后回来）时，仍能通过 `chrome.runtime.sendMessage` 从 background 找回 sessionId。
+- **session 管理集中在 background**：sidecar panel 不直接读写 `chrome.storage.session` 的 `sid:${tabId}`，session 状态由 background 统一管理（UI history 的读写见 §7.4）。
+- **sidecar panel 销毁重建后可恢复**：sidecar panel 被 Chrome 销毁重建（如切换 tab 后回来）时，仍能通过 `chrome.runtime.sendMessage` 从 background 找回 sessionId，并从 storage 恢复 UI history。
+- **UI history 与 Agent 上下文同步**：session 重建时 background 先 `remove(msgs:${tabId})` 再返回 `fresh=true`，sidecar 据此清空 UI，避免"UI 有历史但 Agent 不记得"的错配。详见 §7.4。
 
 ### 5.3 隐藏与二次激活
 
 - Sidecar 隐藏（失焦、点关闭）→ 前端关闭 SSE 连接
 - 后端 `WebChannel` 检测到 `len(_sse_queues)==0`，进入 `DISCONNECT_GRACE` 倒计时
 - 二次激活同 tab：
-  - 20 分钟内：sidecar panel 启动 → 向 background 查询 sessionId → `GET /api/session/{id}/events` 探活返回 200 → 复用原 session，对话上下文（Agent `_messages`）保留
-  - 超过 20 分钟：后端已回收 session（`recv_envelope()` 返回 `None` → `QuitEvent`），sidecar 查询时探活返回 404 → background 走新建流程，对话上下文丢失
+  - **20 分钟内（session 仍在）**：sidecar panel 启动 → 从 `chrome.storage.session` 读 `msgs:${tabId}` 恢复 UI history → 向 background 查询 sessionId → `GET /api/session/{id}/events` 探活返回 200 → background 返回 `{ sessionId, fresh: false }` → sidecar 不清空 UI，直接连 SSE。**Agent 上下文保留 + UI history 恢复，体验连续。**
+  - **超过 20 分钟（session 已被后端回收）**：`recv_envelope()` 返回 `None` → `QuitEvent` → Gateway 从 Session 列表移除。sidecar 查询时探活返回 404 → background 走新建流程：`remove(msgs:${tabId})` 清除旧 UI history → `POST /api/session` 拿新 sessionId → 返回 `{ sessionId, fresh: true }` → sidecar 据此清空 UI。**UI history 与 Agent 上下文同步丢失，不会错配。**
 
 ### 5.4 超时配置
 
@@ -168,8 +172,8 @@ sidecar panel 收到 sessionId:
 ### 5.5 边界
 
 - **不支持跨 tab 共享 session**：每个 tab 独立 session，避免多 tab 同时操作时 Agent 上下文混淆
-- **不支持浏览器重启恢复 session**：`chrome.storage.session` 在浏览器关闭时清空，重启后所有 tab 都需新建 session
-- **接受会话丢失**：20 分钟超时后新建 session，Agent 不记得上一轮对话。未来优化方向见 §10
+- **不支持浏览器重启恢复 session**：`chrome.storage.session` 在浏览器关闭时清空（`sid:${tabId}` 与 `msgs:${tabId}` 一并消失），重启后所有 tab 都需新建 session
+- **接受会话丢失**：20 分钟超时后新建 session，UI history 与 Agent 上下文同步丢失。未来优化方向见 §10
 
 ---
 
@@ -279,10 +283,55 @@ function isBlockElement(el: Element | null): boolean {
 - 用户在输入框继续追问时，`task` 保持当前选择，`selection`/`context` 字段保留为**本次 sidecar 打开周期内**的快照（不重新抓取），`chat.message` 为用户新输入
 - 二次激活（隐藏后重新打开）视为新的"打开周期"：重新抓取 selection/context，按上一条规则决定是否自动发起请求
 - Agent 回复通过 SSE 推送，前端渲染为消息气泡
+- **UI message history 持久化**：sidecar 每发送一条 user message、每收到一条 SSE `message` 事件时，均 append 到 `chrome.storage.session` 的 `msgs:${tabId}`（详见 §7.4）。sidecar 启动时先读 storage 恢复 UI history，再向 background 查询 session。这样 sidecar 隐藏/重开 20 分钟内可恢复完整聊天记录。
 
 ### 7.3 技术栈
 
 复用 [web-session-ui.md — 前端技术选型](web-session-ui.md)：Vite + React + TailwindCSS + shadcn/ui + react-markdown。打包为 CRX 时用 `@crxjs/vite-plugin` 或类似工具。
+
+### 7.4 UI message history 持久化
+
+sidecar panel 关闭后 React 组件被 Chrome 销毁，本地 state 丢失；重新打开时若仅恢复 sessionId 而不恢复 UI history，会出现"Agent 记得但 UI 空白"的体验割裂。本节定义 UI history 的客户端持久化方案。
+
+**存储位置**：`chrome.storage.session`，key 为 `msgs:${tabId}`（与 `sid:${tabId}` 同源存储）。
+
+**value 格式**：
+
+```typescript
+type UIMessageRecord = {
+  role: "user" | "assistant";
+  text: string;
+  timestamp: string;  // SSE 事件已有的 timestamp 字段，同时作为去重 key
+};
+type MsgsStorageValue = UIMessageRecord[];
+```
+
+**写入时机**：
+
+- sidecar 发送 user message（`POST /api/session/{id}/message`）成功后，append 一条 `{role:"user", ...}`
+- sidecar 收到 SSE `message` 事件时，append 一条 `{role:"assistant", ...}`，用事件 `timestamp` 去重（避免 SSE 重连重复推送导致重复 append）
+
+**读取时机**：
+
+- sidecar panel 启动时（§5.2 步骤 2a），先于 GET_SESSION 查询
+
+**清除时机**：
+
+- background 在 §5.2 步骤 6 检测到 404 走新建流程时，先 `chrome.storage.session.remove(`msgs:${tabId}`)` 清除旧 history，再返回 `fresh: true`，sidecar 据此同步清空 UI
+
+**容量与淘汰**：
+
+- `chrome.storage.session` 单项限制 10MB，聊天文本场景足够
+- 超出时按 FIFO 丢头部最旧消息（实现时通过 `storage.getBytesInUse` 监控）
+
+**生命周期对齐**：
+
+- `chrome.storage.session` 浏览器关闭即清空，与 `sid:${tabId}` 同源，不会出现"UI history 还在但 session 已销毁"或"session 还在但 UI history 没了"的错配
+
+**与笔记落盘解耦**：
+
+- UI history 仅用于渲染，不作为知识沉淀的事实源
+- 真正的笔记落盘走 Agent 的 `request_memory_extraction` 流程（见 [chat-agent-spec.md — 记忆抽取触发](chat-agent-spec.md)），两条路径不互相依赖
 
 ---
 
@@ -310,6 +359,7 @@ function isBlockElement(el: Element | null): boolean {
 - **选词自动弹图标**：申请 `host_permissions` + content script 监听 `mouseup`，仿 Google Translate Extension 体验
 - **截图记忆锚点**：实现 `chrome.tabs.captureVisibleTab` 填充 `context.screenshot`，对齐 [product-phase-2.md](../phases/phase2/product-phase-2.md) 的"原屏幕截图"目标
 - **Session 持久化**：`Session` 对话历史落盘（[session.md](session.md) 明确"暂时不需要支持持久化"），支持浏览器重启后恢复
+- **服务端 message history API 作为权威源**：当前方案 B（§7.4）依赖 client storage，未来可加 `GET /api/session/{id}/messages?since=<seq>` 作为单一事实源，解决多设备/多 sidecar 实例同步问题
 - **跨 tab 共享 session**：用户主动切换时合并对话上下文
 - **鉴权**：extension_id 白名单 或 一次性 token
 - **PDF / EPUB 阅读器内嵌**：复用 envelope `source.kind=pdf` / `epub` 预留字段
