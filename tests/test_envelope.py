@@ -5,6 +5,7 @@ from everlingo.gateway.channels.envelope import (
     UserInputEnvelope,
     SourcePlain,
     SourceWeb,
+    ScreenshotPart,
     render_envelope_to_message_text,
     wrap_plain_text,
 )
@@ -72,6 +73,20 @@ class TestSourceTaggedUnion:
         assert env.source.kind == "web"
         assert env.source.url == "http://test.com"
 
+    def test_web_source_default_surface(self):
+        env = UserInputEnvelope(source=SourceWeb(url="http://test.com"))
+        assert env.source.surface == "fullscreen"
+
+    def test_web_source_explicit_surface(self):
+        env = UserInputEnvelope(
+            source=SourceWeb(url="http://test.com", surface="sidecar")
+        )
+        assert env.source.surface == "sidecar"
+
+    def test_web_source_invalid_surface_raises(self):
+        with pytest.raises(ValidationError):
+            SourceWeb(url="http://test.com", surface="full_page")
+
     def test_unknown_kind_raises(self):
         with pytest.raises(ValidationError):
             UserInputEnvelope(source={"kind": "unknown"})
@@ -112,3 +127,25 @@ class TestDevicePart:
         assert env.device is not None
         assert env.device.platform == "chrome_ext"
         assert env.device.locale == "zh-CN"
+
+
+class TestScreenshotPart:
+    def test_screenshot_none_by_default(self):
+        env = UserInputEnvelope()
+        assert env.context.screenshot is None
+
+    def test_screenshot_with_fields(self):
+        env = UserInputEnvelope(
+            context={"screenshot": ScreenshotPart(data_url="data:image/png;base64,abc")}
+        )
+        assert env.context.screenshot is not None
+        assert env.context.screenshot.data_url == "data:image/png;base64,abc"
+        assert env.context.screenshot.mime == "image/png"
+
+    def test_screenshot_roundtrip(self):
+        env = UserInputEnvelope(
+            context={"screenshot": ScreenshotPart(data_url="data:image/png;base64,abc", mime="image/png")}
+        )
+        rendered = render_envelope_to_message_text(env)
+        assert "data:image/png;base64,abc" in rendered
+        assert '"mime":"image/png"' in rendered

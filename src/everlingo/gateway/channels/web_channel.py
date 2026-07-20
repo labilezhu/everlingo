@@ -39,7 +39,7 @@ class WebChannel(Channel):
 
     # 超时参数（类常量，可通过构造参数覆盖，方便测试）
     IDLE_CHECK_INTERVAL = 30       # 轮询间隔（秒）
-    DISCONNECT_GRACE = 300         # 无 SSE client 宽限期（秒），默认 5 分钟
+    DISCONNECT_GRACE = 1200        # 无 SSE client 宽限期（秒），默认 20 分钟
     ABSOLUTE_IDLE_TIMEOUT = 3600   # 绝对空闲超时（秒），默认 60 分钟
 
     def __init__(

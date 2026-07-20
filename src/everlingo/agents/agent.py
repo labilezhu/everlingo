@@ -269,10 +269,12 @@ def _build_system_prompt(
 - chat.message: 用户的自然语言输入（可能为空，表示用户仅点击了 UI 按钮触发任务）
 - selection.text: 用户选中的词/短语（可能为空，如纯聊天场景）
 - context.text: 选词周围的上下文，用于消歧（如 bank 在河岸 vs 银行；可能为空）
-- source: 来源信息（kind: web/pdf/epub/ios_app/plain；当前只有 plain，其他 kind 是预留）
+- source: 来源信息（kind: web/pdf/epub/ios_app/plain；当前已落地 plain 与 web，其他 kind 是预留）
 - device: 设备信息（可能为 None）
 
 标签内是 JSON，按 JSON 规则解析。
+- 当 task=look_up 且 chat.message 为空且 selection.text 为空时，视为"延续上一轮笔记话题"：
+  不要回复"未收到输入"，应基于对话历史继续推进相关工作（如读取/编辑上一轮提到的笔记）。
 
 """ + f"""
 

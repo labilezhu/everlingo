@@ -7,5 +7,7 @@ Status:
 
 ## Phase 2
 
+- [Chrome Extension 选词翻译 sidecar](/docs/impl-spec/chrome-extension-spec.md)
+
 Status:
 ⬜ Planned

@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 
 TaskKind = Literal["translate", "look_up", "none"]
 
+SurfaceKind = Literal["sidecar", "popup", "fullscreen"]
+
 
 class ChatPart(BaseModel):
     message: str = ""
@@ -15,9 +17,15 @@ class SelectionPart(BaseModel):
     text: str = ""
 
 
+class ScreenshotPart(BaseModel):
+    data_url: str
+    mime: str = "image/png"
+
+
 class ContextPart(BaseModel):
     text: str = ""
     kind: Literal["paragraph", "page", "screen", "plain"] = "plain"
+    screenshot: ScreenshotPart | None = None
 
 
 class SourcePlain(BaseModel):
@@ -28,6 +36,7 @@ class SourceWeb(BaseModel):
     kind: Literal["web"] = "web"
     url: str = ""
     title: str = ""
+    surface: SurfaceKind = "fullscreen"
 
 
 class SourcePdf(BaseModel):
