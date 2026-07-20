@@ -11,3 +11,7 @@ web/dist/**
 .pytest_cache
 .pytest_cache/**
 run@130.sh
+extension/node_modules
+extension/node_modules/**
+extension/dist
+extension/dist/**
