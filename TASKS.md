@@ -19,4 +19,10 @@
     - Sidecar panel React 组件：ChatWindow（session 查询 + UI history 恢复 + envelope 自动发送 + SSE 处理 + TaskSelector task 切换按钮）
     - 组件拷贝：ChatInput / MessageBubble / MarkdownRenderer / ui/* / lib/utils / types/chat（从 web/ 拷贝）
     - 测试：12 个 vitest 用例（extract.test.ts + envelope.test.ts）
-  - **所有后端改动测试**：+18 个测试用例，全量回归通过
+   - **所有后端改动测试**：+18 个测试用例，全量回归通过
+   - **Bugfix: CORS 缺失导致 sidecar "连接断开"**（[issue 描述]：扩展跨源请求无 CORS 响应头，浏览器拦截响应体 → `sessionId` 变为 `undefined` → 所有后续请求路径含 `undefined` → sidecar 提示断开）
+     - 服务端 `web_acceptor.py`：挂载 FastAPI CORSMiddleware（`allow_origins=["*"]`）
+     - 扩展端 `backgroundClient.ts`：`getSession()` 校验 `error`/`sessionId` 后 reject，防止 `undefined` 静默传染
+     - 扩展端 `background.ts`：`probeSession()` 拿到响应头后立即 `controller.abort()` 关闭 SSE 流
+     - 测试：`test_web_acceptor.py` 新增 `TestCORS`（OPTIONS 预检、POST session、SSE 三种场景）
+     - 文档：更新 `web-session-acceptor.md`（CORS 配置小节）+ `chrome-extension-impl-spec.md`（Services 节 CORS 说明）

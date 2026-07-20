@@ -130,6 +130,46 @@ class TestSSEEvents:
         assert resp.status_code == 404
 
 
+class TestCORS:
+    """CORS 响应头 — 扩展侧跨源请求必须通过"""
+
+    def test_cors_preflight_options(self):
+        import everlingo.gateway.web_acceptor as wa
+        wa._gateway = _make_gateway()
+        client = TestClient(app)
+        # 先创建 session 以获取有效 session_id
+        post_resp = client.post("/api/session")
+        sid = post_resp.json()["session_id"]
+
+        # OPTIONS 预检请求
+        resp = client.options(
+            f"/api/session/{sid}/message",
+            headers={
+                "Origin": "chrome-extension://test-extension-id",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.headers.get("access-control-allow-origin") == "*"
+
+    def test_cors_header_on_post_session(self):
+        import everlingo.gateway.web_acceptor as wa
+        wa._gateway = _make_gateway()
+        client = TestClient(app)
+        resp = client.post(
+            "/api/session",
+            headers={"Origin": "chrome-extension://test-extension-id"},
+        )
+        assert resp.status_code == 200
+        assert resp.headers.get("access-control-allow-origin") == "*"
+
+    def test_cors_middleware_installed(self):
+        from everlingo.gateway.web_acceptor import app as _app
+        middleware_types = [m.cls for m in _app.user_middleware]
+        from fastapi.middleware.cors import CORSMiddleware
+        assert CORSMiddleware in middleware_types
+
+
 class TestWebChannelIntegration:
     """WebChannel 直接集成测试（不经过 HTTP）。"""
 

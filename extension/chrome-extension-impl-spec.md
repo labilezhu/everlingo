@@ -504,6 +504,8 @@ export function connectSSE(
 - 新增 `sendEnvelope` 替代 `sendMessage`，body 为 `{ envelope }` 而非 `{ text }`
 - 移除 `createSession`（由 background 通过 `backgroundClient.getSession()` 处理）
 
+> **CORS 说明**：扩展（origin = `chrome-extension://<id>`）请求后端 API 属于跨源。服务端 `web_acceptor.py` 已启用 CORSMiddleware（`allow_origins=["*"]`，详见 [web-session-acceptor.md](../docs/impl-spec/web-session-acceptor.md) §）。无需在 manifest 中申请 `host_permissions`。
+
 ### `extension/src/services/messageHistory.ts`
 
 实现 spec §7.4 的 UI message history 持久化。

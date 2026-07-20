@@ -9,6 +9,7 @@ from typing import Any, Union
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -17,6 +18,16 @@ from everlingo.gateway.channels.web_channel import WebChannel
 from everlingo.gateway.session_acceptor import SessionAcceptor
 
 app = FastAPI()
+
+# MVP: 允许扩展跨源请求（扩展 origin = chrome-extension://<id>）
+# 生产前应收敛 allow_origins 到白名单
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=False,
+)
 
 
 class TextMessageBody(BaseModel):

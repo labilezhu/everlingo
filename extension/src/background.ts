@@ -67,6 +67,7 @@ async function probeSession(sid: string): Promise<boolean> {
       signal: controller.signal,
     });
     clearTimeout(timer);
+    controller.abort(); // 拿到响应头后立即关闭流，避免 SSE 长连接残留
     return res.ok;
   } catch {
     return false;
