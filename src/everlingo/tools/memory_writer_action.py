@@ -86,6 +86,12 @@ def make_memory_writer_action_tool(
             body=body or None,
             frontmatter=frontmatter or None,
         )
+        logger.debug(
+            "[ChatAgent] submit mem_entry to MemoryWriter (action): "
+            "session=%s channel=%s operation=%s file_path=%s entry=%s",
+            chat_session_id, channel_name, operation, file_path,
+            entry.model_dump(),
+        )
         result = await memory_writer.execute_action_async(entry)
         import json
 

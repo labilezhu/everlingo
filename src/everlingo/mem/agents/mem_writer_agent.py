@@ -226,10 +226,7 @@ spec/vault_spec.md 文件链接到其它子规范 md 文件，请按需要读取
 entry 中的 `new_messages` 和 `context_messages` 字段包含了触发本次记忆的原始对话内容。
 在将 entry 写入 kb 条目时，你需要根据对话内容生成 `conversation_context`（一两句话，
 描述用户在什么场景下查询/学习这个知识点，使用界面语言）。
-`conversation_context` 需要写入两个位置：
-
-1. kb 条目 markdown 文件的 `## 遇到记录` 节中描述本次遇到场景。
-2. 写入确认 JSON 的 `conversation_context` 字段。
+`conversation_context`
 
 ## 写入完成确认
 

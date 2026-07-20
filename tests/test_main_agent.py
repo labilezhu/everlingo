@@ -9,6 +9,7 @@ ref: chat-agent-spec.md
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid as _uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -334,3 +335,36 @@ class TestMainAgentWiring:
         assert len(entries) == 1
         assert entries[0].title == "ambiguous"
         assert entries[0].item_type == "vocab"
+
+    def test_pending_drafts_logs_submit_debug(
+        self, zh_en_profile, mock_agent_response, caplog,
+    ):
+        """有 pending_drafts 时 enqueue 前输出 DEBUG 日志，含全量字段。"""
+        caplog.set_level(logging.DEBUG, logger="everlingo.agents.agent")
+        mock_inner = MagicMock()
+        mock_inner.ainvoke = AsyncMock(return_value=mock_agent_response)
+        agent, mock_writer = _make_main_agent(zh_en_profile)
+
+        with patch("everlingo.agents.agent.create_agent", return_value=mock_inner), \
+             patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+             patch("everlingo.agents.agent.load_user_doc", return_value=""), \
+             patch("everlingo.agents.agent.get_config_version", return_value=999), \
+             patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
+             patch("everlingo.agents.agent._get_memory_writer", return_value=mock_writer):
+            agent._add_pending_drafts([
+                _MemoryEntryDraft(
+                    item_type="vocab",
+                    why_want_to_save_memory="用户明确要求记住知识点",
+                    title="gcc",
+                ),
+            ])
+            asyncio.run(agent.ainvoke(MessageEvent(text="gcc")))
+
+        assert "[ChatAgent] submit mem_entries to MemoryWriter" in caplog.text
+        assert "session=session-xyz" in caplog.text
+        assert "channel=StdioChannel" in caplog.text
+        assert "count=1" in caplog.text
+        assert "gcc" in caplog.text            # title
+        assert "vocab" in caplog.text           # item_type
+        assert "new_messages" in caplog.text    # model_dump key
+        assert "entry_id" in caplog.text

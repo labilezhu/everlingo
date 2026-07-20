@@ -8,6 +8,7 @@ from everlingo.models import EverLingoSetting, LoggingSetting, SysSetting, UserP
 from everlingo.setting import get_prompt_version, save_setting
 from everlingo.tools.clock import get_datetime
 from everlingo.tools.conf_manager import get_config, get_schema, set_config, get_config_version
+from everlingo.tools.memory_writer_action import make_memory_writer_action_tool
 from everlingo.tools.tools import get_all_tools
 
 
@@ -104,6 +105,33 @@ def test_set_config_invalid_yaml_does_not_increment_version(monkeypatch):
 
     assert version_after == version_before
     assert "error" in result
+
+
+def test_memory_writer_action_logs_submit_debug(caplog):
+    """memory_writer_action 提交 entry 时输出 DEBUG 日志，含全量字段。"""
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+
+    caplog.set_level(logging.DEBUG, logger="everlingo.tools.memory_writer_action")
+    mock_writer = MagicMock()
+    mock_writer.execute_action_async = AsyncMock(return_value={"ok": True})
+    tool = make_memory_writer_action_tool(
+        memory_writer=mock_writer,
+        target_lang="en", interface_lang="zh-CN",
+        chat_session_id="sess-1", channel_name="StdioChannel",
+    )
+    asyncio.run(tool.ainvoke({
+        "operation": "delete",
+        "file_path": "items/vocab/gcc--01.md",
+    }))
+
+    assert "[ChatAgent] submit mem_entry to MemoryWriter (action)" in caplog.text
+    assert "operation=delete" in caplog.text
+    assert "file_path=items/vocab/gcc--01.md" in caplog.text
+    assert "session=sess-1" in caplog.text
+    assert "channel=StdioChannel" in caplog.text
+    assert "entry_id" in caplog.text
+    assert "operation" in caplog.text
 
 
 def test_get_all_tools_returns_tool_objects():

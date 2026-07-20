@@ -785,6 +785,12 @@ class MainAgent:
                 )
                 for d in drafts
             ]
+            logger.debug(
+                "[ChatAgent] submit mem_entries to MemoryWriter: "
+                "session=%s channel=%s count=%d entries=%s",
+                self._session_id, self._channel_metadata.name,
+                len(entries), [e.model_dump() for e in entries],
+            )
             _get_memory_writer().enqueue(entries)
         else:
             # 未触发抽取：游标仍推进，本轮内容自然成为未来 context

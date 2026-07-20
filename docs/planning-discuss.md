@@ -1,3 +1,11 @@
+
+
+src/everlingo/mem/agents/mem_writer_agent.py 中有加载 src/everlingo/mem/vault/templates/default/spec/mem_entry_spec.md 用于帮助 Memory Writer Agent 理解 Chat Agent 输入数据。
+
+现在没有对 Memory Writer Agent 解释：输入的 new_messages 和 context_messages 字段 中的 [Envelope](docs/impl-spec/envelope-impl-spec.md) 是什么。 建议在 Memory Writer Agent 的 prompt 注入 src/everlingo/mem/vault/templates/default/spec/envelope_spec.md ，用类似现在 Memory Writer Agent 注入 mem_entry_spec.md 的实现方法，通过 mcp read 。
+
+---
+
 docs/impl-spec/chrome-extension-spec.md
 extension/chrome-extension-impl-spec.md
 Chrome Extension 使用 docs/arts/chrome-icon.png 作为图标。需要时，你调整一下分辨率
