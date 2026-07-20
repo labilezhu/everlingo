@@ -183,7 +183,14 @@ System prompt 需要包括 src/everlingo/mem/vault/vault_spec.md ，因为需要
 
 System prompt 还需要包括 `mem_entry_spec.md` ，用于告知 Agent 其输入 entry 的完整字段结构与字段含义（字段补充说明）。通过运行期调 MCP `compile_prompt` 工具从 vault 动态加载 `spec/mem_entry_spec.md`（含 include 展开），与 Extract Agent 的 spec 加载方式一致。不再通过本地 `PackageSource` 加载。
 
-注入 `mem_entry_spec.md` 与 `vault_spec.md` 前，需用 `md_prompt_compiler.shift_headings(doc, 2)` 整体平移标题 +2 级，使其最浅标题 h1 → h3，嵌套于外层 `## 输入 entry 结构` / `## memory vault 结构` (h2) 之下。此约定与 `chat-agent-spec.md` 中「*.md 注入需降级标题」一致。`compile_prompt` 内部的 `context_level` 机制只调整 include 子文件标题，不调整入口文件自身标题，故需 `shift_headings` 在编译输出上额外平移。
+System prompt 同样需要包括 `spec/envelope_spec.md`，用于告知 Agent `new_messages` 与 `context_messages` 字段中 `<envelope>{JSON}</envelope>` 包装格式的 schema。通过同一条 MCP session 调 `compile_prompt` 加载 `spec/envelope_spec.md`（与 mem_entry_spec 共用一条连接，减少开销）。
+
+注入 `mem_entry_spec.md`、`envelope_spec.md` 与 `vault_spec.md` 前，需用 `md_prompt_compiler.shift_headings(doc, 2)` 整体平移标题 +2 级，使其最浅标题 h1 → h3，嵌套于外层 `## 输入 entry 结构` / `## 输入消息的 Envelope 格式` / `## memory vault 结构` (h2) 之下。此约定与 `chat-agent-spec.md` 中「*.md 注入需降级标题」一致。`compile_prompt` 内部的 `context_level` 机制只调整 include 子文件标题，不调整入口文件自身标题，故需 `shift_headings` 在编译输出上额外平移。
+
+注入位置顺序（自上而下）：
+1. `## 输入给你的 entry 结构` — 说明 entry 整体字段
+2. `## 输入消息的 Envelope 格式` — 说明 new_messages / context_messages 中消息的 Envelope schema
+3. `# memory vault 注意事项` 及其子节 — vault 操作规范
 
 另外，system prompt 需包含一段「语言配置」说明，明确告诉 Agent 两个语言字段的来源与用途：
 

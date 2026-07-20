@@ -74,44 +74,36 @@ class _ActionRequest:
 # ── 系统提示词构建 ──────────────────────────────────────────────────
 
 
-_SPEC_COMPILE_TOOLS: frozenset[str] = frozenset({"vault_mcp_compile_prompt"})
+async def _call_compile_prompt(session, path: str) -> str:
+    """在已有 MCP session 上调用 compile_prompt 工具，返回编译后文本。
 
-
-async def _load_mem_entry_spec_from_vault(lang: str) -> str:
-    """通过 MCP compile_prompt 工具编译 spec/mem_entry_spec.md（含 include 展开）。
-
-    返回编译后完整文本。
-    MCP server 不可用（IndexerOfflineError）或文件缺失时向上传播异常，
-    由 _process_batch 捕获后丢弃该 entry。
+    复用已打开的 session，无需额外建立 MCP 连接。
+    编译失败（server 返回 isError）时抛出 RuntimeError，由 _process_batch 捕获后丢弃该 entry。
     """
-    from .mem_writer_mcp_client import mcp_vault_connection
-
-    async with mcp_vault_connection(
-        lang, wanted_tools=_SPEC_COMPILE_TOOLS
-    ) as (session, _tools):
-        result = await session.call_tool(
-            "compile_prompt", {"path": "spec/mem_entry_spec.md"}
+    result = await session.call_tool(
+        "compile_prompt", {"path": path}
+    )
+    if result.isError:
+        err_text = (
+            result.content[0].text
+            if result.content
+            else "compile_prompt returned isError"
         )
-        if result.isError:
-            err_text = (
-                result.content[0].text
-                if result.content
-                else "compile_prompt returned isError"
-            )
-            raise RuntimeError(
-                f"compile_prompt spec/mem_entry_spec.md failed: {err_text}"
-            )
-        data = result.structuredContent or {}
-        return data.get("content", "")
+        raise RuntimeError(
+            f"compile_prompt {path} failed: {err_text}"
+        )
+    data = result.structuredContent or {}
+    return data.get("content", "")
 
 
-def _build_writer_system_prompt(mem_entry_spec_content: str) -> str:
+def _build_writer_system_prompt(mem_entry_spec_content: str, envelope_spec_content: str) -> str:
     """构建 Memory Writer Agent 的 system prompt。
 
     ref: docs/impl-spec/memory-writer-agent-spec.md — System prompt
-    mem_entry_spec.md 已通过 MCP compile_prompt 工具从 vault 加载并展开
-    include 指令，作为参数传入。此处对其 shift_headings(+2) 使其最浅
-    标题 h1 → h3，嵌套于外层 `## 输入给你的 entry 结构` (h2) 之下。
+    mem_entry_spec.md 与 envelope_spec.md 已通过 MCP compile_prompt 工具从
+    vault 加载并展开 include 指令，作为参数传入。此处对二者 shift_headings(+2)
+    使其最浅标题 h1 → h3，嵌套于外层 `## 输入给你的 entry 结构` / `## 输入消息的
+    Envelope 格式` (h2) 之下。
     与 chat-agent-spec.md「*.md 注入需降级标题」约定一致。
 
     工具名约定：使用 Vault MCP Server 暴露的 fs 工具
@@ -119,6 +111,10 @@ def _build_writer_system_prompt(mem_entry_spec_content: str) -> str:
     """
     input_entry_spec_doc = shift_headings(
         mem_entry_spec_content,
+        offset=2,
+    )
+    envelope_spec_doc = shift_headings(
+        envelope_spec_content,
         offset=2,
     )
 
@@ -145,6 +141,19 @@ Memory vault : 可简称为 vault 。 Everlingo 个人语言学习笔记库，�
 
 每轮你会收到**一个** entry（JSON 格式），其完整结构与字段含义如下。
 下文为该 schema 的规范说明，请严格按字段含义理解 entry 内容。
+
+---
+
+"""
+    envelope_spec_middle = f"""
+
+## 输入消息的 Envelope 格式
+
+输入中的 `new_messages` 和 `context_messages` 字段包含以 Envelope 格式包装的
+原始用户输入消息。每条消息均遵循以下 Envelope 结构：
+
+{envelope_spec_doc.strip()}
+
 
 ---
 
@@ -272,6 +281,7 @@ entry 中的 `new_messages` 和 `context_messages` 字段包含了触发本次�
     return (
         prefix
         + input_entry_spec_doc.strip()
+        + envelope_spec_middle
         + suffix
     )
 
@@ -817,15 +827,17 @@ class MemoryWriterAgent:
         若通知 sink 已注入，写成功后将写入确认发给对应 Session。
         返回 conversation_context（由 LLM 在确认 JSON 中输出）。
         """
-        spec_content = await _load_mem_entry_spec_from_vault(entry.lang)
-        system_prompt = _build_writer_system_prompt(spec_content)
+        async with mcp_vault_connection(entry.lang) as (session, tools):
+            # 通过同一条 MCP session 加载两个 spec（共用 session，减少连接开销）
+            mem_entry_spec = await _call_compile_prompt(session, "spec/mem_entry_spec.md")
+            envelope_spec = await _call_compile_prompt(session, "spec/envelope_spec.md")
+            system_prompt = _build_writer_system_prompt(mem_entry_spec, envelope_spec)
 
-        payload = _render_entry_payload(entry)
-        user_msg = (
-            "请将以下 entry 合并或写入 memory vault。\n\n"
-            f"```json\n{payload}```"
-        )
-        async with mcp_vault_connection(entry.lang) as (_session, tools):
+            payload = _render_entry_payload(entry)
+            user_msg = (
+                "请将以下 entry 合并或写入 memory vault。\n\n"
+                f"```json\n{payload}```"
+            )
             agent = create_agent(
                 self._llm,
                 tools=tools,
