@@ -16,8 +16,10 @@ from pydantic import BaseModel
 from everlingo.gateway.channels.envelope import UserInputEnvelope, wrap_plain_text
 from everlingo.gateway.channels.web_channel import WebChannel
 from everlingo.gateway.session_acceptor import SessionAcceptor
+from everlingo.gateway.vault_editor_api import router as vault_editor_router
 
 app = FastAPI()
+app.include_router(vault_editor_router)
 
 # MVP: 允许扩展跨源请求（扩展 origin = chrome-extension://<id>）
 # 生产前应收敛 allow_origins 到白名单
