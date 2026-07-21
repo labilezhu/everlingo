@@ -1,7 +1,6 @@
-实现了 docs/impl-spec/vault-editor.md 中 “## 实现顺序（建议分 PR）” 的 “2. **Vite 多入口改造 + editor 骨架**” 后。
-在 浏览器 http://localhost:8000/editor 中点击目录 /items/grammar 时， Chrome DevTools 显示浏览器没有发起网络 api 调用。
-
-/home/labile/.everlingo/workspaces/default/logs/indexer.log:66 也显示了，只有初次加载页面时有 tree 工具的 depth=2 的调用。
+实现了 docs/impl-spec/vault-editor.md 中 “## 实现顺序（建议分 PR）” 的 “2. 接入 Milkdown” 后。
+1. 问题1 ： 在 浏览器 http://localhost:8000/editor 前端在 WYSIWYG 模式下。点击文件，editor 主编辑界面没有变化。只有在 从 Source 模切换到 WYSIWYG 模式 时，才显示 Milkdown 可视编辑区。
+2. 问题2 : WYSIWYG 成功加载 markdown 文件后， frontmatter 没有分行。 这样，我建议现在直接不要在 WYSIWYG 模式下， 显示 frontmatter 好了
 
 
 

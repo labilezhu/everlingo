@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Save, FileCode } from 'lucide-react';
+import { Code, Eye, Save, FileCode } from 'lucide-react';
 import { listLangs, tree, read, write } from '@/editor/services/vaultApi';
 import FileTree from './FileTree';
 import MilkdownEditor from './MilkdownEditor';
@@ -28,6 +28,9 @@ export default function EditorApp() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [mode, setMode] = useState<'source' | 'wysiwyg'>(() => {
+    return (localStorage.getItem('vault-editor:mode') as 'source' | 'wysiwyg') || 'wysiwyg';
+  });
 
   const dirty = content !== originalContent;
 
@@ -159,9 +162,28 @@ export default function EditorApp() {
             </select>
           )}
 
-          <span className="text-xs text-muted-foreground border border-border rounded px-2 py-0.5 opacity-60 select-none" title="Milkdown 接入后启用">
-            Source
-          </span>
+          <div className="flex items-center gap-1 rounded-lg border border-border p-0.5">
+            <button
+              className={'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ' + (mode === 'source' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}
+              onClick={() => {
+                setMode('source');
+                localStorage.setItem('vault-editor:mode', 'source');
+              }}
+            >
+              <Code className="size-3.5" />
+              Source
+            </button>
+            <button
+              className={'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ' + (mode === 'wysiwyg' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}
+              onClick={() => {
+                setMode('wysiwyg');
+                localStorage.setItem('vault-editor:mode', 'wysiwyg');
+              }}
+            >
+              <Eye className="size-3.5" />
+              WYSIWYG
+            </button>
+          </div>
 
           <button
             className="inline-flex items-center gap-1 h-8 rounded-lg px-3 text-sm font-medium transition-all outline-none disabled:opacity-40 disabled:pointer-events-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50
@@ -210,8 +232,10 @@ export default function EditorApp() {
               </div>
               <div className="flex-1 overflow-auto">
                 <MilkdownEditor
+                  key={`${mode}:${currentPath || ''}`}
                   content={content}
                   onChange={setContent}
+                  mode={mode}
                 />
               </div>
             </>
