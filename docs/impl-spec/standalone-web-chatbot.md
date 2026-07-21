@@ -22,12 +22,76 @@ Web 前端给用户，一个 Chatbot 的聊天界面。支持 markdown 格式消
 尺寸大小：
 - Chatbot 对话框可视区域的宽度，应该跟随窗口大小的动态变化动态调整，以最大化用户的可视区域。左右边缘适当留白即可。
 
+### 任务选择（task selector）
+
+header 下方有一行 button group（三个 `Button` 组件，选中态 `variant=default`、未选态 `variant=outline`），与 [Chrome Extension sidecar](chrome-extension-spec.md) 的 `TaskSelector` 视觉一致。
+
+让用户表达输入内容的意图：
+
+| 按钮 | `task` 值 | 说明 |
+|---|---|---|
+| 翻译 | `translate` | 翻译选词或输入的句子 |
+| 查词 | `look_up` | 查询单词释义 |
+| 聊天 | `none` | 自由聊天，默认选中 |
+
+选择在组件内持久化（直到用户手动切换），每条消息发送时携带当前 task。
+
+task 语义遵循 [chrome-extension-spec.md §8](chrome-extension-spec.md) 的定义——**用户偏好而非 RPC 命令**，Agent 可自由决定是否遵循。
+
 ### 交互元素
 “发送” 按钮：
 “发送” 按钮应该调整为更大。上面应该有文字和一个代表 “发送” 的简单 SVG 图形，类似 ➡️。
 
 消息内容的 Markdown 渲染：
 默认的文字行距太小，需要加倍。
+
+### Envelope 字段填充规则
+
+Standalone Web Chatbot 切换到结构化 `{envelope}` 格式发送消息（不再使用 `{text}` legacy 格式）。字段填充规则：
+
+| 字段 | 填充来源 |
+|---|---|
+| `schema_version` | 固定 `1` |
+| `task` | TaskSelector button group 选择 |
+| `chat.message` | 输入框文本 |
+| `selection.text` | `""`（web chatbot 无选词场景） |
+| `context.text` | `""` |
+| `source.kind` | `"web"` |
+| `source.surface` | `"fullscreen"`（与 sidecar 的 `"sidecar"` 区分） |
+| `source.url` | `window.location.href` |
+| `source.title` | `document.title` |
+| `device.platform` | `"web"` |
+| `device.locale` | `navigator.language` |
+| `device.timezone` | `Intl.DateTimeFormat().resolvedOptions().timeZone` |
+
+`selection.text` / `context.text` 留空，因为 standalone web chatbot 没有页面选词上下文。
+
+### 示例
+
+用户打开聊天页面，选择「翻译」，输入 "bank is a financial institution"：
+
+```json
+{
+  "envelope": {
+    "schema_version": 1,
+    "task": "translate",
+    "chat": { "message": "bank is a financial institution" },
+    "selection": { "text": "" },
+    "context": { "text": "" },
+    "source": {
+      "kind": "web",
+      "surface": "fullscreen",
+      "url": "http://localhost:5173/",
+      "title": "小记🐹 AI 外语老师"
+    },
+    "device": {
+      "platform": "web",
+      "locale": "zh-CN",
+      "timezone": "Asia/Shanghai"
+    }
+  }
+}
+```
 
 
 ## 前端技术选型

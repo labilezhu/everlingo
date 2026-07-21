@@ -46,6 +46,8 @@ FastAPI 的 API。
 }
 ```
 
+Standalone Web Chatbot（见 [standalone-web-chatbot.md](standalone-web-chatbot.md)）也已迁移到 envelope 格式（`source.kind=web`, `source.surface=fullscreen`，无 selection/context）。`{text}` legacy 路径仅作为兜底保留给未知旧客户端。
+
 ### chatbot 服务端消息推送
 chatbot 服务端消息推送数据采用 SSE(Server-Sent Events) 作为协议。会话需要有 session id 标识。
 

@@ -153,7 +153,7 @@ Channel (任何子类)
 |---|---|---|
 | `StdioChannel` | 读 stdin 一行 → `wrap_plain_text(line)` | `<envelope>{"chat":{"message":"用户输入"},...}</envelope>` |
 | `WechatChannel` | 从 wechat sdk 队列读消息 → `wrap_plain_text(msg.text)` | 同上 |
-| `WebChannel` | 从 `_incoming` 队列读 `UserInputEnvelope` | 按前端传入的 envelope 结构 |
+| `WebChannel` | 从 `_incoming` 队列读 `UserInputEnvelope`（`source.kind=web` + `surface=fullscreen\|sidecar`） | 按前端传入的 envelope 结构 |
 
 ## 7. 向后兼容
 

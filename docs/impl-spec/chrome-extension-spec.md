@@ -225,7 +225,7 @@ sidecar panel 收到响应:
 | `popup` | 独立弹窗（未来） |
 | `fullscreen` | 整页 web chatbot（即现有 `web/` 前端） |
 
-`SourceWeb.surface` 默认值为 `"fullscreen"`，使现有 web chatbot 发的 envelope（若未来也用 `source.kind=web`）与 Chrome Extension sidecar 天然区分。当前 web chatbot 仍发 `source.kind=plain`（见 [envelope-spec.md §6](envelope-spec.md)），surface 默认值不影响现有行为。
+`SourceWeb.surface` 默认值为 `"fullscreen"`，使 standalone web chatbot 发的 envelope（`source.kind=web` + `source.surface=fullscreen`）与 Chrome Extension sidecar（`source.surface=sidecar`）天然区分。详见 [standalone-web-chatbot.md — Envelope 字段填充规则](standalone-web-chatbot.md)。
 
 ### 6.3 `context.text` 提取算法
 

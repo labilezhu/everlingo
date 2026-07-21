@@ -1,3 +1,9 @@
+
+现在的 [Chat Agent](docs/impl-spec/chat-agent-spec.md) 只是在 system prompt 中 hardcode 了 [Envelope 结构化用户输入格式](src/everlingo/mem/vault/templates/default/spec/envelope_spec.md) 的说明。
+现计划修改成与 [Memory Writer Agent](docs/impl-spec/memory-writer-agent-spec.md)  一样，运行期 mcp read 合并到 system prompt。 并在 “## 用户意图识别” 中，说明 envelope 中 task 的作用。
+
+---
+
 为 [Standalone Web Chatbot](/docs/impl-spec/standalone-web-chatbot.md) 加入类似 [Chrome Extension — Web Sidecar](docs/impl-spec/chrome-extension-spec.md) 的 “翻译” “查词” “聊天” 单选按钮以方便用户准确方便地表达输入内容的意图。
 
 ---

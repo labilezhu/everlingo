@@ -60,10 +60,10 @@
 
 `source` 用 `kind` 字段作为 discriminator。 当前定义 5 个 kind：
 
-| kind | 使用场景 | 专属字段 |
+| kind | 使用场景 | 补充字段 |
 |---|---|---|
-| `plain` | stdio/wechat/web `{text}` 请求 | 无额外字段 |
-| `web` | Chrome Extension 网页选词 | `url`, `title` |
+| `plain` | stdio/wechat 请求 | 无额外字段 |
+| `web` | Chrome Extension 网页选词 / Standalone Web Chatbot | `url`, `title`, `surface` |
 | `pdf` | PDF 阅读器插件 | `file_path`, `page_number` |
 | `epub` | EPUB 阅读器 | `book_id` |
 | `ios_app` | iOS app 选词服务 | `bundle_id` |
@@ -88,7 +88,7 @@
 |---|---|---|---|
 | `url` | str | 否 | Chrome Extension 当前抓取选择内容的网页 URL  |
 | `title` | str | 否 | Chrome Extension 当前抓取选择内容的网页 title  |
-| `surface` | enum | 否 | Chrome Extension 的界面类型。可选：sidecar  |
+| `surface` | enum | 否 | 界面类型。可选：sidecar (Chrome扩展侧边栏位置) / fullscreen (Standalone Web Chatbot)  |
 
 #### kind="plain"
 
@@ -98,3 +98,20 @@
     },
 ```
 无其它字段
+
+### device
+
+示例：
+```json
+{
+    "platform": "chrome_ext",
+    "locale": "en-US",
+    "timezone": "Asia/Hong_Kong"
+}
+```
+
+字段说明
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `platform` | enum | 否 | chrome_ext / web (Standalone Web Chatbot)  |

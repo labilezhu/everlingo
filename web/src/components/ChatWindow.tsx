@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
-import { createSession, sendMessage, connectSSE } from '@/services/sseClient';
-import type { SSEEvent } from '@/types/chat';
+import TaskSelector from './TaskSelector';
+import { createSession, sendMessage, connectSSE, buildEnvelope } from '@/services/sseClient';
+import type { TaskKind, SSEEvent } from '@/types/chat';
 import { Message, uid } from '@/types/chat';
 
 function decodeBase64Audio(b64: string): string {
@@ -15,6 +16,7 @@ export default function ChatWindow() {
   const [messages, setMessages] = useState<Message[]>([
     { id: uid(), text: '你好！我是小记🐹，你的 AI 外语老师。有什么可以帮你的吗？', from: 'bot' },
   ]);
+  const [task, setTask] = useState<TaskKind>('none');
   const [thinking, setThinking] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,12 +73,13 @@ export default function ChatWindow() {
     setMessages(prev => [...prev, { id: uid(), text, from: 'user' }]);
     setPending(true);
     try {
-      await sendMessage(sessionId, text);
+      const envelope = buildEnvelope(task, text);
+      await sendMessage(sessionId, envelope);
     } catch {
       setPending(false);
       setError('发送消息失败');
     }
-  }, [sessionId]);
+  }, [sessionId, task]);
 
   return (
     <div className="flex flex-col h-screen px-6 border-x border-border">
@@ -84,6 +87,8 @@ export default function ChatWindow() {
         <span className="text-xl">🐹</span>
         <h1 className="text-lg font-semibold text-foreground">小记</h1>
       </header>
+
+      <TaskSelector task={task} onChange={setTask} />
 
       {error && (
         <div className="px-4 py-2 bg-red-50 text-red-600 text-sm border-b border-red-200">
