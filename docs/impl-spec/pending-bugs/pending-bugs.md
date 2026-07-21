@@ -2,7 +2,10 @@
 1. 问题1 ： 在 浏览器 http://localhost:8000/editor 前端在 WYSIWYG 模式下。点击文件，editor 主编辑界面没有变化。只有在 从 Source 模切换到 WYSIWYG 模式 时，才显示 Milkdown 可视编辑区。
 2. 问题2 : WYSIWYG 成功加载 markdown 文件后， frontmatter 没有分行。 这样，我建议现在直接不要在 WYSIWYG 模式下， 显示 frontmatter 好了
 
+---
 
+实现了 docs/impl-spec/vault-editor.md 中 “## 实现顺序（建议分 PR）” 的 “2. 接入 Milkdown” 后。
+能不能为编辑器的 source 模式做个 markdown 语法 hightlight
 
 
 ---

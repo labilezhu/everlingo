@@ -52,7 +52,7 @@ Web 前端给用户一个可视化编辑 [Memory Vault](/src/everlingo/mem/vault
 ### 编辑区（Milkdown）
 
 - 组件库：Milkdown（`@milkdown/kit` + `@milkdown/react`）。原生支持 source / WYSIWYG 双模式切换。
-- frontmatter：MVP 在两种模式下均作为代码块原样呈现，**不**解析为表单。frontmatter 表单化作为后续迭代。
+- frontmatter：MVP 下 Source 模式原样保留；WYSIWYG 模式剥离 frontmatter 仅渲染 body，编辑时保留原 frontmatter 拼回保存。frontmatter 表单化作为后续迭代。
 - 自动保存：MVP 不做；仅手动「保存」按钮。
 - 未保存改动离开页面 / 切文件 → `beforeunload` + React 内 confirm。
 

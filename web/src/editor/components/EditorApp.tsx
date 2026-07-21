@@ -34,6 +34,14 @@ export default function EditorApp() {
 
   const dirty = content !== originalContent;
 
+  // ── frontmatter stripping for WYSIWYG ──
+  const { fm, body } = useMemo(() => {
+    if (mode !== 'wysiwyg') return { fm: '', body: content };
+    const m = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/.exec(content);
+    if (m) return { fm: m[0], body: content.slice(m[0].length) };
+    return { fm: '', body: content };
+  }, [content, mode]);
+
   // ── parse URL params ──
   const params = useMemo(() => new URLSearchParams(location.search), []);
   const initLang = params.get('lang') || '';
@@ -90,12 +98,11 @@ export default function EditorApp() {
   const handleFileSelect = useCallback(async (path: string) => {
     if (dirty && !confirm('有未保存的改动，切换文件将丢弃。确定继续？')) return;
     if (!selectedLang) return;
-    setCurrentPath(path);
-    setContent('');
-    setOriginalContent('');
     setLoading(true);
+    setError(null);
     try {
       const resp = await read(selectedLang, path);
+      setCurrentPath(path);
       setContent(resp.content);
       setOriginalContent(resp.content);
     } catch (e: any) {
@@ -233,8 +240,8 @@ export default function EditorApp() {
               <div className="flex-1 overflow-auto">
                 <MilkdownEditor
                   key={`${mode}:${currentPath || ''}`}
-                  content={content}
-                  onChange={setContent}
+                  content={mode === 'wysiwyg' ? body : content}
+                  onChange={mode === 'wysiwyg' ? (v) => setContent(fm + v) : setContent}
                   mode={mode}
                 />
               </div>
