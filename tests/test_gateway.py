@@ -11,6 +11,7 @@ import pytest
 
 from everlingo.gateway.gateway import Gateway
 from everlingo.gateway.channels.channel import ChannelMetadata
+from everlingo.gateway.channels.envelope import wrap_plain_text
 from everlingo.models import UserProfile, UserLanguage
 
 
@@ -24,7 +25,9 @@ def _make_gateway() -> Gateway:
 
 
 def _make_mock_channel(recv_returns=None):
-    """创建 mock Channel，recv() 可控制返回值。"""
+    """创建 mock Channel，recv_envelope() 可控制返回值。
+    字符串值会被自动包裹为 UserInputEnvelope（wrap_plain_text）。
+    """
     channel = MagicMock()
     channel.init = AsyncMock()
     channel.send = AsyncMock()
@@ -34,9 +37,13 @@ def _make_mock_channel(recv_returns=None):
         return_value=ChannelMetadata(name="MockChannel")
     )
     if recv_returns is not None:
-        channel.recv = AsyncMock(side_effect=recv_returns)
+        wrapped = [
+            wrap_plain_text(v) if isinstance(v, str) else v
+            for v in recv_returns
+        ]
+        channel.recv_envelope = AsyncMock(side_effect=wrapped)
     else:
-        channel.recv = AsyncMock(return_value=None)
+        channel.recv_envelope = AsyncMock(return_value=None)
     return channel
 
 

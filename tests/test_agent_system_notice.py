@@ -122,8 +122,8 @@ class TestSystemNoticeBasics:
 
         # 游标在 _messages 末尾
         assert agent._extract_cursor == len(agent._messages)
-        # _extract_agent.submit 不应该被调用
-        assert agent._extract_agent._queue.empty()
+        # _pending_drafts 应该为空（通知轮不触发 extract）
+        assert agent._pending_drafts == []
 
     def test_empty_reply_returns_empty_list(self, zh_en_profile, sample_notice):
         """LLM 回空内容时 ahandle_system_notice 返回 []。"""

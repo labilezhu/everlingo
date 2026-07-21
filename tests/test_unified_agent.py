@@ -331,17 +331,17 @@ def test_system_prompt_instructs_produce_content_before_ack(zh_en_profile, defau
     "已提交笔记请求"而不产出释义，下游 Extract Agent 既无事实可依、又会因
     约束过严而抽不到。
     """
-    prompt = _build_system_prompt(zh_en_profile, "", default_channel_metadata)
+    prompt = _build_system_prompt(zh_en_profile, "", default_channel_metadata, vault_available=True)
 
     # 必须明确要求"先产出"知识内容
-    assert "必须先在本轮回复中产出" in prompt
+    assert "必须在本轮回复中产出" in prompt
     # 必须包含约定的提示文案
-    assert "已提交笔记请求" in prompt
+    assert "已提交后台笔记请求" in prompt
     # 必须明确禁止只回元信息
-    assert "不能" in prompt and "已提交笔记请求" in prompt
-    # 解释 must 在 ack 之前（行序约束）
-    must_idx = prompt.find("必须先在本轮回复中产出")
-    ack_idx = prompt.find("已提交笔记请求")
+    assert "不能" in prompt
+    # 释义产出要求出现在「已提交后台笔记请求」之前（行序约束）
+    must_idx = prompt.find("必须在本轮回复中产出")
+    ack_idx = prompt.find("已提交后台笔记请求")
     assert 0 <= must_idx < ack_idx, (
         "释义产出要求应出现在「已提交笔记请求」提示之前，"
         "确保 LLM 读到指令时先产出内容再附加提示"
@@ -401,7 +401,7 @@ class TestEnvelopeSpecInjection:
         # 意图识别节应有 task 说明
         assert "## 用户意图识别" in prompt
         assert "envelope.task" in prompt
-        assert "偏好而非命令" in prompt or "偏好**而非命令**" in prompt
+        assert "偏向查单词" in prompt or "偏向翻译" in prompt
 
 
 @pytest.mark.integration

@@ -20,7 +20,21 @@ from fastmcp import Client
 
 from everlingo import workspace
 from everlingo.mem.vault.mcp_server import create_mcp_app
-from everlingo.mem.vault.search.server import AppState
+from everlingo.mem.vault.search.server import AppState, LangState
+
+
+# ── 全局 mock：所有测试中禁用 real embedding API call ──────────────
+
+
+@pytest.fixture(autouse=True)
+def _disable_embedding():
+    """Mock LangState._init_embedder 为空操作，避免 real API call 导致
+    测试缓慢或超时。embedder 保持 None，hybrid search 自动降级为 FTS。
+    不影响 test_ai_embedding.py 中对 AIEmbedding.create() 的直接测试。
+    """
+    from unittest.mock import patch
+    with patch.object(LangState, "_init_embedder", lambda self: None):
+        yield
 
 
 # ── workspace 引导 ──────────────────────────────────────────────────

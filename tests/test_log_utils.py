@@ -2,8 +2,16 @@ import logging
 import tempfile
 from pathlib import Path
 
+import pytest
 from everlingo.log_utils import LLMLoggingHandler, _LOG_LEVEL_MAP, setup_logging
 from everlingo.models import EverLingoSetting, LoggingSetting, SysSetting, UserProfile
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_everlingo_handlers():
+    yield
+    root = logging.getLogger("everlingo")
+    root.handlers.clear()
 
 
 def test_loglevel_map_contains_all_levels():

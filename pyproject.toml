@@ -45,3 +45,6 @@ pythonpath = ["src"]
 markers = [
     "integration: marks tests as integration tests (requiring actual LLM API calls)",
 ]
+addopts = [
+    "-m", "not integration",
+]

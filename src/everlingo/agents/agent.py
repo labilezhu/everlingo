@@ -750,7 +750,11 @@ class MainAgent:
         self._messages.append(HumanMessage(content=text))
 
         # ── 调用 LLM（含瞬态重试） ────────────────────────────
-        response = await _invoke_llm_with_retry(self._agent, messages_for_llm)
+        try:
+            response = await _invoke_llm_with_retry(self._agent, messages_for_llm)
+        except Exception as e:
+            logger.exception("ainvoke: LLM call failed")
+            return [MessageEvent(text=f"出错了，请稍后重试: {e}")]
         if response is None:
             return [MessageEvent(text="AI 服务暂时不可用，请稍后重试 (已自动重试 2 次)")]
 

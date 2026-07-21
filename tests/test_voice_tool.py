@@ -24,6 +24,7 @@ class TestMakeVoiceSpeakTool:
     def test_tool_returns_voice_scheduled(self):
         """工具调用后立即返回 'voice scheduled'"""
         channel = MagicMock()
+        channel.send_sound = AsyncMock()
         tool = make_voice_speak_tool(channel)
 
         # Mock provider
@@ -38,6 +39,7 @@ class TestMakeVoiceSpeakTool:
     def test_tool_schedules_async_send(self):
         """工具调度异步 TTS+send，不阻塞"""
         channel = MagicMock()
+        channel.send_sound = AsyncMock()
         tool = make_voice_speak_tool(channel)
 
         # Mock provider
@@ -57,6 +59,7 @@ class TestMakeVoiceSpeakTool:
     def test_tool_failure_does_not_raise(self):
         """工具失败时不抛出异常，只记日志"""
         channel = MagicMock()
+        channel.send_sound = AsyncMock()
         tool = make_voice_speak_tool(channel)
 
         # Mock provider

@@ -608,11 +608,15 @@ class TestActionDaemonDispatch:
 
     @pytest.fixture(autouse=True)
     def _patch_mem_entry_spec(self, mem_entry_spec_text, envelope_spec_text):
+        def _compile_prompt_side_effect(session, path: str) -> str:
+            if "envelope" in path:
+                return envelope_spec_text
+            return mem_entry_spec_text
         with patch(
             "everlingo.mem.agents.mem_writer_agent._call_compile_prompt",
             new_callable=AsyncMock,
         ) as mock:
-            mock.side_effect = [mem_entry_spec_text, envelope_spec_text]
+            mock.side_effect = _compile_prompt_side_effect
             yield
 
     def test_process_action_delete(self, mcp_inmem_server, tmp_vault):
@@ -761,11 +765,15 @@ class TestWriterAgentSync:
 
     @pytest.fixture(autouse=True)
     def _patch_mem_entry_spec(self, mem_entry_spec_text, envelope_spec_text):
+        def _compile_prompt_side_effect(session, path: str) -> str:
+            if "envelope" in path:
+                return envelope_spec_text
+            return mem_entry_spec_text
         with patch(
             "everlingo.mem.agents.mem_writer_agent._call_compile_prompt",
             new_callable=AsyncMock,
         ) as mock:
-            mock.side_effect = [mem_entry_spec_text, envelope_spec_text]
+            mock.side_effect = _compile_prompt_side_effect
             yield
 
     def _make_agent(self, mock_create_context):
@@ -773,7 +781,7 @@ class TestWriterAgentSync:
         调用方负责提供 patch 上下文（保持 create_agent 被 patch）。
         """
         mock_agent = MagicMock()
-        mock_agent.ainvoke = MagicMock(
+        mock_agent.ainvoke = AsyncMock(
             return_value={"messages": [AIMessage(content="done")]}
         )
         mock_create_context.return_value = mock_agent
@@ -884,11 +892,15 @@ class TestWriterLangSandbox:
 
     @pytest.fixture(autouse=True)
     def _patch_mem_entry_spec(self, mem_entry_spec_text, envelope_spec_text):
+        def _compile_prompt_side_effect(session, path: str) -> str:
+            if "envelope" in path:
+                return envelope_spec_text
+            return mem_entry_spec_text
         with patch(
             "everlingo.mem.agents.mem_writer_agent._call_compile_prompt",
             new_callable=AsyncMock,
         ) as mock:
-            mock.side_effect = [mem_entry_spec_text, envelope_spec_text]
+            mock.side_effect = _compile_prompt_side_effect
             yield
 
     def test_write_kb_item_uses_entry_lang(
@@ -988,11 +1000,15 @@ class TestWriterAgentDaemon:
 
     @pytest.fixture(autouse=True)
     def _patch_mem_entry_spec(self, mem_entry_spec_text, envelope_spec_text):
+        def _compile_prompt_side_effect(session, path: str) -> str:
+            if "envelope" in path:
+                return envelope_spec_text
+            return mem_entry_spec_text
         with patch(
             "everlingo.mem.agents.mem_writer_agent._call_compile_prompt",
             new_callable=AsyncMock,
         ) as mock:
-            mock.side_effect = [mem_entry_spec_text, envelope_spec_text]
+            mock.side_effect = _compile_prompt_side_effect
             yield
 
     def _start_agent_with_mock(self):
@@ -1018,7 +1034,7 @@ class TestWriterAgentDaemon:
                 time.sleep(0.3)
                 return {"messages": [AIMessage(content="done")]}
 
-            mock_agent.ainvoke = MagicMock(
+            mock_agent.ainvoke = AsyncMock(
                 side_effect=lambda *a, **kw: slow_ainvoke(*a, **kw)
             )
             mock_create.return_value = mock_agent
@@ -1036,7 +1052,7 @@ class TestWriterAgentDaemon:
     ):
         with self._start_agent_with_mock() as mock_create:
             mock_agent = MagicMock()
-            mock_agent.ainvoke = MagicMock(
+            mock_agent.ainvoke = AsyncMock(
                 return_value={"messages": [AIMessage(content="ok")]}
             )
             mock_create.return_value = mock_agent
@@ -1056,11 +1072,11 @@ class TestWriterAgentDaemon:
                     time.sleep(0.01)
                 assert mock_agent.ainvoke.call_count == 1
 
-            events_file = tmp_vault / "events/2026/11/2026-11-21.md"
-            deadline = time.time() + 1.0
-            while time.time() < deadline and not events_file.exists():
-                time.sleep(0.01)
-            assert events_file.exists()
+                events_file = tmp_vault / "events/2026/11/2026-11-21.md"
+                deadline = time.time() + 1.0
+                while time.time() < deadline and not events_file.exists():
+                    time.sleep(0.01)
+                assert events_file.exists()
 
             agent.stop()
 
@@ -1088,7 +1104,7 @@ class TestWriterAgentDaemon:
                     time.sleep(0.01)
                 assert first_called.called
 
-            mock_agent.ainvoke = MagicMock(
+            mock_agent.ainvoke = AsyncMock(
                 return_value={"messages": [AIMessage(content="ok")]}
             )
             with mcp_inmem_server():
@@ -1126,11 +1142,15 @@ class TestGatewayMemoryWriterProxy:
 
     @pytest.fixture(autouse=True)
     def _patch_mem_entry_spec(self, mem_entry_spec_text, envelope_spec_text):
+        def _compile_prompt_side_effect(session, path: str) -> str:
+            if "envelope" in path:
+                return envelope_spec_text
+            return mem_entry_spec_text
         with patch(
             "everlingo.mem.agents.mem_writer_agent._call_compile_prompt",
             new_callable=AsyncMock,
         ) as mock:
-            mock.side_effect = [mem_entry_spec_text, envelope_spec_text]
+            mock.side_effect = _compile_prompt_side_effect
             yield
 
     def test_enqueue_lazily_constructs_and_starts_agent(
