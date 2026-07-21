@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Code, Eye, Save, FileCode } from 'lucide-react';
+import { Code, Eye, Save, FileCode, Search, FolderTree } from 'lucide-react';
 import { listLangs, tree, read, write } from '@/editor/services/vaultApi';
 import FileTree from './FileTree';
+import SearchBar from './SearchBar';
 import MilkdownEditor from './MilkdownEditor';
 import type { Entry } from '@/editor/types/vault';
 
@@ -17,6 +18,8 @@ function mergeChildren(entries: Entry[], dirPath: string, newChildren: Entry[]):
   });
 }
 
+type LeftTab = 'files' | 'search';
+
 export default function EditorApp() {
   // ── state ──
   const [langs, setLangs] = useState<string[]>([]);
@@ -31,7 +34,21 @@ export default function EditorApp() {
   const [mode, setMode] = useState<'source' | 'wysiwyg'>(() => {
     return (localStorage.getItem('vault-editor:mode') as 'source' | 'wysiwyg') || 'wysiwyg';
   });
+  const [leftTab, setLeftTab] = useState<LeftTab>(() => {
+    const urlQ = new URLSearchParams(location.search).get('q');
+    if (urlQ) return 'search';
+    return (localStorage.getItem('vault-editor:leftTab') as LeftTab) || 'files';
+  });
+  const [leftPct, setLeftPct] = useState(() => {
+    const saved = localStorage.getItem('vault-editor:leftPanePct');
+    if (saved) {
+      const n = parseFloat(saved);
+      if (!isNaN(n)) return Math.min(50, Math.max(15, n));
+    }
+    return 22;
+  });
 
+  const bodyRef = useRef<HTMLDivElement>(null);
   const dirty = content !== originalContent;
 
   // ── frontmatter stripping for WYSIWYG ──
@@ -46,6 +63,11 @@ export default function EditorApp() {
   const params = useMemo(() => new URLSearchParams(location.search), []);
   const initLang = params.get('lang') || '';
   const initPath = params.get('path') || '';
+  const initQ = params.get('q') || '';
+  const initTags = useMemo(() => {
+    const t = params.getAll('tag');
+    return t.length > 0 ? t : undefined;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── init: fetch langs ──
   useEffect(() => {
@@ -215,20 +237,92 @@ export default function EditorApp() {
       )}
 
       {/* Body */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left: file tree */}
-        <aside className="w-56 shrink-0 border-r border-border overflow-y-auto bg-background">
-          {loading && !currentPath ? (
-            <div className="p-4 text-sm text-muted-foreground">加载中…</div>
-          ) : (
-            <FileTree
-              entries={entries}
-              selectedPath={currentPath}
-              onSelect={handleFileSelect}
-              onLazyLoad={handleLazyLoad}
+      <div ref={bodyRef} className="flex flex-1 overflow-hidden">
+        {/* Left pane: tab bar + content */}
+        <aside
+          className="flex flex-col shrink-0 border-r border-border bg-background"
+          style={{ width: `${leftPct}%` }}
+        >
+          {/* Tab bar */}
+          <div className="flex items-center gap-0.5 px-1 py-1 border-b border-border shrink-0">
+            <button
+              className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ${
+                leftTab === 'files'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+              onClick={() => {
+                setLeftTab('files');
+                localStorage.setItem('vault-editor:leftTab', 'files');
+              }}
+            >
+              <FolderTree className="size-3.5" />
+              Files
+            </button>
+            <button
+              className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ${
+                leftTab === 'search'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+              onClick={() => {
+                setLeftTab('search');
+                localStorage.setItem('vault-editor:leftTab', 'search');
+              }}
+            >
+              <Search className="size-3.5" />
+              Search
+            </button>
+          </div>
+
+          {/* FileTree tab */}
+          <div className={leftTab === 'files' ? 'flex-1 overflow-y-auto' : 'hidden'}>
+            {loading && !currentPath ? (
+              <div className="p-4 text-sm text-muted-foreground">加载中…</div>
+            ) : (
+              <FileTree
+                entries={entries}
+                selectedPath={currentPath}
+                onSelect={handleFileSelect}
+                onLazyLoad={handleLazyLoad}
+              />
+            )}
+          </div>
+
+          {/* SearchBar tab */}
+          <div className={leftTab === 'search' ? 'flex-1 flex flex-col overflow-hidden' : 'hidden'}>
+            <SearchBar
+              selectedLang={selectedLang}
+              currentPath={currentPath}
+              onSelectPath={handleFileSelect}
+              initialQ={initQ}
+              initialTags={initTags}
             />
-          )}
+          </div>
         </aside>
+
+        {/* Resize handle */}
+        <div
+          className="w-1 shrink-0 cursor-col-resize hover:bg-ring/30 active:bg-ring/40 transition-colors"
+          onPointerDown={e => {
+            const container = bodyRef.current;
+            if (!container) return;
+            const rect = container.getBoundingClientRect();
+            const handlePointerMove = (ev: PointerEvent) => {
+              const pct = Math.min(50, Math.max(15, ((ev.clientX - rect.left) / rect.width) * 100));
+              setLeftPct(pct);
+            };
+            const handlePointerUp = (ev: PointerEvent) => {
+              const pct = Math.min(50, Math.max(15, ((ev.clientX - rect.left) / rect.width) * 100));
+              setLeftPct(pct);
+              localStorage.setItem('vault-editor:leftPanePct', String(pct));
+              document.removeEventListener('pointermove', handlePointerMove);
+              document.removeEventListener('pointerup', handlePointerUp);
+            };
+            document.addEventListener('pointermove', handlePointerMove);
+            document.addEventListener('pointerup', handlePointerUp);
+          }}
+        />
 
         {/* Right: editor */}
         <main className="flex-1 flex flex-col overflow-hidden">

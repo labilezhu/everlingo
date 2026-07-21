@@ -19,10 +19,12 @@ Web 前端给用户一个可视化编辑 [Memory Vault](/src/everlingo/mem/vault
 ├──────────┬──────────────────────────────────────────────────┤
 │          │                                                   │
 │  文件树  │              编辑区（Milkdown）                   │
-│  + 搜索  │                                                   │
-│          │                                                   │
+│  / 搜索  │                                                   │
+│ (可调宽) │                                                   │
 └──────────┴──────────────────────────────────────────────────┘
 ```
+
+左栏宽度可调。两栏之间有一个 4px 拖拽手柄，hover 时变色并显示 `col-resize` 光标。拖拽通过 Pointer Events 实现，宽度按百分比记录到 localStorage（key `vault-editor:leftPanePct`，默认 22%，范围 15%-50%）。刷新/重开页面后恢复。
 
 ### Header
 
@@ -45,9 +47,13 @@ Web 前端给用户一个可视化编辑 [Memory Vault](/src/everlingo/mem/vault
 
 ### 搜索（SearchBar）
 
-- 搜索框 + 模式选择（hybrid / exact / semantic，默认 hybrid）+ 可选 tag 过滤（tag 候选来自 `GET /api/vault/{lang}/tags`，底层 MCP `list_tags`）。
+左栏采用 Files / Search **Tab 切换**（互斥；`hidden` CSS 保留各自状态以维持滚动位置和输入内容）。URL 带 `q` 参数时初始进入 Search tab；否则优先读 localStorage（key `vault-editor:leftTab`），缺省 Files。
+
+- 搜索框（`<Input>`）+ Enter / 按钮触发。
+- 模式选择：hybrid / exact / semantic 三态 `<Button>` toggle（默认 hybrid），持久化 localStorage `vault-editor:searchMode`。
+- 可选 tag 过滤：候选来自 `GET /api/vault/{lang}/tags`（底层 MCP `list_tags`）。用 Badge 风格 `<Button variant="outline">` 多选切换；≥1 tag 选中时显示 `tags_op`（and/or）toggle。
 - 触发 `POST /api/vault/{lang}/search`（底层 MCP `search`）。
-- 结果列表展示 `title` / `item_type` / `snippet` / `file_path`，点击 → 在文件树中定位并加载该文件。命中块 `chunk.char_offset` 滚动到对应段为后续迭代，MVP 仅跳到文件。
+- 结果列表展示 `title` / `item_type` / `snippet` / `file_path`，点击 → **不切 tab**，仅调用 `handleFileSelect` 加载文件到右侧编辑区；命中列表中与当前 `currentPath` 匹配的条目高亮 `bg-muted`，支持连续点击多个结果切换浏览。命中块 `chunk.char_offset` 滚动到对应段为后续迭代，MVP 仅跳到文件。
 
 ### 编辑区（Milkdown）
 
@@ -68,8 +74,8 @@ chatbot 的 markdown 消息里可包含指向 editor 的链接，由 `react-mark
 editor app 启动时读 `location.search`：
 - `lang` → 预选 lang selector
 - `path` → 自动打开文件
-- `q` → 进入时跑一次 `search` 并高亮命中块（后续迭代；MVP 仅预填搜索框）
-- `tag` → 预填 tag 过滤
+- `q` → 进入 Search tab + 预填搜索框 + 自动跑一次 `search`
+- `tag` → 预填 tag 过滤（可多个 `&tag=vocab&tag=grammar`）
 
 `MarkdownRenderer` 组件需统一链接 `target` 策略：站内 `/editor...` 同窗跳转，外链新开 tab。
 
@@ -106,9 +112,9 @@ input: {
 web/src/editor/
   main.tsx
   components/
-    EditorApp.tsx          # 三栏布局 + 状态总管
+    EditorApp.tsx          # 三栏布局 + 状态总管 + 左栏 Tab 切换 + 可调宽
     FileTree.tsx          # 文件树 + 新建/重命名/删除
-    SearchBar.tsx         # 搜索 + tag 过滤
+    SearchBar.tsx         # 搜索 + tag 过滤（Tab 切换，点击结果不切 tab）
     MilkdownEditor.tsx    # 双模式切换 + frontmatter 代码块
   services/
     vaultApi.ts           # fetch 封装 /api/vault/...
@@ -175,7 +181,7 @@ web/src/editor/
 1. **后端**：`vault_editor_api.py` + MCP client + 端到端打通 `langs`/`tree`/`read`/`write`，单测覆盖翻译层。
 2. **Vite 多入口改造 + editor 骨架**：`editor.html` + `EditorApp` + `FileTree` + `MilkdownEditor`（先用 textarea），read/write 端到端。
 3. **接入 Milkdown** + 双模式切换。
-4. **搜索栏** + tag 过滤。
+4. **搜索栏** + tag 过滤 + 左栏可调宽。SearchBar 新建组件（左栏 Search tab，结果列表点击不切 tab，仅更新 editor）；EditorApp 左栏改 Files/Search Tab 切换 + 可拖拽调整宽度（百分比持久化 localStorage）；URL `q`/`tag` 参数解析与预填。
 5. **新建/重命名/删除** + `tmp/` 隐藏 toggle。
 6. **chatbot → editor 链接**：`MarkdownRenderer` 链接 `target` 策略 + editor 启动参数解析。
 

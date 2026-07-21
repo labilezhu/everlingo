@@ -1,4 +1,4 @@
-import type { LangsResp, TreeResp, ReadResp } from '@/editor/types/vault';
+import type { LangsResp, TreeResp, ReadResp, SearchReq, SearchResp, TagsResp } from '@/editor/types/vault';
 
 const BASE = '/api/vault';
 
@@ -43,5 +43,26 @@ export function write(lang: string, path: string, content: string): Promise<{ ok
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path, content }),
     },
+  );
+}
+
+export function search(lang: string, body: SearchReq): Promise<SearchResp> {
+  return api<SearchResp>(
+    `${BASE}/${encodeURIComponent(lang)}/search`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export function listTags(lang: string, kind?: string, item_type?: string): Promise<TagsResp> {
+  const params = new URLSearchParams();
+  if (kind) params.set('kind', kind);
+  if (item_type) params.set('item_type', item_type);
+  const qs = params.toString();
+  return api<TagsResp>(
+    `${BASE}/${encodeURIComponent(lang)}/tags${qs ? '?' + qs : ''}`,
   );
 }
