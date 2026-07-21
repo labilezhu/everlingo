@@ -5,6 +5,7 @@ import { commonmark } from '@milkdown/kit/preset/commonmark';
 import { gfm } from '@milkdown/kit/preset/gfm';
 import { history } from '@milkdown/kit/plugin/history';
 import { listener, listenerCtx } from '@milkdown/kit/plugin/listener';
+import SourceEditor from './SourceEditor';
 
 interface MilkdownEditorProps {
   content: string;
@@ -85,14 +86,7 @@ function WysiwygEditor({ content, onChange }: { content: string; onChange: (v: s
 
 export default function MilkdownEditor({ content, onChange, mode }: MilkdownEditorProps) {
   if (mode === 'source') {
-    return (
-      <textarea
-        className="w-full h-full resize-none bg-transparent p-4 font-mono text-sm leading-relaxed outline-none"
-        value={content}
-        onChange={e => onChange(e.target.value)}
-        placeholder="请输入 Markdown 内容…"
-      />
-    );
+    return <SourceEditor content={content} onChange={onChange} />;
   }
 
   return (
