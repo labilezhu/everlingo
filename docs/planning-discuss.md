@@ -1,3 +1,27 @@
+我的想法有变，以以下为准。
+
+说说你的想法，看看设计是否合理：
+
+EverLingo 会由用户产生大量的 markdown 格式的笔记文件 [Vault](src/everlingo/mem/vault/templates/default/spec/vault_spec.md) ，我计划开发一个在浏览器上，让用户可以直接可视化编辑这些 markdown 文件。
+
+需求：
+- 编辑器的形态偏好哪种？ 源码 / WYSIWYG 两种编辑模式切换
+- 编辑范围是哪些文件？ markdown 文件是用户笔记，间接通过 docs/impl-spec/vault-mcp/vault-mcp-spec.md 的 read/write 写入。加入 file explorer 与 搜索功能。
+- UI：要带 文件树 + 搜索。
+
+设计要点：
+- 与 现有的 [Standalone Web Chatbot](docs/impl-spec/standalone-web-chatbot.md) 共用一个 http server，服务 编辑器的静态网页部分和 API/MCP 转发部分。即 http://localhost:8000/
+- 文件读写走哪条路径？ http://localhost:8000/mcp -> python 后端简单转发 -> [Indexer: Vault MCP Spec](docs/impl-spec/vault-mcp/vault-mcp-spec.md)。 前端 JS 不直接访问 Indexer MCP 。 由后端转发
+- 前端的技术 stack 类似 ： docs/impl-spec/standalone-web-chatbot.md
+- 你看看： 编辑器的前端代码，是否与 Standalone Web Chatbot 放在一起？
+
+
+---
+
+
+我改变主意了，Markdown 笔记浏览和编辑，应该和 [Standalone Web Chatbot](docs/impl-spec/standalone-web-chatbot.md) 有界面上的整合交互（以后可能会在同一网页，现在是 Chatbot 可以产生 link 到 markdown 笔记的链接。所以，笔记浏览和编辑的功能，还是和 Standalone Web Chatbot 在同一个端口，同一个进程更合理？
+
+---
 
 现在的 [Chat Agent](docs/impl-spec/chat-agent-spec.md) 只是在 system prompt 中 hardcode 了 [Envelope 结构化用户输入格式](src/everlingo/mem/vault/templates/default/spec/envelope_spec.md) 的说明。
 现计划修改成与 [Memory Writer Agent](docs/impl-spec/memory-writer-agent-spec.md)  一样，运行期 mcp read 合并到 system prompt。 并在 “## 用户意图识别” 中，说明 envelope 中 task 的作用。
