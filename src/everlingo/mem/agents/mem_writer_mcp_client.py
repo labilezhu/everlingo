@@ -144,3 +144,25 @@ async def mcp_vault_connection(
         raise IndexerOfflineError(
             f"MCP session error: {e}"
         ) from e
+
+
+async def _call_compile_prompt(session, path: str) -> str:
+    """在已有 MCP session 上调用 compile_prompt 工具，返回包含 include 展开后的编译文本。
+
+    复用已打开的 session，无需额外建立 MCP 连接。
+    编译失败（server 返回 isError）时抛出 RuntimeError，由调用方处理。
+    """
+    result = await session.call_tool(
+        "compile_prompt", {"path": path}
+    )
+    if result.isError:
+        err_text = (
+            result.content[0].text
+            if result.content
+            else "compile_prompt returned isError"
+        )
+        raise RuntimeError(
+            f"compile_prompt {path} failed: {err_text}"
+        )
+    data = result.structuredContent or {}
+    return data.get("content", "")

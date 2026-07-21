@@ -36,7 +36,11 @@ from ...mem.vault.frontmatter import (
     tolerant_parse,
 )
 from .mem_entries import MemoryEntry
-from .mem_writer_mcp_client import IndexerOfflineError, mcp_vault_connection
+from .mem_writer_mcp_client import (
+    IndexerOfflineError,
+    _call_compile_prompt,
+    mcp_vault_connection,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -72,28 +76,6 @@ class _ActionRequest:
 
 
 # ── 系统提示词构建 ──────────────────────────────────────────────────
-
-
-async def _call_compile_prompt(session, path: str) -> str:
-    """在已有 MCP session 上调用 compile_prompt 工具，返回编译后文本。
-
-    复用已打开的 session，无需额外建立 MCP 连接。
-    编译失败（server 返回 isError）时抛出 RuntimeError，由 _process_batch 捕获后丢弃该 entry。
-    """
-    result = await session.call_tool(
-        "compile_prompt", {"path": path}
-    )
-    if result.isError:
-        err_text = (
-            result.content[0].text
-            if result.content
-            else "compile_prompt returned isError"
-        )
-        raise RuntimeError(
-            f"compile_prompt {path} failed: {err_text}"
-        )
-    data = result.structuredContent or {}
-    return data.get("content", "")
 
 
 def _build_writer_system_prompt(mem_entry_spec_content: str, envelope_spec_content: str) -> str:

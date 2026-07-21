@@ -52,7 +52,7 @@
 
 ### `task` 枚举
 
-当前初始值：`translate` / `look_up` / `none`。
+可选值：`translate` / `look_up` / `none`。
 
 ### `source`
 
@@ -67,8 +67,6 @@
 | `pdf` | PDF 阅读器插件 | `file_path`, `page_number` |
 | `epub` | EPUB 阅读器 | `book_id` |
 | `ios_app` | iOS app 选词服务 | `bundle_id` |
-
-未知 `kind` 值时 pydantic discriminated union 会 raise `ValidationError`。
 
 
 #### kind="web"

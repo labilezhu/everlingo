@@ -30,12 +30,14 @@ from ..mem.agents.mem_entries import MemoryEntry
 from ..mem.agents.mem_writer_mcp_client import (
     CHAT_AGENT_WANTED_TOOLS,
     IndexerOfflineError,
+    _call_compile_prompt,
     mcp_vault_connection,
 )
 from ..models import LANGUAGES, UserProfile
 from ..setting import load_profile, load_user_doc, prompt_input_mtime
 from ..tools.conf_manager import get_config_version
 from ..tools.tools import build_tools
+from ..utils.md_prompt_compiler import shift_headings
 
 import logging
 
@@ -199,7 +201,7 @@ def _render_context_messages(messages) -> str:
 
 def _build_system_prompt(
     profile: UserProfile, user_doc: str = "", channel_metadata: ChannelMetadata | None = None,
-    vault_available: bool = False,
+    vault_available: bool = False, envelope_spec_content: str | None = None,
 ) -> str:
     """构建统一的 Agent system prompt，整合词典老师和翻译老师的功能。
 
@@ -260,29 +262,35 @@ def _build_system_prompt(
 ---
 """
 
-    prompt += r"""
+    # ref: docs/impl-spec/chat-agent-spec.md — 结构化用户输入（envelope）
+    # envelope schema 通过 MCP compile_prompt 从 vault 运行期加载，shift_headings(+2) 后注入。
+    envelope_section = r"""
 
 ## 结构化用户输入（envelope）
 用户消息始终被 <envelope>...</envelope> 标签包裹，标签内是 JSON。
-字段说明：
-- task: 用户偏好（translate/look_up/none），是偏好不是命令。即使 task=translate，用户仍可追问其他问题，你应正常回答
-- chat.message: 用户的自然语言输入（可能为空，表示用户仅点击了 UI 按钮触发任务）
-- selection.text: 用户选中的词/短语（可能为空，如纯聊天场景）
-- context.text: 选词周围的上下文，用于消歧（如 bank 在河岸 vs 银行；可能为空）
-- source: 来源信息（kind: web/pdf/epub/ios_app/plain；当前已落地 plain 与 web，其他 kind 是预留）
-- device: 设备信息（可能为 None）
 
-标签内是 JSON，按 JSON 规则解析。
-- 当 task=look_up 且 chat.message 为空且 selection.text 为空时，视为"延续上一轮笔记话题"：
-  不要回复"未收到输入"，应基于对话历史继续推进相关工作（如读取/编辑上一轮提到的笔记）。
+"""
+    if envelope_spec_content:
+        envelope_section += shift_headings(envelope_spec_content.strip(), offset=2) + "\n\n"
 
-""" + f"""
+    prompt += envelope_section + f"""
 
 ## 用户意图分类
 
 分析判断用户意图，然后作出响应。
 
 ## 用户意图识别
+
+**envelope.task 的作用:**
+envelope 的 `task` 字段表达用户指定的任务（`translate` / `look_up` / `none`）
+已经的 `task`：
+- `look_up` 偏向查单词
+- `translate` 偏向翻译
+- `none` 不影响意图识别。
+
+当 task=look_up 且 chat.message 为空且 selection.text 为空时，视为"延续上一轮笔记话题"：
+不要回复"未收到输入"，应基于对话历史继续推进相关工作（如读取/编辑上一轮提到的笔记）。
+
 `用户意图类型` 按识别优先级从高到低分为：
 1. 查单词
 2. 翻译
@@ -675,6 +683,19 @@ class MainAgent:
         # 确保 MCP stream 已打开
         await self._ensure_mcp_stream()
 
+        # 通过 MCP compile_prompt 从 vault 加载 envelope_spec.md（与 Memory Writer 一致）
+        # vault 离线时不兜底，envelope_spec_content 为 None
+        envelope_spec_content: str | None = None
+        if self._mcp_session is not None:
+            try:
+                envelope_spec_content = await _call_compile_prompt(
+                    self._mcp_session, "spec/envelope_spec.md"
+                )
+            except (IndexerOfflineError, RuntimeError) as e:
+                logger.warning(
+                    "failed to load envelope_spec via MCP compile_prompt: %s", e
+                )
+
         user_doc = load_user_doc()
         extract_tool = make_request_memory_extract_tool(self._add_pending_drafts)
         memory_writer = _get_memory_writer().get_agent()
@@ -692,6 +713,7 @@ class MainAgent:
             system_prompt=_build_system_prompt(
                 profile, user_doc, self._channel_metadata,
                 vault_available=bool(self._vault_tools),
+                envelope_spec_content=envelope_spec_content,
             ),
         )
         self._config_version = current_version
