@@ -182,6 +182,28 @@ class TestTree:
             p1.stop()
             p2.stop()
 
+    def test_with_path_returns_subtree(self, client: TestClient):
+        session = AsyncMock()
+        mcp_data = {
+            "path": "items/grammar",
+            "depth": 2,
+            "entries": [
+                {"name": "nouns.md", "path": "items/grammar/nouns.md", "type": "file"},
+            ],
+        }
+        session.call_tool = AsyncMock(return_value=_fake_result(mcp_data))
+        p1, p2 = _patch_ctx(session)
+        try:
+            resp = client.get("/api/vault/en/tree?path=items%2Fgrammar&depth=2")
+            assert resp.status_code == 200
+            assert resp.json() == mcp_data
+            session.call_tool.assert_awaited_with(
+                "tree", {"path": "items/grammar", "depth": 2}
+            )
+        finally:
+            p1.stop()
+            p2.stop()
+
     def test_404_on_unknown_lang(self, client: TestClient):
         session = AsyncMock()
         session.call_tool = AsyncMock(

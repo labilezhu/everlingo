@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ChevronRight, ChevronDown, File, Folder } from 'lucide-react';
 import type { Entry } from '@/editor/types/vault';
 
@@ -6,9 +6,10 @@ interface FileTreeProps {
   entries: Entry[];
   selectedPath?: string;
   onSelect: (path: string) => void;
+  onLazyLoad: (dirPath: string) => Promise<void>;
 }
 
-export default function FileTree({ entries, selectedPath, onSelect }: FileTreeProps) {
+export default function FileTree({ entries, selectedPath, onSelect, onLazyLoad }: FileTreeProps) {
   return (
     <div className="overflow-y-auto">
       {entries.map(entry => (
@@ -18,6 +19,7 @@ export default function FileTree({ entries, selectedPath, onSelect }: FileTreePr
           depth={0}
           selectedPath={selectedPath}
           onSelect={onSelect}
+          onLazyLoad={onLazyLoad}
         />
       ))}
     </div>
@@ -29,10 +31,31 @@ interface FileTreeNodeProps {
   depth: number;
   selectedPath?: string;
   onSelect: (path: string) => void;
+  onLazyLoad: (dirPath: string) => Promise<void>;
 }
 
-function FileTreeNode({ entry, depth, selectedPath, onSelect }: FileTreeNodeProps) {
+function FileTreeNode({ entry, depth, selectedPath, onSelect, onLazyLoad }: FileTreeNodeProps) {
   const [expanded, setExpanded] = useState(depth === 0);
+  const [loading, setLoading] = useState(false);
+  const loadedRef = useRef(false);
+
+  const handleDirClick = useCallback(async () => {
+    if (!expanded) {
+      setExpanded(true);
+      const needsLoad = !loadedRef.current && (!entry.children || entry.children.length === 0);
+      if (needsLoad) {
+        loadedRef.current = true;
+        setLoading(true);
+        try {
+          await onLazyLoad(entry.path);
+        } finally {
+          setLoading(false);
+        }
+      }
+    } else {
+      setExpanded(false);
+    }
+  }, [expanded, entry, onLazyLoad]);
 
   if (entry.type === 'dir') {
     return (
@@ -40,9 +63,15 @@ function FileTreeNode({ entry, depth, selectedPath, onSelect }: FileTreeNodeProp
         <button
           className="flex w-full items-center gap-1 px-2 py-1 text-left text-sm hover:bg-muted"
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
-          onClick={() => setExpanded(!expanded)}
+          onClick={handleDirClick}
         >
-          {expanded ? <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />}
+          {loading ? (
+            <span className="size-3.5 shrink-0 text-muted-foreground">…</span>
+          ) : expanded ? (
+            <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
+          )}
           <Folder className="size-4 shrink-0 text-muted-foreground" />
           <span className="truncate">{entry.name}</span>
         </button>
@@ -55,6 +84,7 @@ function FileTreeNode({ entry, depth, selectedPath, onSelect }: FileTreeNodeProp
                 depth={depth + 1}
                 selectedPath={selectedPath}
                 onSelect={onSelect}
+                onLazyLoad={onLazyLoad}
               />
             ))}
           </div>

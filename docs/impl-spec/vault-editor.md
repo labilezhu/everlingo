@@ -34,6 +34,7 @@ Web 前端给用户一个可视化编辑 [Memory Vault](/src/everlingo/mem/vault
 
 - 数据源：`GET /api/vault/{lang}/tree`（底层 MCP `tree`）。
 - 树形展开/折叠，点击文件 → 加载到编辑区。
+- 子目录懒加载：首次展开 children 为空的目录时，按需调用 `tree(path=<dir>, depth=2)` 拉取该目录的子项并合并到树状态。已加载的目录再次折叠/展开不重复请求。
 - 右键菜单 / 顶部按钮组：
   - 新建文件（输入 path，自动 `.md` 后缀）
   - 新建目录

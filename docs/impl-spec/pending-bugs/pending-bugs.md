@@ -1,3 +1,12 @@
+实现了 docs/impl-spec/vault-editor.md 中 “## 实现顺序（建议分 PR）” 的 “2. **Vite 多入口改造 + editor 骨架**” 后。
+在 浏览器 http://localhost:8000/editor 中点击目录 /items/grammar 时， Chrome DevTools 显示浏览器没有发起网络 api 调用。
+
+/home/labile/.everlingo/workspaces/default/logs/indexer.log:66 也显示了，只有初次加载页面时有 tree 工具的 depth=2 的调用。
+
+
+
+
+---
 
 实现了 docs/impl-spec/vault-editor.md 中 “## 实现顺序（建议分 PR）” 的 “2. **Vite 多入口改造 + editor 骨架**” 后。
 在 浏览器 http://localhost:8000/editor 中点击目录 /items/grammar 时，后端报以下错。

@@ -22,8 +22,11 @@ export function listLangs(): Promise<LangsResp> {
   return api<LangsResp>(`${BASE}/langs`);
 }
 
-export function tree(lang: string): Promise<TreeResp> {
-  return api<TreeResp>(`${BASE}/${encodeURIComponent(lang)}/tree`);
+export function tree(lang: string, path: string = '', depth: number = 2): Promise<TreeResp> {
+  const params = new URLSearchParams();
+  if (path) params.set('path', path);
+  params.set('depth', String(depth));
+  return api<TreeResp>(`${BASE}/${encodeURIComponent(lang)}/tree?${params}`);
 }
 
 export function read(lang: string, path: string): Promise<ReadResp> {

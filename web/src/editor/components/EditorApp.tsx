@@ -5,6 +5,18 @@ import FileTree from './FileTree';
 import MilkdownEditor from './MilkdownEditor';
 import type { Entry } from '@/editor/types/vault';
 
+function mergeChildren(entries: Entry[], dirPath: string, newChildren: Entry[]): Entry[] {
+  return entries.map(entry => {
+    if (entry.path === dirPath) {
+      return { ...entry, children: newChildren };
+    }
+    if (entry.children && entry.children.length > 0) {
+      return { ...entry, children: mergeChildren(entry.children, dirPath, newChildren) };
+    }
+    return entry;
+  });
+}
+
 export default function EditorApp() {
   // ── state ──
   const [langs, setLangs] = useState<string[]>([]);
@@ -105,6 +117,13 @@ export default function EditorApp() {
     }
   }, [selectedLang, currentPath, content, dirty, saving]);
 
+  // ── lazy load dir ──
+  const handleLazyLoad = useCallback(async (dirPath: string) => {
+    if (!selectedLang) return;
+    const resp = await tree(selectedLang, dirPath, 2);
+    setEntries(prev => mergeChildren(prev, dirPath, resp.entries));
+  }, [selectedLang]);
+
   // ── beforeunload ──
   const dirtyRef = useRef(dirty);
   dirtyRef.current = dirty;
@@ -177,6 +196,7 @@ export default function EditorApp() {
               entries={entries}
               selectedPath={currentPath}
               onSelect={handleFileSelect}
+              onLazyLoad={handleLazyLoad}
             />
           )}
         </aside>
