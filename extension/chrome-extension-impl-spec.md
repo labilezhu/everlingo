@@ -1,6 +1,5 @@
 # Chrome Extension 实现详细设计
 
-- 状态：Planned（2026-07）
 - 关联文档：[chrome-extension-spec.md](../docs/impl-spec/chrome-extension-spec.md)（产品 / 架构 / session 生命周期 / envelope 构造规则）
 - 适用范围：本文档是 [chrome-extension-spec.md](../docs/impl-spec/chrome-extension-spec.md) 的**实现级补充**，聚焦代码结构、文件清单、依赖与构建流程。当本文档与 spec 冲突时以 spec 为准。
 

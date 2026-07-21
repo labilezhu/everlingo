@@ -1,3 +1,6 @@
+为 [Standalone Web Chatbot](/docs/impl-spec/standalone-web-chatbot.md) 加入类似 [Chrome Extension — Web Sidecar](docs/impl-spec/chrome-extension-spec.md) 的 “翻译” “查词” “聊天” 单选按钮以方便用户准确方便地表达输入内容的意图。
+
+---
 
 
 src/everlingo/mem/agents/mem_writer_agent.py 中有加载 src/everlingo/mem/vault/templates/default/spec/mem_entry_spec.md 用于帮助 Memory Writer Agent 理解 Chat Agent 输入数据。
@@ -28,7 +31,7 @@ Chrome Extension 使用 docs/arts/chrome-icon.png 作为图标。需要时，你
 计划为产品加入一个新 feature: 作为一个 Chrome Extension ，为任意网页提供翻译和语言学习知识相关的笔记功能。
 
 1. 用户在浏览器选词后出现翻译小工具图标的设计模仿 Google Translate Chrome Extension
-2. 用户点击翻译小工具图标后，打开一个 UI 类似 [Web Session UI - Web Chatbox Web UI](docs/impl-spec/web-session-ui.md) 的右则栏 panel(Web Sidecar)
+2. 用户点击翻译小工具图标后，打开一个 UI 类似 [Standalone Web Chatbot - Web Chatbox Web UI](docs/impl-spec/standalone-web-chatbot.md) 的右则栏 panel(Web Sidecar)
 3. 界面成功打开后，注入以下用户输入消息(参考了 docs/impl-spec/envelope-spec.md)：
 ```json
 {

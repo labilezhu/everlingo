@@ -1,15 +1,13 @@
 # Chrome Extension — Web Sidecar
 
-- 状态：Planned（2026-07）
-- 阶段：Phase 2
 - 相关文档：
+  - [Chrome Extension 实现详细设计](extension/chrome-extension-impl-spec.md)
   - [Envelope 结构化用户输入协议](envelope-spec.md)
   - [Web Session Acceptor](web-session-acceptor.md)
-  - [Web Session UI - Web Chatbox Web UI](web-session-ui.md)
+  - [Standalone Web Chatbot](standalone-web-chatbot.md)
   - [Chat Agent](chat-agent-spec.md)
   - [Channel](channel.md)
   - [Session](session.md)
-  - [产品说明 - phase 2](../phases/phase2/product-phase-2.md)
 
 ---
 
@@ -292,7 +290,7 @@ function isBlockElement(el: Element | null): boolean {
 ### 7.1 布局
 
 - 固定窄宽度：约 380px（Chrome sidePanel 默认宽度）
-- 复用 [web-session-ui.md](web-session-ui.md) 的设计规范：Chatbot 名"小记🐹"、markdown 渲染、发送按钮脉冲动画等
+- 复用 [standalone-web-chatbot.md](standalone-web-chatbot.md) 的设计规范：Chatbot 名"小记🐹"、markdown 渲染、发送按钮脉冲动画等
 - 与 `web/` chatbox 的差异：不跟随窗口宽度动态调整（sidecar 宽度由 Chrome 决定）
 
 ### 7.2 交互
@@ -306,7 +304,7 @@ function isBlockElement(el: Element | null): boolean {
 
 ### 7.3 技术栈
 
-复用 [web-session-ui.md — 前端技术选型](web-session-ui.md)：Vite + React + TailwindCSS + shadcn/ui + react-markdown。打包为 CRX 时用 `@crxjs/vite-plugin` 或类似工具。
+复用 [standalone-web-chatbot.md — 前端技术选型](standalone-web-chatbot.md)：Vite + React + TailwindCSS + shadcn/ui + react-markdown。打包为 CRX 时用 `@crxjs/vite-plugin` 或类似工具。
 
 ### 7.4 UI message history 持久化
 

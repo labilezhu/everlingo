@@ -12,7 +12,9 @@ Web Session Acceptor 的实现包括两部分：
 - 前端
 
 ## 前端
-参见 [Web Session UI](/docs/impl-spec/web-session-ui.md)
+有两种前端：
+- [Standalone Web Chatbot](/docs/impl-spec/standalone-web-chatbot.md)
+- [Chrome Extension — Web Sidecar](docs/impl-spec/chrome-extension-spec.md)
 
 ## 后端
 FastAPI 的 API。
