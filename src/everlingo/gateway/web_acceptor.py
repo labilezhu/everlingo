@@ -112,6 +112,21 @@ async def event_stream(session_id: str, request: Request):
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
+@app.get("/editor")
+@app.get("/editor/{path:path}")
+async def serve_editor(path: str = ""):
+    """提供编辑器前端 SPA（dist/editor.html fallback）。"""
+    import os
+
+    static_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "web", "dist")
+    editor_index = os.path.join(static_dir, "editor.html")
+
+    if not os.path.exists(editor_index):
+        return {"message": "Frontend not built. Run `npm run build` in the web/ directory."}
+
+    return FileResponse(editor_index)
+
+
 @app.get("/")
 @app.get("/{path:path}")
 async def serve_frontend(path: str = ""):

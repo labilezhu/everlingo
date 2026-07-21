@@ -10,4 +10,5 @@
 2026-07-21 11:00 | Chat Agent envelope 改为运行期 MCP compile_prompt 加载（与 Memory Writer 一致）；意图识别节新增 envelope.task 作用说明；_call_compile_prompt 迁移到共享的 mem_writer_mcp_client
 2026-07-21 12:00 | 修复 7 个测试文件中的 20+ 个失败用例：agent.ainvoke 改用 AsyncMock（test_mem_writer_agent / test_agent_system_notice / test_gateway）；_disable_embedding autouse fixture（conftest.py）；LLM ainvoke try/except（agent.py）；assertions 更新（test_unified_agent.py）；channel.send_sound AsyncMock（test_voice_tool.py）；_cleanup_everlingo_handlers 防止日志处理器泄露（test_log_utils.py）
 2026-07-21 16:00 | Vault Editor PR 1：后端 REST→MCP 翻译层。新增 vault_editor_mcp_client.py（per-request 临时 MCP stream）、vault_editor_api.py（/api/vault/* 共 11 个端点 + 错误映射 + rename 复合 + tmp 过滤）、test_vault_editor_api.py（25 个 mock 单测覆盖全线），挂载到 web_acceptor.py
+2026-07-21 19:30 | Vault Editor PR 2：Vite 多入口改造 + editor 骨架。web/vite.config.ts 多入口（main+editor）；新增 editor.html、web/src/editor/（main.tsx、EditorApp.tsx 三栏布局+状态总管、FileTree.tsx 递归文件树、MilkdownEditor.tsx textarea 占位、vaultApi.ts fetch 封装、types/vault.ts）；web_acceptor.py /editor 路由 catch-all；test_web_acceptor.py 补 4 个 /editor 路由用例（全量 19 pass）；npm run build 双入口构建通过
 

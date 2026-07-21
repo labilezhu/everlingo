@@ -130,6 +130,52 @@ class TestSSEEvents:
         assert resp.status_code == 404
 
 
+class TestServeEditor:
+    """GET /editor, GET /editor/{path}"""
+
+    def test_editor_route_returns_200(self):
+        client = TestClient(app)
+        resp = client.get("/editor")
+        assert resp.status_code == 200
+        if "not built" in resp.text.lower():
+            data = resp.json()
+            assert "not built" in data.get("message", "").lower()
+        else:
+            assert "vault editor" in resp.text.lower()
+
+    def test_editor_subpath_returns_200(self):
+        client = TestClient(app)
+        resp = client.get("/editor/items/vocab/foo.md")
+        assert resp.status_code == 200
+        if "not built" in resp.text.lower():
+            data = resp.json()
+            assert "not built" in data.get("message", "").lower()
+        else:
+            assert "vault editor" in resp.text.lower()
+
+    def test_editor_routes_registered_before_catch_all(self):
+        """/editor 路由应排在 /{path:path} 之前。"""
+        paths = [r.path for r in app.routes if hasattr(r, 'path')]
+        idx_editor = next(i for i, p in enumerate(paths) if p == "/editor")
+        idx_catchall = next(i for i, p in enumerate(paths) if p == "/{path:path}")
+        assert idx_editor < idx_catchall
+
+    def test_non_editor_path_does_not_serve_editor_html(self):
+        """非 /editor 路径不应重定向到 editor.html。"""
+        import os
+        client = TestClient(app)
+        resp = client.get("/some/random/path")
+        assert resp.status_code == 200
+        # dist/ 可能存在旧构建产物，所以 text 可能是 HTML 而非 JSON。
+        # 核心断言：返回的不是 editor.html 即可。
+        text = resp.text.lower()
+        if "not built" in text:
+            pass  # 未构建时是 JSON 消息，合理
+        else:
+            # 已构建时返回 index.html，不应包含 editor 标识
+            assert "vault editor" not in text
+
+
 class TestCORS:
     """CORS 响应头 — 扩展侧跨源请求必须通过"""
 

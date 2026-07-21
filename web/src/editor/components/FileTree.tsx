@@ -1,0 +1,77 @@
+import { useState } from 'react';
+import { ChevronRight, ChevronDown, File, Folder } from 'lucide-react';
+import type { Entry } from '@/editor/types/vault';
+
+interface FileTreeProps {
+  entries: Entry[];
+  selectedPath?: string;
+  onSelect: (path: string) => void;
+}
+
+export default function FileTree({ entries, selectedPath, onSelect }: FileTreeProps) {
+  return (
+    <div className="overflow-y-auto">
+      {entries.map(entry => (
+        <FileTreeNode
+          key={entry.path}
+          entry={entry}
+          depth={0}
+          selectedPath={selectedPath}
+          onSelect={onSelect}
+        />
+      ))}
+    </div>
+  );
+}
+
+interface FileTreeNodeProps {
+  entry: Entry;
+  depth: number;
+  selectedPath?: string;
+  onSelect: (path: string) => void;
+}
+
+function FileTreeNode({ entry, depth, selectedPath, onSelect }: FileTreeNodeProps) {
+  const [expanded, setExpanded] = useState(depth === 0);
+
+  if (entry.type === 'dir') {
+    return (
+      <div>
+        <button
+          className="flex w-full items-center gap-1 px-2 py-1 text-left text-sm hover:bg-muted"
+          style={{ paddingLeft: `${depth * 16 + 8}px` }}
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />}
+          <Folder className="size-4 shrink-0 text-muted-foreground" />
+          <span className="truncate">{entry.name}</span>
+        </button>
+        {expanded && entry.children && (
+          <div>
+            {entry.children.map(child => (
+              <FileTreeNode
+                key={child.path}
+                entry={child}
+                depth={depth + 1}
+                selectedPath={selectedPath}
+                onSelect={onSelect}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const isSelected = selectedPath === entry.path;
+  return (
+    <button
+      className={`flex w-full items-center gap-1 px-2 py-1 text-left text-sm hover:bg-muted ${isSelected ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground'}`}
+      style={{ paddingLeft: `${depth * 16 + 24}px` }}
+      onClick={() => onSelect(entry.path)}
+    >
+      <File className="size-4 shrink-0" />
+      <span className="truncate">{entry.name}</span>
+    </button>
+  );
+}

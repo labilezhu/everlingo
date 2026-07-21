@@ -185,3 +185,6 @@ web/src/editor/
 - 多 tab 并发不同 lang 的 per-tab MCP stream。
 - 自动保存 / 协作编辑 / 版本历史。
 - 图片上传与预览（vault 当前 spec 未涉及图片）。
+
+## 手工验证
+http://localhost:8000/editor 

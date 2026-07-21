@@ -1,0 +1,207 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Save, FileCode } from 'lucide-react';
+import { listLangs, tree, read, write } from '@/editor/services/vaultApi';
+import FileTree from './FileTree';
+import MilkdownEditor from './MilkdownEditor';
+import type { Entry } from '@/editor/types/vault';
+
+export default function EditorApp() {
+  // ── state ──
+  const [langs, setLangs] = useState<string[]>([]);
+  const [selectedLang, setSelectedLang] = useState<string>('');
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [currentPath, setCurrentPath] = useState<string>('');
+  const [content, setContent] = useState('');
+  const [originalContent, setOriginalContent] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const dirty = content !== originalContent;
+
+  // ── parse URL params ──
+  const params = useMemo(() => new URLSearchParams(location.search), []);
+  const initLang = params.get('lang') || '';
+  const initPath = params.get('path') || '';
+
+  // ── init: fetch langs ──
+  useEffect(() => {
+    setLoading(true);
+    listLangs()
+      .then(resp => {
+        const v = resp.vaults;
+        setLangs(v);
+        const pre = initLang && v.includes(initLang) ? initLang : (v[0] || '');
+        setSelectedLang(pre);
+        return pre;
+      })
+      .then(lang => {
+        if (!lang) return;
+        return tree(lang).then(resp => {
+          setEntries(resp.entries);
+          if (initPath) {
+            read(lang, initPath).then(r => {
+              setCurrentPath(initPath);
+              setContent(r.content);
+              setOriginalContent(r.content);
+            }).catch(e => setError(e.message));
+          }
+        });
+      })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── lang change ──
+  const handleLangChange = useCallback(async (newLang: string) => {
+    if (dirty && !confirm('有未保存的改动，切换语言将丢弃。确定继续？')) return;
+    setSelectedLang(newLang);
+    setCurrentPath('');
+    setContent('');
+    setOriginalContent('');
+    setError(null);
+    setLoading(true);
+    try {
+      const resp = await tree(newLang);
+      setEntries(resp.entries);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [dirty]);
+
+  // ── file select ──
+  const handleFileSelect = useCallback(async (path: string) => {
+    if (dirty && !confirm('有未保存的改动，切换文件将丢弃。确定继续？')) return;
+    if (!selectedLang) return;
+    setCurrentPath(path);
+    setContent('');
+    setOriginalContent('');
+    setLoading(true);
+    try {
+      const resp = await read(selectedLang, path);
+      setContent(resp.content);
+      setOriginalContent(resp.content);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [dirty, selectedLang]);
+
+  // ── save ──
+  const handleSave = useCallback(async () => {
+    if (!selectedLang || !currentPath || !dirty || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await write(selectedLang, currentPath, content);
+      setOriginalContent(content);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }, [selectedLang, currentPath, content, dirty, saving]);
+
+  // ── beforeunload ──
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (dirtyRef.current) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, []);
+
+  // ── render ──
+  return (
+    <div className="flex flex-col h-screen border-x border-border">
+      {/* Header */}
+      <header className="flex items-center justify-between gap-3 px-4 py-2 border-b border-border bg-background shrink-0">
+        <div className="flex items-center gap-2">
+          <FileCode className="size-5 text-muted-foreground" />
+          <span className="text-sm font-semibold text-foreground">Vault Editor</span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {langs.length > 0 && (
+            <select
+              className="h-8 rounded-lg border border-border bg-background px-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              value={selectedLang}
+              onChange={e => handleLangChange(e.target.value)}
+            >
+              {langs.map(l => <option key={l} value={l}>{l}</option>)}
+            </select>
+          )}
+
+          <span className="text-xs text-muted-foreground border border-border rounded px-2 py-0.5 opacity-60 select-none" title="Milkdown 接入后启用">
+            Source
+          </span>
+
+          <button
+            className="inline-flex items-center gap-1 h-8 rounded-lg px-3 text-sm font-medium transition-all outline-none disabled:opacity-40 disabled:pointer-events-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50
+              enabled:hover:bg-primary/80
+              enabled:active:translate-y-px
+              enabled:bg-primary enabled:text-primary-foreground"
+            disabled={!dirty || saving}
+            onClick={handleSave}
+          >
+            <Save className="size-4" />
+            {saving ? '保存中…' : '保存'}
+          </button>
+        </div>
+      </header>
+
+      {/* Error bar */}
+      {error && (
+        <div className="px-4 py-2 bg-red-50 text-red-600 text-sm border-b border-red-200 shrink-0">
+          {error}
+          <button className="ml-2 underline" onClick={() => setError(null)}>关闭</button>
+        </div>
+      )}
+
+      {/* Body */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left: file tree */}
+        <aside className="w-56 shrink-0 border-r border-border overflow-y-auto bg-background">
+          {loading && !currentPath ? (
+            <div className="p-4 text-sm text-muted-foreground">加载中…</div>
+          ) : (
+            <FileTree
+              entries={entries}
+              selectedPath={currentPath}
+              onSelect={handleFileSelect}
+            />
+          )}
+        </aside>
+
+        {/* Right: editor */}
+        <main className="flex-1 flex flex-col overflow-hidden">
+          {currentPath ? (
+            <>
+              <div className="px-4 py-1.5 text-xs text-muted-foreground border-b border-border shrink-0 bg-muted/30 truncate">
+                {currentPath}
+              </div>
+              <div className="flex-1 overflow-auto">
+                <MilkdownEditor
+                  content={content}
+                  onChange={setContent}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+              {loading ? '加载中…' : '选择一个文件开始编辑'}
+            </div>
+          )}
+        </main>
+      </div>
+    </div>
+  );
+}
