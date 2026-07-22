@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronRight, ChevronDown, File, Folder, FilePlus, FolderPlus, Pencil, Trash2 } from 'lucide-react';
+import { ChevronRight, ChevronDown, File, Folder, FilePlus, FolderPlus, Pencil, RefreshCw, Trash2 } from 'lucide-react';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -24,25 +24,42 @@ interface FileTreeProps {
   onMkdir: (parent: Entry | null, name: string) => void;
   onRename: (entry: Entry, newName: string) => void;
   onDelete: (entry: Entry) => void;
+  onRefresh: () => void;
+  refreshing: boolean;
 }
 
-export default function FileTree({ entries, selectedPath, onSelect, onLazyLoad, onCreateFile, onMkdir, onRename, onDelete }: FileTreeProps) {
+export default function FileTree({ entries, selectedPath, onSelect, onLazyLoad, onCreateFile, onMkdir, onRename, onDelete, onRefresh, refreshing }: FileTreeProps) {
   return (
-    <div className="overflow-y-auto">
-      {entries.map(entry => (
-        <FileTreeNode
-          key={entry.path}
-          entry={entry}
-          depth={0}
-          selectedPath={selectedPath}
-          onSelect={onSelect}
-          onLazyLoad={onLazyLoad}
-          onCreateFile={onCreateFile}
-          onMkdir={onMkdir}
-          onRename={onRename}
-          onDelete={onDelete}
-        />
-      ))}
+    <div className="flex flex-col h-full">
+      {/* header toolbar */}
+      <div className="flex items-center justify-end gap-1 px-2 py-1 border-b border-border shrink-0">
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={refreshing}
+          title="刷新"
+          className="inline-flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-40 disabled:pointer-events-none"
+        >
+          <RefreshCw className={`size-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
+      {/* tree */}
+      <div className="flex-1 overflow-y-auto">
+        {entries.map(entry => (
+          <FileTreeNode
+            key={entry.path}
+            entry={entry}
+            depth={0}
+            selectedPath={selectedPath}
+            onSelect={onSelect}
+            onLazyLoad={onLazyLoad}
+            onCreateFile={onCreateFile}
+            onMkdir={onMkdir}
+            onRename={onRename}
+            onDelete={onDelete}
+          />
+        ))}
+      </div>
     </div>
   );
 }

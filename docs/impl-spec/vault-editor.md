@@ -44,6 +44,7 @@ Web 前端给用户一个可视化编辑 [Memory Vault](/src/everlingo/mem/vault
   - 删除
 - **`tmp/` 目录默认隐藏**；顶部 toggle「显示隐藏目录」可切换。`tmp/` 不入索引（见 [vault-mcp-spec.md](/docs/impl-spec/vault-mcp/vault-mcp-spec.md)「`spec/` 目录不入索引」段的 `is_excluded_vault_file` 描述）。
 - `spec/` 目录允许编辑（与其它目录同权）。
+- 文件树顶部有 header 工具栏（初始仅含刷新按钮）：刷新触发整树重拉（`tree(selectedLang)`），懒加载状态重置；不影响编辑器内容与未保存改动。
 
 ### 搜索（SearchBar）
 

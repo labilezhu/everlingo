@@ -1,5 +1,8 @@
 
 计划一下：
+ [Editor](docs/impl-spec/vault-editor.md)  的 file explorer 加入一个 header 工具栏，其中暂时只有一个刷新按钮，功能就是用户手工刷新 file explorer 内容。
+
+计划一下：
  [Editor](docs/impl-spec/vault-editor.md) ： 
  - 搜索支持只用 tag 搜索，可以不输入搜索内容
  - 搜索 界面现在 用 H / E / S 三个字母表达三种搜索方法。建议修改成用中文吧，一般人不知识  H / E / S 是什么意思。且说明一下是搜索模式

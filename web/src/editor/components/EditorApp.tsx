@@ -30,6 +30,7 @@ export default function EditorApp() {
   const [originalContent, setOriginalContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [treeRefreshing, setTreeRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [mode, setMode] = useState<'source' | 'wysiwyg'>(() => {
     return (localStorage.getItem('vault-editor:mode') as 'source' | 'wysiwyg') || 'wysiwyg';
@@ -149,6 +150,21 @@ export default function EditorApp() {
     }
   }, [selectedLang, currentPath, content, dirty, saving]);
 
+  // ── refresh tree ──
+  const refreshTree = useCallback(async () => {
+    if (!selectedLang) return;
+    setTreeRefreshing(true);
+    setError(null);
+    try {
+      const resp = await tree(selectedLang);
+      setEntries(resp.entries);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setTreeRefreshing(false);
+    }
+  }, [selectedLang]);
+
   // ── lazy load dir ──
   const handleLazyLoad = useCallback(async (dirPath: string) => {
     if (!selectedLang) return;
@@ -164,14 +180,13 @@ export default function EditorApp() {
     setError(null);
     try {
       await write(selectedLang, fullPath, '');
-      const resp = await tree(selectedLang);
-      setEntries(resp.entries);
+      await refreshTree();
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [selectedLang]);
+  }, [selectedLang, refreshTree]);
 
   // ── mkdir ──
   const handleMkdir = useCallback(async (parent: Entry | null, name: string) => {
@@ -181,14 +196,13 @@ export default function EditorApp() {
     setError(null);
     try {
       await mkdir(selectedLang, fullPath);
-      const resp = await tree(selectedLang);
-      setEntries(resp.entries);
+      await refreshTree();
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [selectedLang]);
+  }, [selectedLang, refreshTree]);
 
   // ── rename ──
   const handleRename = useCallback(async (entry: Entry, newName: string) => {
@@ -206,14 +220,13 @@ export default function EditorApp() {
         setContent('');
         setOriginalContent('');
       }
-      const resp = await tree(selectedLang);
-      setEntries(resp.entries);
+      await refreshTree();
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [selectedLang, currentPath]);
+  }, [selectedLang, currentPath, refreshTree]);
 
   // ── delete ──
   const handleDelete = useCallback(async (entry: Entry) => {
@@ -227,14 +240,13 @@ export default function EditorApp() {
         setContent('');
         setOriginalContent('');
       }
-      const resp = await tree(selectedLang);
-      setEntries(resp.entries);
+      await refreshTree();
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [selectedLang, currentPath]);
+  }, [selectedLang, currentPath, refreshTree]);
 
   // ── beforeunload ──
   const dirtyRef = useRef(dirty);
@@ -366,7 +378,7 @@ export default function EditorApp() {
           </div>
 
           {/* FileTree tab */}
-          <div className={leftTab === 'files' ? 'flex-1 overflow-y-auto' : 'hidden'}>
+          <div className={leftTab === 'files' ? 'flex-1 flex flex-col overflow-hidden' : 'hidden'}>
             {loading && !currentPath ? (
               <div className="p-4 text-sm text-muted-foreground">加载中…</div>
             ) : (
@@ -379,6 +391,8 @@ export default function EditorApp() {
                 onMkdir={handleMkdir}
                 onRename={handleRename}
                 onDelete={handleDelete}
+                onRefresh={refreshTree}
+                refreshing={treeRefreshing}
               />
             )}
           </div>
