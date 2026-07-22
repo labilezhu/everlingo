@@ -1,15 +1,32 @@
-import { useCallback, useRef, useState } from 'react';
-import { ChevronRight, ChevronDown, File, Folder } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ChevronRight, ChevronDown, File, Folder, FilePlus, FolderPlus, Pencil, Trash2 } from 'lucide-react';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
+import { Input } from '@/components/ui/input';
 import type { Entry } from '@/editor/types/vault';
+
+type InlineAction =
+  | { kind: 'new-file'; parent: Entry | null }
+  | { kind: 'new-dir'; parent: Entry | null }
+  | { kind: 'rename'; entry: Entry };
 
 interface FileTreeProps {
   entries: Entry[];
   selectedPath?: string;
   onSelect: (path: string) => void;
   onLazyLoad: (dirPath: string) => Promise<void>;
+  onCreateFile: (parent: Entry | null, name: string) => void;
+  onMkdir: (parent: Entry | null, name: string) => void;
+  onRename: (entry: Entry, newName: string) => void;
+  onDelete: (entry: Entry) => void;
 }
 
-export default function FileTree({ entries, selectedPath, onSelect, onLazyLoad }: FileTreeProps) {
+export default function FileTree({ entries, selectedPath, onSelect, onLazyLoad, onCreateFile, onMkdir, onRename, onDelete }: FileTreeProps) {
   return (
     <div className="overflow-y-auto">
       {entries.map(entry => (
@@ -20,6 +37,10 @@ export default function FileTree({ entries, selectedPath, onSelect, onLazyLoad }
           selectedPath={selectedPath}
           onSelect={onSelect}
           onLazyLoad={onLazyLoad}
+          onCreateFile={onCreateFile}
+          onMkdir={onMkdir}
+          onRename={onRename}
+          onDelete={onDelete}
         />
       ))}
     </div>
@@ -32,12 +53,17 @@ interface FileTreeNodeProps {
   selectedPath?: string;
   onSelect: (path: string) => void;
   onLazyLoad: (dirPath: string) => Promise<void>;
+  onCreateFile: (parent: Entry | null, name: string) => void;
+  onMkdir: (parent: Entry | null, name: string) => void;
+  onRename: (entry: Entry, newName: string) => void;
+  onDelete: (entry: Entry) => void;
 }
 
-function FileTreeNode({ entry, depth, selectedPath, onSelect, onLazyLoad }: FileTreeNodeProps) {
+function FileTreeNode({ entry, depth, selectedPath, onSelect, onLazyLoad, onCreateFile, onMkdir, onRename, onDelete }: FileTreeNodeProps) {
   const [expanded, setExpanded] = useState(depth === 0);
   const [loading, setLoading] = useState(false);
   const loadedRef = useRef(false);
+  const [inlineAction, setInlineAction] = useState<InlineAction | null>(null);
 
   const handleDirClick = useCallback(async () => {
     if (!expanded) {
@@ -57,9 +83,11 @@ function FileTreeNode({ entry, depth, selectedPath, onSelect, onLazyLoad }: File
     }
   }, [expanded, entry, onLazyLoad]);
 
-  if (entry.type === 'dir') {
-    return (
-      <div>
+  const isDir = entry.type === 'dir';
+
+  const row = (
+    <div>
+      {isDir ? (
         <button
           className="flex w-full items-center gap-1 px-2 py-1 text-left text-sm hover:bg-muted"
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
@@ -75,33 +103,150 @@ function FileTreeNode({ entry, depth, selectedPath, onSelect, onLazyLoad }: File
           <Folder className="size-4 shrink-0 text-muted-foreground" />
           <span className="truncate">{entry.name}</span>
         </button>
-        {expanded && entry.children && (
-          <div>
-            {entry.children.map(child => (
-              <FileTreeNode
-                key={child.path}
-                entry={child}
-                depth={depth + 1}
-                selectedPath={selectedPath}
-                onSelect={onSelect}
-                onLazyLoad={onLazyLoad}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
+      ) : (
+        <button
+          className={`flex w-full items-center gap-1 px-2 py-1 text-left text-sm hover:bg-muted ${selectedPath === entry.path ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground'}`}
+          style={{ paddingLeft: `${depth * 16 + 24}px` }}
+          onClick={() => onSelect(entry.path)}
+        >
+          <File className="size-4 shrink-0" />
+          <span className="truncate">{entry.name}</span>
+        </button>
+      )}
+    </div>
+  );
 
-  const isSelected = selectedPath === entry.path;
+  const menuItems = (
+    <ContextMenuContent>
+      {isDir && (
+        <>
+          <ContextMenuItem onClick={() => setInlineAction({ kind: 'new-file', parent: entry })}>
+            <FilePlus className="size-4" />
+            新建文件
+          </ContextMenuItem>
+          <ContextMenuItem onClick={() => setInlineAction({ kind: 'new-dir', parent: entry })}>
+            <FolderPlus className="size-4" />
+            新建目录
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+        </>
+      )}
+      <ContextMenuItem onClick={() => setInlineAction({ kind: 'rename', entry })}>
+        <Pencil className="size-4" />
+        重命名
+      </ContextMenuItem>
+      <ContextMenuItem
+        variant="destructive"
+        onClick={() => {
+          if (confirm(`确定删除「${entry.name}」？此操作不可撤销。`)) {
+            onDelete(entry);
+          }
+        }}
+      >
+        <Trash2 className="size-4" />
+        删除
+      </ContextMenuItem>
+    </ContextMenuContent>
+  );
+
   return (
-    <button
-      className={`flex w-full items-center gap-1 px-2 py-1 text-left text-sm hover:bg-muted ${isSelected ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground'}`}
-      style={{ paddingLeft: `${depth * 16 + 24}px` }}
-      onClick={() => onSelect(entry.path)}
-    >
-      <File className="size-4 shrink-0" />
-      <span className="truncate">{entry.name}</span>
-    </button>
+    <ContextMenu>
+      <ContextMenuTrigger className="select-none">
+        {row}
+      </ContextMenuTrigger>
+      {menuItems}
+      {inlineAction && (
+        <InlineInput
+          entry={entry}
+          action={inlineAction}
+          depth={depth}
+          onConfirm={(name) => {
+            const a = inlineAction;
+            setInlineAction(null);
+            if (a.kind === 'new-file') {
+              onCreateFile(a.parent, name);
+            } else if (a.kind === 'new-dir') {
+              onMkdir(a.parent, name);
+            } else if (a.kind === 'rename') {
+              onRename(a.entry, name);
+            }
+          }}
+          onCancel={() => setInlineAction(null)}
+        />
+      )}
+      {isDir && expanded && entry.children && (
+        <div>
+          {entry.children.map(child => (
+            <FileTreeNode
+              key={child.path}
+              entry={child}
+              depth={depth + 1}
+              selectedPath={selectedPath}
+              onSelect={onSelect}
+              onLazyLoad={onLazyLoad}
+              onCreateFile={onCreateFile}
+              onMkdir={onMkdir}
+              onRename={onRename}
+              onDelete={onDelete}
+            />
+          ))}
+        </div>
+      )}
+    </ContextMenu>
+  );
+}
+
+// ── Inline input for new-file / new-dir / rename ──
+
+interface InlineInputProps {
+  entry: Entry;
+  action: InlineAction;
+  depth: number;
+  onConfirm: (name: string) => void;
+  onCancel: () => void;
+}
+
+function InlineInput({ entry, action, depth, onConfirm, onCancel }: InlineInputProps) {
+  const [value, setValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      const trimmed = value.trim();
+      if (!trimmed) return;
+      if (action.kind === 'new-file') {
+        onConfirm(trimmed.endsWith('.md') ? trimmed : trimmed + '.md');
+      } else {
+        onConfirm(trimmed);
+      }
+    } else if (e.key === 'Escape') {
+      onCancel();
+    }
+  };
+
+  const placeholder = action.kind === 'new-file'
+    ? '文件名（自动 .md）'
+    : action.kind === 'new-dir'
+      ? '目录名'
+      : '新名称';
+
+  return (
+    <div style={{ paddingLeft: `${depth * 16 + (action.kind === 'rename' ? 24 : 8)}px` }} className="flex items-center gap-1 px-2 py-0.5">
+      <Input
+        ref={inputRef}
+        className="h-6 text-xs"
+        placeholder={placeholder}
+        value={value}
+        onChange={e => setValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onBlur={() => {
+          if (!value.trim()) onCancel();
+        }}
+      />
+    </div>
   );
 }

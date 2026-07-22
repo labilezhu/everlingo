@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Code, Eye, Save, FileCode, Search, FolderTree } from 'lucide-react';
-import { listLangs, tree, read, write } from '@/editor/services/vaultApi';
+import { listLangs, tree, read, write, mkdir, deleteEntry, rename } from '@/editor/services/vaultApi';
 import FileTree from './FileTree';
 import SearchBar from './SearchBar';
 import MilkdownEditor from './MilkdownEditor';
@@ -156,6 +156,86 @@ export default function EditorApp() {
     setEntries(prev => mergeChildren(prev, dirPath, resp.entries));
   }, [selectedLang]);
 
+  // ── create file ──
+  const handleCreateFile = useCallback(async (parent: Entry | null, name: string) => {
+    if (!selectedLang) return;
+    const fullPath = parent ? `${parent.path}/${name}` : name;
+    setLoading(true);
+    setError(null);
+    try {
+      await write(selectedLang, fullPath, '');
+      const resp = await tree(selectedLang);
+      setEntries(resp.entries);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedLang]);
+
+  // ── mkdir ──
+  const handleMkdir = useCallback(async (parent: Entry | null, name: string) => {
+    if (!selectedLang) return;
+    const fullPath = parent ? `${parent.path}/${name}` : name;
+    setLoading(true);
+    setError(null);
+    try {
+      await mkdir(selectedLang, fullPath);
+      const resp = await tree(selectedLang);
+      setEntries(resp.entries);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedLang]);
+
+  // ── rename ──
+  const handleRename = useCallback(async (entry: Entry, newName: string) => {
+    if (!selectedLang) return;
+    const parentDir = entry.path.includes('/') ? entry.path.slice(0, entry.path.lastIndexOf('/')) : '';
+    const target = parentDir ? `${parentDir}/${newName}` : newName;
+    setLoading(true);
+    setError(null);
+    try {
+      await rename(selectedLang, entry.path, target);
+      if (currentPath === entry.path) {
+        setCurrentPath(target);
+      } else if (entry.type === 'dir' && currentPath && (currentPath === entry.path || currentPath.startsWith(entry.path + '/'))) {
+        setCurrentPath('');
+        setContent('');
+        setOriginalContent('');
+      }
+      const resp = await tree(selectedLang);
+      setEntries(resp.entries);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedLang, currentPath]);
+
+  // ── delete ──
+  const handleDelete = useCallback(async (entry: Entry) => {
+    if (!selectedLang) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await deleteEntry(selectedLang, entry.path);
+      if (currentPath === entry.path || (currentPath && currentPath.startsWith(entry.path + '/'))) {
+        setCurrentPath('');
+        setContent('');
+        setOriginalContent('');
+      }
+      const resp = await tree(selectedLang);
+      setEntries(resp.entries);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedLang, currentPath]);
+
   // ── beforeunload ──
   const dirtyRef = useRef(dirty);
   dirtyRef.current = dirty;
@@ -285,6 +365,10 @@ export default function EditorApp() {
                 selectedPath={currentPath}
                 onSelect={handleFileSelect}
                 onLazyLoad={handleLazyLoad}
+                onCreateFile={handleCreateFile}
+                onMkdir={handleMkdir}
+                onRename={handleRename}
+                onDelete={handleDelete}
               />
             )}
           </div>

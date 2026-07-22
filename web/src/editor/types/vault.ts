@@ -27,6 +27,22 @@ export interface WriteResp {
   path: string;
 }
 
+export interface MkdirResp {
+  ok: boolean;
+  path: string;
+}
+
+export interface DeleteResp {
+  ok: boolean;
+  path: string;
+}
+
+export interface RenameResp {
+  ok: boolean;
+  source: string;
+  target: string;
+}
+
 // ── search ──
 
 export type SearchMode = 'hybrid' | 'exact' | 'semantic';

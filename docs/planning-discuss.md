@@ -1,3 +1,14 @@
+
+现在的 [Vault](src/everlingo/mem/vault/templates/default/spec/vault_spec.md) 知识分类和目录结构，除了在 src/everlingo/mem/vault/templates/default/spec 下的 spec 文档中，可以由用户修改。 但有的还是在代码中写死的，如：
+- src/everlingo/mem/agents/mem_entries.py:15
+- src/everlingo/tools/request_memory_extract.py:12
+
+我计划让高级用户可以通过修改 $workspace/memory/languages/$lang/vault/spec/events_spec.md 去修改 Vault 的`知识点类型`和目录结构
+
+现在发现 src/everlingo/mem/vault/templates/default/spec/mem_entry_spec.md:28 也有 `知识点类型` 的声明，和 events_spec.md 重复了，应该
+
+---
+
 我的想法有变，以以下为准。
 
 说说你的想法，看看设计是否合理：

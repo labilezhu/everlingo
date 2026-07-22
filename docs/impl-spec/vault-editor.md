@@ -90,6 +90,8 @@ editor app 启动时读 `location.search`：
 - `@milkdown/react`
 - `@milkdown/crepe`（可选，开箱即用 preset；若用则可省去部分手配）
 
+新增 shadcn 组件（`npx shadcn@latest add context-menu`，基于 Base UI `@base-ui/react/context-menu`，与 button/input 同栈）。
+
 ### Vite 多入口
 
 `web/vite.config.ts` 的 `build.rollupOptions.input` 改为多入口：
@@ -182,7 +184,14 @@ web/src/editor/
 2. **Vite 多入口改造 + editor 骨架**：`editor.html` + `EditorApp` + `FileTree` + `MilkdownEditor`（先用 textarea），read/write 端到端。
 3. **接入 Milkdown** + 双模式切换。
 4. **搜索栏** + tag 过滤 + 左栏可调宽。SearchBar 新建组件（左栏 Search tab，结果列表点击不切 tab，仅更新 editor）；EditorApp 左栏改 Files/Search Tab 切换 + 可拖拽调整宽度（百分比持久化 localStorage）；URL `q`/`tag` 参数解析与预填。
-5. **新建/重命名/删除文件和目录** 在 file explorer 的 file/directory 上右键或长按（触屏）可以跳出相关菜单。
+5. **新建/重命名/删除文件和目录** 在 file explorer 的 file/directory 上右键或长按（触屏，由 Base UI ContextMenuTrigger 原生支持）可以跳出 context menu。
+   - 实现依赖：`shadcn@latest add context-menu`（Base UI 后端，匹配现有 base-nova 风格）。
+   - 菜单项按 entry 类型区分：目录有"新建文件/新建目录/重命名/删除"；文件有"重命名/删除"。
+   - 删除前 `window.confirm` 二次确认。
+   - 名称输入：行内 `<Input>`，回车确认、Esc 取消、失焦空值取消。新建文件自动补 `.md` 后缀。
+   - 新建文件通过 `write(lang, path, '')` 创建空文件（复用现有端点）。
+   - 操作成功后 `tree(selectedLang)` 整树重拉刷新（懒加载状态重置，简单可靠）。
+   - rename 命中 `currentPath` 时更新路径；delete 命中 `currentPath` 或其祖先时清空编辑区。
 6. **chatbot → editor 链接**：`MarkdownRenderer` 链接 `target` 策略 + editor 启动参数解析。
 
 ## 不在本 spec 范围

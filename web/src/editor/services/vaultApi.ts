@@ -1,4 +1,4 @@
-import type { LangsResp, TreeResp, ReadResp, SearchReq, SearchResp, TagsResp } from '@/editor/types/vault';
+import type { LangsResp, TreeResp, ReadResp, SearchReq, SearchResp, TagsResp, MkdirResp, DeleteResp, RenameResp } from '@/editor/types/vault';
 
 const BASE = '/api/vault';
 
@@ -53,6 +53,39 @@ export function search(lang: string, body: SearchReq): Promise<SearchResp> {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+    },
+  );
+}
+
+export function mkdir(lang: string, path: string): Promise<MkdirResp> {
+  return api<MkdirResp>(
+    `${BASE}/${encodeURIComponent(lang)}/mkdir`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    },
+  );
+}
+
+export function deleteEntry(lang: string, path: string): Promise<DeleteResp> {
+  return api<DeleteResp>(
+    `${BASE}/${encodeURIComponent(lang)}/delete`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    },
+  );
+}
+
+export function rename(lang: string, source: string, target: string): Promise<RenameResp> {
+  return api<RenameResp>(
+    `${BASE}/${encodeURIComponent(lang)}/rename`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source, target }),
     },
   );
 }
