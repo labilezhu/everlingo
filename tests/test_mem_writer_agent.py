@@ -60,6 +60,13 @@ def envelope_spec_text():
     return compile_prompt("envelope_spec.md", source)
 
 
+@pytest.fixture
+def vault_spec_text():
+    """从打包默认值编译真实 vault_spec.md 文本，用作 _build_writer_system_prompt 的测试输入。"""
+    source = PackageSource(package="everlingo.mem.vault.templates.default.spec")
+    return compile_prompt("vault_spec.md", source)
+
+
 def _entry(
     title="gcc",
     item_type="vocab",
@@ -607,10 +614,12 @@ class TestActionDaemonDispatch:
     """daemon thread _run_loop 分发 _ActionRequest。"""
 
     @pytest.fixture(autouse=True)
-    def _patch_mem_entry_spec(self, mem_entry_spec_text, envelope_spec_text):
+    def _patch_mem_entry_spec(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
         def _compile_prompt_side_effect(session, path: str) -> str:
             if "envelope" in path:
                 return envelope_spec_text
+            if "vault_spec" in path:
+                return vault_spec_text
             return mem_entry_spec_text
         with patch(
             "everlingo.mem.agents.mem_writer_agent._call_compile_prompt",
@@ -662,21 +671,21 @@ class TestActionDaemonDispatch:
 
 
 class TestWriterSystemPrompt:
-    def _build(self, entry_text, envelope_text):
-        return _build_writer_system_prompt(entry_text, envelope_text)
+    def _build(self, entry_text, envelope_text, vault_text):
+        return _build_writer_system_prompt(entry_text, envelope_text, vault_text)
 
-    def test_includes_vault_spec_sections(self, mem_entry_spec_text, envelope_spec_text):
-        prompt = self._build(mem_entry_spec_text, envelope_spec_text)
+    def test_includes_vault_spec_sections(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
+        prompt = self._build(mem_entry_spec_text, envelope_spec_text, vault_spec_text)
         assert "Memory Vault" in prompt
         assert "chat_session_id" in prompt
 
-    def test_states_sandbox_rule(self, mem_entry_spec_text, envelope_spec_text):
-        prompt = self._build(mem_entry_spec_text, envelope_spec_text)
+    def test_states_sandbox_rule(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
+        prompt = self._build(mem_entry_spec_text, envelope_spec_text, vault_spec_text)
         assert "相对 path" in prompt or "相对路径" in prompt
 
-    def test_uses_mcp_tool_names(self, mem_entry_spec_text, envelope_spec_text):
+    def test_uses_mcp_tool_names(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
         """迁移后 system prompt 必须用 MCP 工具名（read/write/grep/...）。"""
-        prompt = self._build(mem_entry_spec_text, envelope_spec_text)
+        prompt = self._build(mem_entry_spec_text, envelope_spec_text, vault_spec_text)
         for name in ("read(", "write(", "append(", "delete(",
                      "ls(", "find(", "grep(", "vault_mcp_gen_id("):
             assert name in prompt, f"missing tool: {name}"
@@ -688,17 +697,17 @@ class TestWriterSystemPrompt:
         ):
             assert old not in prompt, f"legacy tool name leaked: {old}"
 
-    def test_states_read_write_once_constraint(self, mem_entry_spec_text, envelope_spec_text):
-        prompt = self._build(mem_entry_spec_text, envelope_spec_text)
+    def test_states_read_write_once_constraint(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
+        prompt = self._build(mem_entry_spec_text, envelope_spec_text, vault_spec_text)
         assert "read" in prompt and "write" in prompt
         assert "至多 1 次" in prompt
 
-    def test_includes_pragmatics_fallback_template(self, mem_entry_spec_text, envelope_spec_text):
-        prompt = self._build(mem_entry_spec_text, envelope_spec_text)
+    def test_includes_pragmatics_fallback_template(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
+        prompt = self._build(mem_entry_spec_text, envelope_spec_text, vault_spec_text)
         assert "pragmatics" in prompt
 
-    def test_includes_entry_schema(self, mem_entry_spec_text, envelope_spec_text):
-        prompt = self._build(mem_entry_spec_text, envelope_spec_text)
+    def test_includes_entry_schema(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
+        prompt = self._build(mem_entry_spec_text, envelope_spec_text, vault_spec_text)
         assert "## 输入给你的 entry 结构" in prompt
         for field in (
             "chat_session_id", "entry_id", "timestamp", "channel_name",
@@ -708,14 +717,14 @@ class TestWriterSystemPrompt:
         ):
             assert field in prompt, f"missing entry field: {field}"
 
-    def test_entry_schema_appears_before_vault_spec(self, mem_entry_spec_text, envelope_spec_text):
-        prompt = self._build(mem_entry_spec_text, envelope_spec_text)
+    def test_entry_schema_appears_before_vault_spec(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
+        prompt = self._build(mem_entry_spec_text, envelope_spec_text, vault_spec_text)
         assert prompt.index("## 输入给你的 entry 结构") < prompt.index(
             "# memory vault 注意事项"
         )
 
-    def test_injected_spec_headings_nested_under_parent(self, mem_entry_spec_text, envelope_spec_text):
-        prompt = self._build(mem_entry_spec_text, envelope_spec_text)
+    def test_injected_spec_headings_nested_under_parent(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
+        prompt = self._build(mem_entry_spec_text, envelope_spec_text, vault_spec_text)
         assert "### 记忆实体" in prompt
         for line in prompt.splitlines():
             stripped = line.lstrip()
@@ -723,36 +732,36 @@ class TestWriterSystemPrompt:
         assert "## 输入给你的 entry 结构" in prompt
         assert "# memory vault 注意事项" in prompt
 
-    def test_includes_envelope_schema(self, mem_entry_spec_text, envelope_spec_text):
-        prompt = self._build(mem_entry_spec_text, envelope_spec_text)
+    def test_includes_envelope_schema(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
+        prompt = self._build(mem_entry_spec_text, envelope_spec_text, vault_spec_text)
         assert "## 输入消息的 Envelope 格式" in prompt
         for field in (
             "schema_version", "task", "selection", "context", "source",
         ):
             assert field in prompt, f"missing envelope field: {field}"
 
-    def test_envelope_schema_appears_after_entry_schema(self, mem_entry_spec_text, envelope_spec_text):
-        prompt = self._build(mem_entry_spec_text, envelope_spec_text)
+    def test_envelope_schema_appears_after_entry_schema(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
+        prompt = self._build(mem_entry_spec_text, envelope_spec_text, vault_spec_text)
         assert prompt.index("## 输入给你的 entry 结构") < prompt.index(
             "## 输入消息的 Envelope 格式"
         )
 
-    def test_envelope_schema_appears_before_vault_spec(self, mem_entry_spec_text, envelope_spec_text):
-        prompt = self._build(mem_entry_spec_text, envelope_spec_text)
+    def test_envelope_schema_appears_before_vault_spec(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
+        prompt = self._build(mem_entry_spec_text, envelope_spec_text, vault_spec_text)
         assert prompt.index("## 输入消息的 Envelope 格式") < prompt.index(
             "# memory vault 注意事项"
         )
 
-    def test_injected_envelope_headings_nested_under_parent(self, mem_entry_spec_text, envelope_spec_text):
-        prompt = self._build(mem_entry_spec_text, envelope_spec_text)
+    def test_injected_envelope_headings_nested_under_parent(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
+        prompt = self._build(mem_entry_spec_text, envelope_spec_text, vault_spec_text)
         assert "### Envelope" in prompt
         for line in prompt.splitlines():
             stripped = line.lstrip()
             assert not stripped.startswith("# Envelope"), line
         assert "## 输入消息的 Envelope 格式" in prompt
 
-    def test_includes_envelope_example_json(self, mem_entry_spec_text, envelope_spec_text):
-        prompt = self._build(mem_entry_spec_text, envelope_spec_text)
+    def test_includes_envelope_example_json(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
+        prompt = self._build(mem_entry_spec_text, envelope_spec_text, vault_spec_text)
         assert "<envelope>" in prompt or "task" in prompt
 
 
@@ -764,10 +773,12 @@ class TestWriterAgentSync:
     """单 entry 触发一次 agent.ainvoke（per-entry build agent）。"""
 
     @pytest.fixture(autouse=True)
-    def _patch_mem_entry_spec(self, mem_entry_spec_text, envelope_spec_text):
+    def _patch_mem_entry_spec(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
         def _compile_prompt_side_effect(session, path: str) -> str:
             if "envelope" in path:
                 return envelope_spec_text
+            if "vault_spec" in path:
+                return vault_spec_text
             return mem_entry_spec_text
         with patch(
             "everlingo.mem.agents.mem_writer_agent._call_compile_prompt",
@@ -891,10 +902,12 @@ class TestWriterLangSandbox:
     """回归：per-lang vault 正确性 + prompt 不带 $lang/ 前缀。"""
 
     @pytest.fixture(autouse=True)
-    def _patch_mem_entry_spec(self, mem_entry_spec_text, envelope_spec_text):
+    def _patch_mem_entry_spec(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
         def _compile_prompt_side_effect(session, path: str) -> str:
             if "envelope" in path:
                 return envelope_spec_text
+            if "vault_spec" in path:
+                return vault_spec_text
             return mem_entry_spec_text
         with patch(
             "everlingo.mem.agents.mem_writer_agent._call_compile_prompt",
@@ -987,8 +1000,8 @@ class TestWriterLangSandbox:
         # 没有文件被写入
         assert not (tmp_vault / "events/2026/11/2026-11-21.md").exists()
 
-    def test_write_kb_item_system_prompt_no_lang_prefix(self, mem_entry_spec_text, envelope_spec_text):
-        prompt = _build_writer_system_prompt(mem_entry_spec_text, envelope_spec_text)
+    def test_write_kb_item_system_prompt_no_lang_prefix(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
+        prompt = _build_writer_system_prompt(mem_entry_spec_text, envelope_spec_text, vault_spec_text)
         assert "$lang/items/" not in prompt
         assert "$lang/events/" not in prompt
 
@@ -999,10 +1012,12 @@ class TestWriterLangSandbox:
 class TestWriterAgentDaemon:
 
     @pytest.fixture(autouse=True)
-    def _patch_mem_entry_spec(self, mem_entry_spec_text, envelope_spec_text):
+    def _patch_mem_entry_spec(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
         def _compile_prompt_side_effect(session, path: str) -> str:
             if "envelope" in path:
                 return envelope_spec_text
+            if "vault_spec" in path:
+                return vault_spec_text
             return mem_entry_spec_text
         with patch(
             "everlingo.mem.agents.mem_writer_agent._call_compile_prompt",
@@ -1141,10 +1156,12 @@ class TestWriterAgentDaemon:
 class TestGatewayMemoryWriterProxy:
 
     @pytest.fixture(autouse=True)
-    def _patch_mem_entry_spec(self, mem_entry_spec_text, envelope_spec_text):
+    def _patch_mem_entry_spec(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
         def _compile_prompt_side_effect(session, path: str) -> str:
             if "envelope" in path:
                 return envelope_spec_text
+            if "vault_spec" in path:
+                return vault_spec_text
             return mem_entry_spec_text
         with patch(
             "everlingo.mem.agents.mem_writer_agent._call_compile_prompt",

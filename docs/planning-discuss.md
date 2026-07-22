@@ -1,4 +1,11 @@
 
+
+src/everlingo/mem/agents/mem_writer_agent.py 现在是由 LLM 通过工具 read(path="spec/vault_spec.md") 加载 vault_spec.md 的。其实 mem_writer_agent 是一定要加载 vault_spec.md 的。所以不如直接用 mcp 的 compile_prompt(path="spec/vault_spec.md") 调用，加载入 system prompt 好了。
+
+请同步更新 docs/impl-spec/memory-writer-agent-spec.md
+
+---
+
 现在的 [Vault](src/everlingo/mem/vault/templates/default/spec/vault_spec.md) 知识分类和目录结构，除了在 src/everlingo/mem/vault/templates/default/spec 下的 spec 文档中，可以由用户修改。 但有的还是在代码中写死的，如：
 - src/everlingo/mem/agents/mem_entries.py:15
 - src/everlingo/tools/request_memory_extract.py:12
