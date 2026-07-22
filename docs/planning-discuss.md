@@ -10,10 +10,11 @@ src/everlingo/mem/agents/mem_writer_agent.py 现在是由 LLM 通过工具 read(
 - src/everlingo/mem/agents/mem_entries.py:15
 - src/everlingo/tools/request_memory_extract.py:12
 
-我计划让高级用户可以通过修改 $workspace/memory/languages/$lang/vault/spec/events_spec.md 去修改 Vault 的`知识点类型`和目录结构
+我计划让高级用户可以通过修改 $workspace/memory/languages/$lang/vault/spec/vault_spec.md 去修改 Vault 的`知识点类型`和目录结构
 
-现在发现 src/everlingo/mem/vault/templates/default/spec/mem_entry_spec.md:28 也有 `知识点类型` 的声明，和 events_spec.md 重复了，应该
+现在发现 src/everlingo/mem/vault/templates/default/spec/mem_entry_spec.md:28 也有 `知识点类型` 的声明，和 vault_spec.md 重复了，应该只有一个 source of truth.
 
+现在的 indexer 能有效地对用户自由定义的 $workspace/memory/languages/$lang/vault/items 目录结构作全文和语义索引吗？
 ---
 
 我的想法有变，以以下为准。
