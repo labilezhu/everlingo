@@ -68,7 +68,7 @@ Web 前端给用户一个可视化编辑 [Memory Vault](/src/everlingo/mem/vault
 chatbot 的 markdown 消息里可包含指向 editor 的链接，由 `react-markdown` 渲染为 `<a>`：
 
 ```markdown
-详见 [god 词条](/editor?lang=en&path=items/vocab/god--01KWDVQ6GMWPNTMY4BSNSCDBE.md)
+详见 [god 词条](/editor?lang=en&path=items/vocab/god.md)
 ```
 
 editor app 启动时读 `location.search`：
@@ -78,6 +78,8 @@ editor app 启动时读 `location.search`：
 - `tag` → 预填 tag 过滤（可多个 `&tag=vocab&tag=grammar`）
 
 `MarkdownRenderer` 组件需统一链接 `target` 策略：站内 `/editor...` 同窗跳转，外链新开 tab。
+
+**URL 同步**：editor 在选中/切换文件时通过 `history.replaceState` 把当前 `lang`、`path` 同步到地址栏，格式为 `/editor?lang=en&path=items/vocab/god.md`。`q`/`tag` 等搜索参数不留在 URL 中。用户可复制地址栏 URL 作为该文件的直接入口。刷新页面后按 URL 参数恢复 lang 与打开的文件。
 
 反向链接（editor → chatbot）不在本 spec 范围：chatbot 使用 session id，跨页跳转会建新 session，需独立设计。
 

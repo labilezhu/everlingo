@@ -250,6 +250,16 @@ export default function EditorApp() {
     return () => window.removeEventListener('beforeunload', handler);
   }, []);
 
+  // ── sync URL ──
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (selectedLang) params.set('lang', selectedLang);
+    if (currentPath) params.set('path', currentPath);
+    const qs = params.toString();
+    const newUrl = qs ? `${location.pathname}?${qs}` : location.pathname;
+    history.replaceState(null, '', newUrl);
+  }, [selectedLang, currentPath]);
+
   // ── render ──
   return (
     <div className="flex flex-col h-screen border-x border-border">
