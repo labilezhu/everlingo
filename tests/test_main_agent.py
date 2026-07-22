@@ -23,6 +23,7 @@ from everlingo.agents.agent import (
     _render_context_messages,
     _tail_recent_turns,
 )
+from everlingo.mem.agents.mem_entries import MemoryEntry
 from everlingo.tools.request_memory_extract import _MemoryEntryDraft
 from everlingo.gateway.channels.channel import ChannelMetadata
 from everlingo.models import UserLanguage, UserProfile
@@ -368,3 +369,31 @@ class TestMainAgentWiring:
         assert "vocab" in caplog.text           # item_type
         assert "new_messages" in caplog.text    # model_dump key
         assert "entry_id" in caplog.text
+
+
+class TestCustomItemType:
+
+    def test_accepts_custom_item_type(self):
+        """_MemoryEntryDraft 和 MemoryEntry 接受自由字符串 item_type。
+
+        原为 Literal[5] 硬编码，放宽为 str 后自定义类型不抛异常。
+        """
+        draft = _MemoryEntryDraft(
+            item_type="custom_kind",
+            why_want_to_save_memory="用户明确要求记住知识点",
+            title="custom",
+        )
+        assert draft.item_type == "custom_kind"
+
+        entry = MemoryEntry(
+            item_type="custom_kind",
+            why_want_to_save_memory="用户明确要求记住知识点",
+            title="custom",
+            entry_id="test-id",
+            timestamp="2026-07-22 12:00:00",
+            chat_session_id="cs-1",
+            channel_name="TestChannel",
+            lang="ja",
+            interface_language="zh-CN",
+        )
+        assert entry.item_type == "custom_kind"

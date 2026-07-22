@@ -9,11 +9,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 
-# ── 类型别名声明的 Memory Entry 字段 ─────────────────────────────────
-
-# `item_type` 仅使用 vault 规范定义的四种知识类型。
-ItemType = Literal["vocab", "phrase", "grammar", "pragmatics", "others"]
-
+# `item_type` 取值以 vault_spec.md 的 `知识类型` 定义为准（自由字符串，不由代码枚举）。
 # why_want_to_save_memory 枚举值：
 # - "用户明确要求记住知识点" / "纠正事项" / "Chat Agent 判定"
 WhySave = Literal["用户明确要求记住知识点", "纠正事项", "Chat Agent 判定"]
@@ -45,7 +41,7 @@ class MemoryEntry(BaseModel):
     context_messages: str = ""
 
     # LLM 生成（通过工具 args_schema 约束）
-    item_type: ItemType = "others"
+    item_type: str = "others"
     why_want_to_save_memory: WhySave = "Chat Agent 判定"
     title: str = ""
 

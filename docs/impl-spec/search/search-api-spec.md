@@ -35,9 +35,7 @@ q: 要搜索的文本或语义
 kind:       匹配过滤条件：memory vault 文档分类。取值包括： 
     item : 知识类文档
     event ： 事件类文档
-item_type:  匹配过滤条件：知识类型 。取值包括： 
-    kind=item 时，取值包括： vocab/phrase/grammar/pragmatics/others
-    kind=event 为 NULL
+item_type:  匹配过滤条件：知识类型 。kind=item 时取值以 vault_spec.md 的 `知识类型` 定义为准；kind=event 为 NULL
 mode: 搜索模式。一般情况下，优先使用 hybrid 混合搜索： `"mode":"hybrid"`。取值包括： 
     exact ： 全文精确搜索
     semantic ： 语义搜索

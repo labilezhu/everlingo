@@ -9,8 +9,8 @@ from . import log_tool_call
 class _MemoryEntryDraft(BaseModel):
     """LLM 应负责生成的 entry 字段（系统字段由 MainAgent 代码补全）。"""
 
-    item_type: Literal["vocab", "phrase", "grammar", "pragmatics", "others"] = Field(
-        description="知识类型：vocab（单词） / phrase（短语） / grammar（语法点） / pragmatics（语用） / others（其他）",
+    item_type: str = Field(
+        description="知识点类型；取值以 vault_spec.md 的 `知识类型` 定义为准。",
     )
     why_want_to_save_memory: Literal[
         "用户明确要求记住知识点",
@@ -51,7 +51,8 @@ def make_request_memory_extract_tool(
 
         调用前必须已在本轮回复中产出知识点的实际内容（释义/解释/用法/举例）。
         调用前应先 vault_mcp_read(path="spec/memory_extract_output_spec.md")
-        了解 entries 字段结构与含义。
+        了解 entries 字段结构与含义；item_type 取值以 vault_spec.md 中 `知识类型`
+        的定义为准，不确定时应先 vault_mcp_read(path="spec/vault_spec.md")。
 
         调用后立即返回，写入异步执行，不阻塞回复。
         """

@@ -25,7 +25,7 @@
 - lang: 目标学习语言
 - interface_language: 界面语言
 - why_want_to_save_memory ： 为什么要记住。 用户明确要求记住知识点 / 纠正事项 / Chat Agent 判定。
-- item_type ： 记忆类型/`知识点类型`。 vocab （单词）/ phrase （短语）/ grammar （语法点）/ pragmatics （语用） / others 。
+- item_type ： 记忆类型/`知识点类型`。取值见 [vault_spec.md](vault_spec.md) 中 `知识类型` 的定义。
 - title: 主要使用`界面语言`，限一句话，描述本`知识点`。用于语义搜索和 full text search。delete/edit 时 entry 的 title 仅为占位。
 - new_messages ：触发记忆的对话消息。delete/edit 操作忽略此字段。
 - context_messages ：最近的历史对话。delete/edit 操作忽略此字段。

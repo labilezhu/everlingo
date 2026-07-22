@@ -716,8 +716,7 @@ description: |
                 description: 命中结果所属目标学习语言（由 indexer 按会话 lang 回填，不来自 documents 列）。
               item_type:
                 type: string
-                enum: [vocab, phrase, grammar, pragmatics, others]
-                description: 知识类型。kind=item 时取上述值；kind=event 为 null。
+                description: 知识类型。kind=item 时取值以 vault_spec.md 的 `知识类型` 定义为准；kind=event 为 null。
               file_path:
                 type: string
                 description: 相对该语言 vault 根的路径，不含 {lang}/ 前缀。
