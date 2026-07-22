@@ -182,7 +182,7 @@ web/src/editor/
 2. **Vite 多入口改造 + editor 骨架**：`editor.html` + `EditorApp` + `FileTree` + `MilkdownEditor`（先用 textarea），read/write 端到端。
 3. **接入 Milkdown** + 双模式切换。
 4. **搜索栏** + tag 过滤 + 左栏可调宽。SearchBar 新建组件（左栏 Search tab，结果列表点击不切 tab，仅更新 editor）；EditorApp 左栏改 Files/Search Tab 切换 + 可拖拽调整宽度（百分比持久化 localStorage）；URL `q`/`tag` 参数解析与预填。
-5. **新建/重命名/删除** + `tmp/` 隐藏 toggle。
+5. **新建/重命名/删除文件和目录** 在 file explorer 的 file/directory 上右键或长按（触屏）可以跳出相关菜单。
 6. **chatbot → editor 链接**：`MarkdownRenderer` 链接 `target` 策略 + editor 启动参数解析。
 
 ## 不在本 spec 范围

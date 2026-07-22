@@ -20,8 +20,8 @@ items/ # 知识点类 memory items
     take-for-granted.md
   grammar/
     present-perfect.md
-  pragmatics/ # 语用
-  others/ # 其它分类
+  pragmatics/
+  others/ 
 tmp/ # 程序内部使用的临时文件，没有用户数据价值。不索引此目录
 ```
 
