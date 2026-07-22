@@ -50,7 +50,7 @@ Web 前端给用户一个可视化编辑 [Memory Vault](/src/everlingo/mem/vault
 左栏采用 Files / Search **Tab 切换**（互斥；`hidden` CSS 保留各自状态以维持滚动位置和输入内容）。URL 带 `q` 参数时初始进入 Search tab；否则优先读 localStorage（key `vault-editor:leftTab`），缺省 Files。
 
 - 搜索框（`<Input>`）+ Enter / 按钮触发。
-- 模式选择：hybrid / exact / semantic 三态 `<Button>` toggle（默认 hybrid），持久化 localStorage `vault-editor:searchMode`。
+- 模式选择：hybrid / exact / semantic 三态 `<Button>` toggle（默认 hybrid），按钮显示中文标签：混合 / 精确 / 语义，行首标注"搜索模式："。`q` 可空，至少与 `tags` / `item_type` / `kind` 之一配合使用，持久化 localStorage `vault-editor:searchMode`。
 - 可选 tag 过滤：候选来自 `GET /api/vault/{lang}/tags`（底层 MCP `list_tags`）。用 Badge 风格 `<Button variant="outline">` 多选切换；≥1 tag 选中时显示 `tags_op`（and/or）toggle。
 - 触发 `POST /api/vault/{lang}/search`（底层 MCP `search`）。
 - 结果列表展示 `title` / `item_type` / `snippet` / `file_path`，点击 → **不切 tab**，仅调用 `handleFileSelect` 加载文件到右侧编辑区；命中列表中与当前 `currentPath` 匹配的条目高亮 `bg-muted`，支持连续点击多个结果切换浏览。命中块 `chunk.char_offset` 滚动到对应段为后续迭代，MVP 仅跳到文件。

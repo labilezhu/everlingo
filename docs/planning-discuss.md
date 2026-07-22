@@ -1,6 +1,8 @@
 
-当 [Editor](docs/impl-spec/vault-editor.md) 在通过 file explorer / search result 选定了编辑文件后，能不能更新一下浏览器网址栏 url 。 这样用户就好知道当前文件直接的入口。 如 /editor?lang=en&path=items/vocab/god.md
-
+计划一下：
+ [Editor](docs/impl-spec/vault-editor.md) ： 
+ - 搜索支持只用 tag 搜索，可以不输入搜索内容
+ - 搜索 界面现在 用 H / E / S 三个字母表达三种搜索方法。建议修改成用中文吧，一般人不知识  H / E / S 是什么意思。且说明一下是搜索模式
 ---
 
 src/everlingo/mem/agents/mem_writer_agent.py 现在是由 LLM 通过工具 read(path="spec/vault_spec.md") 加载 vault_spec.md 的。其实 mem_writer_agent 是一定要加载 vault_spec.md 的。所以不如直接用 mcp 的 compile_prompt(path="spec/vault_spec.md") 调用，加载入 system prompt 好了。

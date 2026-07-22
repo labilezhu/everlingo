@@ -470,6 +470,26 @@ class TestSearch:
             p1.stop()
             p2.stop()
 
+    def test_search_tag_only_q_empty(self, client: TestClient):
+        """q 不传或传空字符串，仅 tag 过滤应当正常调用 MCP。"""
+        session = AsyncMock()
+        session.call_tool = AsyncMock(
+            return_value=_fake_result({"hits": [], "count": 0, "took_ms": 1.0})
+        )
+        p1, p2 = _patch_ctx(session)
+        try:
+            resp = client.post(
+                "/api/vault/en/search",
+                json={"tags": ["vocab"], "tags_op": "and"},
+            )
+            assert resp.status_code == 200
+            session.call_tool.assert_awaited_with(
+                "search", {"q": "", "mode": "hybrid", "limit": 10, "tags": ["vocab"], "tags_op": "and"}
+            )
+        finally:
+            p1.stop()
+            p2.stop()
+
 
 class TestListTags:
     def test_returns_tags(self, client: TestClient):

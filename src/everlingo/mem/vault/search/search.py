@@ -49,6 +49,11 @@ def search(
 ) -> list[SearchHit]:
     """三模式搜索入口。lang 必填（per-lang DB 隐含）。"""
     start = time.perf_counter()
+
+    # 空 q + 有过滤条件 → filter-only recall（tag / item_type / kind）
+    if not query.strip():
+        return _filter_only_recall(conn, lang, item_type, tags, tags_op, kind, limit)
+
     if mode == "exact":
         return _fts_recall(conn, query, lang, item_type, tags, tags_op, kind, limit)
     if mode == "semantic":
@@ -97,6 +102,71 @@ def _tag_filter_clause(
         f"WHERE dt.doc_rowid = d.rowid AND dt.tag IN ({placeholders}))",
         list(tags),
     )
+
+
+# ── Filter-only recall（无 query，仅按 tag/item_type/kind 过滤） ──
+
+
+def _filter_only_recall(
+    conn: sqlite3.Connection,
+    lang: str,
+    item_type: str | None,
+    tags: list[str] | None,
+    tags_op: str,
+    kind: str | None,
+    limit: int,
+) -> list[SearchHit]:
+    """当 q 为空时，仅按元数据过滤条件（tags / item_type / kind）拉取文档。"""
+    where_clauses: list[str] = []
+    where_params: list = []
+
+    if item_type is not None:
+        where_clauses.append("d.item_type = ?")
+        where_params.append(item_type)
+    if kind is not None:
+        where_clauses.append("d.kind = ?")
+        where_params.append(kind)
+    if tags:
+        tag_sql, tag_params = _tag_filter_clause(tags, tags_op)
+        where_clauses.append(f"({tag_sql})")
+        where_params.extend(tag_params)
+
+    if not where_clauses:
+        return []
+
+    sql = f"""
+        SELECT d.rowid, d.ulid, d.kind, d.item_type, d.file_path, d.title, ''
+        FROM documents d
+        WHERE {' AND '.join(where_clauses)}
+        ORDER BY d.rowid DESC
+        LIMIT ?
+    """
+    where_params.append(limit)
+
+    try:
+        rows = conn.execute(sql, where_params).fetchall()
+    except sqlite3.OperationalError as e:
+        logger.warning("filter-only recall 失败: %s", e)
+        return []
+
+    hits: list[SearchHit] = []
+    for r in rows:
+        rowid, ulid, kind_v, item_type_v, file_path, title, snippet = r
+        hits.append(
+            SearchHit(
+                ulid=ulid,
+                kind=kind_v,
+                lang=lang,
+                item_type=item_type_v,
+                file_path=file_path,
+                title=title,
+                score=0.0,
+                source="filter",
+                chunk=None,
+                snippet=snippet or "",
+            )
+        )
+    return hits
 
 
 # ── FTS 召回 ────────────────────────────────────────────────────────

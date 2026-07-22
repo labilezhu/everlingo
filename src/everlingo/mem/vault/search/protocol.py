@@ -45,7 +45,7 @@ class SearchHit(BaseModel):
     file_path: str
     title: str | None = None
     score: float
-    source: Literal["fts", "vec", "hybrid"] = "fts"
+    source: str = "fts"
     chunk: ChunkRef | None = None
     snippet: str = ""
 

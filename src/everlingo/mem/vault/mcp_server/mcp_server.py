@@ -835,6 +835,7 @@ def create_mcp_app(state: AppState) -> FastMCP:
         description=(
             "Search the memory vault. Supports exact (full-text) / semantic "
             "(embedding) / hybrid (mixed) modes; default mode=hybrid. "
+            "q may be empty when filtering by tags / item_type / kind only. "
             "lang parameter overrides session lang if provided; omit to use session lang."
         ),
     )

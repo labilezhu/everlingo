@@ -42,7 +42,7 @@ class RenameBody(BaseModel):
 
 
 class SearchBody(BaseModel):
-    q: str
+    q: str = ""
     mode: str = "hybrid"
     kind: str | None = None
     item_type: str | None = None

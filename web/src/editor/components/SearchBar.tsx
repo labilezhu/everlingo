@@ -6,9 +6,9 @@ import { search, listTags } from '@/editor/services/vaultApi';
 import type { SearchHit, SearchMode, TagCount, TagsOp } from '@/editor/types/vault';
 
 const MODES: { value: SearchMode; label: string }[] = [
-  { value: 'hybrid', label: 'H' },
-  { value: 'exact', label: 'E' },
-  { value: 'semantic', label: 'S' },
+  { value: 'hybrid', label: '混合' },
+  { value: 'exact', label: '精确' },
+  { value: 'semantic', label: '语义' },
 ];
 
 interface SearchBarProps {
@@ -42,14 +42,17 @@ export default function SearchBar({ selectedLang, currentPath, onSelectPath, ini
     }
   }, [selectedLang]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const canSearch = q.trim().length > 0 || selectedTags.length > 0;
+
   const handleSearch = useCallback(async () => {
-    if (!q.trim() || !selectedLang) return;
+    if (!selectedLang) return;
+    if (!q.trim() && selectedTags.length === 0) return;
     submittedRef.current = true;
     setLoading(true);
     setError(null);
     try {
       const resp = await search(selectedLang, {
-        q: q.trim(),
+        q: q.trim() || undefined,
         mode,
         tags: selectedTags.length > 0 ? selectedTags : undefined,
         tags_op: selectedTags.length > 0 ? tagsOp : undefined,
@@ -91,7 +94,7 @@ export default function SearchBar({ selectedLang, currentPath, onSelectPath, ini
             onKeyDown={handleKeyDown}
             className="h-7 text-xs"
           />
-          <Button size="icon-xs" variant="outline" onClick={handleSearch} disabled={loading || !q.trim()}>
+          <Button size="icon-xs" variant="outline" onClick={handleSearch} disabled={loading || !canSearch}>
             <Search className="size-3" />
           </Button>
         </div>
@@ -99,11 +102,13 @@ export default function SearchBar({ selectedLang, currentPath, onSelectPath, ini
 
       {/* Mode toggle */}
       <div className="flex items-center gap-1 px-2 pb-1 shrink-0">
+        <span className="text-[10px] text-muted-foreground">搜索模式：</span>
         {MODES.map(m => (
           <Button
             key={m.value}
             size="xs"
             variant={mode === m.value ? 'default' : 'outline'}
+            disabled={!q.trim()}
             onClick={() => {
               setMode(m.value);
               localStorage.setItem('vault-editor:searchMode', m.value);
@@ -207,7 +212,7 @@ export default function SearchBar({ selectedLang, currentPath, onSelectPath, ini
       {/* Submit hint when no results yet */}
       {!submittedRef.current && !loading && (
         <div className="flex-1 flex items-center justify-center px-2 text-[11px] text-muted-foreground">
-          输入关键词搜索
+          输入关键词或选择 tag 搜索
         </div>
       )}
     </div>

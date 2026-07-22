@@ -49,7 +49,7 @@ export type SearchMode = 'hybrid' | 'exact' | 'semantic';
 export type TagsOp = 'and' | 'or';
 
 export interface SearchReq {
-  q: string;
+  q?: string;
   mode?: SearchMode;
   kind?: string;
   item_type?: string;
@@ -74,7 +74,7 @@ export interface SearchHit {
   file_path: string;
   title: string;
   score: number;
-  source: 'fts' | 'vec' | 'hybrid';
+  source: string;
   chunk: SearchChunk | null;
   snippet: string;
 }

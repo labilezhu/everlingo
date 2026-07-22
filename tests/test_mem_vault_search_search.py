@@ -167,3 +167,32 @@ def test_search_tags_single_ignores_op(conn: sqlite3.Connection, memory_root: Pa
     hits_o = do_search(conn, "tag", lang="en", tags=["single"], tags_op="or", limit=10)
     assert len(hits_a) == 1
     assert len(hits_o) == 1
+
+
+# ── Filter-only recall（q 为空） ────────────────────────────────────
+
+
+def test_search_tag_only_no_query(conn: sqlite3.Connection, memory_root: Path):
+    p1 = _write_item(memory_root, "fo1.md", "01JZFO01", "vocab", "foo1", "F1",
+                     "body x", tags="[filter]")
+    p2 = _write_item(memory_root, "fo2.md", "01JZFO02", "vocab", "foo2", "F2",
+                     "body y", tags="[other]")
+    p3 = _write_item(memory_root, "fo3.md", "01JZFO03", "vocab", "foo3", "F3",
+                     "body z", tags="[filter, other]")
+    for p in (p1, p2, p3):
+        index_file(conn, parse_file(p, memory_root, "en"))
+    hits = do_search(conn, "", lang="en", tags=["filter"], limit=10)
+    assert len(hits) == 2
+    ulids = {h.ulid for h in hits}
+    assert "01JZFO01" in ulids
+    assert "01JZFO03" in ulids
+    for h in hits:
+        assert h.source == "filter"
+
+
+def test_search_empty_q_no_filter_returns_empty(conn: sqlite3.Connection, memory_root: Path):
+    p = _write_item(memory_root, "ef.md", "01JZEF01", "vocab", "empty", "Empty",
+                    "body", tags="[some]")
+    index_file(conn, parse_file(p, memory_root, "en"))
+    hits = do_search(conn, "", lang="en", limit=10)
+    assert hits == []
