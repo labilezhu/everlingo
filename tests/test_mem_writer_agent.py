@@ -717,10 +717,10 @@ class TestWriterSystemPrompt:
         ):
             assert field in prompt, f"missing entry field: {field}"
 
-    def test_entry_schema_appears_before_vault_spec(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
+    def test_entry_schema_appears_after_vault_spec(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
         prompt = self._build(mem_entry_spec_text, envelope_spec_text, vault_spec_text)
-        assert prompt.index("## 输入给你的 entry 结构") < prompt.index(
-            "# memory vault 注意事项"
+        assert prompt.index("## 输入给你的 entry 结构") > prompt.index(
+            "## memory vault 结构规范(/spec/vault_spec.md)"
         )
 
     def test_injected_spec_headings_nested_under_parent(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
@@ -730,7 +730,11 @@ class TestWriterSystemPrompt:
             stripped = line.lstrip()
             assert not stripped.startswith("# 记忆实体"), line
         assert "## 输入给你的 entry 结构" in prompt
-        assert "# memory vault 注意事项" in prompt
+        assert "### 单语言 Memory Vault Spec" in prompt
+        for line in prompt.splitlines():
+            stripped = line.lstrip()
+            assert not stripped.startswith("# 单语言 Memory Vault Spec"), line
+        assert "## memory vault 结构规范(/spec/vault_spec.md)" in prompt
 
     def test_includes_envelope_schema(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
         prompt = self._build(mem_entry_spec_text, envelope_spec_text, vault_spec_text)
@@ -746,10 +750,10 @@ class TestWriterSystemPrompt:
             "## 输入消息的 Envelope 格式"
         )
 
-    def test_envelope_schema_appears_before_vault_spec(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
+    def test_envelope_schema_appears_after_vault_spec(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):
         prompt = self._build(mem_entry_spec_text, envelope_spec_text, vault_spec_text)
-        assert prompt.index("## 输入消息的 Envelope 格式") < prompt.index(
-            "# memory vault 注意事项"
+        assert prompt.index("## 输入消息的 Envelope 格式") > prompt.index(
+            "## memory vault 结构规范(/spec/vault_spec.md)"
         )
 
     def test_injected_envelope_headings_nested_under_parent(self, mem_entry_spec_text, envelope_spec_text, vault_spec_text):

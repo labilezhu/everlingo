@@ -141,7 +141,7 @@ class TestServeEditor:
             data = resp.json()
             assert "not built" in data.get("message", "").lower()
         else:
-            assert "vault editor" in resp.text.lower()
+            assert "小记笔记编辑器" in resp.text
 
     def test_editor_subpath_returns_200(self):
         client = TestClient(app)
@@ -151,7 +151,7 @@ class TestServeEditor:
             data = resp.json()
             assert "not built" in data.get("message", "").lower()
         else:
-            assert "vault editor" in resp.text.lower()
+            assert "小记笔记编辑器" in resp.text
 
     def test_editor_routes_registered_before_catch_all(self):
         """/editor 路由应排在 /{path:path} 之前。"""
