@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Search, X } from 'lucide-react';
+import { RefreshCw, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { search, listTags } from '@/editor/services/vaultApi';
@@ -27,6 +27,7 @@ export default function SearchBar({ selectedLang, currentPath, onSelectPath, ini
   const [selectedTags, setSelectedTags] = useState<string[]>(initialTags || []);
   const [tagsOp, setTagsOp] = useState<TagsOp>('and');
   const [tagCandidates, setTagCandidates] = useState<TagCount[]>([]);
+  const [tagsRefreshing, setTagsRefreshing] = useState(false);
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,13 +35,23 @@ export default function SearchBar({ selectedLang, currentPath, onSelectPath, ini
 
   const hasTags = tagCandidates.length > 0;
 
-  useEffect(() => {
-    setTagCandidates([]);
-    setSelectedTags(prev => prev.filter(t => tagCandidates.some(tc => tc.tag === t)));
-    if (selectedLang) {
-      listTags(selectedLang).then(r => setTagCandidates(r.tags)).catch(() => {});
+  const refreshTags = useCallback(async () => {
+    if (!selectedLang) return;
+    setTagsRefreshing(true);
+    try {
+      const r = await listTags(selectedLang);
+      setTagCandidates(r.tags);
+      setSelectedTags(prev => prev.filter(t => r.tags.some(tc => tc.tag === t)));
+    } catch {
+      // silent
+    } finally {
+      setTagsRefreshing(false);
     }
-  }, [selectedLang]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedLang]);
+
+  useEffect(() => {
+    refreshTags();
+  }, [refreshTags]);
 
   const canSearch = q.trim().length > 0 || selectedTags.length > 0;
 
@@ -120,9 +131,9 @@ export default function SearchBar({ selectedLang, currentPath, onSelectPath, ini
       </div>
 
       {/* Tags */}
-      {hasTags && (
-        <div className="flex flex-wrap items-center gap-1 px-2 pb-1 shrink-0">
-          {tagCandidates.map(tc => {
+      <div className="flex flex-wrap items-center gap-1 px-2 pb-1 shrink-0">
+        {hasTags ? (
+          tagCandidates.map(tc => {
             const selected = selectedTags.includes(tc.tag);
             return (
               <Button
@@ -135,9 +146,20 @@ export default function SearchBar({ selectedLang, currentPath, onSelectPath, ini
                 {selected && <X className="size-2.5 ml-0.5" />}
               </Button>
             );
-          })}
-        </div>
-      )}
+          })
+        ) : (
+          <span className="text-[10px] text-muted-foreground">暂无 tag</span>
+        )}
+        <button
+          type="button"
+          onClick={refreshTags}
+          disabled={tagsRefreshing}
+          title="刷新 tag"
+          className="inline-flex items-center justify-center size-5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-40 disabled:pointer-events-none"
+        >
+          <RefreshCw className={`size-3 ${tagsRefreshing ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
 
       {/* tags_op toggle */}
       {selectedTags.length > 1 && (
