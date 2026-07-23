@@ -1,6 +1,6 @@
 # Vault Editor
 
-Web 前端给用户一个可视化编辑 [Memory Vault](/src/everlingo/mem/vault/templates/default/spec/vault_spec.md) 中 markdown 文件的编辑器。支持 源码 / WYSIWYG 双模式切换、文件树浏览、搜索。
+Web 前端给用户一个可视化编辑 [Memory Vault](/src/everlingo/mem/vault/templates/default/spec/vault_spec.md) 中 markdown 文件的编辑器。支持 源码 / 直观 双模式切换、文件树浏览、搜索。
 
 编辑器入口 URL：`http://localhost:8000/editor`。
 
@@ -15,7 +15,7 @@ Web 前端给用户一个可视化编辑 [Memory Vault](/src/everlingo/mem/vault
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ Header：lang selector  |  模式切换 (源码/WYSIWYG)  |  保存    │
+│ Header：lang selector  |  🐹 小记笔记编辑器  |  模式切换 (源码/直观)  |  保存    │
 ├──────────┬──────────────────────────────────────────────────┤
 │          │                                                   │
 │  文件树  │              编辑区（Milkdown）                   │
@@ -29,7 +29,7 @@ Web 前端给用户一个可视化编辑 [Memory Vault](/src/everlingo/mem/vault
 ### Header
 
 - **lang selector**：单选下拉，候选项来自 `GET /api/vault/langs`（底层 MCP `list_vaults`）。切换 lang 重新拉取文件树。
-- **模式切换**：source / WYSIWYG 两态 toggle，组件内持久化。
+- **模式切换**：源码 / 直观 两态 toggle，组件内持久化。
 - **保存**：将当前编辑器内容 `POST /api/vault/{lang}/write`。未改动时禁用；改动未保存时按钮高亮 + 关闭/切文件前 confirm。
 
 ### 文件树（FileTree）

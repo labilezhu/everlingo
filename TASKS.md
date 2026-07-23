@@ -11,3 +11,4 @@
   - 2026-07-22 22:00 | 搜索支持 tag-only（q 可空）+ 搜索模式标签改中文（混合/精确/语义）
   - 2026-07-22 23:00 | editor FileTree header 工具栏 + 刷新按钮（整树重拉）；DRY 重构 4 处重复 tree 重拉
   - 2026-07-23 10:00 | 修复刷新后已懒加载目录无法再展开：将 loaded 标记从组件 useRef 移到 Entry.loaded 数据字段，刷新/切语言时随整树重拉重置，重新点开按需懒加载
+  - 2026-07-23 11:00 | editor header 改造：标题居中「🐹 小记笔记编辑器」去掉 svg 图标；模式切换文案 Source/WYSIWYG → 源码/直观；同步 editor.html 标题与 vault-editor.md 文档术语

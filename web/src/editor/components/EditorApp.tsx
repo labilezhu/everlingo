@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Code, Eye, Save, FileCode, Search, FolderTree } from 'lucide-react';
+import { Code, Eye, Save, Search, FolderTree } from 'lucide-react';
 import { listLangs, tree, read, write, mkdir, deleteEntry, rename } from '@/editor/services/vaultApi';
 import FileTree from './FileTree';
 import SearchBar from './SearchBar';
@@ -276,13 +276,8 @@ export default function EditorApp() {
   return (
     <div className="flex flex-col h-screen border-x border-border">
       {/* Header */}
-      <header className="flex items-center justify-between gap-3 px-4 py-2 border-b border-border bg-background shrink-0">
-        <div className="flex items-center gap-2">
-          <FileCode className="size-5 text-muted-foreground" />
-          <span className="text-sm font-semibold text-foreground">Vault Editor</span>
-        </div>
-
-        <div className="flex items-center gap-3">
+      <header className="grid grid-cols-3 items-center gap-3 px-4 py-2 border-b border-border bg-background shrink-0">
+        <div className="flex items-center justify-start gap-3">
           {langs.length > 0 && (
             <select
               className="h-8 rounded-lg border border-border bg-background px-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -292,7 +287,13 @@ export default function EditorApp() {
               {langs.map(l => <option key={l} value={l}>{l}</option>)}
             </select>
           )}
+        </div>
 
+        <div className="text-center">
+          <span className="text-sm font-semibold text-foreground">🐹 小记笔记编辑器</span>
+        </div>
+
+        <div className="flex items-center justify-end gap-3">
           <div className="flex items-center gap-1 rounded-lg border border-border p-0.5">
             <button
               className={'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ' + (mode === 'source' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}
@@ -302,7 +303,7 @@ export default function EditorApp() {
               }}
             >
               <Code className="size-3.5" />
-              Source
+              源码
             </button>
             <button
               className={'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ' + (mode === 'wysiwyg' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}
@@ -312,7 +313,7 @@ export default function EditorApp() {
               }}
             >
               <Eye className="size-3.5" />
-              WYSIWYG
+              直观
             </button>
           </div>
 
