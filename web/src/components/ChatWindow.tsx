@@ -11,7 +11,7 @@ function decodeBase64Audio(b64: string): string {
   return URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
 }
 
-export default function ChatWindow() {
+export default function ChatWindow({ embedded }: { embedded?: boolean }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([
     { id: uid(), text: '你好！我是小记🐹，你的 AI 外语老师。有什么可以帮你的吗？', from: 'bot' },
@@ -82,7 +82,7 @@ export default function ChatWindow() {
   }, [sessionId, task]);
 
   return (
-    <div className="flex flex-col h-full px-6 border-x border-border">
+    <div className={'flex flex-col h-full px-6 border-x border-border' + (embedded ? ' chat-embedded' : '')}>
       <header className="flex items-center gap-2 px-4 py-3 border-b border-border bg-background">
         <span className="text-xl">🐹</span>
         <h1 className="text-lg font-semibold text-foreground">小记</h1>

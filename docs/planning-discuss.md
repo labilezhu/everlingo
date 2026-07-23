@@ -4,7 +4,7 @@
 
 ---
 
-在 [Standalone Web Chatbot](docs/impl-spec/standalone-web-chatbot.md) 的 header 上，增加一个按钮 “笔记编辑器”，按下之后，跳转到 [Editor](docs/impl-spec/vault-editor.md)，即 '$host:/editor'
+在全窗口(非嵌入[Editor](docs/impl-spec/vault-editor.md)) 的 [Standalone Web Chatbot](docs/impl-spec/standalone-web-chatbot.md) 的 header 上，增加一个按钮 “笔记编辑器”，按下之后，跳转到 [Editor](docs/impl-spec/vault-editor.md)，即 '$host:/editor'
 
 
 ---

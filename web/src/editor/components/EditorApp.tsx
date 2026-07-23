@@ -518,7 +518,7 @@ export default function EditorApp() {
             className={'flex flex-col shrink-0 bg-background overflow-hidden ' + (chatOpen ? '' : 'hidden')}
             style={{ width: `${chatPct}%` }}
           >
-            <ChatWindow />
+            <ChatWindow embedded />
           </aside>
         )}
       </div>
