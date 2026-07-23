@@ -306,29 +306,6 @@ export default function EditorApp() {
         </div>
 
         <div className="flex items-center justify-end gap-3">
-          <div className="flex items-center gap-1 rounded-lg border border-border p-0.5">
-            <button
-              className={'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ' + (mode === 'source' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}
-              onClick={() => {
-                setMode('source');
-                localStorage.setItem('vault-editor:mode', 'source');
-              }}
-            >
-              <Code className="size-3.5" />
-              源码
-            </button>
-            <button
-              className={'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ' + (mode === 'wysiwyg' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}
-              onClick={() => {
-                setMode('wysiwyg');
-                localStorage.setItem('vault-editor:mode', 'wysiwyg');
-              }}
-            >
-              <Eye className="size-3.5" />
-              直观
-            </button>
-          </div>
-
           <button
             className={'inline-flex items-center gap-1 h-8 rounded-lg px-3 text-sm font-medium transition-all outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 ' + (chatOpen ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}
             onClick={() => {
@@ -346,18 +323,6 @@ export default function EditorApp() {
           >
             <ExternalLink className="size-4" />
             转到小记
-          </button>
-
-          <button
-            className="inline-flex items-center gap-1 h-8 rounded-lg px-3 text-sm font-medium transition-all outline-none disabled:opacity-40 disabled:pointer-events-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50
-              enabled:hover:bg-primary/80
-              enabled:active:translate-y-px
-              enabled:bg-primary enabled:text-primary-foreground"
-            disabled={!dirty || saving}
-            onClick={handleSave}
-          >
-            <Save className="size-4" />
-            {saving ? '保存中…' : '保存'}
           </button>
         </div>
       </header>
@@ -468,8 +433,41 @@ export default function EditorApp() {
         <main className="flex-1 flex flex-col overflow-hidden">
           {currentPath ? (
             <>
-              <div className="px-4 py-1.5 text-xs text-muted-foreground border-b border-border shrink-0 bg-muted/30 truncate">
-                {currentPath}
+              <div className="flex items-center gap-2 px-4 py-1 border-b border-border shrink-0 bg-muted/30">
+                <span className="flex-1 truncate text-xs text-muted-foreground">{currentPath}</span>
+                <div className="flex items-center gap-1 rounded-lg border border-border bg-background p-0.5">
+                  <button
+                    className={'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ' + (mode === 'source' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}
+                    onClick={() => {
+                      setMode('source');
+                      localStorage.setItem('vault-editor:mode', 'source');
+                    }}
+                  >
+                    <Code className="size-3.5" />
+                    源码
+                  </button>
+                  <button
+                    className={'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ' + (mode === 'wysiwyg' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}
+                    onClick={() => {
+                      setMode('wysiwyg');
+                      localStorage.setItem('vault-editor:mode', 'wysiwyg');
+                    }}
+                  >
+                    <Eye className="size-3.5" />
+                    直观
+                  </button>
+                </div>
+                <button
+                  className="inline-flex items-center gap-1 h-7 rounded-lg px-3 text-xs font-medium transition-all outline-none disabled:opacity-40 disabled:pointer-events-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50
+                    enabled:hover:bg-primary/80
+                    enabled:active:translate-y-px
+                    enabled:bg-primary enabled:text-primary-foreground"
+                  disabled={!dirty || saving}
+                  onClick={handleSave}
+                >
+                  <Save className="size-3.5" />
+                  {saving ? '保存中…' : '保存'}
+                </button>
               </div>
               <div className="flex-1 overflow-auto">
                 <MilkdownEditor

@@ -14,3 +14,4 @@
   - 2026-07-23 11:00 | editor header 改造：标题居中「🐹 小记笔记编辑器」去掉 svg 图标；模式切换文案 Source/WYSIWYG → 源码/直观；同步 editor.html 标题与 vault-editor.md 文档术语
   - 2026-07-23 12:00 | editor header 增加「呼叫小记」（右侧打开可调宽 chatbot 侧栏，session 常驻）与「转到小记」（跳转 /）按钮
   - 2026-07-23 14:00 | standalone chatbot header 增加「笔记编辑器」按钮，点击跳转 /editor；仅非 embedded 模式显示；更新设计文档
+  - 2026-07-23 15:00 | 将 editor header 上的「源码/直观」模式切换和「保存」按钮移至编辑区上方文件路径面板右侧；header 仅保留 lang selector、标题、呼叫小记、转到小记

@@ -1,4 +1,8 @@
 
+在 [Editor](docs/impl-spec/vault-editor.md) 的 search 条件中，可选的 tag 应许随笔记的 tag 的增加页可以同步变化。要在 tag 列表后，增加一个小刷新按钮吧
+
+--
+
 在 [Editor](docs/impl-spec/vault-editor.md) 的 page header 上的 源码/直观/保存 三个按键，移动到 editor 中显示当前打开的文件 path 的 panel 的右则上可以吗？
 
 ---
