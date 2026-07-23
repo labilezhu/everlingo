@@ -9,7 +9,7 @@ import type { Entry } from '@/editor/types/vault';
 function mergeChildren(entries: Entry[], dirPath: string, newChildren: Entry[]): Entry[] {
   return entries.map(entry => {
     if (entry.path === dirPath) {
-      return { ...entry, children: newChildren };
+      return { ...entry, children: newChildren, loaded: true };
     }
     if (entry.children && entry.children.length > 0) {
       return { ...entry, children: mergeChildren(entry.children, dirPath, newChildren) };

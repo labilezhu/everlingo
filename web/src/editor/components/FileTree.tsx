@@ -79,26 +79,24 @@ interface FileTreeNodeProps {
 function FileTreeNode({ entry, depth, selectedPath, onSelect, onLazyLoad, onCreateFile, onMkdir, onRename, onDelete }: FileTreeNodeProps) {
   const [expanded, setExpanded] = useState(depth === 0);
   const [loading, setLoading] = useState(false);
-  const loadedRef = useRef(false);
   const [inlineAction, setInlineAction] = useState<InlineAction | null>(null);
 
+  const needsLoad = !entry.loaded && (!entry.children || entry.children.length === 0);
+
   const handleDirClick = useCallback(async () => {
-    if (!expanded) {
-      setExpanded(true);
-      const needsLoad = !loadedRef.current && (!entry.children || entry.children.length === 0);
-      if (needsLoad) {
-        loadedRef.current = true;
-        setLoading(true);
-        try {
-          await onLazyLoad(entry.path);
-        } finally {
-          setLoading(false);
-        }
+    if (needsLoad) {
+      // 未加载（含刷新后 children 被重置为空壳的情况）：仅加载，不折叠
+      if (!expanded) setExpanded(true);
+      setLoading(true);
+      try {
+        await onLazyLoad(entry.path);
+      } finally {
+        setLoading(false);
       }
-    } else {
-      setExpanded(false);
+      return;
     }
-  }, [expanded, entry, onLazyLoad]);
+    setExpanded(e => !e);
+  }, [needsLoad, expanded, entry, onLazyLoad]);
 
   const isDir = entry.type === 'dir';
 

@@ -8,6 +8,8 @@ export interface Entry {
   path: string;
   type: 'dir' | 'file';
   children?: Entry[];
+  /** 懒加载标记：整树重拉（刷新 / 切语言）后会被重置，已加载目录重新展开时会再次按需请求 */
+  loaded?: boolean;
 }
 
 export interface TreeResp {

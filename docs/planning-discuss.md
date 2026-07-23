@@ -1,6 +1,16 @@
 
-计划一下：
- [Editor](docs/impl-spec/vault-editor.md)  的 file explorer 加入一个 header 工具栏，其中暂时只有一个刷新按钮，功能就是用户手工刷新 file explorer 内容。
+
+
+
+---
+
+在实现了以下功能后：
+[Editor](docs/impl-spec/vault-editor.md)  的 file explorer 加入一个 header 工具栏，其中暂时只有一个刷新按钮，功能就是用户手工刷新 file explorer 内容。
+发现一个问题：
+点 file exploer 上的刷新按钮后，未展开的目录，就再也展不开了。而用浏览器的 refresh 后，又恢复正常了。
+
+---
+
 
 计划一下：
  [Editor](docs/impl-spec/vault-editor.md) ： 
