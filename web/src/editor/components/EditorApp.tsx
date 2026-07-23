@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Code, Eye, Save, Search, FolderTree } from 'lucide-react';
+import { Code, Eye, Save, Search, FolderTree, MessageSquare, ExternalLink } from 'lucide-react';
 import { listLangs, tree, read, write, mkdir, deleteEntry, rename } from '@/editor/services/vaultApi';
 import FileTree from './FileTree';
 import SearchBar from './SearchBar';
 import MilkdownEditor from './MilkdownEditor';
+import ChatWindow from '@/components/ChatWindow';
 import type { Entry } from '@/editor/types/vault';
 
 function mergeChildren(entries: Entry[], dirPath: string, newChildren: Entry[]): Entry[] {
@@ -47,6 +48,17 @@ export default function EditorApp() {
       if (!isNaN(n)) return Math.min(50, Math.max(15, n));
     }
     return 22;
+  });
+
+  const [chatMounted, setChatMounted] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatPct, setChatPct] = useState(() => {
+    const saved = localStorage.getItem('vault-editor:chatPanePct');
+    if (saved) {
+      const n = parseFloat(saved);
+      if (!isNaN(n)) return Math.min(50, Math.max(20, n));
+    }
+    return 32;
   });
 
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -318,6 +330,25 @@ export default function EditorApp() {
           </div>
 
           <button
+            className={'inline-flex items-center gap-1 h-8 rounded-lg px-3 text-sm font-medium transition-all outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 ' + (chatOpen ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}
+            onClick={() => {
+              if (!chatMounted) setChatMounted(true);
+              setChatOpen(v => !v);
+            }}
+          >
+            <MessageSquare className="size-4" />
+            呼叫小记
+          </button>
+
+          <button
+            className="inline-flex items-center gap-1 h-8 rounded-lg px-3 text-sm font-medium transition-all outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 text-muted-foreground hover:text-foreground"
+            onClick={() => { window.location.href = '/'; }}
+          >
+            <ExternalLink className="size-4" />
+            转到小记
+          </button>
+
+          <button
             className="inline-flex items-center gap-1 h-8 rounded-lg px-3 text-sm font-medium transition-all outline-none disabled:opacity-40 disabled:pointer-events-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50
               enabled:hover:bg-primary/80
               enabled:active:translate-y-px
@@ -455,6 +486,41 @@ export default function EditorApp() {
             </div>
           )}
         </main>
+
+        {/* Right sidebar: resize handle */}
+        {chatMounted && (
+          <div
+            className={'w-1 shrink-0 cursor-col-resize hover:bg-ring/30 active:bg-ring/40 transition-colors ' + (chatOpen ? '' : 'hidden')}
+            onPointerDown={e => {
+              const container = bodyRef.current;
+              if (!container) return;
+              const rect = container.getBoundingClientRect();
+              const handlePointerMove = (ev: PointerEvent) => {
+                const pct = Math.min(50, Math.max(20, ((rect.right - ev.clientX) / rect.width) * 100));
+                setChatPct(pct);
+              };
+              const handlePointerUp = (ev: PointerEvent) => {
+                const pct = Math.min(50, Math.max(20, ((rect.right - ev.clientX) / rect.width) * 100));
+                setChatPct(pct);
+                localStorage.setItem('vault-editor:chatPanePct', String(pct));
+                document.removeEventListener('pointermove', handlePointerMove);
+                document.removeEventListener('pointerup', handlePointerUp);
+              };
+              document.addEventListener('pointermove', handlePointerMove);
+              document.addEventListener('pointerup', handlePointerUp);
+            }}
+          />
+        )}
+
+        {/* Right sidebar: chatbot */}
+        {chatMounted && (
+          <aside
+            className={'flex flex-col shrink-0 bg-background overflow-hidden ' + (chatOpen ? '' : 'hidden')}
+            style={{ width: `${chatPct}%` }}
+          >
+            <ChatWindow />
+          </aside>
+        )}
       </div>
     </div>
   );

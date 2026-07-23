@@ -14,14 +14,14 @@ Web 前端给用户一个可视化编辑 [Memory Vault](/src/everlingo/mem/vault
 三栏布局：
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ Header：lang selector  |  🐹 小记笔记编辑器  |  模式切换 (源码/直观)  |  保存    │
-├──────────┬──────────────────────────────────────────────────┤
-│          │                                                   │
-│  文件树  │              编辑区（Milkdown）                   │
-│  / 搜索  │                                                   │
-│ (可调宽) │                                                   │
-└──────────┴──────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ Header：lang selector  |  🐹 小记笔记编辑器  |  模式切换  |  呼叫小记  |  转到小记  |  保存  │
+├──────────┬──────────────────────────────────┬──────────────────────────────────┤
+│          │                                   │                                  │
+│  文件树  │           编辑区（Milkdown）       │    小记🐹 Chatbot 侧栏           │
+│  / 搜索  │                                   │   (可调宽, 常驻 session)         │
+│ (可调宽) │                                   │                                  │
+└──────────┴──────────────────────────────────┴──────────────────────────────────┘
 ```
 
 左栏宽度可调。两栏之间有一个 4px 拖拽手柄，hover 时变色并显示 `col-resize` 光标。拖拽通过 Pointer Events 实现，宽度按百分比记录到 localStorage（key `vault-editor:leftPanePct`，默认 22%，范围 15%-50%）。刷新/重开页面后恢复。
@@ -30,7 +30,17 @@ Web 前端给用户一个可视化编辑 [Memory Vault](/src/everlingo/mem/vault
 
 - **lang selector**：单选下拉，候选项来自 `GET /api/vault/langs`（底层 MCP `list_vaults`）。切换 lang 重新拉取文件树。
 - **模式切换**：源码 / 直观 两态 toggle，组件内持久化。
+- **呼叫小记**：toggle 按钮。首次按下时在右侧挂载 chatbot 侧栏（`ChatWindow` 组件，建 session + 连 SSE）；再次按下只 CSS 隐藏侧栏，**不卸载组件**（session 与 SSE 保持，下次打开延续会话）。选中态高亮 `bg-primary text-primary-foreground`。
+- **转到小记**：`window.location.href = '/'`，同窗跳转到 [Standalone Web Chatbot](standalone-web-chatbot.md) 独立入口。
 - **保存**：将当前编辑器内容 `POST /api/vault/{lang}/write`。未改动时禁用；改动未保存时按钮高亮 + 关闭/切文件前 confirm。
+
+#### 右侧 Chatbot 侧栏
+
+编辑器 body 区采用四栏布局（上图），最右侧为 chatbot 侧栏：
+
+- 组件直接复用 `ChatWindow`（来自 `@/components/ChatWindow`），其根节点 `h-full` 以适配 flex 子元素高度。
+- 首按「呼叫小记」时 `chatMounted=true`，组件常驻挂载；后续 toggle 仅通过 `hidden` class 控制显隐，session 与 SSE 持续保持。
+- 左边缘 4px 拖拽手柄（`cursor-col-resize`，Pointer Events），与左栏拖拽同模式。宽度按百分比记录到 localStorage（key `vault-editor:chatPanePct`，默认 32%，范围 20%–50%）。刷新/重开页面后恢复。
 
 ### 文件树（FileTree）
 
@@ -178,8 +188,9 @@ web/src/editor/
 ## 与 chatbot 的关系
 
 - 共用 HTTP server、origin、Vite 工程、shadcn/ui 组件库。
-- 不共享 React 状态、不共享 session：editor 无 session 概念，每次请求独立。
+- 不共享 React 状态：editor 与 chatbot 各为独立组件实例、独立 React 状态。
 - chatbot markdown 链接到 editor 见上「从 chatbot 跳入」。
+- editor → chatbot 反向链接：右侧 chatbot 侧栏（「呼叫小记」按钮 toggle）内嵌 `ChatWindow` 组件，首次打开时建 session，关闭仅隐藏不卸载，session 持续保持。
 
 ## 实现顺序（建议分 PR）
 
@@ -201,7 +212,6 @@ web/src/editor/
 
 - frontmatter 表单化编辑（后续迭代）。
 - 命中块 `chunk.char_offset` 滚动到对应段（后续迭代）。
-- editor → chatbot 反向链接（需独立 session 设计）。
 - 多 tab 并发不同 lang 的 per-tab MCP stream。
 - 自动保存 / 协作编辑 / 版本历史。
 - 图片上传与预览（vault 当前 spec 未涉及图片）。

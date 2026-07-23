@@ -82,7 +82,7 @@ export default function ChatWindow() {
   }, [sessionId, task]);
 
   return (
-    <div className="flex flex-col h-screen px-6 border-x border-border">
+    <div className="flex flex-col h-full px-6 border-x border-border">
       <header className="flex items-center gap-2 px-4 py-3 border-b border-border bg-background">
         <span className="text-xl">🐹</span>
         <h1 className="text-lg font-semibold text-foreground">小记</h1>
