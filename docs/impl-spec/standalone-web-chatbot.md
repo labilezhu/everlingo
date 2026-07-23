@@ -15,6 +15,9 @@ Web 前端给用户，一个 Chatbot 的聊天界面。支持 markdown 格式消
 
 消息内容主要是 markdown 文本，markdown 文本消息需要在界面渲染。
 
+### Header
+
+全窗口模式（非 embedded）下，header 右侧显示「笔记编辑器」按钮，点击同窗跳转至 `/editor`（[Vault Editor](vault-editor.md) 入口）。embedded 模式（editor 右侧侧栏）下不显示该按钮。
 
 小记🐹正在思考的提示：
 - 在用户发送消息后，“发送” 按钮变为一个轻微的脉冲动画以提示"正在思考中"。在收到回复消息后还原。不要使用现有的前端的 thinking 机制。

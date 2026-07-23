@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { NotebookPen } from 'lucide-react';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
 import TaskSelector from './TaskSelector';
+import { Button } from '@/components/ui/button';
 import { createSession, sendMessage, connectSSE, buildEnvelope } from '@/services/sseClient';
 import type { TaskKind, SSEEvent } from '@/types/chat';
 import { Message, uid } from '@/types/chat';
@@ -83,9 +85,17 @@ export default function ChatWindow({ embedded }: { embedded?: boolean }) {
 
   return (
     <div className={'flex flex-col h-full px-6 border-x border-border' + (embedded ? ' chat-embedded' : '')}>
-      <header className="flex items-center gap-2 px-4 py-3 border-b border-border bg-background">
-        <span className="text-xl">🐹</span>
-        <h1 className="text-lg font-semibold text-foreground">小记</h1>
+      <header className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border bg-background">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">🐹</span>
+          <h1 className="text-lg font-semibold text-foreground">小记</h1>
+        </div>
+        {!embedded && (
+          <Button variant="ghost" size="sm" onClick={() => { window.location.href = '/editor'; }}>
+            <NotebookPen />
+            笔记编辑器
+          </Button>
+        )}
       </header>
 
       <TaskSelector task={task} onChange={setTask} />

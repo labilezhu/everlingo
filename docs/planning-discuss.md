@@ -1,3 +1,8 @@
+
+在 [Editor](docs/impl-spec/vault-editor.md) 的 page header 上的 源码/直观/保存 三个按键，移动到 editor 中显示当前打开的文件 path 的 panel 的右则上可以吗？
+
+---
+
 在 [Editor](docs/impl-spec/vault-editor.md) 的 page header 上增加： 
 - 一个按钮 “呼叫小记”，按下之后，在 page 右边栏打开一个可调宽度的 [Standalone Web Chatbot](docs/impl-spec/standalone-web-chatbot.md)
 - 一个按钮 “转到小记”，按下之后，跳转到 [Standalone Web Chatbot](docs/impl-spec/standalone-web-chatbot.md)，即 '$host:/'
