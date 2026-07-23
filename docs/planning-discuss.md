@@ -1,7 +1,21 @@
 
+[Editor](docs/impl-spec/vault-editor.md) 
+- editor 有两种编辑模式: Source & WYSIWYG 。 要界面中用这么专业的术语不好，请修改成 ： 源码 & 直观
 
+- editor page header 标题文字修改
+```html
+<div class="flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-code size-5 text-muted-foreground" aria-hidden="true"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"></path><path d="M14 2v5a1 1 0 0 0 1 1h5"></path><path d="M10 12.5 8 15l2 2.5"></path><path d="m14 12.5 2 2.5-2 2.5"></path></svg><span class="text-sm font-semibold text-foreground">Vault Editor</span></div>
+```
 
+---
 
+在 [Editor](docs/impl-spec/vault-editor.md) 的 WYSIWYG 编辑模式下，当 markdown 文档编辑区域获得 focuse 时，辑区域区域会被画上一个灰色的框：
+Chrome DevTools 看到
+<div contenteditable="true" translate="no" class="ProseMirror editor" role="textbox">
+变成了
+<div contenteditable="true" translate="no" class="ProseMirror editor ProseMirror-focused" role="textbox">
+
+我的想法是，能不能不要这个灰色的框？ 即不要修改上面的 css class 了。
 ---
 
 在实现了以下功能后：

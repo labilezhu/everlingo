@@ -48,6 +48,10 @@ function WysiwygEditor({ content, onChange }: { content: string; onChange: (v: s
             font-family: 'Geist Variable', sans-serif;
             font-size: 0.875rem;
             line-height: 1.625;
+          }
+          .ProseMirror,
+          .ProseMirror:focus,
+          .ProseMirror:focus-visible {
             outline: none;
           }
           [data-milkdown-root] h1 { font-size: 1.5rem; font-weight: 700; margin: 0.5em 0 0.25em; }
