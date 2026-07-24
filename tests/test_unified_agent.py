@@ -404,6 +404,79 @@ class TestEnvelopeSpecInjection:
         assert "偏向查单词" in prompt or "偏向翻译" in prompt
 
 
+# ── 笔记文件地址链接格式（PR 2）──────────────────────────────────────
+
+
+class TestNoteFileLinkFormat:
+    """ref: chat-agent-spec.md — 笔记文件地址的输出格式（链接到 editor）"""
+
+    BASE_URL = "https://example.test:8443"
+
+    def test_basic_config_includes_target_lang_code_and_public_base_url(
+        self, zh_en_profile, default_channel_metadata,
+    ):
+        """## 基本配置 节应含 target_lang_code 与 public_address_base_url 两行。"""
+        prompt = _build_system_prompt(
+            zh_en_profile, "", default_channel_metadata,
+            public_address_base_url=self.BASE_URL,
+        )
+        assert "## 基本配置" in prompt
+        assert "- target_lang_code: en" in prompt
+        assert f"- public_address_base_url (浏览器访问地址) : {self.BASE_URL}" in prompt
+
+    def test_basic_config_shows_empty_value_when_not_provided(
+        self, zh_en_profile, default_channel_metadata,
+    ):
+        """未传 public_address_base_url 时，行仍存在（值为空）。"""
+        prompt = _build_system_prompt(zh_en_profile, "", default_channel_metadata)
+        assert "## 基本配置" in prompt
+        assert "- target_lang_code: en" in prompt
+        assert "- public_address_base_url (浏览器访问地址) : " in prompt
+
+    def test_vault_section_includes_link_instruction_when_vault_online(
+        self, zh_en_profile, default_channel_metadata,
+    ):
+        """vault_available=True 时，## 笔记 Vault / 知识库 节应含链接格式指引，
+        示例 URL 含 public_address_base_url 与 target_lang_code。"""
+        prompt = _build_system_prompt(
+            zh_en_profile, "", default_channel_metadata,
+            vault_available=True,
+            public_address_base_url=self.BASE_URL,
+        )
+        assert "### 笔记文件地址的输出格式" in prompt
+        # 示例 URL 应包含 base_url 与 lang=en 与 url-encoded path
+        assert f"{self.BASE_URL}/editor?lang=en&path=items%2Fidiom%2Feating-your-own-dog-food.md" in prompt
+        # 指引文本应说明各参数来源
+        assert "基本配置：public_address_base_url" in prompt
+        assert "基本配置：target_lang_code" in prompt
+        assert "URL encode" in prompt
+
+    def test_vault_section_link_instruction_absent_when_vault_offline(
+        self, zh_en_profile, default_channel_metadata,
+    ):
+        """vault_available=False 时，不应注入笔记文件地址链接格式子节。"""
+        prompt = _build_system_prompt(
+            zh_en_profile, "", default_channel_metadata,
+            vault_available=False,
+            public_address_base_url=self.BASE_URL,
+        )
+        assert "### 笔记文件地址的输出格式" not in prompt
+        # 离线提示节存在
+        assert "## 记忆库访问" in prompt
+
+    def test_link_instruction_uses_target_lang_code_not_display_name(
+        self, zh_ja_profile, default_channel_metadata,
+    ):
+        """示例 URL 中 lang 参数用语言代码（ja），不是 display name（日本語）。"""
+        prompt = _build_system_prompt(
+            zh_ja_profile, "", default_channel_metadata,
+            vault_available=True,
+            public_address_base_url="http://localhost:8000",
+        )
+        assert "lang=ja" in prompt
+        assert "lang=日本語" not in prompt
+
+
 @pytest.mark.integration
 def test_multi_turn_conversation(agent_zh_en):
     """测试多轮会话：第二轮引用第一轮的上下文"""

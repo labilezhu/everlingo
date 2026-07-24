@@ -34,7 +34,7 @@ from ..mem.agents.mem_writer_mcp_client import (
     mcp_vault_connection,
 )
 from ..models import LANGUAGES, UserProfile
-from ..setting import load_profile, load_user_doc, prompt_input_mtime
+from ..setting import load_profile, load_user_doc, prompt_input_mtime, get_web_public_base_url
 from ..tools.conf_manager import get_config_version
 from ..tools.tools import build_tools
 from ..utils.md_prompt_compiler import shift_headings
@@ -202,14 +202,16 @@ def _render_context_messages(messages) -> str:
 def _build_system_prompt(
     profile: UserProfile, user_doc: str = "", channel_metadata: ChannelMetadata | None = None,
     vault_available: bool = False, envelope_spec_content: str | None = None,
+    public_address_base_url: str = "",
 ) -> str:
     """构建统一的 Agent system prompt，整合词典老师和翻译老师的功能。
 
     ref: /docs/impl-spec/chat-agent-spec.md — _build_system_prompt
-    ref: /docs/product/pro-chatbot.md — 用户意图分析 & 用户意图响应
+    ref: docs/product/pro-chatbot.md — 用户意图分析 & 用户意图响应
     """
     interface_lang = _lang_display_name(profile.language.interface_language)
     target_lang = _lang_display_name(profile.language.target_language)
+    target_lang_code = profile.language.target_language
 
     prompt = f"""你是 EverLingo 语言学习助手，你的名字叫 "小记"，头像是: 🐹。
 你主要功能是针对用户的个性化偏好，解答用户在 {target_lang} 语言方面的问题。教学时，回复或发送消息给用户时，要充分考虑**用户熟识的语言是：{interface_lang} **。
@@ -240,6 +242,8 @@ def _build_system_prompt(
 当前生效配置包括：
 - 界面语言(interface_lang): {interface_lang}
 - 目标学习语言(target_lang): {target_lang}
+- target_lang_code: {target_lang_code}
+- public_address_base_url (浏览器访问地址) : {public_address_base_url}
 
 ## 个性化偏好 USER.md 配置
 用户表达个性化偏好的自由 markdown 格式文件，内容可以包括：职业、爱好、性别、地区、年龄、学习目标、释义偏好、翻译偏好等。
@@ -418,11 +422,24 @@ OR
 
     # 记忆库只读访问（vault 工具）
     if vault_available:
-        prompt += """
+        prompt += f"""
 ## 笔记 Vault / 知识库 
 
 笔记 Vault / 知识库，是由 markdown 文件、结构化目录组成的 memory vault。 用于记录用户的语言学习事件和语言知识点。
 在你考虑发起 笔记 Vault 相关的任何动作前，你必须先了解 vault 结构。如果你不了解 vault 结构，必须先 vault_mcp_read(path="spec/vault_spec.md") 学习 vault 规范。 `spec/vault_spec.md` 文件链接到其它子规范 md 文件，请按需要读取。
+
+### 笔记文件地址的输出格式
+
+当回复中需要提及笔记文件地址（file_path）时，使用 markdown link 格式输出，让用户点击后直接打开编辑器。
+
+例如 file_path 为 `items/idiom/eating-your-own-dog-food.md` 时，输出：
+`[items/idiom/eating-your-own-dog-food.md]({public_address_base_url}/editor?lang={target_lang_code}&path=items%2Fidiom%2Feating-your-own-dog-food.md)`
+
+其中：
+- 链接显示文本是原始的 file_path
+- URL 的 origin 部分（`{public_address_base_url}`）来自 基本配置：public_address_base_url
+- `lang` 参数的值（`{target_lang_code}`）来自 基本配置：target_lang_code
+- `path` 参数的值是 原始的 file_path 进行 URL encode 后的结果（`/` 编码为 `%2F`，`.` 等保持不变）
 
 ### 笔记读取和浏览
 
@@ -716,6 +733,7 @@ class MainAgent:
             channel_name=self._channel_metadata.name,
         )
         self._tools = list(self._tools_base) + [extract_tool, memory_writer_tool] + list(self._vault_tools)
+        public_base_url = get_web_public_base_url()
         self._agent = create_agent(
             self._llm,
             tools=self._tools,
@@ -723,6 +741,7 @@ class MainAgent:
                 profile, user_doc, self._channel_metadata,
                 vault_available=bool(self._vault_tools),
                 envelope_spec_content=envelope_spec_content,
+                public_address_base_url=public_base_url,
             ),
         )
         self._config_version = current_version

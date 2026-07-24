@@ -138,6 +138,18 @@ vault 离线时改为：
 记忆库暂不可用，请告知用户稍后再试。
 ```
 
+### 笔记文件地址的输出格式（链接到 editor）
+
+当 vault 在线时，system prompt 在 `## 笔记 Vault / 知识库` 节内新增 `### 笔记文件地址的输出格式` 子节，指引 LLM 在回复中提及笔记文件地址时输出 markdown link，点击后跳转到 [Vault Editor](vault-editor.md)。
+
+链接格式：`[<file_path>](<public_address_base_url>/editor?lang=<target_lang_code>&path=<urlencoded_path>)`
+
+- `public_address_base_url`：来自运行期生效配置 `plugins.channels.channel_web.public_address.base_url`（空值时由 listener 自动生成），通过 `setting.get_web_public_base_url()` 获取，`_refresh_agent_if_needed()` 重建 agent 时传入 `_build_system_prompt(public_address_base_url=...)`
+- `target_lang_code`：`profile.language.target_language`（如 `en`），与基本配置中的 `target_lang_code` 一致
+- `path`：原始 `file_path` 经 URL encode（`/` → `%2F`），`.` 等保持不变
+
+`_build_system_prompt()` 同时在 `## 基本配置` 节新增两行 `target_lang_code` 与 `public_address_base_url`，供 LLM 引用。该行总显示（含空值场景）。
+
 ## 记忆抽取触发
 
 Chat Agent 通过 `request_memory_extraction` 工具**显式触发**记忆写入。不调用工具 → 本轮不触发写入，游标正常推进，内容自然成为后续轮次的 context_messages。
