@@ -43,3 +43,14 @@ user_profile:
 # 由用户通过聊天（Agent 调用 user_doc 工具）或外部编辑器维护。
 # 内容会被注入到 Agent 的 system prompt，用于个性化查词/翻译/答疑。
 # 示例内容见 /USER.example.md
+
+
+  plugins:
+    channels:
+      channel_web: # Web Session Acceptor 配置
+        listener: # 监听地址
+          port: 8000 # 默认 8000
+          interface: 0.0.0.0  # 默认 0.0.0.0
+        public_address: # 浏览器访问地址。如外网或 https 反向代理访问时配置
+          base_url: http://localhost:8000 # 默认 用上面的 listener 的生效配置生成： http://$interface:$port
+

@@ -96,3 +96,4 @@ Web Session Acceptor 产生的 Session 需要有超时回收机制，防止用�
 - `session %s: ABSOLUTE_IDLE_TIMEOUT (idle %.0fs)`
 
 `Session._channel_listener` 在产生 `QuitEvent` 时也输出 info 日志：`session %s: channel closed, posting QuitEvent`。
+

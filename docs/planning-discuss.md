@@ -1,4 +1,66 @@
 
+## 需求
+为 [Chat Agent](docs/impl-spec/chat-agent-spec.md) 的输出的消息内笔记 file path 部分内容，加上 到 [Vault Editor](docs/impl-spec/vault-editor.md) 的 link 。
+
+## 设计
+
+当前，我们只考虑 PR1 的设计和实现。但设计时要顾及以后。
+
+### PR 1: 加入配置项
+
+见：everlingo.example.yaml:48 :
+```yaml
+  plugins:
+    channels:
+      channel_web: # Web Session Acceptor 配置
+        listener: # 监听地址
+          port: 8000 # 默认 8000
+          interface: 0.0.0.0  # 默认 0.0.0.0
+        public_address: # 浏览器访问地址。如外网或 https 反向代理访问时配置 。用于 Chat Agent 消息 link 到 Vault Editor
+          base_url: http://localhost:8000 # 默认 用上面的 listener 的生效配置生成： http://$interface:$port
+```
+
+- 同步修改文档： user-docs/reference/configuration.md 与 docs/impl-spec/web-session-acceptor.md 
+- 修改相关配置加载和使用的代码
+
+### PR 2: Chat Agent 输出笔记文件地址时，包含到 editor 的 link (后端)
+
+
+
+[Chat Agent](docs/impl-spec/chat-agent-spec.md) 的 src/everlingo/agents/agent.py 的 system prompt 插入：
+- `## 基本配置` 下插入： 
+    ```markdown
+    - public_address_base_url (浏览器访问地址) : 运行期的生效配置
+    ```
+- `## 笔记 Vault / 知识库 ` 下插入：
+    ```markdown
+    输出笔记文件地址时使用 markdown link 。 格式是: `[file_path](http://localhost:8000/editor?lang=en&path=items%2Fidiom%2Feating-your-own-dog-food.md)`。 其中 
+    - http://localhost:8000 来自 基本配置：public_address_base_url
+    - lang 的值来自 基本配置：target_lang
+    - path 的值是 原始的 file_path 进行 url encode 后的结果
+    ```
+
+### PR 3: Chat Agent 输出笔记文件地址时，包含到 editor 的 link (前端)
+
+需求：
+
+[Web Chatbot](docs/impl-spec/standalone-web-chatbot.md) 在用户点击消息中的链接时：
+- 如果是 Web Chatbot 嵌入到 [Vault Editor](docs/impl-spec/vault-editor.md) 时，把 链接 url 传给 Vault Editor 。 Vault Editor 收到后，打开文件。
+- 其它情况下，默认是在浏览器新窗口(Tab) 打开链接
+
+设计：
+
+浏览器里的 Web Chatbot 不应该直接依赖于 Vault Editor 。 应该是 Web Chatbot 提供一个 addLinkListener 接口，让 Vault Editor 在初始化嵌入 的 Web Chatbot 时注册。这个 LinkListener 的接口举例如下：
+```js
+bool/*true: 停止继续处理 link*/ onUserClickLink(url); 
+```
+当用户在 Web Chatbot 点击 link 时，先让调用 onUserClickLink 。当 onUserClickLink 返回 true 时，Web Chatbot 本身不再处理链接事件。
+
+Vault Editor 在收到事件后:
+1. 判断 URL origin 部分(如 http://localhost:8000) 是否与自身地址相同
+2. 相同的话，
+---
+
 在 [Editor](docs/impl-spec/vault-editor.md) 的 search 条件中，可选的 tag 应许随笔记的 tag 的增加页可以同步变化。要在 tag 列表后，增加一个小刷新按钮吧
 
 --
