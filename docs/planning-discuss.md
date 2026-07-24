@@ -53,7 +53,7 @@ plugins:
 
 需求：
 
-[Web Chatbot](docs/impl-spec/standalone-web-chatbot.md) 在用户点击消息中的链接时：
+[Web Chatbot](docs/impl-spec/web-chatbot.md) 在用户点击消息中的链接时：
 - 如果是 Web Chatbot 嵌入到 [Vault Editor](docs/impl-spec/vault-editor.md) 时，把 链接 url 传给 Vault Editor 。 Vault Editor 收到后，打开文件。
 - 其它情况下，默认是在浏览器新窗口(Tab) 打开链接
 
@@ -83,12 +83,12 @@ Vault Editor 在收到事件后:
 ---
 
 在 [Editor](docs/impl-spec/vault-editor.md) 的 page header 上增加： 
-- 一个按钮 “呼叫小记”，按下之后，在 page 右边栏打开一个可调宽度的 [Standalone Web Chatbot](docs/impl-spec/standalone-web-chatbot.md)
-- 一个按钮 “转到小记”，按下之后，跳转到 [Standalone Web Chatbot](docs/impl-spec/standalone-web-chatbot.md)，即 '$host:/'
+- 一个按钮 “呼叫小记”，按下之后，在 page 右边栏打开一个可调宽度的 [Standalone Web Chatbot](docs/impl-spec/web-chatbot.md)
+- 一个按钮 “转到小记”，按下之后，跳转到 [Standalone Web Chatbot](docs/impl-spec/web-chatbot.md)，即 '$host:/'
 
 ---
 
-在全窗口(非嵌入[Editor](docs/impl-spec/vault-editor.md)) 的 [Standalone Web Chatbot](docs/impl-spec/standalone-web-chatbot.md) 的 header 上，增加一个按钮 “笔记编辑器”，按下之后，跳转到 [Editor](docs/impl-spec/vault-editor.md)，即 '$host:/editor'
+在全窗口(非嵌入[Editor](docs/impl-spec/vault-editor.md)) 的 [Standalone Web Chatbot](docs/impl-spec/web-chatbot.md) 的 header 上，增加一个按钮 “笔记编辑器”，按下之后，跳转到 [Editor](docs/impl-spec/vault-editor.md)，即 '$host:/editor'
 
 
 ---
@@ -161,16 +161,16 @@ EverLingo 会由用户产生大量的 markdown 格式的笔记文件 [Vault](src
 - UI：要带 文件树 + 搜索。
 
 设计要点：
-- 与 现有的 [Standalone Web Chatbot](docs/impl-spec/standalone-web-chatbot.md) 共用一个 http server，服务 编辑器的静态网页部分和 API/MCP 转发部分。即 http://localhost:8000/
+- 与 现有的 [Standalone Web Chatbot](docs/impl-spec/web-chatbot.md) 共用一个 http server，服务 编辑器的静态网页部分和 API/MCP 转发部分。即 http://localhost:8000/
 - 文件读写走哪条路径？ http://localhost:8000/mcp -> python 后端简单转发 -> [Indexer: Vault MCP Spec](docs/impl-spec/vault-mcp/vault-mcp-spec.md)。 前端 JS 不直接访问 Indexer MCP 。 由后端转发
-- 前端的技术 stack 类似 ： docs/impl-spec/standalone-web-chatbot.md
+- 前端的技术 stack 类似 ： docs/impl-spec/web-chatbot.md
 - 你看看： 编辑器的前端代码，是否与 Standalone Web Chatbot 放在一起？
 
 
 ---
 
 
-我改变主意了，Markdown 笔记浏览和编辑，应该和 [Standalone Web Chatbot](docs/impl-spec/standalone-web-chatbot.md) 有界面上的整合交互（以后可能会在同一网页，现在是 Chatbot 可以产生 link 到 markdown 笔记的链接。所以，笔记浏览和编辑的功能，还是和 Standalone Web Chatbot 在同一个端口，同一个进程更合理？
+我改变主意了，Markdown 笔记浏览和编辑，应该和 [Standalone Web Chatbot](docs/impl-spec/web-chatbot.md) 有界面上的整合交互（以后可能会在同一网页，现在是 Chatbot 可以产生 link 到 markdown 笔记的链接。所以，笔记浏览和编辑的功能，还是和 Standalone Web Chatbot 在同一个端口，同一个进程更合理？
 
 ---
 
@@ -179,7 +179,7 @@ EverLingo 会由用户产生大量的 markdown 格式的笔记文件 [Vault](src
 
 ---
 
-为 [Standalone Web Chatbot](/docs/impl-spec/standalone-web-chatbot.md) 加入类似 [Chrome Extension — Web Sidecar](docs/impl-spec/chrome-extension-spec.md) 的 “翻译” “查词” “聊天” 单选按钮以方便用户准确方便地表达输入内容的意图。
+为 [Standalone Web Chatbot](/docs/impl-spec/web-chatbot.md) 加入类似 [Chrome Extension — Web Sidecar](docs/impl-spec/chrome-extension-spec.md) 的 “翻译” “查词” “聊天” 单选按钮以方便用户准确方便地表达输入内容的意图。
 
 ---
 

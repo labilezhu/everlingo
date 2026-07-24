@@ -836,7 +836,7 @@ export default function TaskSelector({
 
 消息内容中的 markdown 链接由 `react-markdown` 渲染为 `<a>`，默认 `target="_blank" rel="noopener noreferrer"`（新 Tab 打开）。
 
-与 [Standalone Web Chatbot](./standalone-web-chatbot.md) 不同的是，Chrome Extension sidecar 不引入 `LinkListenerContext` 机制：
+与 [Standalone Web Chatbot](./web-chatbot.md) 不同的是，Chrome Extension sidecar 不引入 `LinkListenerContext` 机制：
 - sidecar 没有"被宿主应用嵌入"的场景
 - 所有链接统一在新 Tab 打开，无拦截需求
 - 这是两仓组件演进方向逐渐分歧的预期结果（参见 §2）

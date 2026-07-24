@@ -1,15 +1,19 @@
-# Chrome Extension — Web Sidecar
+# 
 
 - 相关文档：
   - [Chrome Extension 实现详细设计](chrome-extension-impl-spec.md)
   - [Envelope 结构化用户输入协议](envelope-spec.md)
   - [Web Session Acceptor](web-session-acceptor.md)
-  - [Standalone Web Chatbot](standalone-web-chatbot.md)
+  - [Web Chatbot](web-chatbot.md)
   - [Chat Agent](chat-agent-spec.md)
   - [Channel](channel.md)
   - [Session](session.md)
 
 ---
+
+## 同步修改 Web Chatbot
+
+每次修改 Chrome Extension — Web Sidecar 时，都需要考虑是否同步修改功能相近的 [Web Chatbot](web-chatbot.md)。
 
 ## 1. 背景与目标
 
@@ -225,7 +229,7 @@ sidecar panel 收到响应:
 | `popup` | 独立弹窗（未来） |
 | `fullscreen` | 整页 web chatbot（即现有 `web/` 前端） |
 
-`SourceWeb.surface` 默认值为 `"fullscreen"`，使 standalone web chatbot 发的 envelope（`source.kind=web` + `source.surface=fullscreen`）与 Chrome Extension sidecar（`source.surface=sidecar`）天然区分。详见 [standalone-web-chatbot.md — Envelope 字段填充规则](standalone-web-chatbot.md)。
+`SourceWeb.surface` 默认值为 `"fullscreen"`，使 standalone web chatbot 发的 envelope（`source.kind=web` + `source.surface=fullscreen`）与 Chrome Extension sidecar（`source.surface=sidecar`）天然区分。详见 [web-chatbot.md — Envelope 字段填充规则](web-chatbot.md)。
 
 ### 6.3 `context.text` 提取算法
 
@@ -290,7 +294,7 @@ function isBlockElement(el: Element | null): boolean {
 ### 7.1 布局
 
 - 固定窄宽度：约 380px（Chrome sidePanel 默认宽度）
-- 复用 [standalone-web-chatbot.md](standalone-web-chatbot.md) 的设计规范：Chatbot 名"小记🐹"、markdown 渲染、发送按钮脉冲动画等
+- 复用 [web-chatbot.md](web-chatbot.md) 的设计规范：Chatbot 名"小记🐹"、markdown 渲染、发送按钮脉冲动画等
 - 与 `web/` chatbox 的差异：不跟随窗口宽度动态调整（sidecar 宽度由 Chrome 决定）
 
 ### 7.2 交互
@@ -304,7 +308,7 @@ function isBlockElement(el: Element | null): boolean {
 
 ### 7.3 技术栈
 
-复用 [standalone-web-chatbot.md — 前端技术选型](standalone-web-chatbot.md)：Vite + React + TailwindCSS + shadcn/ui + react-markdown。打包为 CRX 时用 `@crxjs/vite-plugin` 或类似工具。
+复用 [web-chatbot.md — 前端技术选型](web-chatbot.md)：Vite + React + TailwindCSS + shadcn/ui + react-markdown。打包为 CRX 时用 `@crxjs/vite-plugin` 或类似工具。
 
 ### 7.4 UI message history 持久化
 

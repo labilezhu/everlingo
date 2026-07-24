@@ -1,10 +1,14 @@
-# Standalone Web Chatbot
+# Web Chatbot
 
 Web 前端给用户，一个 Chatbot 的聊天界面。支持 markdown 格式消息的渲染。
 
 成功连接 Chatbot 后端后，session id 将作为前后端建立连接时的标识。
 
 前端代码，静态网页文件位于目录 `/web` 中。
+
+## 同步修改 Web Chatbot
+
+每次修改 Web Chatbot 时，都需要考虑是否同步修改功能相近的 [Chrome Extension — Web Sidecar](docs/impl-spec/chrome-extension-spec.md)。
 
 ## 通用界面设计风格
 尺寸大小：

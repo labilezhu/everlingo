@@ -4,10 +4,10 @@ Web 前端给用户一个可视化编辑 [Memory Vault](/src/everlingo/mem/vault
 
 编辑器入口 URL：`http://localhost:8000/editor`。
 
-与 [Standalone Web Chatbot](/docs/impl-spec/standalone-web-chatbot.md) 共用同一 HTTP server（[Web Session Acceptor](/docs/impl-spec/web-session-acceptor.md)），同一 origin，不同前端入口。前端代码位于同一 Vite 工程 `/web`，多入口构建。
+与 [Standalone Web Chatbot](/docs/impl-spec/web-chatbot.md) 共用同一 HTTP server（[Web Session Acceptor](/docs/impl-spec/web-session-acceptor.md)），同一 origin，不同前端入口。前端代码位于同一 Vite 工程 `/web`，多入口构建。
 
 ## 通用界面设计风格
-沿用 [Standalone Web Chatbot §通用界面设计风格](/docs/impl-spec/standalone-web-chatbot.md)：主可视区域宽度跟随窗口动态调整，左右边缘适当留白。
+沿用 [Standalone Web Chatbot §通用界面设计风格](/docs/impl-spec/web-chatbot.md)：主可视区域宽度跟随窗口动态调整，左右边缘适当留白。
 
 ## 编辑器界面设计
 
@@ -31,7 +31,7 @@ Web 前端给用户一个可视化编辑 [Memory Vault](/src/everlingo/mem/vault
 - **lang selector**：单选下拉，候选项来自 `GET /api/vault/langs`（底层 MCP `list_vaults`）。切换 lang 重新拉取文件树。
 - **模式切换**：源码 / 直观 两态 toggle，组件内持久化。
 - **呼叫小记**：toggle 按钮。首次按下时在右侧挂载 chatbot 侧栏（`ChatWindow` 组件，建 session + 连 SSE）；再次按下只 CSS 隐藏侧栏，**不卸载组件**（session 与 SSE 保持，下次打开延续会话）。选中态高亮 `bg-primary text-primary-foreground`。
-- **转到小记**：`window.location.href = '/'`，同窗跳转到 [Standalone Web Chatbot](standalone-web-chatbot.md) 独立入口。
+- **转到小记**：`window.location.href = '/'`，同窗跳转到 [Standalone Web Chatbot](web-chatbot.md) 独立入口。
 - **保存**：将当前编辑器内容 `POST /api/vault/{lang}/write`。未改动时禁用；改动未保存时按钮高亮 + 关闭/切文件前 confirm。
 
 #### 右侧 Chatbot 侧栏
@@ -112,7 +112,7 @@ editor app 启动时读 `location.search`：
 
 ## 前端技术选型
 
-沿用 [Standalone Web Chatbot §前端技术选型](/docs/impl-spec/standalone-web-chatbot.md)：Vite + React + TailwindCSS + shadcn/ui + react-markdown。
+沿用 [Standalone Web Chatbot §前端技术选型](/docs/impl-spec/web-chatbot.md)：Vite + React + TailwindCSS + shadcn/ui + react-markdown。
 
 新增编辑器专用依赖：
 - `@milkdown/kit`
