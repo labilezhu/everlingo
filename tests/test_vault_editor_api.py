@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -105,7 +106,7 @@ class TestListLangs:
 
 
 class TestTree:
-    def test_returns_entries(self, client: TestClient):
+    def test_returns_entries(self, client: TestClient, tmp_path: Path):
         session = AsyncMock()
         mcp_data = {
             "path": "",
@@ -117,15 +118,21 @@ class TestTree:
         }
         session.call_tool = AsyncMock(return_value=_fake_result(mcp_data))
         p1, p2 = _patch_ctx(session)
+        p3_vault = patch(
+            "everlingo.gateway.vault_editor_api.lang_vault_dir",
+            return_value=tmp_path / "fake-vault",
+        )
+        p3_vault.start()
         try:
             resp = client.get("/api/vault/en/tree")
             assert resp.status_code == 200
+            # _inject_titles 对无 index.md 的空目录不会注入 title
             assert resp.json() == mcp_data
-            # Verify configure was called with correct lang
             session.call_tool.assert_awaited_with("tree", {"path": "", "depth": 2})
         finally:
             p1.stop()
             p2.stop()
+            p3_vault.stop()
 
     def test_filters_tmp_by_default(self, client: TestClient):
         session = AsyncMock()
@@ -583,3 +590,198 @@ class TestErrorMapping:
         finally:
             p1.stop()
             p2.stop()
+
+
+# ── Tree title injection ─────────────────────────────────────────
+
+
+class TestTreeTitle:
+    """_inject_titles 从 frontmatter 提取 title 注入 tree 响应。"""
+
+    _MCP_TREE = {
+        "path": "",
+        "depth": 2,
+        "entries": [],
+    }
+
+    def _setup(
+        self,
+        client: TestClient,
+        tmp_path: Path,
+        entries: list[dict],
+        name: str = "en",
+    ) -> tuple[Any, Any, Any]:
+        vault_root = tmp_path / name
+        vault_root.mkdir(parents=True)
+
+        mcp_data = {**self._MCP_TREE, "entries": entries}
+        session = AsyncMock()
+        session.call_tool = AsyncMock(return_value=_fake_result(mcp_data))
+        p1, p2 = _patch_ctx(session)
+        p3 = patch(
+            "everlingo.gateway.vault_editor_api.lang_vault_dir",
+            return_value=vault_root,
+        )
+        p3.start()
+        return vault_root, (p1, p2, p3)
+
+    def _teardown(self, patches: tuple[Any, Any, Any]) -> None:
+        for p in patches:
+            p.stop()
+
+    def test_file_with_title(self, client: TestClient, tmp_path: Path):
+        vault_root, patches = self._setup(
+            client,
+            tmp_path,
+            [{"name": "god.md", "path": "god.md", "type": "file"}],
+        )
+        try:
+            (vault_root / "god.md").write_text(
+                "---\ntitle: God 名词辨析\n---\n\nGod 的用法..."
+            )
+            resp = client.get("/api/vault/en/tree")
+            assert resp.status_code == 200
+            entry = resp.json()["entries"][0]
+            assert entry["title"] == "God 名词辨析"
+        finally:
+            self._teardown(patches)
+
+    def test_file_without_frontmatter(self, client: TestClient, tmp_path: Path):
+        vault_root, patches = self._setup(
+            client,
+            tmp_path,
+            [{"name": "no-fm.md", "path": "no-fm.md", "type": "file"}],
+        )
+        try:
+            (vault_root / "no-fm.md").write_text("Just content without frontmatter")
+            resp = client.get("/api/vault/en/tree")
+            assert resp.status_code == 200
+            assert "title" not in resp.json()["entries"][0]
+        finally:
+            self._teardown(patches)
+
+    def test_file_without_title_field(self, client: TestClient, tmp_path: Path):
+        vault_root, patches = self._setup(
+            client,
+            tmp_path,
+            [{"name": "a.md", "path": "a.md", "type": "file"}],
+        )
+        try:
+            (vault_root / "a.md").write_text(
+                "---\ntags: [test]\n---\n\nbody here"
+            )
+            resp = client.get("/api/vault/en/tree")
+            assert resp.status_code == 200
+            assert "title" not in resp.json()["entries"][0]
+        finally:
+            self._teardown(patches)
+
+    def test_file_with_empty_title(self, client: TestClient, tmp_path: Path):
+        vault_root, patches = self._setup(
+            client,
+            tmp_path,
+            [{"name": "b.md", "path": "b.md", "type": "file"}],
+        )
+        try:
+            (vault_root / "b.md").write_text(
+                "---\ntitle: \n---\n\na note"
+            )
+            resp = client.get("/api/vault/en/tree")
+            assert resp.status_code == 200
+            assert "title" not in resp.json()["entries"][0]
+        finally:
+            self._teardown(patches)
+
+    def test_non_md_file(self, client: TestClient, tmp_path: Path):
+        vault_root, patches = self._setup(
+            client,
+            tmp_path,
+            [{"name": "data.json", "path": "data.json", "type": "file"}],
+        )
+        try:
+            (vault_root / "data.json").write_text('{"title": "should not appear"}')
+            resp = client.get("/api/vault/en/tree")
+            assert resp.status_code == 200
+            assert "title" not in resp.json()["entries"][0]
+        finally:
+            self._teardown(patches)
+
+    def test_index_md_file(self, client: TestClient, tmp_path: Path):
+        vault_root, patches = self._setup(
+            client,
+            tmp_path,
+            [{"name": "index.md", "path": "index.md", "type": "file"}],
+        )
+        try:
+            (vault_root / "index.md").write_text(
+                "---\ntitle: Should Not Appear\n---\n\ncontent"
+            )
+            resp = client.get("/api/vault/en/tree")
+            assert resp.status_code == 200
+            assert "title" not in resp.json()["entries"][0]
+        finally:
+            self._teardown(patches)
+
+    def test_dir_with_index_md_title(self, client: TestClient, tmp_path: Path):
+        vault_root, patches = self._setup(
+            client,
+            tmp_path,
+            [{"name": "items", "path": "items", "type": "dir", "children": []}],
+        )
+        try:
+            (vault_root / "items").mkdir()
+            (vault_root / "items" / "index.md").write_text(
+                "---\ntitle: 知识点\n---\n\nindex content"
+            )
+            resp = client.get("/api/vault/en/tree")
+            assert resp.status_code == 200
+            entry = resp.json()["entries"][0]
+            assert entry["title"] == "知识点"
+        finally:
+            self._teardown(patches)
+
+    def test_dir_without_index_md(self, client: TestClient, tmp_path: Path):
+        vault_root, patches = self._setup(
+            client,
+            tmp_path,
+            [{"name": "empty", "path": "empty", "type": "dir", "children": []}],
+        )
+        try:
+            (vault_root / "empty").mkdir()
+            resp = client.get("/api/vault/en/tree")
+            assert resp.status_code == 200
+            assert "title" not in resp.json()["entries"][0]
+        finally:
+            self._teardown(patches)
+
+    def test_bad_frontmatter(self, client: TestClient, tmp_path: Path):
+        vault_root, patches = self._setup(
+            client,
+            tmp_path,
+            [{"name": "c.md", "path": "c.md", "type": "file"}],
+        )
+        try:
+            # 损坏的 frontmatter：内容不合法但不应导致 500
+            (vault_root / "c.md").write_text(
+                "---\n:bad key: value\n---\n\nbody"
+            )
+            resp = client.get("/api/vault/en/tree")
+            assert resp.status_code == 200
+            assert "title" not in resp.json()["entries"][0]
+        finally:
+            self._teardown(patches)
+
+    def test_file_does_not_exist_on_disk(self, client: TestClient, tmp_path: Path):
+        """MCP 返回了文件但磁盘上不存在 → 静默跳过，不抛错。"""
+        vault_root, patches = self._setup(
+            client,
+            tmp_path,
+            [{"name": "ghost.md", "path": "ghost.md", "type": "file"}],
+        )
+        try:
+            # 不创建文件
+            resp = client.get("/api/vault/en/tree")
+            assert resp.status_code == 200
+            assert "title" not in resp.json()["entries"][0]
+        finally:
+            self._teardown(patches)

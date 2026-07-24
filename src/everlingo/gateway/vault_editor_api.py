@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -10,6 +11,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from everlingo.mem.agents.mem_writer_mcp_client import IndexerOfflineError
+from everlingo.mem.vault.frontmatter import parse_frontmatter
+from everlingo.workspace import lang_vault_dir
 
 from .vault_editor_mcp_client import mcp_session_configured, mcp_session_workspace
 
@@ -83,6 +86,38 @@ def _unwrap(result: Any) -> dict:
     return json.loads(text)
 
 
+def _inject_titles(entries: list[dict], vault_root: Path) -> None:
+    for entry in entries:
+        try:
+            if entry.get("type") == "file":
+                name = entry.get("name", "")
+                if not name.endswith(".md"):
+                    continue
+                if name == "index.md":
+                    continue
+                abs_path = vault_root / entry["path"]
+                if not abs_path.is_file():
+                    continue
+                raw = abs_path.open("rb").read(4096).decode("utf-8", errors="replace")
+                fm, _ = parse_frontmatter(raw)
+                title = fm.get("title")
+                if title and isinstance(title, str):
+                    entry["title"] = title
+            elif entry.get("type") == "dir":
+                index_path = vault_root / entry["path"] / "index.md"
+                if index_path.is_file():
+                    raw = index_path.open("rb").read(4096).decode("utf-8", errors="replace")
+                    fm, _ = parse_frontmatter(raw)
+                    title = fm.get("title")
+                    if title and isinstance(title, str):
+                        entry["title"] = title
+                children = entry.get("children")
+                if children:
+                    _inject_titles(children, vault_root)
+        except Exception:
+            pass
+
+
 @asynccontextmanager
 async def _configured(lang: str):
     try:
@@ -130,6 +165,8 @@ async def tree(
         data = _unwrap(result)
         if not include_tmp and data.get("entries"):
             data["entries"] = _filter_tmp_entries(data["entries"])
+        if data.get("entries"):
+            _inject_titles(data["entries"], lang_vault_dir(lang).resolve())
         return data
 
 

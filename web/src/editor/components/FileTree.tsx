@@ -100,6 +100,10 @@ function FileTreeNode({ entry, depth, selectedPath, onSelect, onLazyLoad, onCrea
 
   const isDir = entry.type === 'dir';
 
+  const displayName = isDir
+    ? (entry.title || entry.name)
+    : (entry.name === 'index.md' ? 'index.md' : (entry.title || entry.name));
+
   const row = (
     <div>
       {isDir ? (
@@ -116,7 +120,7 @@ function FileTreeNode({ entry, depth, selectedPath, onSelect, onLazyLoad, onCrea
             <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
           )}
           <Folder className="size-4 shrink-0 text-muted-foreground" />
-          <span className="truncate">{entry.name}</span>
+          <span className="truncate">{displayName}</span>
         </button>
       ) : (
         <button
@@ -125,7 +129,7 @@ function FileTreeNode({ entry, depth, selectedPath, onSelect, onLazyLoad, onCrea
           onClick={() => onSelect(entry.path)}
         >
           <File className="size-4 shrink-0" />
-          <span className="truncate">{entry.name}</span>
+          <span className="truncate">{displayName}</span>
         </button>
       )}
     </div>

@@ -1,10 +1,16 @@
+[Vault Editor](docs/impl-spec/vault-editor.md) 的 File Explorer 不应该显示 ".xyz" 这种操作系统 hide 级的目录和文件，如 ".git"
+
+---
+
 [Vault Editor](docs/impl-spec/vault-editor.md) 的 File Explorer 现在显示的是目录名和文件名。这些 slug 格式的名字对用户不友好。现在修改为：
-- 目录显示名：如果目录下有一个 index.md 文件，文件中有 `title` 这个 frontmatter。就使用这个作为目录在 File Explorer 中的显示名
-- 文件显示名：如果文件中有 `title` 这个 frontmatter。就使用这个作为目录在 File Explorer 中的显示名
+- 目录显示名：如果目录下有一个 index.md 文件，文件中有 `title` 这个 frontmatter。就使用这个作为目录在 File Explorer 中的显示名。否则显示名同目录名
+- 文件显示名：如果文件中有 `title` 这个 frontmatter。就使用这个作为文件在 File Explorer 中的显示名。否则显示名同文件名
 
 前端应该记录下目录和文件的显示名和实际名。
 
-考虑到生成一棵 File Explorer 树不能在文件数量多时，过次调用后端 api 。 你看看后端 api spec 要不要为这个显示的调整页调整
+考虑到生成一棵 File Explorer 树不能在文件数量多时，过次调用后端 api 。 你看看后端 api spec 要不要为这个显示的调整页调整。
+
+
 
 ---
 

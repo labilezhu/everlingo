@@ -46,6 +46,9 @@ Web 前端给用户一个可视化编辑 [Memory Vault](/src/everlingo/mem/vault
 
 - 数据源：`GET /api/vault/{lang}/tree`（底层 MCP `tree`）。
 - 树形展开/折叠，点击文件 → 加载到编辑区。
+- 显示名规则：
+  - 文件：取 entry 的 `title`（来自 frontmatter）。`title` 缺省/空 → 回退文件名。例外：`index.md` 永远显示 `index.md`（但其 frontmatter `title` 用作所在目录的显示名）。
+  - 目录：取该目录下 `index.md` 的 frontmatter `title`。无 `index.md` 或 `title` 缺省/空 → 回退目录名。
 - 子目录懒加载：首次展开 children 为空的目录时，按需调用 `tree(path=<dir>, depth=2)` 拉取该目录的子项并合并到树状态。已加载的目录再次折叠/展开不重复请求。
 - 右键菜单 / 顶部按钮组：
   - 新建文件（输入 path，自动 `.md` 后缀）
@@ -173,7 +176,7 @@ web/src/editor/
 | Method & Path | 底层 MCP 工具 | 备注 |
 |---|---|---|
 | `GET  /api/vault/langs` | `list_vaults` | 不需要 configure |
-| `GET  /api/vault/{lang}/tree?path=` | `configure` + `tree` | 过滤 `tmp/`（默认） |
+| `GET  /api/vault/{lang}/tree?path=` | `configure` + `tree` | 过滤 `tmp/`（默认）；后端遍历 entries 读 frontmatter 前 4KB 注入可选 `title`（文件取自身 frontmatter，目录取 `index.md` 的 frontmatter） |
 | `GET  /api/vault/{lang}/read?path=` | `configure` + `read` | |
 | `POST /api/vault/{lang}/write` `{path, content}` | `configure` + `write` | |
 | `POST /api/vault/{lang}/append` `{path, content}` | `configure` + `append` | |
