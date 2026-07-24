@@ -58,7 +58,11 @@ bool/*true: 停止继续处理 link*/ onUserClickLink(url);
 
 Vault Editor 在收到事件后:
 1. 判断 URL origin 部分(如 http://localhost:8000) 是否与自身地址相同
-2. 相同的话，
+   1. 相同的话，抽取链接的 path 部分， url decode ，然后打开文件，而不是全页面的刷新。 onUserClickLink 返回 true
+   2. 不同的话，onUserClickLink 返回 false
+
+
+
 ---
 
 在 [Editor](docs/impl-spec/vault-editor.md) 的 search 条件中，可选的 tag 应许随笔记的 tag 的增加页可以同步变化。要在 tag 列表后，增加一个小刷新按钮吧
