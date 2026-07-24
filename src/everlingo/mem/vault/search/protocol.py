@@ -34,11 +34,12 @@ class SearchHit(BaseModel):
     chunk 在文件级 FTS 命中时为 None，段级命中时填入。
     snippet 为 FTS snippet() 或 chunk.text 片段。
     lang 由 indexer 按请求 path 中的 lang 回填（不来自 documents 列）。
+    ulid 为可选（LLM 文件自动带；用户手写文件缺 ulid 时返回 None）。
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    ulid: str
+    ulid: str | None
     kind: Literal["item", "event"]  # type: ignore[assignment]
     lang: str
     item_type: str | None = None

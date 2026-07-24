@@ -12,7 +12,6 @@ ulid: 01JZABE001
 type: grammar
 title: TE形 语法
 headword: TE形
-slug: te-form
 description: TE形 语法
 description_in_target_lang: 「て」形の文法
 created_at: 2026-06-24T10:00:00+08:00
@@ -26,7 +25,9 @@ schema_version: 1
 
 字段说明:
 headword: 使用`目标学习语言` 用最少的文字命名语法知识点
-slug: 源于 `headword`。翻译成英文。最后注意按照 “slug 基础规则” 说明处理
+
+#### file_main_name 取值
+用 `slug` 化的 `headword`。
 
 #### markdown 主体内容
 

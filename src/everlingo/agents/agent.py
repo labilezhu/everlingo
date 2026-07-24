@@ -517,7 +517,7 @@ OR
 #### 可编辑与不可编辑的 Frontmatter 字段
 
 以下字段 **不允许修改**（即使你传入新值，服务端也会以原文件为准）：
-ulid / slug / type / created_at / timestamp / schema_version / first_seen / last_seen / seen_count
+ulid / type / created_at / timestamp / schema_version / first_seen / last_seen / seen_count
 
 以下字段 **允许修改**：
 title / description / description_in_target_lang / tags（以及其他非上述保护字段的键）
@@ -541,7 +541,7 @@ title / description / description_in_target_lang / tags（以及其他非上述�
    1. 必须调用 vault_mcp_read(path=file_path) 工具，加载最新原文件
    2. 在内存中按用户要求编辑文件：
       - **正文**：去除 markdown frontmatter 部分后，按用户要求修改正文
-      - **Frontmatter**：保留保护字段（ulid/slug/type/created_at/timestamp/schema_version/first_seen/last_seen/seen_count）的原值不变，按用户要求修改可编辑字段（title/description/description_in_target_lang/tags 等）
+      - **Frontmatter**：保留保护字段（ulid/type/created_at/timestamp/schema_version/first_seen/last_seen/seen_count）的原值不变，按用户要求修改可编辑字段（title/description/description_in_target_lang/tags 等）
    3. 调用 memory_writer_action(operation="edit", file_path="...", body="<新正文>")
       - 如需同时修改 frontmatter，传入 frontmatter="<完整 frontmatter YAML 文本>"
       - frontmatter 参数中的保护字段值会被服务端忽略，以原文件为准，你可放心按完整模板传入

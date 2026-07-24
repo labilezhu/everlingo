@@ -17,7 +17,7 @@ from .indexer import (
     count_chunks,
     count_docs,
     delete_file,
-    get_by_ulid,
+    get_by_file_path,
     get_meta,
     index_file,
     init_db,
@@ -114,7 +114,7 @@ def reconcile(conn: sqlite3.Connection, memory_root: Path, lang: str) -> Reconci
         fts_rebuilt = True
     set_meta(conn, "tokenizer_version", current_ver)
 
-    # 2) 扫 vault：每文件 -> 比对 ulid/合成键 查 (rowid, content_hash)
+    # 2) 扫 vault：每文件 -> 比对 file_path 查 (rowid, content_hash)
     # 排除 tmp/ 子目录与 vault 元文件（VAULT_SPEC.md 等）
     seen_paths: set[str] = set()
     for abs_path in memory_root.rglob("*.md"):
@@ -128,7 +128,7 @@ def reconcile(conn: sqlite3.Connection, memory_root: Path, lang: str) -> Reconci
             logger.warning("解析失败，跳过 %s: %s", abs_path, e)
             continue
         seen_paths.add(parsed.file_path)
-        existing = get_by_ulid(conn, parsed.ulid)
+        existing = get_by_file_path(conn, parsed.file_path)
         if existing is not None:
             _, old_hash = existing
             if old_hash == parsed.content_hash:

@@ -89,12 +89,10 @@ others/ # 其它
 
 ### Markdown Frontmatter 字段
 
-以下所有 frontmatter 字段（**必选**）：
+frontmatter 字段：
 
-字段示例：
 ```yaml
 ulid: 01JZABD123
-slug: pragmatically-answering-yes-or-no-can-easily-lead-to-confusion
 type: pragmatics
 title: 语用学上，回答 Yes 或 No 时容易混淆
 description: 语用学上，回答 Yes 或 No 时容易混淆
@@ -120,7 +118,6 @@ first_source_title: "AI-Based Job Position Watching from Company Career Pages(Po
 - created_at: 创建时间，ISO 8601。
 - timestamp: update time，使用格式 ISO 8601。OKF `timestamp` 标准槽位。
 - schema_version: int。当前 frontmatter schema 版本。
-- slug: 见 “具体 知识类型 的规范” 一节中，每个 `知识类型`，都有自己的 slug 说明。
 - type: `知识类型`
 - tags: `知识点条目`的标签，支持多个标签。说明如下：
   - 格式：标签名允许包含空格，但一般不要有空格或其它空白字符。一般是一个单词或词语。
@@ -131,14 +128,21 @@ first_source_title: "AI-Based Job Position Watching from Company Career Pages(Po
 - first_source_url: 对应于`触发知识点用户消息envelope` 中的 `source.url` 字段。
 - first_source_title: 对应于`触发知识点用户消息envelope` 中的 `source.title` 字段。
 
+自动生成的笔记尽量多地填写以上字段。人工手写的笔记建议最少包括以下字段：
+- type
+- title
+
+
 
 ### 文件命名
 
 文件命名格式：
 
 ```text
-{slug}.md
+{file_main_name}.md
 ```
+
+一般地，如果具体的 `知识类型` 没有说明 `file_main_name` 的取值，默认是用 `slug` 化的 `title` markdown frontmatter
 
 例如：
 
@@ -150,9 +154,8 @@ te-form.md
 
 注意：
 
-- `slug` 即文件名主体部分，方便人类浏览文件，也作为将来生成 wiki 静态网站时人类友好的 url 部分。slug 规则见 “slug 基础规则” 一节。
-- 文件名不含 `ulid`。`ulid` 仍作为 frontmatter 字段保留，是索引去重与跨重命名的稳定主键（见 frontmatter 字段说明）。文件名本身不依赖 `ulid` 保证唯一。
-- 同名 `slug` 冲突处理：新建条目前，应通过 `ls` / `search` 检查是否已有同名文件。若已存在相同知识点的条目，则复用（合并内容）已有文件；若确为不同知识点但 slug 恰好相同，则微调 slug（如追加区分词）后再创建。
+- `file_main_name` 即文件名主体部分，方便人类浏览文件，也作为将来生成 wiki 静态网站时人类友好的 url 部分。slug 规则见 “slug 基础规则” 一节。
+- 同名文件 冲突处理：新建条目前，应通过 `ls` / `search` 检查是否已有同名文件。若已存在相同知识点的条目，则复用（合并内容）已有文件；若确为不同知识点但 slug 恰好相同，则微调 slug（如追加区分词）后再创建。
 
 注意，不能使用以下内部保留文件名:
 - index.md
@@ -160,16 +163,6 @@ te-form.md
 如有类似文件名的需要，请加上个后缀，如 “index_.md”。
 
 
-### 关联字段
-
-```yaml
-aliases:
-  - あいまい
-related:
-  - 明確
-  - はっきり
-  - 微妙
-```
 
 ### 知识点通用 markdown 文件章节
 

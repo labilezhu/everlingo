@@ -13,7 +13,6 @@ phrase/take-for-granted--01JZABC789.md
 ulid: 01JZABC789
 type: phrase
 headword: take for granted
-slug: take-for-granted
 title: '"take for granted" 词汇'
 description: '"take for granted" 词汇'
 description_in_target_lang: 'The phrase "take for granted"'
@@ -31,11 +30,9 @@ schema_version: 1
 字段说明:
 headword: phrase 本身
 
-slug: 
-源于 `headword`，如非英文，需要转换：
-- 中文的：headword="男人" ，用英文词同义词 "man" 
-- 日语，headword="曖昧" 则用发音词 "aimai"
-最后注意按照 “slug 基础规则” 说明处理
+
+#### file_main_name 取值
+用 `slug` 化的 `headword`。
 
 #### markdown 主体内容
 

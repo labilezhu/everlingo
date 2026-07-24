@@ -9,7 +9,6 @@ others/pragmatically-answering-yes-or-no-can-easily-lead-to-confusion--01JZABE00
 
 ```yaml
 ulid: 01JZABD123
-slug: take-off
 tags: []
 type: others
 created_at: 2026-06-22T18:08:00+08:00
@@ -24,8 +23,9 @@ schema_version: 1
 ```
 
 字段说明：
-slug: 
-    源于 `description`。最后注意按照 “slug 基础规则” 说明处理
+
+#### file_main_name 取值
+用 `slug` 化的 `description`。
 
 #### markdown 主体内容
 

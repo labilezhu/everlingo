@@ -1,3 +1,8 @@
+[Vault Editor](docs/impl-spec/vault-editor.md) 在新建yy
+
+---
+
+
 docs/impl-spec/search/memory-vault-search-spec.md
 docs/impl-spec/search/memory-vault-embedding-spec.md
 

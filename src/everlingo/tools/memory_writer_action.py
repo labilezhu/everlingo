@@ -34,7 +34,7 @@ class _MemoryWriterActionArgs(BaseModel):
         default="",
         description=(
             'operation="edit" 时可选的完整 frontmatter YAML 文本。'
-            "保护字段（ulid/slug/type/created_at/timestamp/"
+            "保护字段（ulid/type/created_at/timestamp/"
             "schema_version/first_seen/last_seen/seen_count）会被 "
             "Writer 强制保留原值，忽略你传入的值。"
             "可编辑字段：title/description/description_in_target_lang/tags。"

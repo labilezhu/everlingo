@@ -438,7 +438,7 @@ async def _append_action_event_async(entry: MemoryEntry, action: str) -> None:
 
 # frontmatter 编辑时不可由 LLM 覆盖的系统字段
 _PROTECTED_FRONTMATTER_FIELDS: frozenset[str] = frozenset({
-    "ulid", "slug", "type", "created_at", "timestamp",
+    "ulid", "type", "created_at", "timestamp",
     "schema_version", "first_seen", "last_seen", "seen_count",
 })
 

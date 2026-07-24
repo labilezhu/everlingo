@@ -452,7 +452,7 @@ class TestActionEdit:
         assert "file_path is required" in result["error"]
 
     def test_edit_merges_frontmatter_protected_fields(self, mcp_inmem_server, tmp_vault):
-        """LLM 传入改过的 ulid/slug/seen_count → 实际文件中保留原值。"""
+        """LLM 传入改过的 ulid/seen_count → 实际文件中保留原值。slug 已移出 frontmatter 不再保护。"""
         _create_vault_file_full(
             tmp_vault, "items/vocab/test.md",
             title="旧标题", body="# original",
@@ -461,7 +461,6 @@ class TestActionEdit:
         new_body = "# edited\n"
         frontmatter_input = (
             "ulid: EVILCHANGED\n"
-            "slug: malicious-slug\n"
             "type: grammar\n"
             "title: 新标题\n"
             "description: 新描述\n"
@@ -490,7 +489,6 @@ class TestActionEdit:
         text = file_path.read_text(encoding="utf-8")
         # 保护字段保留原值（yaml.safe_dump 会把 datetime T 归一化为空格）
         assert "ulid: test123" in text
-        assert "slug: test" in text
         assert "type: vocab" in text   # 原文件是 vocab
         assert "created_at: 2026-06-22" in text
         assert "schema_version: 1" in text

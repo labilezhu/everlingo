@@ -20,6 +20,7 @@ from everlingo.mem.vault.search.indexer import (
     count_docs,
     delete_by_ulid,
     delete_file,
+    get_by_file_path,
     get_by_ulid,
     get_meta,
     index_file,
@@ -116,12 +117,24 @@ def test_parse_file_kb_item(memory_root: Path):
     assert parsed.body.startswith("# あいまい")
 
 
-def test_parse_file_kb_item_missing_ulid_raises(memory_root: Path):
+def test_parse_file_kb_item_missing_ulid(memory_root: Path):
+    """kb item 无 ulid → parsed.ulid is None，不抛错。"""
     p = memory_root / "items" / "vocab" / "no-ulid.md"
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text("---\ntitle: x\n---\n\nbody", encoding="utf-8")
-    with pytest.raises(ValueError):
-        parse_file(p, memory_root, "en")
+    p.write_text("---\ntitle: x\ntype: vocab\n---\n\nbody", encoding="utf-8")
+    parsed = parse_file(p, memory_root, "en")
+    assert parsed.ulid is None
+    assert parsed.title == "x"
+    assert parsed.kind == "item"
+
+
+def test_parse_file_kb_item_slug_from_filename(memory_root: Path):
+    """kb item 无 frontmatter slug → slug 从文件名推导。"""
+    p = memory_root / "items" / "vocab" / "my-test-slug.md"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("---\ntitle: x\ntype: vocab\n---\n\nbody", encoding="utf-8")
+    parsed = parse_file(p, memory_root, "en")
+    assert parsed.slug == "my-test-slug"
 
 
 def test_parse_file_events(memory_root: Path):
@@ -175,6 +188,37 @@ def test_index_file_inserts_doc_fts_chunks(conn: sqlite3.Connection, memory_root
     assert "computer" in fts_row[0]
     # body_raw 是原文（与 parsed.body 相同）
     assert fts_row[2] == parsed.body
+
+
+def test_index_file_no_ulid(conn: sqlite3.Connection, memory_root: Path):
+    """kb item 无 frontmatter ulid → 插入成功，ulid 列为 NULL。"""
+    p = _write_kb_item(
+        memory_root,
+        "example.md",
+        {"type": "vocab", "title": "example"},
+        body="## 例句\nan example.\n",
+    )
+    parsed = parse_file(p, memory_root, "en")
+    assert parsed.ulid is None
+    rowid = index_file(conn, parsed)
+    assert rowid > 0
+    assert count_docs(conn) == 1
+    row = conn.execute("SELECT ulid FROM documents WHERE rowid=?", (rowid,)).fetchone()
+    assert row[0] is None
+    # slug 从文件名推导
+    assert parsed.slug == "example"
+
+
+def test_index_file_no_ulid_slug_in_frontmatter(conn: sqlite3.Connection, memory_root: Path):
+    """无 ulid 有 frontmatter slug → slug 来自 frontmatter。"""
+    p = _write_kb_item(
+        memory_root,
+        "filename-diff.md",
+        {"type": "vocab", "title": "x", "slug": "explicit-slug"},
+        body="body",
+    )
+    parsed = parse_file(p, memory_root, "en")
+    assert parsed.slug == "explicit-slug"
 
 
 def test_index_file_idempotent_no_change(conn: sqlite3.Connection, memory_root: Path):

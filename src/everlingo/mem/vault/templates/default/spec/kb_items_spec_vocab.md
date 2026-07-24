@@ -11,7 +11,6 @@ vocab/aimai--01JZABD123.md
 ulid: 01JZABD123
 type: vocab
 headword: 曖昧
-slug: aimai
 title: '"曖昧" 释义'
 description: '"曖昧" 释义'
 description_in_target_lang: 「曖昧」の定義
@@ -34,11 +33,8 @@ schema_version: 1
 字段说明:
 headword: 词汇本身
 
-slug: 
-源于 `headword`，如非英文，需要转换：
-- 中文的：headword="男人" ，用英文词同义词 "man" 
-- 日语，headword="曖昧" 则用发音词 "aimai"
-最后注意按照 “slug 基础规则” 说明处理
+#### file_main_name 取值
+用 `slug` 化的 `headword`。
 
 #### markdown 主体内容
 

@@ -1,13 +1,13 @@
 # ref: docs/impl-spec/search/memory-vault-search-spec.md — 文件监听
 # watchdog 监听 $workspace/memory/languages/$lang/vault/ 下的 .md 增删改，事件路由到 indexer。
-# 300ms 去抖，ulid 幂等 upsert。
+# 300ms 去抖，file_path 幂等 upsert。
 #
 # 实现：
 #   - Observer 线程运行 watchdog Observer
 #   - 主线程提供 start() / stop()
 #   - 事件 -> 调度到同一个 thread pool（sqlite 写入串行化）
 #   - 同一路径 300ms 内的多次写合并为一次
-#   - 重命名：on_moved；ulid 不变 -> 只更新 file_path；ulid 变化 -> 删旧建新
+#   - 重命名：on_moved 作为 delete src + upsert dest 处理；file_path 变即新条目
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ from watchdog.observers import Observer
 
 from .indexer import (
     delete_file,
-    get_by_ulid,
+    get_by_file_path,
     index_file,
     is_excluded_vault_file,
     parse_file,
@@ -185,8 +185,8 @@ class VaultWatcher:
         except Exception as e:
             logger.warning("watcher: 解析失败 %s: %s", ev.abs_path, e)
             return
-        # 重命名时 ulid 变化：可能既有旧 ulid 行又有新 ulid 行；如新行已存在但
-        # 是旧 path，需要把旧 ulid 旧 path 的行也清掉（通过 file_path）
-        existing = get_by_ulid(self._conn, parsed.ulid)
+        # 重命名时 file_path 已为旧路径→delete、新路径→upsert（见 on_moved）；
+        # get_by_file_path 仅做 content_hash 短路检查。
+        existing = get_by_file_path(self._conn, parsed.file_path)
         index_file(self._conn, parsed)
         logger.info("watcher: indexed %s (ulid=%s)", parsed.file_path, parsed.ulid)

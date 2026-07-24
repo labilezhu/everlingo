@@ -1,7 +1,7 @@
 # ref: docs/impl-spec/search/memory-vault-search-spec.md — indexer / Schema DDL / Chunk 切分
 # indexer 进程内对 .md 文件做解析、写 documents / documents_fts / chunks。
 # 关键约束：
-#   - 幂等 upsert（按 ulid / 合成键）
+#   - 幂等 upsert（按 file_path）
 #   - content_hash 基于原文，跳过未变文件
 #   - chunks.text 保留原文（向量嵌入用），不分词
 #   - FTS 各列存分词后空格连接文本；body_raw 存原文供 snippet()
@@ -44,7 +44,7 @@ class ParsedDoc:
     kind: str  # 'item' / 'event'
     item_type: str | None
     file_path: str  # 相对 lang vault 根（不含 {lang}/ 前缀）
-    ulid: str
+    ulid: str | None
     slug: str | None
     headword: str | None
     title: str | None
@@ -154,8 +154,6 @@ def parse_file(absolute: Path, memory_root: Path, lang: str) -> ParsedDoc:
     # kb item
     fm, body = parse_frontmatter(text)
     ulid = fm.get("ulid")
-    if not ulid:
-        raise ValueError(f"kb item 缺少 ulid frontmatter: {rel}")
     kb = parse_kb_item_path(rel, lang)
     if kb is None:
         logger.warning("kb item 路径不匹配 items/{type}/... 格式: %s", rel)
@@ -163,8 +161,8 @@ def parse_file(absolute: Path, memory_root: Path, lang: str) -> ParsedDoc:
         kind="item",
         item_type=fm.get("type"),
         file_path=rel,
-        ulid=str(ulid),
-        slug=fm.get("slug"),
+        ulid=ulid,
+        slug=fm.get("slug") or Path(rel).stem,
         headword=fm.get("headword"),
         title=fm.get("title"),
         description=fm.get("description"),
@@ -413,8 +411,8 @@ def _set_meta(conn: sqlite3.Connection, key: str, value: str) -> None:
 # ── index_file / delete_file ───────────────────────────────────────
 
 
-def _get_existing_rowid(conn: sqlite3.Connection, ulid: str) -> int | None:
-    row = conn.execute("SELECT rowid FROM documents WHERE ulid=?", (ulid,)).fetchone()
+def _get_existing_rowid(conn: sqlite3.Connection, file_path: str) -> int | None:
+    row = conn.execute("SELECT rowid FROM documents WHERE file_path=?", (file_path,)).fetchone()
     return row[0] if row else None
 
 
@@ -432,7 +430,7 @@ def index_file(
 
     Returns: documents.rowid.
     """
-    existing = _get_existing_rowid(conn, parsed.ulid)
+    existing = _get_existing_rowid(conn, parsed.file_path)
     indexed_at = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
     if existing is None:
         cur = conn.execute(
@@ -614,6 +612,16 @@ def get_by_ulid(conn: sqlite3.Connection, ulid: str) -> tuple[int, str] | None:
     """按 ulid 查 (rowid, content_hash)；用于跳过未变文件。"""
     row = conn.execute(
         "SELECT rowid, content_hash FROM documents WHERE ulid=?", (ulid,)
+    ).fetchone()
+    if row is None:
+        return None
+    return (row[0], row[1])
+
+
+def get_by_file_path(conn: sqlite3.Connection, file_path: str) -> tuple[int, str] | None:
+    """按 file_path 查 (rowid, content_hash)；用于 reconcile/watcher 跳过未变文件。"""
+    row = conn.execute(
+        "SELECT rowid, content_hash FROM documents WHERE file_path=?", (file_path,)
     ).fetchone()
     if row is None:
         return None

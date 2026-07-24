@@ -118,7 +118,7 @@ src/everlingo/mem/vault/
 -- 注：本表位于 per-lang DB 内，lang 已隐含于 DB，不再作为列存储
 CREATE TABLE documents (
   rowid INTEGER PRIMARY KEY,
-  ulid TEXT UNIQUE,                       -- kb item 的 ulid；event 用合成键 'event:{lang}:{date}'（lang 从 DB 注入，保留前缀便于跨备份辨识）
+  ulid TEXT UNIQUE,                       -- kb item 的 ulid（可选；LLM 文件自动带，用户手写文件可 NULL）；event 用合成键 'event:{lang}:{date}'
   kind TEXT NOT NULL,                     -- 'item' | 'event'
   item_type TEXT,                         -- vocab/phrase/grammar/pragmatics/others；event 为 NULL
   file_path TEXT NOT NULL UNIQUE,         -- 相对 $workspace/memory/languages/$lang/vault 的路径（不含 {lang}/ 前缀）
@@ -297,7 +297,7 @@ indexer 进程对每个存在的 lang vault 各起一个 watchdog watcher，监�
 |---|---|
 | 文件新建 | 解析 → insert documents + FTS + chunks |
 | 文件修改 | 比对 `file_mtime` → upsert（按 `ulid`/合成键） |
-| 文件重命名 | `ulid` 不变则只更新 `file_path`；`ulid` 变化视为删除旧 + 新建 |
+| 文件重命名 | `file_path` 变即新条目：先删旧 path 行，再按新 path 索引（幂等 upsert） |
 | 文件删除 | 按 `file_path` 查到行后删 documents + FTS + chunks（CASCADE） |
 
 - **去抖**：编辑器常触发多次 write 事件，watcher 内做 300ms 去抖再索引。
@@ -351,7 +351,7 @@ class ChunkRef:
 
 @dataclass
 class SearchHit:
-    ulid: str
+    ulid: str | None
     kind: str
     lang: str                              # 由 indexer 按请求 lang 回填（不来自 documents 列，per-lang DB 隐含）
     item_type: str | None
