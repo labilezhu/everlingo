@@ -129,6 +129,58 @@ editor app 启动时读 `location.search`：
 
 反向链接（editor → chatbot）不在本 spec 范围：chatbot 使用 session id，跨页跳转会建新 session，需独立设计。
 
+## 移动端适配
+
+以 Tailwind 默认 `md` 断点（768px）为界：
+- `>= md`：桌面三栏 flex 布局，行为不变。
+- `< md`（iPhone / 窄手机）：移动端抽屉模式。
+
+### 断点
+`md` (768px)。iPad 竖屏(768px) 及宽屏手机走桌面布局。所有响应式类使用 `md:` 前缀。
+
+### 按钮文字标签自适应隐藏
+所有「图标 + 文字」按钮的文字用 `<span className="hidden md:inline">` 包裹，图标常驻。`< md` 只显示图标，`>= md` 显示完整文字。涉及：
+
+| 位置 | 按钮 | 文件:行 |
+|------|------|---------|
+| Header | 呼叫小记 | `EditorApp.tsx:430` |
+| Header | 转到小记 | `EditorApp.tsx:438` |
+| Header | 标题（🐹 小记笔记编辑器） | `EditorApp.tsx:415-416` |
+| Editor sub-header | 源码 | `EditorApp.tsx:564` |
+| Editor sub-header | 直观 | `EditorApp.tsx:574` |
+| Editor sub-header | 保存 | `EditorApp.tsx:586` |
+| Left pane tab bar | Files | `EditorApp.tsx:476` |
+| Left pane tab bar | Search | `EditorApp.tsx:490` |
+
+ChatInput 的 `发送` 按钮保留文字（右侧抽屉内空间足够）。
+
+### 左栏 toggle（新增）
+左栏（文件树/搜索）原先一直常驻，移动端新增 toggle：
+- `leftOpen` state，移动端初始 `false`。
+- Header 最左加汉堡按钮（`Menu` 图标，`md:hidden`），点击 toggle `leftOpen`。
+- 桌面端 `leftOpen` 无效（左栏始终 flex 显示）。
+
+### 抽屉模式（< md）
+两个 `<aside>` 改为 fixed overlay + 滑入：
+
+- **左 aside**：`fixed inset-y-0 left-0 z-40 w-[85vw] max-w-sm` + `translate-x-0`/`-translate-x-full` 控制开合。桌面端恢复 `flex shrink-0` + 百分比宽度。
+- **右 aside（chatbot）**：同理，右侧滑入（`fixed inset-y-0 right-0`）。桌面端继续 flex + `hidden` class 切换。`chatMounted`/`chatOpen` 机制不变——SSE session 在关闭时不卸载。
+- **Backdrop**：任一抽屉打开时渲染 `<div className="fixed inset-0 z-30 bg-black/40" onClick={closeAll} />`。
+- **互斥**：移动端打开一个抽屉时自动关闭另一个；backdrop 点击关闭所有抽屉。
+
+### Resize 手柄隐藏
+左右 resize 手柄加 `hidden md:block`，移动端不可见不可拖。
+
+### 宽度持久化
+桌面端 `leftPanePct`/`chatPanePct` 逻辑不变，移动端不读不写百分比。用 `useMediaQuery('(min-width: 768px)')` 得 `isDesktop`，条件传 inline width（仅桌面传百分比）。
+
+### 新增 hook
+`web/src/editor/hooks/useMediaQuery.ts`：`matchMedia` + useEffect listener。
+
+### 已知限制 / 后续迭代
+- **FileTree 右键菜单**（新建文件/目录、重命名、删除）触屏不可用。需后续增加 long-press 或显式「⋯」按钮操作菜单。
+- **`beforeunload` dirty guard** 移动端浏览器行为弱化，不在本次范围。
+
 ## 前端技术选型
 
 沿用 [Standalone Web Chatbot §前端技术选型](/docs/impl-spec/web-chatbot.md)：Vite + React + TailwindCSS + shadcn/ui + react-markdown。

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Code, Eye, Save, Search, FolderTree, MessageSquare, ExternalLink } from 'lucide-react';
+import { Code, Eye, Save, Search, FolderTree, Menu, MessageSquare, ExternalLink } from 'lucide-react';
 import { listLangs, tree, read, write, mkdir, deleteEntry, rename } from '@/editor/services/vaultApi';
 import FileTree from './FileTree';
 import SearchBar from './SearchBar';
 import MilkdownEditor from './MilkdownEditor';
 import ChatWindow from '@/components/ChatWindow';
+import { useMediaQuery } from '@/editor/hooks/useMediaQuery';
 import type { Entry } from '@/editor/types/vault';
 
 function mergeChildren(entries: Entry[], dirPath: string, newChildren: Entry[]): Entry[] {
@@ -52,6 +53,7 @@ export default function EditorApp() {
 
   const [chatMounted, setChatMounted] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [leftOpen, setLeftOpen] = useState(false);
   const [chatPct, setChatPct] = useState(() => {
     const saved = localStorage.getItem('vault-editor:chatPanePct');
     if (saved) {
@@ -63,6 +65,7 @@ export default function EditorApp() {
 
   const bodyRef = useRef<HTMLDivElement>(null);
   const dirty = content !== originalContent;
+  const isDesktop = useMediaQuery('(min-width: 768px)');
 
   // ── frontmatter stripping for WYSIWYG ──
   const { fm, body } = useMemo(() => {
@@ -383,8 +386,17 @@ export default function EditorApp() {
   return (
     <div className="flex flex-col h-screen border-x border-border">
       {/* Header */}
-      <header className="grid grid-cols-3 items-center gap-3 px-4 py-2 border-b border-border bg-background shrink-0">
-        <div className="flex items-center justify-start gap-3">
+      <header className="flex items-center gap-2 px-3 py-2 border-b border-border bg-background shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            className="md:hidden inline-flex items-center justify-center size-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            onClick={() => {
+              if (!leftOpen && !isDesktop) setChatOpen(false);
+              setLeftOpen(v => !v);
+            }}
+          >
+            <Menu className="size-4" />
+          </button>
           {langs.length > 0 && (
             <select
               className="h-8 rounded-lg border border-border bg-background px-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -396,20 +408,24 @@ export default function EditorApp() {
           )}
         </div>
 
-        <div className="text-center">
-          <span className="text-sm font-semibold text-foreground">🐹 小记笔记编辑器</span>
+        <div className="flex-1 text-center min-w-0">
+          <span className="text-sm font-semibold text-foreground">
+            <span className="md:hidden">🐹</span>
+            <span className="hidden md:inline">🐹 小记笔记编辑器</span>
+          </span>
         </div>
 
-        <div className="flex items-center justify-end gap-3">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             className={'inline-flex items-center gap-1 h-8 rounded-lg px-3 text-sm font-medium transition-all outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 ' + (chatOpen ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}
             onClick={() => {
               if (!chatMounted) setChatMounted(true);
+              if (!chatOpen && !isDesktop) setLeftOpen(false);
               setChatOpen(v => !v);
             }}
           >
             <MessageSquare className="size-4" />
-            呼叫小记
+            <span className="hidden md:inline">呼叫小记</span>
           </button>
 
           <button
@@ -417,7 +433,7 @@ export default function EditorApp() {
             onClick={() => { window.location.href = '/'; }}
           >
             <ExternalLink className="size-4" />
-            转到小记
+            <span className="hidden md:inline">转到小记</span>
           </button>
         </div>
       </header>
@@ -434,8 +450,12 @@ export default function EditorApp() {
       <div ref={bodyRef} className="flex flex-1 overflow-hidden">
         {/* Left pane: tab bar + content */}
         <aside
-          className="flex flex-col shrink-0 border-r border-border bg-background"
-          style={{ width: `${leftPct}%` }}
+          className={
+            isDesktop
+              ? 'flex flex-col shrink-0 border-r border-border bg-background'
+              : 'fixed inset-y-0 left-0 z-40 w-[85vw] max-w-sm border-r border-border bg-background transition-transform ' + (leftOpen ? 'translate-x-0' : '-translate-x-full')
+          }
+          style={isDesktop ? { width: `${leftPct}%` } : undefined}
         >
           {/* Tab bar */}
           <div className="flex items-center gap-0.5 px-1 py-1 border-b border-border shrink-0">
@@ -451,7 +471,7 @@ export default function EditorApp() {
               }}
             >
               <FolderTree className="size-3.5" />
-              Files
+              <span className="hidden md:inline">Files</span>
             </button>
             <button
               className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ${
@@ -465,7 +485,7 @@ export default function EditorApp() {
               }}
             >
               <Search className="size-3.5" />
-              Search
+              <span className="hidden md:inline">Search</span>
             </button>
           </div>
 
@@ -503,7 +523,7 @@ export default function EditorApp() {
 
         {/* Resize handle */}
         <div
-          className="w-1 shrink-0 cursor-col-resize hover:bg-ring/30 active:bg-ring/40 transition-colors"
+          className="w-1 shrink-0 cursor-col-resize hover:bg-ring/30 active:bg-ring/40 transition-colors hidden md:block"
           onPointerDown={e => {
             const container = bodyRef.current;
             if (!container) return;
@@ -539,7 +559,7 @@ export default function EditorApp() {
                     }}
                   >
                     <Code className="size-3.5" />
-                    源码
+                    <span className="hidden md:inline">源码</span>
                   </button>
                   <button
                     className={'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ' + (mode === 'wysiwyg' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}
@@ -549,7 +569,7 @@ export default function EditorApp() {
                     }}
                   >
                     <Eye className="size-3.5" />
-                    直观
+                    <span className="hidden md:inline">直观</span>
                   </button>
                 </div>
                 <button
@@ -561,7 +581,7 @@ export default function EditorApp() {
                   onClick={handleSave}
                 >
                   <Save className="size-3.5" />
-                  {saving ? '保存中…' : '保存'}
+                  <span className="hidden md:inline">{saving ? '保存中…' : '保存'}</span>
                 </button>
               </div>
               <div className="flex-1 overflow-auto">
@@ -584,7 +604,7 @@ export default function EditorApp() {
         {/* Right sidebar: resize handle */}
         {chatMounted && (
           <div
-            className={'w-1 shrink-0 cursor-col-resize hover:bg-ring/30 active:bg-ring/40 transition-colors ' + (chatOpen ? '' : 'hidden')}
+            className={'w-1 shrink-0 cursor-col-resize hover:bg-ring/30 active:bg-ring/40 transition-colors hidden md:block ' + (chatOpen ? '' : 'hidden')}
             onPointerDown={e => {
               const container = bodyRef.current;
               if (!container) return;
@@ -609,11 +629,20 @@ export default function EditorApp() {
         {/* Right sidebar: chatbot */}
         {chatMounted && (
           <aside
-            className={'flex flex-col shrink-0 bg-background overflow-hidden ' + (chatOpen ? '' : 'hidden')}
-            style={{ width: `${chatPct}%` }}
+            className={isDesktop
+              ? 'flex flex-col shrink-0 bg-background overflow-hidden ' + (chatOpen ? '' : 'hidden')
+              : 'fixed inset-y-0 right-0 z-40 w-[85vw] max-w-sm border-l border-border bg-background transition-transform ' + (chatOpen ? 'translate-x-0' : 'translate-x-full')}
+            style={isDesktop ? { width: `${chatPct}%` } : undefined}
           >
             <ChatWindow embedded linkListener={handleChatLinkClick} />
           </aside>
+        )}
+
+        {!isDesktop && (leftOpen || chatOpen) && (
+          <div
+            className="fixed inset-0 z-30 bg-black/40"
+            onClick={() => { setLeftOpen(false); setChatOpen(false); }}
+          />
         )}
       </div>
     </div>

@@ -1,4 +1,9 @@
-[Vault Editor](docs/impl-spec/vault-editor.md) 在新建yy
+[Vault Editor](docs/impl-spec/vault-editor.md) 现在的界面设计主是要为桌面浏览器。在 移动设备 如 iphone 上没有优化，如：
+- 按钮上的文字说明在移动设备上本可以自动隐藏
+- 则边栏应该可以完全 toggle 隐藏
+
+
+你的建议是为移动设备做一个独立的界面，还是用前端响应式处理的方法？
 
 ---
 
