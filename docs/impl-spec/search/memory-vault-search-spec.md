@@ -291,7 +291,7 @@ HTTP/1.1 over unix domain socket，REST + JSON。uvicorn 绑定 `$workspace/inde
 
 ### 主路径：watchdog watcher（indexer 进程内）
 
-indexer 进程对每个存在的 lang vault 各起一个 watchdog watcher，监听 `$workspace/memory/languages/$lang/vault/` 下的 `.md` 增删改，事件路由到 indexer（携带 lang 上下文，写入对应 lang DB）。watcher **排除** `$lang/vault/tmp/` 子目录（程序内部临时文件，无用户数据价值，不应索引；见 [vault_spec.md](/src/everlingo/mem/vault/vault_spec.md)）与 `index.md`（vault 保留文件名，类别导航页 / wiki builder 临时根 index）：
+indexer 进程对每个存在的 lang vault 各起一个 watchdog watcher，监听 `$workspace/memory/languages/$lang/vault/` 下的 `.md` 增删改，事件路由到 indexer（携带 lang 上下文，写入对应 lang DB）。watcher **排除** `$lang/vault/tmp/` 子目录（程序内部临时文件，无用户数据价值，不应索引；见 [vault_spec.md](/src/everlingo/mem/vault/vault_spec.md)）与 `index.md`（vault 保留文件名，类别导航页 / wiki builder 临时根 index），以及 OS 隐藏文件/目录（路径任一段以 `.` 开头，如 `.git`/`.obsidian`/`.DS_Store`）：
 
 | 事件 | 动作 |
 |---|---|
@@ -309,7 +309,7 @@ indexer 进程对每个存在的 lang vault 各起一个 watchdog watcher，监�
 
 ### 启动时全量对账（indexer 进程内）
 
-indexer 进程启动先枚举 `$workspace/memory/languages/*/`，对每个存在的 lang vault 扫一遍（排除 `tmp/` 子目录、`spec/` 子目录、`index.md` 与 `VAULT_SPEC.md` 等 vault 元文件），用 `file_mtime` 与 `content_hash` 对账（补漏 + 清孤儿行），再启动该 lang 的 watcher。覆盖 watcher 漏掉的事件（如 indexer 未运行期间的外部编辑）。同时比对各 lang DB 的 `meta.tokenizer_version`，版本变化则全量重建该 lang 的 FTS。
+indexer 进程启动先枚举 `$workspace/memory/languages/*/`，对每个存在的 lang vault 扫一遍（排除 `tmp/` 子目录、`spec/` 子目录、`index.md` 与 `VAULT_SPEC.md` 等 vault 元文件，以及 OS 隐藏文件/目录），用 `file_mtime` 与 `content_hash` 对账（补漏 + 清孤儿行），再启动该 lang 的 watcher。覆盖 watcher 漏掉的事件（如 indexer 未运行期间的外部编辑）。同时比对各 lang DB 的 `meta.tokenizer_version`，版本变化则全量重建该 lang 的 FTS。
 
 ### 运行时新 lang 发现（lang 发现 watcher + 端点懒加载）
 

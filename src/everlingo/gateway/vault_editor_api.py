@@ -69,6 +69,18 @@ def _map_mcp_error(text: str) -> tuple[int, str]:
     return 500, text
 
 
+def _filter_hidden_entries(entries: list[dict]) -> list[dict]:
+    result = []
+    for e in entries:
+        if e.get("name", "").startswith("."):
+            continue
+        if e.get("type") == "dir" and "children" in e:
+            e = dict(e)
+            e["children"] = _filter_hidden_entries(e["children"])
+        result.append(e)
+    return result
+
+
 def _filter_tmp_entries(entries: list[dict]) -> list[dict]:
     result = []
     for e in entries:
@@ -163,6 +175,8 @@ async def tree(
             status, detail = _map_mcp_error(text)
             raise HTTPException(status, detail=detail)
         data = _unwrap(result)
+        if data.get("entries"):
+            data["entries"] = _filter_hidden_entries(data["entries"])
         if not include_tmp and data.get("entries"):
             data["entries"] = _filter_tmp_entries(data["entries"])
         if data.get("entries"):

@@ -55,7 +55,7 @@ Web 前端给用户一个可视化编辑 [Memory Vault](/src/everlingo/mem/vault
   - 新建目录
   - 重命名（MVP 走 read+write+delete 复合，见下「后端 REST 端点」）
   - 删除
-- **`tmp/` 目录默认隐藏**；顶部 toggle「显示隐藏目录」可切换。`tmp/` 不入索引（见 [vault-mcp-spec.md](/docs/impl-spec/vault-mcp/vault-mcp-spec.md)「`spec/` 目录不入索引」段的 `is_excluded_vault_file` 描述）。
+- **`tmp/` 目录默认隐藏**；顶部 toggle「显示隐藏目录」可切换。`tmp/` 不入索引（见 [vault-mcp-spec.md](/docs/impl-spec/vault-mcp/vault-mcp-spec.md)「`spec/` 目录不入索引」段的 `is_excluded_vault_file` 描述）。OS 隐藏文件/目录（name 以 `.` 开头，如 `.git`/`.obsidian`/`.DS_Store`）后端 `tree` 端点默认硬过滤，无 toggle。
 - `spec/` 目录允许编辑（与其它目录同权）。
 - 文件树顶部有 header 工具栏（初始仅含刷新按钮）：刷新触发整树重拉（`tree(selectedLang)`），懒加载状态重置；不影响编辑器内容与未保存改动。
 
@@ -192,7 +192,7 @@ web/src/editor/
 | Method & Path | 底层 MCP 工具 | 备注 |
 |---|---|---|
 | `GET  /api/vault/langs` | `list_vaults` | 不需要 configure |
-| `GET  /api/vault/{lang}/tree?path=` | `configure` + `tree` | 过滤 `tmp/`（默认）；后端遍历 entries 读 frontmatter 前 4KB 注入可选 `title`（文件取自身 frontmatter，目录取 `index.md` 的 frontmatter） |
+| `GET  /api/vault/{lang}/tree?path=` | `configure` + `tree` | 过滤 `tmp/`（默认）与 dotfile/dotdir（name 以 `.` 开头，硬过滤无 toggle）；后端遍历 entries 读 frontmatter 前 4KB 注入可选 `title`（文件取自身 frontmatter，目录取 `index.md` 的 frontmatter） |
 | `GET  /api/vault/{lang}/read?path=` | `configure` + `read` | |
 | `POST /api/vault/{lang}/write` `{path, content}` | `configure` + `write` | |
 | `POST /api/vault/{lang}/append` `{path, content}` | `configure` + `append` | |

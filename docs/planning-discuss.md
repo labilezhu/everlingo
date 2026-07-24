@@ -1,3 +1,30 @@
+docs/impl-spec/search/memory-vault-search-spec.md
+docs/impl-spec/search/memory-vault-embedding-spec.md
+
+现在的 对被索引的 markdown 文件是不是有很多要求？ 如 markdown frontmatter:
+```yaml
+ulid: 01JZABD123
+slug: pragmatically-answering-yes-or-no-can-easily-lead-to-confusion
+type: pragmatics
+title: 语用学上，回答 Yes 或 No 时容易混淆
+description: 语用学上，回答 Yes 或 No 时容易混淆
+description_in_target_lang: 'Pragmatically, answering "Yes" or "No" can easily lead to confusion.'
+created_at: 2026-06-22T18:08:00+08:00
+timestamp: 2026-06-26T09:15:00+08:00
+schema_version: 1
+first_seen: 2026-06-22T18:08:00+08:00
+last_seen: 2026-06-26T09:15:00+08:00
+seen_count: 4
+tags: 
+  - pragmatics
+first_source_kind: web
+first_source_url: "https://blog.mygraphql.com/en/posts/ai/ai-life-automatic/ai-job-subcribe/"
+first_source_title: "AI-Based Job Position Watching from Company Career Pages(PoC) - Part 1"
+```
+中，哪些是必须的。我计划列出最少的 frontmatter 要求，把减少不必要的字段的依赖。这样用户自己维护 markdown 文件才比较方便。
+
+
+---
 
 [Vault Editor](docs/impl-spec/vault-editor.md) 的 直观模式下编辑文件，能不能支持点击 markdown 内链接后，在新 tab 中打开链接？ 现在 是点击没有反应。
 

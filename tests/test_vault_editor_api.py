@@ -224,6 +224,109 @@ class TestTree:
             p1.stop()
             p2.stop()
 
+    def test_filters_hidden_entries(self, client: TestClient):
+        session = AsyncMock()
+        session.call_tool = AsyncMock(
+            return_value=_fake_result(
+                {
+                    "path": "",
+                    "depth": 2,
+                    "entries": [
+                        {
+                            "name": ".git",
+                            "path": ".git",
+                            "type": "dir",
+                            "children": [
+                                {"name": "config", "path": ".git/config", "type": "file"},
+                            ],
+                        },
+                        {
+                            "name": ".obsidian",
+                            "path": ".obsidian",
+                            "type": "dir",
+                            "children": [],
+                        },
+                        {"name": ".DS_Store", "path": ".DS_Store", "type": "file"},
+                        {
+                            "name": "items",
+                            "path": "items",
+                            "type": "dir",
+                            "children": [
+                                {"name": "vocab.md", "path": "items/vocab.md", "type": "file"}
+                            ],
+                        },
+                    ],
+                }
+            )
+        )
+        p1, p2 = _patch_ctx(session)
+        try:
+            resp = client.get("/api/vault/en/tree")
+            assert resp.status_code == 200
+            names = [e["name"] for e in resp.json()["entries"]]
+            assert ".git" not in names
+            assert ".obsidian" not in names
+            assert ".DS_Store" not in names
+            assert "items" in names
+            # verify recursion: .git's children are not returned via parent
+            items_entry = next(e for e in resp.json()["entries"] if e["name"] == "items")
+            assert items_entry["children"][0]["name"] == "vocab.md"
+        finally:
+            p1.stop()
+            p2.stop()
+
+    def test_include_tmp_still_filters_hidden(self, client: TestClient):
+        """?include_tmp=true 保留 tmp 但仍过滤隐藏条目（正交）。"""
+        session = AsyncMock()
+        session.call_tool = AsyncMock(
+            return_value=_fake_result(
+                {
+                    "path": "",
+                    "depth": 2,
+                    "entries": [
+                        {"name": "tmp", "path": "tmp", "type": "dir", "children": []},
+                        {"name": ".git", "path": ".git", "type": "dir", "children": []},
+                    ],
+                }
+            )
+        )
+        p1, p2 = _patch_ctx(session)
+        try:
+            resp = client.get("/api/vault/en/tree?include_tmp=true")
+            assert resp.status_code == 200
+            names = [e["name"] for e in resp.json()["entries"]]
+            assert "tmp" in names
+            assert ".git" not in names
+        finally:
+            p1.stop()
+            p2.stop()
+
+    def test_filters_hidden_in_subtree(self, client: TestClient):
+        """path= 子树请求中的隐藏条目也被过滤。"""
+        session = AsyncMock()
+        session.call_tool = AsyncMock(
+            return_value=_fake_result(
+                {
+                    "path": "items/grammar",
+                    "depth": 2,
+                    "entries": [
+                        {"name": ".cache", "path": "items/grammar/.cache", "type": "dir", "children": []},
+                        {"name": "nouns.md", "path": "items/grammar/nouns.md", "type": "file"},
+                    ],
+                }
+            )
+        )
+        p1, p2 = _patch_ctx(session)
+        try:
+            resp = client.get("/api/vault/en/tree?path=items%2Fgrammar")
+            assert resp.status_code == 200
+            names = [e["name"] for e in resp.json()["entries"]]
+            assert ".cache" not in names
+            assert "nouns.md" in names
+        finally:
+            p1.stop()
+            p2.stop()
+
 
 class TestRead:
     def test_returns_content(self, client: TestClient):

@@ -91,3 +91,57 @@ def test_helper_returns_true_for_path_outside_vault(tmp_path: Path) -> None:
         assert is_excluded_vault_file(outside, tmp_path) is True
     finally:
         outside.unlink()
+
+
+def test_excludes_dotfile(tmp_path: Path) -> None:
+    """.draft.md（点号开头文件）不应被索引。"""
+    memory_root = tmp_path
+    _touch(memory_root / "items" / "vocab" / ".draft.md")
+    _touch(memory_root / "items" / "vocab" / "a--01JZH0100.md")
+    assert is_excluded_vault_file(
+        memory_root / "items" / "vocab" / ".draft.md", memory_root
+    )
+    assert not is_excluded_vault_file(
+        memory_root / "items" / "vocab" / "a--01JZH0100.md", memory_root
+    )
+    paths = [p.name for p in walk_vault(memory_root)]
+    assert "a--01JZH0100.md" in paths
+    assert ".draft.md" not in paths
+
+
+def test_excludes_dotdir_contents(tmp_path: Path) -> None:
+    """.obsidian/ 或 .git/ 下的 .md 不应被索引。"""
+    memory_root = tmp_path
+    _touch(memory_root / ".obsidian" / "notes.md")
+    _touch(memory_root / ".git" / "config.md")
+    _touch(memory_root / "items" / "vocab" / "a--01JZH0101.md")
+    paths = [p.name for p in walk_vault(memory_root)]
+    assert "a--01JZH0101.md" in paths
+    assert "notes.md" not in paths
+    assert "config.md" not in paths
+
+
+def test_excludes_nested_dotdir(tmp_path: Path) -> None:
+    """嵌套 dotdir（如 items/.drafts/）下的 .md 不应被索引。"""
+    memory_root = tmp_path
+    _touch(memory_root / "items" / ".drafts" / "x.md")
+    _touch(memory_root / "items" / "vocab" / "a--01JZH0102.md")
+    assert is_excluded_vault_file(
+        memory_root / "items" / ".drafts" / "x.md", memory_root
+    )
+    assert not is_excluded_vault_file(
+        memory_root / "items" / "vocab" / "a--01JZH0102.md", memory_root
+    )
+    paths = [p.name for p in walk_vault(memory_root)]
+    assert "a--01JZH0102.md" in paths
+    assert "x.md" not in paths
+
+
+def test_normal_files_unaffected(tmp_path: Path) -> None:
+    """正常文件不受 dotfile 排除影响（回归保护）。"""
+    memory_root = tmp_path
+    _touch(memory_root / "items" / "vocab" / "a--01JZH0103.md")
+    assert not is_excluded_vault_file(
+        memory_root / "items" / "vocab" / "a--01JZH0103.md", memory_root
+    )
+    assert "a--01JZH0103.md" in [p.name for p in walk_vault(memory_root)]
