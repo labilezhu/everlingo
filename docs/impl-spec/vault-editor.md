@@ -78,6 +78,22 @@ Web 前端给用户一个可视化编辑 [Memory Vault](/src/everlingo/mem/vault
 - 自动保存：MVP 不做；仅手动「保存」按钮。
 - 未保存改动离开页面 / 切文件 → `beforeunload` + React 内 confirm。
 
+#### 链接点击行为（WYSIWYG 模式）
+
+WYSIWYG 模式中，单击 markdown 渲染出的 `<a>` 链接时：
+
+1. **`/editor?lang=...&path=...` 同源内部链接** → 在当前编辑区加载（未保存改动先 confirm；lang 不同时自动切换语言 + 重拉树），不开新 tab。
+2. **vault 路径**（不以 `://` 开头，如 `items/vocab/god.md`、`./sibling.md`、`/items/root.md`）→ 解析为 vault 内的绝对路径：
+   - 以 `/` 开头 → 从 vault 根算（去除前导 `/`）；
+   - 否则相对当前文件所在目录解析（支持 `./`、`../`）；
+   - 无 `.` 后缀 → 自动补 `.md`；
+   - 规范化路径后，在当前编辑区加载（同 `/editor` 链接流程：未保存 confirm、跨 lang 切换）。
+3. **外链**（`http://`、`https://` 等含协议的 URL）→ `window.open(href, '_blank', 'noopener,noreferrer')` 新 tab 打开。
+
+Source 模式（CodeMirror）不渲染链接，不做处理。
+
+实现：`MilkdownEditor.tsx` 在 WYSIWYG 容器 `<div>` 上挂 `onClick` 事件代理，检测 `[data-milkdown-root] a[href]` → `preventDefault()`（阻止 ProseMirror 放置光标）→ 调用 `EditorApp` 传入的 `onLinkClick` prop；`EditorApp.handleEditorLinkClick` 完成路径解析与文件加载。
+
 ### 从 chatbot 跳入
 
 chatbot 的 markdown 消息里可包含指向 editor 的链接，由 `react-markdown` 渲染为 `<a>`：

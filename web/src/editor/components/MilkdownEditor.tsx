@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { Editor, rootCtx, defaultValueCtx } from '@milkdown/kit/core';
 import { MilkdownProvider, useEditor, Milkdown } from '@milkdown/react';
 import { commonmark } from '@milkdown/kit/preset/commonmark';
@@ -11,10 +11,22 @@ interface MilkdownEditorProps {
   content: string;
   onChange: (value: string) => void;
   mode: 'source' | 'wysiwyg';
+  onLinkClick?: (href: string) => boolean;
 }
 
-function WysiwygEditor({ content, onChange }: { content: string; onChange: (v: string) => void }) {
+function WysiwygEditor({ content, onChange, onLinkClick }: { content: string; onChange: (v: string) => void; onLinkClick?: (href: string) => boolean }) {
   const firstUpdate = useRef(true);
+
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    const anchor = (e.target as HTMLElement).closest('a[href]');
+    if (!anchor) return;
+    if (!anchor.closest('[data-milkdown-root]')) return;
+    e.preventDefault();
+    const href = (anchor as HTMLAnchorElement).getAttribute('href');
+    if (!href) return;
+    if (onLinkClick && onLinkClick(href)) return;
+    window.open(href, '_blank', 'noopener,noreferrer');
+  }, [onLinkClick]);
 
   useEditor((container) => {
     return Editor
@@ -40,7 +52,7 @@ function WysiwygEditor({ content, onChange }: { content: string; onChange: (v: s
   }, []);
 
     return (
-      <div className="w-full h-full overflow-auto">
+      <div className="w-full h-full overflow-auto" onClick={handleClick}>
         <style>{`
           [data-milkdown-root] {
             min-height: 100%;
@@ -79,7 +91,7 @@ function WysiwygEditor({ content, onChange }: { content: string; onChange: (v: s
             margin: 0.5em 0;
             color: oklch(0.55 0 0);
           }
-          [data-milkdown-root] a { color: oklch(0.45 0.2 260); text-decoration: underline; }
+          [data-milkdown-root] a { color: oklch(0.45 0.2 260); text-decoration: underline; cursor: pointer; }
           [data-milkdown-root] img { max-width: 100%; height: auto; border-radius: 0.375rem; }
           [data-milkdown-root] hr { margin: 1em 0; border-color: oklch(0.92 0 0); }
         `}</style>
@@ -88,14 +100,14 @@ function WysiwygEditor({ content, onChange }: { content: string; onChange: (v: s
     );
 }
 
-export default function MilkdownEditor({ content, onChange, mode }: MilkdownEditorProps) {
+export default function MilkdownEditor({ content, onChange, mode, onLinkClick }: MilkdownEditorProps) {
   if (mode === 'source') {
     return <SourceEditor content={content} onChange={onChange} />;
   }
 
   return (
     <MilkdownProvider>
-      <WysiwygEditor content={content} onChange={onChange} />
+      <WysiwygEditor content={content} onChange={onChange} onLinkClick={onLinkClick} />
     </MilkdownProvider>
   );
 }

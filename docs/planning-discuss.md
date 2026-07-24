@@ -1,4 +1,9 @@
-[Vault Editor](docs/impl-spec/vault-editor.md) 的 File Explorer 不应该显示 ".xyz" 这种操作系统 hide 级的目录和文件，如 ".git"
+
+[Vault Editor](docs/impl-spec/vault-editor.md) 的 直观模式下编辑文件，能不能支持点击 markdown 内链接后，在新 tab 中打开链接？ 现在 是点击没有反应。
+
+---
+
+[Vault Editor](docs/impl-spec/vault-editor.md) 的 File Explorer 不应该显示 ".xyz" 这种操作系统 hide 级的目录和文件，如 ".git" 。 建议直接在后端实现中不返回这类文件和目录。
 
 ---
 

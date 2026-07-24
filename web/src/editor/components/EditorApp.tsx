@@ -188,6 +188,60 @@ export default function EditorApp() {
     return true;
   }, [langs, dirty, loadFile]);
 
+  // ── editor WYSIWYG link click handler ──
+  const handleEditorLinkClick = useCallback((href: string): boolean => {
+    // 1. Absolute URL with protocol
+    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(href)) {
+      try {
+        const u = new URL(href);
+        if (u.origin === location.origin && u.pathname === '/editor') {
+          const lang = u.searchParams.get('lang');
+          const path = u.searchParams.get('path');
+          if (lang && path && langs.includes(lang)) {
+            if (dirty && !confirm('有未保存的改动，打开链接将丢弃。确定继续？')) return true;
+            void loadFile(lang, path);
+            return true;
+          }
+        }
+      } catch {
+        // fall through to new tab
+      }
+      return false; // external http(s) → new tab
+    }
+
+    // 2. Vault path resolution
+    let resolvedPath: string;
+    if (href.startsWith('/')) {
+      resolvedPath = href.slice(1); // from vault root
+    } else {
+      const dir = currentPath.includes('/') ? currentPath.slice(0, currentPath.lastIndexOf('/') + 1) : '';
+      resolvedPath = dir + href;
+    }
+
+    const parts = resolvedPath.split('/');
+    const result: string[] = [];
+    for (const part of parts) {
+      if (part === '.' || part === '') continue;
+      if (part === '..') {
+        if (result.length > 0) result.pop();
+        continue;
+      }
+      result.push(part);
+    }
+    resolvedPath = result.join('/');
+
+    if (!resolvedPath.includes('.')) {
+      resolvedPath += '.md';
+    }
+
+    if (!resolvedPath) return false;
+
+    if (dirty && !confirm('有未保存的改动，打开链接将丢弃。确定继续？')) return true;
+
+    void loadFile(selectedLang, resolvedPath);
+    return true;
+  }, [langs, dirty, loadFile, selectedLang, currentPath]);
+
   // ── save ──
   const handleSave = useCallback(async () => {
     if (!selectedLang || !currentPath || !dirty || saving) return;
@@ -516,6 +570,7 @@ export default function EditorApp() {
                   content={mode === 'wysiwyg' ? body : content}
                   onChange={mode === 'wysiwyg' ? (v) => setContent(fm + v) : setContent}
                   mode={mode}
+                  onLinkClick={handleEditorLinkClick}
                 />
               </div>
             </>
