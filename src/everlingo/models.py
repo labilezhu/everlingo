@@ -125,6 +125,44 @@ class UserProfile(BaseModel):
         return errors
 
 
+class WebListener(BaseModel):
+    interface: str = Field(
+        default="localhost",
+        description="Web 监听接口，默认 localhost",
+        examples=["localhost", "0.0.0.0"],
+    )
+    port: int = Field(
+        default=8000,
+        description="Web 监听端口，默认 8000",
+        examples=[8000],
+    )
+
+
+class WebPublicAddress(BaseModel):
+    base_url: str = Field(
+        default="",
+        description="浏览器访问地址。空值表示从 listener 生效配置自动生成（http://{interface}:{port}）",
+        examples=["http://localhost:8000", "https://everlingo.example.com"],
+    )
+
+
+class ChannelWeb(BaseModel):
+    listener: WebListener = Field(default_factory=WebListener, description="监听地址")
+    public_address: WebPublicAddress = Field(
+        default_factory=WebPublicAddress, description="浏览器访问地址"
+    )
+
+
+class Channels(BaseModel):
+    channel_web: ChannelWeb = Field(
+        default_factory=ChannelWeb, description="Web Session Acceptor 配置"
+    )
+
+
+class Plugins(BaseModel):
+    channels: Channels = Field(default_factory=Channels, description="通道插件配置")
+
+
 class EverLingoSetting(BaseModel):
     # 系统设定，ref: configuration.md SysSetting
     sys_setting: SysSetting = Field(
@@ -135,6 +173,11 @@ class EverLingoSetting(BaseModel):
     user_profile: UserProfile = Field(
         default_factory=UserProfile,
         description="用户 Profile",
+    )
+    # 插件配置，ref: configuration.md Plugins
+    plugins: Plugins = Field(
+        default_factory=Plugins,
+        description="插件配置",
     )
 
 

@@ -16,3 +16,4 @@
   - 2026-07-23 14:00 | standalone chatbot header 增加「笔记编辑器」按钮，点击跳转 /editor；仅非嵌入式模式显示；更新设计文档
   - 2026-07-23 15:00 | 将 editor header 上的「源码/直观」模式切换和「保存」按钮移至编辑区上方文件路径面板右侧；header 仅保留 lang selector、标题、呼叫小记、转到小记
   - 2026-07-23 16:00 | SearchBar tag 候选列表增加刷新按钮（RefreshCw），手动重拉 list_tags 以同步笔记 tag 增删；tags 区块常驻显示（无 tag 时显示「暂无 tag」提示）；修复 tag 切换 lang 时 filter 闭包 bug；更新 vault-editor.md 设计文档
+  - 2026-07-24 10:00 | PR1: 加入配置项 plugins.channels.channel_web（listener + public_address.base_url）；新增 WebListener/WebPublicAddress/ChannelWeb/Channels/Plugins 模型；setting.py 新增 get_web_listener/get_web_public_base_url helper；gateway.py WebSessionAcceptor 接入 listener 配置；更新 configuration.md / web-session-acceptor.md / vault-editor.md 文档；新增 55 项 plugins 配置测试，全量 566 通过

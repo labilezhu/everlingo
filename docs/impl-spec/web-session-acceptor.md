@@ -16,6 +16,27 @@ Web Session Acceptor 的实现包括两部分：
 - [Standalone Web Chatbot](/docs/impl-spec/standalone-web-chatbot.md)
 - [Chrome Extension — Web Sidecar](docs/impl-spec/chrome-extension-spec.md)
 
+## Web 配置
+
+Web Session Acceptor 的监听地址由 `everlingo.yaml` 中的 `plugins.channels.channel_web.listener` 决定：
+
+```yaml
+plugins:
+  channels:
+    channel_web:
+      listener:
+        interface: localhost   # 默认 localhost
+        port: 8000             # 默认 8000
+```
+
+`WebSessionAcceptor` 在 `gateway.py` 启动时通过 `get_web_listener()` 读取生效配置，传给 `WebSessionAcceptor(host=, port=)`。
+
+### `public_address`（浏览器访问地址）
+
+配置项 `plugins.channels.channel_web.public_address.base_url` 用于向 Chat Agent 等组件指示浏览器端的访问地址（如外网 / HTTPS 反向代理场景）。空值（默认）时由 listener 生效配置自动生成：`http://{interface}:{port}`。
+
+通过 `setting.get_web_public_base_url()` 获取。该配置供 Chat Agent system prompt（`public_address_base_url`）等使用。
+
 ## 后端
 FastAPI 的 API。
 

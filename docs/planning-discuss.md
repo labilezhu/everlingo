@@ -4,20 +4,20 @@
 
 ## 设计
 
-当前，我们只考虑 PR1 的设计和实现。但设计时要顾及以后。
+PR1 刚才已经实现，现在计划 PR 2 设计和实现。但设计时要顾及以后。
 
 ### PR 1: 加入配置项
 
 见：everlingo.example.yaml:48 :
 ```yaml
-  plugins:
-    channels:
-      channel_web: # Web Session Acceptor 配置
-        listener: # 监听地址
-          port: 8000 # 默认 8000
-          interface: 0.0.0.0  # 默认 0.0.0.0
-        public_address: # 浏览器访问地址。如外网或 https 反向代理访问时配置 。用于 Chat Agent 消息 link 到 Vault Editor
-          base_url: http://localhost:8000 # 默认 用上面的 listener 的生效配置生成： http://$interface:$port
+plugins:
+  channels:
+    channel_web: # Web Session Acceptor 配置
+      listener: # 监听地址
+        port: 8000 # 默认 8000
+        interface: localhost  # 默认 localhost
+      public_address: # 浏览器访问地址。如外网或 https 反向代理访问时配置
+        base_url: http://localhost:8000 # 默认 用上面的 listener 的生效配置生成： http://$interface:$port
 ```
 
 - 同步修改文档： user-docs/reference/configuration.md 与 docs/impl-spec/web-session-acceptor.md 

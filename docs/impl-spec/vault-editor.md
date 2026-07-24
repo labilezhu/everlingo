@@ -184,7 +184,7 @@ web/src/editor/
 
 ### LAN 安全
 
-暂不处理（保持 `0.0.0.0` 绑定与现状一致）。后续如需收敛，最少在编辑器写 API 校验 `request.client.host` 为 loopback。
+默认 `listener.interface=localhost` 仅本机访问。如需 LAN 访问，在 `everlingo.yaml` 中配置 `plugins.channels.channel_web.listener.interface=0.0.0.0`。后续如需进一步收敛，最少在编辑器写 API 校验 `request.client.host` 为 loopback。
 
 ## 与 chatbot 的关系
 

@@ -2,14 +2,24 @@ import pytest
 from pydantic import ValidationError
 
 from everlingo.models import (
+    ChannelWeb,
+    Channels,
     EverLingoSetting,
     LoggingSetting,
+    Plugins,
     SysSetting,
     TracingSetting,
     UserLanguage,
     UserProfile,
+    WebListener,
+    WebPublicAddress,
 )
-from everlingo.setting import dict_to_setting, setting_to_dict
+from everlingo.setting import (
+    dict_to_setting,
+    get_web_listener,
+    get_web_public_base_url,
+    setting_to_dict,
+)
 
 
 def test_empty_profile_is_incomplete():
@@ -492,3 +502,149 @@ def test_sys_setting_json_schema_has_nested_models():
     props = schema["properties"]
     assert "logging_setting" in props
     assert "tracing_setting" in props
+
+
+# ── Plugins / ChannelWeb 配置 ────────────────────────────────────────
+
+def test_web_listener_defaults():
+    wl = WebListener()
+    assert wl.interface == "localhost"
+    assert wl.port == 8000
+
+
+def test_web_listener_custom():
+    wl = WebListener(interface="0.0.0.0", port=9999)
+    assert wl.interface == "0.0.0.0"
+    assert wl.port == 9999
+
+
+def test_web_public_address_defaults():
+    pa = WebPublicAddress()
+    assert pa.base_url == ""
+
+
+def test_web_public_address_custom():
+    pa = WebPublicAddress(base_url="https://everlingo.example.com")
+    assert pa.base_url == "https://everlingo.example.com"
+
+
+def test_channel_web_defaults():
+    cw = ChannelWeb()
+    assert cw.listener.interface == "localhost"
+    assert cw.listener.port == 8000
+    assert cw.public_address.base_url == ""
+
+
+def test_channels_defaults():
+    ch = Channels()
+    assert ch.channel_web.listener.interface == "localhost"
+
+
+def test_plugins_defaults():
+    p = Plugins()
+    assert p.channels.channel_web.listener.port == 8000
+
+
+def test_everlingo_setting_plugins_defaults():
+    setting = EverLingoSetting()
+    assert setting.plugins.channels.channel_web.listener.interface == "localhost"
+    assert setting.plugins.channels.channel_web.listener.port == 8000
+    assert setting.plugins.channels.channel_web.public_address.base_url == ""
+
+
+def test_plugins_yaml_roundtrip():
+    data = {
+        "plugins": {
+            "channels": {
+                "channel_web": {
+                    "listener": {"interface": "0.0.0.0", "port": 8080},
+                    "public_address": {"base_url": "https://myapp.com"},
+                },
+            },
+        },
+    }
+    setting = dict_to_setting(data)
+    web = setting.plugins.channels.channel_web
+    assert web.listener.interface == "0.0.0.0"
+    assert web.listener.port == 8080
+    assert web.public_address.base_url == "https://myapp.com"
+
+    d = setting_to_dict(setting)
+    assert d["plugins"]["channels"]["channel_web"]["listener"]["interface"] == "0.0.0.0"
+    assert d["plugins"]["channels"]["channel_web"]["listener"]["port"] == 8080
+    assert d["plugins"]["channels"]["channel_web"]["public_address"]["base_url"] == "https://myapp.com"
+
+
+def test_plugins_yaml_partial_override():
+    """只覆写部分字段，其他保持默认。"""
+    data = {
+        "plugins": {
+            "channels": {
+                "channel_web": {
+                    "listener": {"port": 3000},
+                },
+            },
+        },
+    }
+    setting = dict_to_setting(data)
+    web = setting.plugins.channels.channel_web
+    assert web.listener.interface == "localhost"  # 默认
+    assert web.listener.port == 3000
+    assert web.public_address.base_url == ""  # 默认
+
+
+def test_plugins_unknown_fields_ignored():
+    """未知的插件字段应被静默忽略。"""
+    data = {
+        "plugins": {
+            "channels": {
+                "some_future_channel": {"key": "val"},
+            },
+        },
+    }
+    setting = dict_to_setting(data)
+    assert setting.plugins.channels.channel_web.listener.interface == "localhost"
+
+
+def test_get_web_public_base_url_defaults_from_listener(monkeypatch, tmp_path):
+    """base_url 为空时由 listener 生效值生成。"""
+    from everlingo import workspace
+    monkeypatch.setattr(workspace, "WORKSPACE_ROOT", tmp_path)
+    ws = tmp_path
+    cfg = ws / "everlingo.yaml"
+    cfg.write_text("plugins:\n  channels:\n    channel_web:\n      listener:\n        interface: 0.0.0.0\n        port: 8888\n", encoding="utf-8")
+    # 重新加载 workspace 路径
+    workspace.init_workspace(str(ws))
+    url = get_web_public_base_url()
+    # base_url 为空，从 listener 生成
+    assert url == "http://0.0.0.0:8888"
+
+
+def test_get_web_public_base_url_custom(monkeypatch, tmp_path):
+    """显式配置 base_url 时直接返回。"""
+    from everlingo import workspace
+    monkeypatch.setattr(workspace, "WORKSPACE_ROOT", tmp_path)
+    ws = tmp_path
+    cfg = ws / "everlingo.yaml"
+    cfg.write_text(
+        "plugins:\n  channels:\n    channel_web:\n      public_address:\n        base_url: https://myapp.com\n",
+        encoding="utf-8",
+    )
+    workspace.init_workspace(str(ws))
+    url = get_web_public_base_url()
+    assert url == "https://myapp.com"
+
+
+def test_get_web_listener(monkeypatch, tmp_path):
+    from everlingo import workspace
+    monkeypatch.setattr(workspace, "WORKSPACE_ROOT", tmp_path)
+    ws = tmp_path
+    cfg = ws / "everlingo.yaml"
+    cfg.write_text(
+        "plugins:\n  channels:\n    channel_web:\n      listener:\n        interface: '::'\n        port: 9000\n",
+        encoding="utf-8",
+    )
+    workspace.init_workspace(str(ws))
+    listener = get_web_listener()
+    assert listener.interface == "::"
+    assert listener.port == 9000

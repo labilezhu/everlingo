@@ -6,6 +6,7 @@ from . import workspace
 from .models import (
     EverLingoSetting,
     UserProfile,
+    WebListener,
 )
 
 # ref: docs/impl-spec/worksplace/workspace.md — workspace 概念
@@ -108,3 +109,23 @@ def prompt_input_mtime() -> float:
     if user_doc_path.exists():
         mtimes.append(user_doc_path.stat().st_mtime)
     return max(mtimes) if mtimes else 0.0
+
+
+def get_web_listener() -> WebListener:
+    """返回 Web Session Acceptor 的生效监听配置。"""
+    setting = load_setting()
+    return setting.plugins.channels.channel_web.listener
+
+
+def get_web_public_base_url() -> str:
+    """返回 Web 前端浏览器访问地址。
+
+    优先使用配置的 public_address.base_url；
+    空值时从 listener 生效配置自动生成：http://{interface}:{port}。
+    """
+    setting = load_setting()
+    web = setting.plugins.channels.channel_web
+    if web.public_address.base_url.strip():
+        return web.public_address.base_url.strip()
+    listener = web.listener
+    return f"http://{listener.interface}:{listener.port}"

@@ -9,7 +9,7 @@ import logging
 
 from ..log_utils import setup_logging
 from ..models import LANGUAGES, UserProfile
-from ..setting import load_profile, save_profile
+from ..setting import get_web_listener, load_profile, save_profile
 from ._memory_writer import memory_writer
 from .session_acceptor import StdioSessionAcceptor, WechatSessionAcceptor
 from .session_events import SystemNotice
@@ -165,7 +165,8 @@ class Gateway:
         if channel_type == "wechat":
             acceptor = WechatSessionAcceptor()
         elif channel_type == "web":
-            acceptor = WebSessionAcceptor()
+            listener = get_web_listener()
+            acceptor = WebSessionAcceptor(host=listener.interface, port=listener.port)
         else:
             acceptor = StdioSessionAcceptor()
 

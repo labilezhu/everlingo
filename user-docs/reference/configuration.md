@@ -24,9 +24,18 @@ sys_setting:
   openai_api_key:
   openai_base_url: 
   openai_model: 
+  openai_embedding_model:
   logging_setting:
   tracing_setting:
 user_profile:
+plugins:
+  channels:
+    channel_web:
+      listener:
+        interface: localhost
+        port: 8000
+      public_address:
+        base_url:
 ```
 
 配置文件包括以下子小节的内容。
@@ -81,3 +90,20 @@ user_profile:
 参考 [DOMAIN.md](/DOMAIN.md) 中 `用户自由偏好笔记 - USER.md` 一节。
 
 可通过与 Agent 聊天让 Agent 调用 `user_doc` 工具更新，也可用外部编辑器直接编辑。
+
+
+### 插件配置 - Plugins
+
+插件配置，包含通道插件等。
+
+在代码中， class 名称叫 `Plugins`。
+
+#### Web 通道配置 - ChannelWeb
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `listener.interface` | `localhost` | Web 监听接口。如需要 LAN/外网访问，设为 `0.0.0.0` |
+| `listener.port` | `8000` | Web 监听端口 |
+| `public_address.base_url` | `http://{interface}:{port}` | 浏览器访问地址。空值时由 listener 生效配置自动生成。外网或 https 反向代理时需显式设置 |
+
+代码中 class 名称叫 `ChannelWeb`。
