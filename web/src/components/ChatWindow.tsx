@@ -7,13 +7,14 @@ import { Button } from '@/components/ui/button';
 import { createSession, sendMessage, connectSSE, buildEnvelope } from '@/services/sseClient';
 import type { TaskKind, SSEEvent } from '@/types/chat';
 import { Message, uid } from '@/types/chat';
+import { LinkListenerContext } from './MarkdownRenderer';
 
 function decodeBase64Audio(b64: string): string {
   const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
   return URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
 }
 
-export default function ChatWindow({ embedded }: { embedded?: boolean }) {
+export default function ChatWindow({ embedded, linkListener }: { embedded?: boolean; linkListener?: (url: string) => boolean }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([
     { id: uid(), text: '你好！我是小记🐹，你的 AI 外语老师。有什么可以帮你的吗？', from: 'bot' },
@@ -84,6 +85,7 @@ export default function ChatWindow({ embedded }: { embedded?: boolean }) {
   }, [sessionId, task]);
 
   return (
+    <LinkListenerContext.Provider value={linkListener}>
     <div className={'flex flex-col h-full px-6 border-x border-border' + (embedded ? ' chat-embedded' : '')}>
       <header className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border bg-background">
         <div className="flex items-center gap-2">
@@ -123,5 +125,6 @@ export default function ChatWindow({ embedded }: { embedded?: boolean }) {
 
       <ChatInput onSend={handleSend} disabled={!sessionId} pending={pending} />
     </div>
+    </LinkListenerContext.Provider>
   );
 }

@@ -98,11 +98,7 @@ export default function EditorApp() {
         return tree(lang).then(resp => {
           setEntries(resp.entries);
           if (initPath) {
-            read(lang, initPath).then(r => {
-              setCurrentPath(initPath);
-              setContent(r.content);
-              setOriginalContent(r.content);
-            }).catch(e => setError(e.message));
+            openFileContent(lang, initPath).catch(e => setError(e.message));
           }
         });
       })
@@ -146,6 +142,51 @@ export default function EditorApp() {
       setLoading(false);
     }
   }, [dirty, selectedLang]);
+
+  // ── open file content (read + set states) ──
+  const openFileContent = useCallback(async (lang: string, path: string) => {
+    const resp = await read(lang, path);
+    setCurrentPath(path);
+    setContent(resp.content);
+    setOriginalContent(resp.content);
+  }, []);
+
+  // ── load file with optional lang switch ──
+  const loadFile = useCallback(async (lang: string, path: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      if (lang !== selectedLang) {
+        setSelectedLang(lang);
+        const treeResp = await tree(lang);
+        setEntries(treeResp.entries);
+      }
+      await openFileContent(lang, path);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedLang, openFileContent]);
+
+  // ── chatbot link click handler ──
+  const handleChatLinkClick = useCallback((url: string): boolean => {
+    let u: URL;
+    try {
+      u = new URL(url, location.origin);
+    } catch {
+      return false;
+    }
+    if (u.origin !== location.origin) return false;
+    if (u.pathname !== '/editor') return false;
+    const lang = u.searchParams.get('lang');
+    const path = u.searchParams.get('path');
+    if (!lang || !path) return false;
+    if (!langs.includes(lang)) return false;
+    if (dirty && !confirm('有未保存的改动，打开链接将丢弃。确定继续？')) return true;
+    void loadFile(lang, path);
+    return true;
+  }, [langs, dirty, loadFile]);
 
   // ── save ──
   const handleSave = useCallback(async () => {
@@ -516,7 +557,7 @@ export default function EditorApp() {
             className={'flex flex-col shrink-0 bg-background overflow-hidden ' + (chatOpen ? '' : 'hidden')}
             style={{ width: `${chatPct}%` }}
           >
-            <ChatWindow embedded />
+            <ChatWindow embedded linkListener={handleChatLinkClick} />
           </aside>
         )}
       </div>

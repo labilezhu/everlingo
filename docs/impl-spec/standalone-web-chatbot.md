@@ -48,6 +48,16 @@ task 语义遵循 [chrome-extension-spec.md §8](chrome-extension-spec.md) 的�
 消息内容的 Markdown 渲染：
 默认的文字行距太小，需要加倍。
 
+### 消息内链接点击行为
+
+消息内容中的 markdown 链接由 `react-markdown` 渲染为 `<a>`，默认 `target="_blank" rel="noopener noreferrer"`（新 Tab 打开）。
+
+当 chatbot 被嵌入到其它应用（如 [Vault Editor](vault-editor.md) 右侧侧栏）时，宿主可通过 `ChatWindow` 的 `linkListener?: (url: string) => boolean` prop 接管链接点击：
+
+- 点击时先调用 `linkListener(url)`
+- 返回 `true`：chatbot 不再处理（`preventDefault`），由宿主自行处理（如同窗打开文件）
+- 返回 `false`：回退默认行为（新 Tab 打开）
+
 ### Envelope 字段填充规则
 
 Standalone Web Chatbot 切换到结构化 `{envelope}` 格式发送消息（不再使用 `{text}` legacy 格式）。字段填充规则：

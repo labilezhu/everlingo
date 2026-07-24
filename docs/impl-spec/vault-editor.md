@@ -83,13 +83,28 @@ chatbot 的 markdown 消息里可包含指向 editor 的链接，由 `react-mark
 详见 [god 词条](/editor?lang=en&path=items/vocab/god.md)
 ```
 
+#### 链接点击行为
+
+Web Chatbot 不直接依赖 Vault Editor。`ChatWindow` 接受可选的 `linkListener?: (url: string) => boolean` prop：
+
+- **独立 chatbot**（无 listener）：所有链接默认在新 Tab 打开（`<a target="_blank" rel="noopener noreferrer">`）。
+- **嵌入到 editor**（`<ChatWindow embedded linkListener={handleChatLinkClick} />`）：点击链接时先调用 listener；返回 `true` 表示消费事件（chatbot 不再处理），返回 `false` 回退默认（新 Tab）。
+
+editor 的 `handleChatLinkClick(url)` 逻辑：
+1. 解析 URL；若 `origin !== location.origin`、`pathname !== '/editor'`、或无 `path` 查询参数 → 返回 `false`（回退新 Tab）。
+2. 取 `lang` / `path` 参数；若 `lang` 不在已知 langs 列表 → 返回 `false`。
+3. 若编辑器有未保存改动 → `confirm()`；用户取消 → 返回 `true`（消费事件，不导航）。
+4. 异步加载文件：若 `lang !== selectedLang` 先切 lang + 重拉 tree，再 `read(lang, path)` 加载到编辑区；返回 `true`。
+
+#### editor 启动参数
+
 editor app 启动时读 `location.search`：
 - `lang` → 预选 lang selector
 - `path` → 自动打开文件
 - `q` → 进入 Search tab + 预填搜索框 + 自动跑一次 `search`
 - `tag` → 预填 tag 过滤（可多个 `&tag=vocab&tag=grammar`）
 
-`MarkdownRenderer` 组件需统一链接 `target` 策略：站内 `/editor...` 同窗跳转，外链新开 tab。
+`MarkdownRenderer` 组件统一给 `<a>` 加 `target="_blank" rel="noopener noreferrer"`，点击时若存在 `linkListener` 则先调用。
 
 **URL 同步**：editor 在选中/切换文件时通过 `history.replaceState` 把当前 `lang`、`path` 同步到地址栏，格式为 `/editor?lang=en&path=items/vocab/god.md`。`q`/`tag` 等搜索参数不留在 URL 中。用户可复制地址栏 URL 作为该文件的直接入口。刷新页面后按 URL 参数恢复 lang 与打开的文件。
 

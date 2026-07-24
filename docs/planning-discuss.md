@@ -1,10 +1,19 @@
+[Vault Editor](docs/impl-spec/vault-editor.md) 的 File Explorer 现在显示的是目录名和文件名。这些 slug 格式的名字对用户不友好。现在修改为：
+- 目录显示名：如果目录下有一个 index.md 文件，文件中有 `title` 这个 frontmatter。就使用这个作为目录在 File Explorer 中的显示名
+- 文件显示名：如果文件中有 `title` 这个 frontmatter。就使用这个作为目录在 File Explorer 中的显示名
+
+前端应该记录下目录和文件的显示名和实际名。
+
+考虑到生成一棵 File Explorer 树不能在文件数量多时，过次调用后端 api 。 你看看后端 api spec 要不要为这个显示的调整页调整
+
+---
 
 ## 需求
 为 [Chat Agent](docs/impl-spec/chat-agent-spec.md) 的输出的消息内笔记 file path 部分内容，加上 到 [Vault Editor](docs/impl-spec/vault-editor.md) 的 link 。
 
 ## 设计
 
-PR1 刚才已经实现，现在计划 PR 2 设计和实现。但设计时要顾及以后。
+PR1 & PR2 刚才已经实现，现在计划 PR 3 设计和实现。但设计时要顾及以后。请你也对设计的合理性与可行性作讨论
 
 ### PR 1: 加入配置项
 

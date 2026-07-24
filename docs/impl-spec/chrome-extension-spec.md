@@ -1,7 +1,7 @@
 # Chrome Extension — Web Sidecar
 
 - 相关文档：
-  - [Chrome Extension 实现详细设计](extension/chrome-extension-impl-spec.md)
+  - [Chrome Extension 实现详细设计](chrome-extension-impl-spec.md)
   - [Envelope 结构化用户输入协议](envelope-spec.md)
   - [Web Session Acceptor](web-session-acceptor.md)
   - [Standalone Web Chatbot](standalone-web-chatbot.md)
