@@ -112,6 +112,12 @@ permissions:
    git tag v0.1.0
    git push origin v0.1.0
    ```
+   或 RC:
+   ```bash
+   git tag v0.0.1-rc.1
+   git push origin v0.1.0-rc.1
+   ```
+   
 3. GitHub Actions 自动触发 `docker-release` workflow
 4. 两个 build job 并行执行（约 5–10 分钟 / 平台，首次较慢，命中 cache 后更快）
 5. `manifest` job 合并多架构 tag（约 1 分钟）
