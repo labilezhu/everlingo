@@ -214,6 +214,23 @@ Radix UI
 
 渲染 AI 返回的 Markdown。
 
+### SSE 自动重连
+
+连接不稳定（尤其移动端）时，SSE 断线后自动重连，无需用户刷新页面。
+
+**重连策略**（`sseClient.ts:connectSSE`）：
+- `onerror` 触发时关闭当前 `EventSource`，接管重连控制。
+- 指数退避：1s → 2s → 4s → 8s → 16s → 30s（封顶 30s），无限重试。
+- 重连期间通过 `onStatus` 回调通知组件当前状态（`reconnecting` + 倒计时秒数）。
+- 暴露 `retryNow()` 方法供 UI「立即重试」按钮跳过等待直接重试。
+- 重连成功后（`onopen` 触发）回调 `onStatus({ state: 'connected' })，状态归零。
+
+**UI 表现**（`ChatWindow.tsx`）：
+- 仅当 `connStatus.state === 'reconnecting'` 时，TaskSelector 下方显示 amber 色提示条：
+  `连接断开，{N}s 后自动重试 [立即重试]`
+- 正常连接、重连成功后，不显示任何提示信息。
+- 非连接类错误（如"发送消息失败"）保持红色 error banner，与连接状态分离管理。
+
 ### Favicon
 
 使用 `web/public/favicon.png`（源图 `docs/arts/chrome-icon.png`），通过 Vite `public/` 约定自动拷贝到构建产物根目录。两个 web 入口（chatbot + editor）共用同一 favicon，均在 `<head>` 以 `<link rel="icon" type="image/png" href="/favicon.png" />` 引用。后端由 `web_acceptor.py` catch-all 路由 `GET /favicon.png` → `web/dist/favicon.png`。

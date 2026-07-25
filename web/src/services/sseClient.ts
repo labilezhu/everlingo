@@ -1,5 +1,14 @@
 import type { TaskKind, UserInputEnvelope, SSEEvent } from '@/types/chat';
 
+export type ConnStatus =
+  | { state: 'connected' }
+  | { state: 'reconnecting'; attempt: number; countdown: number };
+
+export interface ConnectSSEResult {
+  cleanup: () => void;
+  retryNow: () => void;
+}
+
 export function buildEnvelope(task: TaskKind, message: string): UserInputEnvelope {
   return {
     schema_version: 1,
@@ -37,23 +46,106 @@ export async function sendMessage(sessionId: string, envelope: UserInputEnvelope
   if (!res.ok) throw new Error('Failed to send message');
 }
 
+const MAX_BACKOFF_MS = 30_000;
+
 export function connectSSE(
   sessionId: string,
   onEvent: (e: SSEEvent) => void,
-  onError?: () => void,
-): () => void {
-  const es = new EventSource(`/api/session/${sessionId}/events`);
+  onStatus: (s: ConnStatus) => void,
+): ConnectSSEResult {
+  let es: EventSource | null = null;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let countdownTimer: ReturnType<typeof setInterval> | null = null;
+  let attempt = 0;
+  let closed = false;
 
-  es.addEventListener('message', (e: MessageEvent) => {
-    try { onEvent({ type: 'message', data: JSON.parse(e.data) }); } catch { /* skip */ }
-  });
-  es.addEventListener('typing_hint', (e: MessageEvent) => {
-    try { onEvent({ type: 'typing_hint', data: JSON.parse(e.data) }); } catch { /* skip */ }
-  });
-  es.addEventListener('sound', (e: MessageEvent) => {
-    try { onEvent({ type: 'sound', data: JSON.parse(e.data) }); } catch { /* skip */ }
-  });
-  es.onerror = () => onError?.();
+  function backoffMs(): number {
+    return Math.min(1000 * Math.pow(2, attempt), MAX_BACKOFF_MS);
+  }
 
-  return () => es.close();
+  function clearCountdown() {
+    if (countdownTimer !== null) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+  }
+
+  function setupEventSource() {
+    es = new EventSource(`/api/session/${sessionId}/events`);
+
+    es.addEventListener('message', (e: MessageEvent) => {
+      try { onEvent({ type: 'message', data: JSON.parse(e.data) }); } catch { /* skip */ }
+    });
+    es.addEventListener('typing_hint', (e: MessageEvent) => {
+      try { onEvent({ type: 'typing_hint', data: JSON.parse(e.data) }); } catch { /* skip */ }
+    });
+    es.addEventListener('sound', (e: MessageEvent) => {
+      try { onEvent({ type: 'sound', data: JSON.parse(e.data) }); } catch { /* skip */ }
+    });
+
+    es.onopen = () => {
+      attempt = 0;
+      clearCountdown();
+      onStatus({ state: 'connected' });
+    };
+
+    es.onerror = () => {
+      if (es) {
+        es.close();
+        es = null;
+      }
+      scheduleRetry();
+    };
+  }
+
+  function scheduleRetry() {
+    if (closed) return;
+    attempt++;
+    const delay = backoffMs();
+    let remaining = Math.ceil(delay / 1000);
+
+    onStatus({ state: 'reconnecting', attempt, countdown: remaining });
+
+    countdownTimer = setInterval(() => {
+      remaining--;
+      if (remaining >= 0) {
+        onStatus({ state: 'reconnecting', attempt, countdown: remaining });
+      }
+    }, 1000);
+
+    retryTimer = setTimeout(() => {
+      clearCountdown();
+      setupEventSource();
+    }, delay);
+  }
+
+  function cleanup() {
+    closed = true;
+    if (es) {
+      es.close();
+      es = null;
+    }
+    if (retryTimer !== null) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+    clearCountdown();
+  }
+
+  function retryNow() {
+    if (retryTimer !== null) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+    clearCountdown();
+    if (es) {
+      es.close();
+      es = null;
+    }
+    setupEventSource();
+  }
+
+  setupEventSource();
+
+  return { cleanup, retryNow };
 }

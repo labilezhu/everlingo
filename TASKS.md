@@ -4,6 +4,10 @@
 
 ## 完成的任务
 格式：完成日期与时间(北京时间) | 任务描述 。 示例：" - 2026-06-20 19:28 | 生成主入口代码"
+- 2026-07-25 XX:XX | **Web Chatbot SSE 自动重连**
+  - `sseClient.ts`：`connectSSE` 重写，`onerror` 接管重连控制；指数退避 1→2→4→8→16→30s 封顶；`onStatus` 回调通知 `connected`/`reconnecting` + 倒计时秒数；暴露 `retryNow()`
+  - `ChatWindow.tsx`：`error` 拆分为 `connStatus`（连接）+ `error`（业务）；amber 色提示条仅在 `reconnecting` 时显示倒计时及「立即重试」按钮；正常/重连成功不显示；非连接错误保持红色 banner
+  - `docs/impl-spec/web-chatbot.md` 新增「SSE 自动重连」小节
 - 2026-07-25 XX:XX | **Web Chatbot 移动端响应式适配**
   - 断点 `md` (768px)：所有响应式差异用 `md:` 前缀表达，纯 CSS 方案
   - 按钮文字用 `<span className="hidden md:inline">` 包裹，移动端仅显示图标（笔记编辑器、发送）

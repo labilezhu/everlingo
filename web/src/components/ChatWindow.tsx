@@ -4,7 +4,7 @@ import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
 import TaskSelector from './TaskSelector';
 import { Button } from '@/components/ui/button';
-import { createSession, sendMessage, connectSSE, buildEnvelope } from '@/services/sseClient';
+import { createSession, sendMessage, connectSSE, buildEnvelope, type ConnStatus } from '@/services/sseClient';
 import type { TaskKind, SSEEvent } from '@/types/chat';
 import { Message, uid } from '@/types/chat';
 import { LinkListenerContext } from './MarkdownRenderer';
@@ -23,6 +23,8 @@ export default function ChatWindow({ embedded, linkListener }: { embedded?: bool
   const [thinking, setThinking] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [connStatus, setConnStatus] = useState<ConnStatus | null>(null);
+  const retryNowRef = useRef<(() => void) | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -45,7 +47,7 @@ export default function ChatWindow({ embedded, linkListener }: { embedded?: bool
       try {
         const sid = await createSession();
         setSessionId(sid);
-        cleanup = connectSSE(
+        const conn = connectSSE(
           sid,
           (e: SSEEvent) => {
             if (e.type === 'message') {
@@ -61,8 +63,10 @@ export default function ChatWindow({ embedded, linkListener }: { embedded?: bool
               setThinking((e.data as { typing: boolean }).typing);
             }
           },
-          () => setError('连接断开，请刷新页面重试'),
+          (s: ConnStatus) => { setConnStatus(s); },
         );
+        cleanup = conn.cleanup;
+        retryNowRef.current = conn.retryNow;
       } catch { setError('无法连接到服务器'); }
     })();
     return () => {
@@ -105,6 +109,18 @@ export default function ChatWindow({ embedded, linkListener }: { embedded?: bool
       {error && (
         <div className="px-4 py-2 bg-red-50 text-red-600 text-sm border-b border-red-200">
           {error}
+        </div>
+      )}
+
+      {connStatus?.state === 'reconnecting' && (
+        <div className="px-4 py-2 bg-amber-50 text-amber-700 text-sm border-b border-amber-200 flex items-center justify-between gap-2">
+          <span>连接断开，{connStatus.countdown}s 后自动重试</span>
+          <button
+            onClick={() => retryNowRef.current?.()}
+            className="underline whitespace-nowrap font-medium shrink-0"
+          >
+            立即重试
+          </button>
         </div>
       )}
 
