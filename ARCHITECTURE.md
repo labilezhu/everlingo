@@ -39,6 +39,11 @@
 - [配置](docs/impl-spec/configuration.md)
 
 
+## 部署
+
+- [Image 设计规范](docs/impl-spec/deploy/image/container-spec.md)
+
+
 ## 应用的主入口
 应用的主入口。指进程启动的入口点。参见： [app-entry.md](/docs/impl-spec/app-entry.md)
 

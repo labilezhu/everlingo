@@ -4,6 +4,14 @@
 
 ## 完成的任务
 格式：完成日期与时间(北京时间) | 任务描述 。 示例：" - 2026-06-20 19:28 | 生成主入口代码"
+- 2026-07-25 XX:XX | **Image 设计规范文档修订（container-spec.md）**
+  - 重写 `docs/impl-spec/deploy/image/container-spec.md`：新增「镜像构建」（多阶段 frontend-builder/deps/runtime）「镜像内目录布局」「workspace 挂载策略」节；重写「image 进程」节为 entrypoint.sh 编排（bash + wait -n + /dev/tcp 就绪探测）；「image expose port」仅 8000（删 9000）；修复「经典部署方法」`docker run -v` 参数位置 bug、`$your_domain` → `<your_domain>` 占位符、删注释段、`app_user_name` 加注释；新增 `openai_embedding_model` 字段说明
+  - 修订 `root/.../everlingo.yaml` 模板：补 `openai_embedding_model: ''` 字段 + `interface: 0.0.0.0` 注释（容器部署有意为之）
+  - `ARCHITECTURE.md` 新增「部署」节链接指向 container-spec.md
+  - 决策汇总：进程编排 entrypoint.sh + wait -n；前端 Node 多阶段构建；运行时 python -m everlingo；build 期 uv sync + unidic download；镜内 /app/src + /app/web/dist WORKDIR /app；整目录挂载覆盖；日志写文件；保留 sudo；不加 HEALTHCHECK；indexer 就绪轮询 indexer.mcp.url + /dev/tcp；EVERLINGO_WORKSPACE_DIR env 设为 default workspace 路径
+  - 创建 `docs/impl-spec/deploy/image/Dockerfile`：三阶段构建（frontend-builder/deps/runtime），runtime 阶段 `COPY docs/impl-spec/deploy/image/root/ /`（context=repo root）
+  - 创建 `docs/impl-spec/deploy/image/root/app/entrypoint.sh`：bash + wait -n + /dev/tcp 就绪探测，统一 python -m everlingo 命令
+
 - 2026-07-25 XX:XX | **Web Chatbot SSE 自动重连 + session_expired 处理**
   - `sseClient.ts`：`connectSSE` 重写，`onerror` 按 `readyState` 区分网络异常（`CONNECTING` → `scheduleRetry()`）与 session 过期（`CLOSED` → `session_expired`）；指数退避 1→2→4→8→16→30s 封顶；`onStatus` 回调通知 `connected`/`reconnecting` + 倒计时秒数 / `session_expired`；暴露 `retryNow()`
   - `ChatWindow.tsx`：`error` 拆分为 `connStatus`（连接）+ `error`（业务）；amber 色提示条在 `reconnecting` 时显示倒计时及「立即重试」按钮，`session_expired` 时显示「会话已过期 [重新开始]」；`handleRebuild` 创建新 session + 插入系统消息；`reconnectNonce` 触发 useEffect 重跑；正常/重连成功不显示；非连接错误保持红色 banner

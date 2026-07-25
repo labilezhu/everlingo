@@ -2,6 +2,7 @@ sys_setting:
   openai_api_key: ''
   openai_base_url: ''
   openai_model: ''
+  openai_embedding_model: ''  # 复用 openai_api_key / openai_base_url；空值时 create_ai_embedding() 抛错
   logging_setting:
     log_file: ''
     log_level: debug
@@ -20,6 +21,6 @@ plugins:
     channel_web: # Web Session Acceptor 配置
       listener: # 监听地址
         port: 8000 # 默认 8000
-        interface: 0.0.0.0  # 默认 localhost
+        interface: 0.0.0.0  # 容器部署有意设为 0.0.0.0；本机直跑场景见 everlingo.example.yaml（localhost）
       public_address: # 浏览器访问地址。如外网或 https 反向代理访问时配置
         base_url: http://localhost:8000 # 默认 用上面的 listener 的生效配置生成： http://$interface:$port
