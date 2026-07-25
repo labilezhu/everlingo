@@ -21,6 +21,10 @@
   - Resize 手柄加 `hidden md:block`，移动端隐藏
   - 新增 `useMediaQuery` hook（`matchMedia` + listener）
   - 更新 `docs/impl-spec/vault-editor.md` 移动端小节
+- 2026-07-25 XX:XX | **为 Web Chatbot 与 Vault Editor 添加 favicon**
+  - 源图 `docs/arts/chrome-icon.png` → `web/public/favicon.png`（Vite `public/` 部署）
+  - `web/index.html` 与 `web/editor.html` 均添加 `<link rel="icon">`
+  - 更新 `docs/impl-spec/web-chatbot.md` 与 `docs/impl-spec/vault-editor.md` 文档
 - 2026-07-24 XX:XX | **最小化 frontmatter 必选字段 + slug 移出 frontmatter**
   - 方案 B：file_path 作 upsert 主键，ulid 列可空（SQLite UNIQUE 已允许多 NULL，无需 schema 迁移）
   - 代码：indexer._get_existing_rowid / sync.reconcile / watcher._dispatch 改按 file_path 查询

@@ -192,6 +192,10 @@ ChatInput 的 `发送` 按钮保留文字（右侧抽屉内空间足够）。
 
 新增 shadcn 组件（`npx shadcn@latest add context-menu`，基于 Base UI `@base-ui/react/context-menu`，与 button/input 同栈）。
 
+### Favicon
+
+与 chatbot 共用同一 `web/public/favicon.png`（源图 `docs/arts/chrome-icon.png`），Vite `public/` 约定自动部署。两个 html 入口均已添加 `<link rel="icon" type="image/png" href="/favicon.png" />`；后端 catch-all 路由可直接服务 `GET /favicon.png`。
+
 ### Vite 多入口
 
 `web/vite.config.ts` 的 `build.rollupOptions.input` 改为多入口：

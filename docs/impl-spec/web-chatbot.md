@@ -214,6 +214,10 @@ Radix UI
 
 渲染 AI 返回的 Markdown。
 
+### Favicon
+
+使用 `web/public/favicon.png`（源图 `docs/arts/chrome-icon.png`），通过 Vite `public/` 约定自动拷贝到构建产物根目录。两个 web 入口（chatbot + editor）共用同一 favicon，均在 `<head>` 以 `<link rel="icon" type="image/png" href="/favicon.png" />` 引用。后端由 `web_acceptor.py` catch-all 路由 `GET /favicon.png` → `web/dist/favicon.png`。
+
 ## 移动端适配
 
 以 Tailwind 默认 `md` 断点（768px）为界。所有响应式差异用 `md:` 前缀表达，不引入 `useMediaQuery`（chatbot 单栏纵向布局无需 JS 状态切换、无抽屉、无 backdrop）。
