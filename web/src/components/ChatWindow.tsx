@@ -24,6 +24,7 @@ export default function ChatWindow({ embedded, linkListener }: { embedded?: bool
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connStatus, setConnStatus] = useState<ConnStatus | null>(null);
+  const [reconnectNonce, setReconnectNonce] = useState(0);
   const retryNowRef = useRef<(() => void) | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -40,6 +41,12 @@ export default function ChatWindow({ embedded, linkListener }: { embedded?: bool
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, thinking]);
+
+  function handleRebuild() {
+    setConnStatus(null);
+    setReconnectNonce(n => n + 1);
+    setMessages(prev => [...prev, { id: uid(), text: '（小记已重新开始，之前的对话记忆已丢失）', from: 'system' }]);
+  }
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -73,7 +80,7 @@ export default function ChatWindow({ embedded, linkListener }: { embedded?: bool
       cleanup?.();
       audioRef.current?.pause();
     };
-  }, []);
+  }, [reconnectNonce]);
 
   const handleSend = useCallback(async (text: string) => {
     if (!sessionId) return;
@@ -120,6 +127,18 @@ export default function ChatWindow({ embedded, linkListener }: { embedded?: bool
             className="underline whitespace-nowrap font-medium shrink-0"
           >
             立即重试
+          </button>
+        </div>
+      )}
+
+      {connStatus?.state === 'session_expired' && (
+        <div className="px-4 py-2 bg-amber-50 text-amber-700 text-sm border-b border-amber-200 flex items-center justify-between gap-2">
+          <span>会话已过期</span>
+          <button
+            onClick={handleRebuild}
+            className="underline whitespace-nowrap font-medium shrink-0"
+          >
+            重新开始
           </button>
         </div>
       )}

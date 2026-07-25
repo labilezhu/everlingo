@@ -2,7 +2,8 @@ import type { TaskKind, UserInputEnvelope, SSEEvent } from '@/types/chat';
 
 export type ConnStatus =
   | { state: 'connected' }
-  | { state: 'reconnecting'; attempt: number; countdown: number };
+  | { state: 'reconnecting'; attempt: number; countdown: number }
+  | { state: 'session_expired' };
 
 export interface ConnectSSEResult {
   cleanup: () => void;
@@ -90,11 +91,17 @@ export function connectSSE(
     };
 
     es.onerror = () => {
+      const wasRejected = es?.readyState === EventSource.CLOSED;
       if (es) {
         es.close();
         es = null;
       }
-      scheduleRetry();
+      if (wasRejected) {
+        closed = true;
+        onStatus({ state: 'session_expired' });
+      } else {
+        scheduleRetry();
+      }
     };
   }
 

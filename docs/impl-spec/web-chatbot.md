@@ -219,15 +219,21 @@ Radix UI
 连接不稳定（尤其移动端）时，SSE 断线后自动重连，无需用户刷新页面。
 
 **重连策略**（`sseClient.ts:connectSSE`）：
-- `onerror` 触发时关闭当前 `EventSource`，接管重连控制。
+- `onerror` 触发时检查 `es.readyState`：
+  - `CLOSED`（服务器返回非 200 响应，如 404 session 已过期）→ 进入 `session_expired` 态，不再重试。
+  - `CONNECTING`（网络中断）→ 关闭当前 `EventSource`，接管重连控制。
 - 指数退避：1s → 2s → 4s → 8s → 16s → 30s（封顶 30s），无限重试。
 - 重连期间通过 `onStatus` 回调通知组件当前状态（`reconnecting` + 倒计时秒数）。
 - 暴露 `retryNow()` 方法供 UI「立即重试」按钮跳过等待直接重试。
 - 重连成功后（`onopen` 触发）回调 `onStatus({ state: 'connected' })，状态归零。
 
 **UI 表现**（`ChatWindow.tsx`）：
-- 仅当 `connStatus.state === 'reconnecting'` 时，TaskSelector 下方显示 amber 色提示条：
+- `connStatus.state === 'reconnecting'`：TaskSelector 下方显示 amber 色提示条：
   `连接断开，{N}s 后自动重试 [立即重试]`
+- `connStatus.state === 'session_expired'`：amber 色提示条：
+  `会话已过期 [重新开始]`
+  - 点击「重新开始」→ `handleRebuild()`：创建新 session + 连接新 SSE + 在消息列表插入灰色系统通知「小记已重新开始，之前的对话记忆已丢失」。
+  - UI 历史消息保留可见，但 Agent 上下文已重置。
 - 正常连接、重连成功后，不显示任何提示信息。
 - 非连接类错误（如"发送消息失败"）保持红色 error banner，与连接状态分离管理。
 

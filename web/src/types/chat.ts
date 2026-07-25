@@ -22,7 +22,7 @@ export interface UserInputEnvelope {
 export interface Message {
   id: string;
   text: string;
-  from: 'user' | 'bot';
+  from: 'user' | 'bot' | 'system';
   audioUrl?: string;
 }
 
