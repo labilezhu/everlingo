@@ -213,3 +213,31 @@ Radix UI
 用途
 
 渲染 AI 返回的 Markdown。
+
+## 移动端适配
+
+以 Tailwind 默认 `md` 断点（768px）为界。所有响应式差异用 `md:` 前缀表达，不引入 `useMediaQuery`（chatbot 单栏纵向布局无需 JS 状态切换、无抽屉、无 backdrop）。
+
+### 断点
+`md` (768px)。所有响应式类使用 `md:` 前缀。
+
+### 按钮文字标签自适应隐藏
+「图标 + 文字」按钮的文字用 `<span className="hidden md:inline">` 包裹，图标常驻。`< md` 只显示图标，`>= md` 显示完整文字。涉及：
+
+| 位置 | 按钮 | 文件:行 |
+|------|------|---------|
+| Header | 笔记编辑器 | `ChatWindow.tsx` |
+| Input | 发送 | `ChatInput.tsx` |
+
+「发送」按钮在移动端额外收紧为方形 icon button（`w-9` + `aria-label="发送"`），桌面恢复 auto 宽度。
+
+`TaskSelector` 的「翻译/查词/聊天」是纯文字按钮（无图标），保持不动——2 字标签在 iPhone 上放得下，隐藏反而损害可用性。
+
+### 容器 padding / border 响应式
+- `ChatWindow` 根 `px-0 md:px-6 border-x-0 md:border-x`：移动端全屏贴边，桌面保留装饰边框 + 24px 留白。
+- Header / messages / ChatInput form 的 `px-4 py-3` → `px-3 py-2 md:px-4 md:py-3`。
+
+### 不在本范围
+- 不引入抽屉 / backdrop / `useMediaQuery`（chatbot 无此需求）。
+- 不改 SSE / session / envelope 逻辑。
+- Chrome Extension Web Sidecar（`extension/src/components/`）是独立代码副本，且 sidecar 仅在桌面浏览器 Chrome side panel 中运行，移动端适配不适用，无需同步修改。

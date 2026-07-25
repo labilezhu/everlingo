@@ -4,6 +4,13 @@
 
 ## 完成的任务
 格式：完成日期与时间(北京时间) | 任务描述 。 示例：" - 2026-06-20 19:28 | 生成主入口代码"
+- 2026-07-25 XX:XX | **Web Chatbot 移动端响应式适配**
+  - 断点 `md` (768px)：所有响应式差异用 `md:` 前缀表达，纯 CSS 方案
+  - 按钮文字用 `<span className="hidden md:inline">` 包裹，移动端仅显示图标（笔记编辑器、发送）
+  - 「发送」按钮移动端缩小为方形 icon button（`w-9` + `aria-label`）
+  - 容器 padding/border 响应式：`ChatWindow` 根 `px-0 md:px-6`、header/messages/input padding 收紧
+  - `TaskSelector` 纯文字按钮保持不动
+  - 更新 `docs/impl-spec/web-chatbot.md` 新增「移动端适配」一节
 - 2026-07-24 XX:XX | **Vault Editor 移动端适配**
   - 断点 `md` (768px)：`< md` 移动端抽屉模式，`>= md` 桌面三栏 flex 不变
   - 按钮文字用 `<span className="hidden md:inline">` 包裹，移动端仅显示图标

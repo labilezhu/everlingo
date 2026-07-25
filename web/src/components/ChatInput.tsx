@@ -29,7 +29,7 @@ export default function ChatInput({ onSend, disabled, pending }: ChatInputProps)
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex items-end gap-2 border-t border-border px-4 py-3">
+    <form onSubmit={handleSubmit} className="flex items-end gap-2 border-t border-border px-3 py-2 md:px-4 md:py-3">
       <Textarea
         name="message"
         placeholder="输入单词、句子或提问..."
@@ -38,9 +38,10 @@ export default function ChatInput({ onSend, disabled, pending }: ChatInputProps)
         className="min-h-10 resize-none"
         rows={1}
       />
-      <Button type="submit" disabled={disabled} size="lg" className={cn("shrink-0 gap-2 px-4 text-base", pending && "animate-pulse")}>
+      <Button type="submit" disabled={disabled} size="lg" aria-label="发送"
+        className={cn("shrink-0 gap-2 w-9 md:w-auto px-2.5 md:px-4 text-base", pending && "animate-pulse")}>
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-        发送
+        <span className="hidden md:inline">发送</span>
       </Button>
     </form>
   );

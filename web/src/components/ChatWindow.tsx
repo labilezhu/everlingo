@@ -86,8 +86,8 @@ export default function ChatWindow({ embedded, linkListener }: { embedded?: bool
 
   return (
     <LinkListenerContext.Provider value={linkListener}>
-    <div className={'flex flex-col h-full px-6 border-x border-border' + (embedded ? ' chat-embedded' : '')}>
-      <header className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border bg-background">
+    <div className={'flex flex-col h-full px-0 md:px-6 border-x-0 md:border-x border-border' + (embedded ? ' chat-embedded' : '')}>
+      <header className="flex items-center justify-between gap-2 px-3 py-2 md:px-4 md:py-3 border-b border-border bg-background">
         <div className="flex items-center gap-2">
           <span className="text-xl">🐹</span>
           <h1 className="text-lg font-semibold text-foreground">小记</h1>
@@ -95,7 +95,7 @@ export default function ChatWindow({ embedded, linkListener }: { embedded?: bool
         {!embedded && (
           <Button variant="ghost" size="sm" onClick={() => { window.location.href = '/editor'; }}>
             <NotebookPen />
-            笔记编辑器
+            <span className="hidden md:inline">笔记编辑器</span>
           </Button>
         )}
       </header>
@@ -108,7 +108,7 @@ export default function ChatWindow({ embedded, linkListener }: { embedded?: bool
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      <div className="flex-1 overflow-y-auto px-3 py-3 md:px-4 md:py-4 space-y-4">
         {messages.map(msg => (
           <MessageBubble key={msg.id} message={msg} onReplay={playAudio} />
         ))}
