@@ -240,7 +240,7 @@ curl --unix-socket $workspace/indexer.sock http://localhost/status
   "langs": [
     {
       "lang": "en",
-      "tokenizer_version": "jieba:0.42+fugashi:1.1+unidic:2024...",
+      "tokenizer_version": "jieba:0.42+fugashi:1.1+unidic-lite:1.0.8",
       "docs": 128,
       "chunks": 412,
       "embedded_chunks": 412,
@@ -248,7 +248,7 @@ curl --unix-socket $workspace/indexer.sock http://localhost/status
     },
     {
       "lang": "ja",
-      "tokenizer_version": "jieba:0.42+fugashi:1.1+unidic:2024...",
+      "tokenizer_version": "jieba:0.42+fugashi:1.1+unidic-lite:1.0.8",
       "docs": 64,
       "chunks": 201,
       "embedded_chunks": 180,

@@ -19,9 +19,8 @@ Dockerfile: docs/impl-spec/deploy/image/Dockerfile
 ### Stage 2: `deps`
 - base: `python:3.12.13-bookworm`
 - 安装 `uv`（`pip install uv`）
-- `COPY pyproject.toml uv.lock` → `uv sync --frozen --no-dev` 生成 `/app/.venv`
-- 执行 `python -m unidic download` 下载 unidic 词典数据（否则 indexer 启动时降级为字符切分并 warn，见 `memory-vault-search-spec.md`）。词典体积较大（约 500MB），增大镜像体积但保证搜索质量。
-- 产物: `/app/.venv`（含 unidic 词典数据）
+- `COPY pyproject.toml uv.lock` → `uv sync --frozen --no-dev --no-install-project` 生成 `/app/.venv`（跳过本地包安装，只装外部依赖）
+- 产物: `/app/.venv`（含全部 Python 依赖 + unidic-lite 词典数据）
 
 ### Stage 3: `runtime`
 - base: `python:3.12.13-bookworm`
@@ -33,6 +32,7 @@ Dockerfile: docs/impl-spec/deploy/image/Dockerfile
 - `COPY docs/impl-spec/deploy/image/root/ /`（workspace 模板 + entrypoint.sh，路径相对 repo root；见下「app files」节）
 - `WORKDIR /app`
 - `ENV PATH="/app/.venv/bin:$PATH"`（使 `python` 直接指向 venv）
+- `ENV PYTHONPATH="/app/src"`（因 deps stage 用 `--no-install-project`，无 editable .pth 指向 src，需显式添加）
 - `ENV EVERLINGO_WORKSPACE_DIR=/home/everlingo/.everlingo/workspaces/default`（见 workspace.md 优先级：CLI > `EVERLINGO_WORKSPACE_DIR` env > `EVERLINGO_WORKSPACE` env > default。设此 env 使容器内命令无需 `--workspace-dir`）
 - `EXPOSE 8000`
 - `ENTRYPOINT ["/app/entrypoint.sh"]`
@@ -58,7 +58,7 @@ root/
 
 ### 应用源码与依赖
 由多阶段构建注入（见「镜像构建」节）：
-- `/app/.venv` — Python 虚拟环境（含全部依赖 + unidic 词典）
+- `/app/.venv` — Python 虚拟环境（含全部依赖 + unidic-lite 词典）
 - `/app/src/everlingo/...` — 应用源码
 - `/app/pyproject.toml`
 

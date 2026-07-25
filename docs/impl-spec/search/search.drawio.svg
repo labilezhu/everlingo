@@ -444,7 +444,7 @@
                                                     tokenizer_version
                                                 </td>
                                                 <td>
-                                                    jieba:0.42+fugashi:1.1+unidic:unknown
+                                                    jieba:0.42+fugashi:1.1+unidic-lite:unknown
                                                 </td>
                                             </tr>
                                             <tr>
@@ -486,7 +486,7 @@
                         </div>
                     </foreignObject>
                     <text x="72" y="1219" fill="light-dark(#000000, #ffffff)" font-family="&quot;Helvetica&quot;" font-size="12px">
-                        keyvaluetokenizer_versionjieba:0.42+fugashi:1.1+unidic:unknownsche...
+                        keyvaluetokenizer_versionjieba:0.42+fugashi:1.1+unidic-lite:unknownsche...
                     </text>
                 </switch>
             </g>

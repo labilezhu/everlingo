@@ -2,14 +2,14 @@
 # Unicode 脚本分发分词器：
 #   Latin         -> 小写化，保留原文（unicode61 后续按空白切）
 #   Han           -> jieba.cut
-#   Hiragana / Katakana / Kanji -> fugashi + unidic
+#   Hiragana / Katakana / Kanji -> fugashi + unidic-lite
 # 合并所有 token，空格连接成字符串。
 #
 # 单文件常含界面语言（zh）+ 目标语言（en/ja）混排；脚本分发无需语言检测器。
 # 查询侧必须调用同一个 tokenize()，否则索引侧 / 查询侧 token 集合不一致导致
 # 匹配失败。
 #
-# jieba / fugashi 加载较重（unidic 词典 ~50MB），仅在 indexer 进程首次调用
+# jieba / fugashi 加载较重（unidic-lite 词典 ~50MB），仅在 indexer 进程首次调用
 # _ensure_loaded() 时加载。gateway 进程不调用此模块。
 
 from __future__ import annotations
@@ -47,14 +47,16 @@ def _load_fugashi():
 
         try:
             import unidic  # type: ignore[import-not-found]
-
-            dicdir = unidic.DICDIR
-            # 验证 unidic 词典实际存在（unidic 1.1.0 需要 python -m unidic download）
             import os as _os
 
+            # unidic (full) exposes DICDIR; unidic-lite 只提供文件目录
+            dicdir = getattr(unidic, 'DICDIR', None)
+            if dicdir is None:
+                pkg_dir = unidic.__path__._path[0]
+                dicdir = _os.path.join(pkg_dir, 'dicdir')
             if not _os.path.isdir(dicdir) or not _os.listdir(dicdir):
                 logger.warning(
-                    "unidic 词典未下载（%s 为空），请运行 `python -m unidic download`；日文退化为字符切分",
+                    "unidic 词典不可用（%s 为空）；日文退化为字符切分",
                     dicdir,
                 )
                 return None
@@ -85,10 +87,19 @@ def tokenizer_version() -> str:
     if _FUGASHI_TAGGER is not None:
         try:
             import unidic  # type: ignore[import-not-found]
+            import os as _os
 
-            parts.append(f"unidic:{unidic.__version__}")
+            ver = getattr(unidic, '__version__', None)
+            if ver is None:
+                pkg_dir = unidic.__path__._path[0]
+                ver_file = _os.path.join(pkg_dir, 'dicdir', 'version')
+                if _os.path.isfile(ver_file):
+                    ver = open(ver_file).read().strip()
+                else:
+                    ver = 'unknown'
+            parts.append(f"unidic-lite:{ver}")
         except Exception:
-            parts.append("unidic:unknown")
+            parts.append("unidic-lite:unknown")
     return "+".join(parts)
 
 
@@ -252,5 +263,5 @@ def tokenize_for_fts_query(text: str) -> str:
 # 出现 kanji 时按 fugashi 处理（_classify_run 实际按字符切换，因此
 # kanji 与 kana 不会在同一 run；即一个混排段会被切成多个 kana + han run，
 # 分别字符切 + jieba 切。这对中文 ja 混排的句子可接受：中文走 jieba，
-# 假名走字符切，汉字部分走 jieba (无 unidic 词典时)；unidic 可用时由 _segment_ja
-# 处理纯日文段)。详见 docstring。
+# 假名走字符切，汉字部分走 jieba (无 unidic 词典时)；unidic-lite 可用时由 _segment_ja
+                # 处理纯日文段)。详见 docstring。

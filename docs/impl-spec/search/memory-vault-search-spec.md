@@ -16,7 +16,7 @@
 | 维度 | 选型 | 理由 |
 |---|---|---|
 | 引擎 | SQLite + FTS5 | Python 标准库 `sqlite3` 在 3.11 自带 SQLite 通常已编译 FTS5；零外部存储服务 |
-| 分词 | jieba（中文）+ fugashi+mecab/unidic（日文），按 Unicode 脚本分发 | FTS5 内置 `trigram` 对 CJK 无词边界、英文精确匹配偏差；改用 unicode61 + Python 预分词 |
+| 分词 | jieba（中文）+ fugashi+mecab/unidic-lite（日文），按 Unicode 脚本分发 | FTS5 内置 `trigram` 对 CJK 无词边界、英文精确匹配偏差；改用 unicode61 + Python 预分词 |
 | FTS 模式 | 非 external content，自管 insert/delete | 自定义分词需把分词后文本直接喂入 FTS5 列，不能用 `content='documents'` 外部引用原文 |
 | 文件监听 | watchdog | 跨平台 inotify/FSEvents/ReadDirectoryChanges 封装，实时事件 |
 | IPC | HTTP/1.1 over unix domain socket，REST + JSON | 支持 curl 调试，复用 fastapi/uvicorn 的 unix socket 能力，零新 server 依赖 |
@@ -56,7 +56,7 @@ indexer 以**前台进程**方式运行（`everlingo mem indexer start` 阻塞�
 ### 为什么独立进程
 
 - **多 gateway 实例写冲突**：`gateway.md` 支持同时跑 `--channel_wechat`、`--channel_web`、`--channel_stdio`，是不同进程。若每个进程都带 watcher 写同一份 `memory.sqlite`，SQLite 单写者锁会冲突。独立 indexer 进程独占写，彻底解决。
-- **mecab/jieba 常驻内存**：unidic 词典 + mecab 约几十 MB 常驻，每个 gateway 进程都加载一份浪费且拖慢启动。独立进程只加载一次。
+- **mecab/jieba 常驻内存**：unidic-lite 词典 + mecab 约几十 MB 常驻，每个 gateway 进程都加载一份浪费且拖慢启动。独立进程只加载一次。
 - **重索引/重建不影响聊天**：分词器升级全量重建时，gateway 不停。
 - **embedding worker 更重**：调 LLM 嵌入天然适合独立进程（见 embedding-spec）。
 - **查询也走 IPC**：相比 LLM 调用（数百 ms），本机 unix socket HTTP 往返（sub-ms ~ 几 ms）可忽略。
@@ -191,7 +191,7 @@ CREATE TABLE meta (
   value TEXT
 );
 -- 记录示例：
---   tokenizer_version = 'jieba:0.42+fugashi:1.1+unidic:2024...'
+--   tokenizer_version = 'jieba:0.42+fugashi:1.1+unidic-lite:1.0.8'
 --   schema_version    = '3'
 ```
 
@@ -221,12 +221,12 @@ tokenize(text):
   扫描字符，按脚本分段:
     Latin        -> 保留原文，小写化（unicode61 后续按空白切）
     Han          -> jieba.cut
-    Hiragana/Katakana/Kanji -> mecab.parse (fugashi + unidic)
+    Hiragana/Katakana/Kanji -> mecab.parse (fugashi + unidic-lite)
   合并所有 token，空格连接成字符串
 ```
 
 - `description_in_target_lang` 等纯单语字段也走同一调度器（脚本能正确分发，无需按字段特殊处理）。
-- 词典选型：**unidic**（粒度细、现代项目主流）。
+- 词典选型：**unidic-lite**（UniDic 词典的精简版，打包进 wheel 无需额外下载，粒度细、现代项目主流）。
 - 仅 indexer 进程加载 tokenizer；gateway 不加载。
 
 ### 查询侧必须同样分词
@@ -243,7 +243,7 @@ FTS5 的 `snippet()` 作用于 `body_raw` UNINDEXED 列，返回**干净原文**
 
 ### 分词器版本与重索引
 
-jieba 词典更新、unidic 版本变化会导致 token 集变化，需触发重索引。`meta` 表记录 `tokenizer_version`，indexer 启动时比对，版本变化则全量重建 FTS（FTS 重建便宜，毫秒级，不像 embedding）。
+jieba 词典更新、unidic-lite 版本变化会导致 token 集变化，需触发重索引。`meta` 表记录 `tokenizer_version`，indexer 启动时比对，版本变化则全量重建 FTS（FTS 重建便宜，毫秒级，不像 embedding）。
 
 `content_hash` 基于**原文**算（不随分词器版本变），保证重索引时能跳过未变文件的解析，只重算分词。
 
@@ -543,17 +543,17 @@ everlingo mem reindex LANG --rebuild
 
 - `watchdog`：文件系统监听（indexer 进程用）
 - `jieba`：中文分词，纯 pip，无系统依赖（indexer 进程用）
-- `fugashi` + `unidic`：日文分词（indexer 进程用）
+- `fugashi` + `unidic-lite`：日文分词（indexer 进程用）
   - fugashi 的 wheel 捆绑 mecab 库，无需 apt install mecab
-  - unidic pip 包提供词典，首次需 `python -m unidic download`（联网下载 ~50MB）
+  - unidic-lite pip 包将词典打包进 wheel，pip install 即用，无需额外下载步骤
 - `httpx`：gateway 侧 SearchClient HTTP 客户端（unix socket transport）
 
 > 注：`fastapi` + `uvicorn` 已在 `pyproject.toml` 依赖中，indexer server 直接复用，无新增。
-> jieba/fugashi/unidic/watchdog 在 `pyproject.toml` 列为依赖，但仅 indexer 进程运行时加载；gateway 进程不加载。
+> jieba/fugashi/unidic-lite/watchdog 在 `pyproject.toml` 列为依赖，但仅 indexer 进程运行时加载；gateway 进程不加载。
 
 ### CI 要求
 
-- 安装步骤加 `python -m unidic download`
+- 安装步骤：`pip install` 后无需额外下载步骤（unidic-lite 词典打包在 wheel 中）
 
 > `sqlite-vec` 与 embedding 客户端依赖见 [embedding-spec](./memory-vault-embedding-spec.md)。
 

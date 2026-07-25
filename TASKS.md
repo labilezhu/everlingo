@@ -42,6 +42,14 @@
   - Resize 手柄加 `hidden md:block`，移动端隐藏
   - 新增 `useMediaQuery` hook（`matchMedia` + listener）
   - 更新 `docs/impl-spec/vault-editor.md` 移动端小节
+- 2026-07-25 XX:XX | **unidic → unidic-lite（缩小镜像体积）**
+  - `pyproject.toml`：`"unidic>=1.1.0"` → `"unidic-lite>=1.0.8"`
+  - `uv lock` 重新生成，移除 unidic 1.1.0，新增 unidic-lite 1.0.8
+  - `Dockerfile`：删 `python -m unidic download` 行，deps stage 不再需要下载步骤（unidic-lite 词典打包在 wheel 中）
+  - `tokenizer.py`：注释更新 unidic → unidic-lite；代码逻辑不变（unidic-lite 是 unidic 的 drop-in 替代，同样提供 `unidic.DICDIR` / `unidic.__version__`）
+  - 文档：`container-spec.md` / `memory-vault-search-spec.md` / `github-ci-spec.md` / `search-api-spec.md` / `search.drawio.svg` 中的 unidic 引用统一改为 unidic-lite
+    - 收益：镜像体积减少 ~450MB，构建少一次联网下载
+  - 验证：`uv sync --frozen` + `uv run python -c "import unidic; from everlingo.mem.vault.search.tokenizer import _load_fugashi, tokenizer_version; assert _load_fugashi() is not None; print(tokenizer_version())"` 输出含 `unidic-lite:unidic-3.1.0+2021-08-31`
 - 2026-07-25 XX:XX | **Dockerfile 缓存优化**
   - Stage 1 `frontend-builder`：先 COPY `package.json`+`package-lock.json` → `npm ci`，再 COPY `web/` → `npm run build`，使 `npm ci` 层只随 lockfile 失效
   - Stage 2 `deps`：移除 `COPY src/`，改为 `uv sync --no-install-project`（.venv 不含本地包），再 `unidic download`；两层均只依赖 `pyproject.toml`/`uv.lock`，src 改动不再触发 unidic 重下载

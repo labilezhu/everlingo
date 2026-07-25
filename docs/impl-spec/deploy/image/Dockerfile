@@ -31,8 +31,7 @@ RUN pip install --no-cache-dir uv
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
-RUN .venv/bin/python -m unidic download
-# 产物: /app/.venv（含全部 Python 依赖 + unidic 词典数据）
+# 产物: /app/.venv（含全部 Python 依赖 + unidic-lite 词典数据）
 
 # ── Stage 3: runtime ─────────────────────────────────────────────────────────
 FROM python:3.12.13-bookworm AS runtime
@@ -50,7 +49,7 @@ RUN groupadd -g 1000 everlingo && \
     echo "everlingo ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-# Python 依赖 + unidic 词典
+# Python 依赖 + unidic-lite 词典
 COPY --from=deps /app/.venv .venv/
 # 应用源码
 COPY src/ src/

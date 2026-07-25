@@ -57,7 +57,7 @@ GitHub Actions 页面 → 选择 `docker-release` workflow → Run workflow。
 - `cache-to:   type=gha,mode=max,scope=everlingo-amd64`
 - arm64 同理
 
-`mode=max` 缓存多阶段所有 layer，二次构建命中后显著加速（尤其 `uv sync` + `unidic download` 的 deps stage）。
+`mode=max` 缓存多阶段所有 layer，二次构建命中后显著加速（尤其 `uv sync` 的 deps stage）。
 
 ## Tag 规则
 
