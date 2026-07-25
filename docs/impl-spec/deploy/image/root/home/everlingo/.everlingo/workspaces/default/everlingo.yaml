@@ -1,0 +1,25 @@
+sys_setting:
+  openai_api_key: ''
+  openai_base_url: ''
+  openai_model: ''
+  logging_setting:
+    log_file: ''
+    log_level: debug
+  tracing_setting:
+    tracing_service: ''
+    langfuse_secret_key: ''
+    langfuse_public_key: ''
+    langfuse_base_url: ''
+user_profile:
+  language:
+    interface_language: zh-CN
+    target_language: en
+
+plugins:
+  channels:
+    channel_web: # Web Session Acceptor 配置
+      listener: # 监听地址
+        port: 8000 # 默认 8000
+        interface: 0.0.0.0  # 默认 localhost
+      public_address: # 浏览器访问地址。如外网或 https 反向代理访问时配置
+        base_url: http://localhost:8000 # 默认 用上面的 listener 的生效配置生成： http://$interface:$port

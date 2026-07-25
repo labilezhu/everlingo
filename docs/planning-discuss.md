@@ -1,4 +1,12 @@
 
+
+
+---
+
+[Vault Editor](docs/impl-spec/vault-editor.md) 在 “直观” 模式下编辑 markdown 文档时，不应该显示 markdown frontmatter 。 现在 实测显示了。
+
+---
+
 手机端使用 [Web Chatbot](docs/impl-spec/web-chatbot.md) 时，因为连接不稳定，所以时常会有提示信息：
 `连接断开，请刷新页面重试`
 要求用户全刷新页面，会话其实就丢失了。能不能页面自动重连？并提示用户重连重试倒计时。连接失败发生后，用户也可以手工触发重试。正常使用、重连成功时，不要在界面显示这些无用的信息。

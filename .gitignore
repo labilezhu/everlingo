@@ -15,3 +15,6 @@ extension/node_modules
 extension/node_modules/**
 extension/dist
 extension/dist/**
+mark-specific
+mark-specific/
+mark-specific/**
