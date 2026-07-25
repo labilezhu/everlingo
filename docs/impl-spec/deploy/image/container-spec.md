@@ -201,3 +201,18 @@ docker run -d \
   -v ${host_workspace}:/home/${os_user_name}/.everlingo/workspaces/default \
   ${image}
 ```
+
+## Run build image
+```bash
+cd $everlingo_repo
+DOCKER_BUILDKIT=1 docker buildx build . -f docs/impl-spec/deploy/image/Dockerfile
+
+
+## proxy build if in China
+cd $everlingo_repo
+DOCKER_BUILDKIT=1 docker buildx build \
+  --build-arg HTTP_PROXY=http://proxy.example.com:7890 \
+  --build-arg HTTPS_PROXY=http://proxy.example.com:7890 \
+  --build-arg NO_PROXY=localhost,127.0.0.1 \
+   . -f docs/impl-spec/deploy/image/Dockerfile
+```

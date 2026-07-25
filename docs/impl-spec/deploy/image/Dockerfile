@@ -4,6 +4,13 @@
 
 # ── Stage 1: frontend-builder ────────────────────────────────────────────────
 FROM node:20-bookworm-slim AS frontend-builder
+
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+
+ENV HTTP_PROXY=$HTTP_PROXY
+ENV HTTPS_PROXY=$HTTPS_PROXY
+
 WORKDIR /web
 COPY web/ ./
 RUN npm ci && npm run build
@@ -11,6 +18,13 @@ RUN npm ci && npm run build
 
 # ── Stage 2: deps ────────────────────────────────────────────────────────────
 FROM python:3.12.13-bookworm AS deps
+
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+
+ENV HTTP_PROXY=$HTTP_PROXY
+ENV HTTPS_PROXY=$HTTPS_PROXY
+
 RUN pip install --no-cache-dir uv
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
@@ -21,6 +35,13 @@ RUN .venv/bin/python -m unidic download
 
 # ── Stage 3: runtime ─────────────────────────────────────────────────────────
 FROM python:3.12.13-bookworm AS runtime
+
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+
+ENV HTTP_PROXY=$HTTP_PROXY
+ENV HTTPS_PROXY=$HTTPS_PROXY
+
 # everlingo 非 root 用户 + sudo
 RUN groupadd -g 1000 everlingo && \
     useradd -m -u 1000 -g 1000 -s /bin/bash everlingo && \
