@@ -4,6 +4,14 @@
 
 ## 完成的任务
 格式：完成日期与时间(北京时间) | 任务描述 。 示例：" - 2026-06-20 19:28 | 生成主入口代码"
+- 2026-07-25 22:48 | **GitHub Actions 多架构镜像发布 CI**
+  - 新建 `.github/workflows/docker-release.yml`：`v*` tag / `workflow_dispatch` 触发；双 native runner（amd64=`ubuntu-24.04`，arm64=`ubuntu-24.04-arm`）并行 build，再 `manifest` job 用 `docker buildx imagetools create` 合并为多架构 manifest
+  - Tag 规则：`v1.2.3`→`1.2.3`/`1.2`/`1`/`latest`；`v1.2.3-rc.1`→`1.2.3-rc.1`/`1.2.3`（无 latest）；dispatch→`dev-<run_id>` 或 `dev-<run_id>-<suffix>`
+  - metadata-action 生成 base tag，自定义 step 用 sed 给每条 tag 追加 `-amd64`/`-arm64` 后缀作为单架构镜像 tag；manifest job 遍历 base tag 列表合并
+  - GHA cache `type=gha,mode=max`，scope 分 arch（`everlingo-amd64`/`everlingo-arm64`）
+  - GHCR 认证用默认 `GITHUB_TOKEN`；permissions `contents: read`/`packages: write`
+  - 新建 `docs/impl-spec/CI/github-ci-spec.md`：触发条件、构建策略、tag 规则、GHCR 可见性配置、仓库权限要求、发布流程、链接到 container-spec.md
+
 - 2026-07-25 XX:XX | **Image 设计规范文档修订（container-spec.md）**
   - 重写 `docs/impl-spec/deploy/image/container-spec.md`：新增「镜像构建」（多阶段 frontend-builder/deps/runtime）「镜像内目录布局」「workspace 挂载策略」节；重写「image 进程」节为 entrypoint.sh 编排（bash + wait -n + /dev/tcp 就绪探测）；「image expose port」仅 8000（删 9000）；修复「经典部署方法」`docker run -v` 参数位置 bug、`$your_domain` → `<your_domain>` 占位符、删注释段、`app_user_name` 加注释；新增 `openai_embedding_model` 字段说明
   - 修订 `root/.../everlingo.yaml` 模板：补 `openai_embedding_model: ''` 字段 + `interface: 0.0.0.0` 注释（容器部署有意为之）

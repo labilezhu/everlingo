@@ -205,14 +205,16 @@ docker run -d \
 ## Run build image
 ```bash
 cd $everlingo_repo
+
 DOCKER_BUILDKIT=1 docker buildx build . -f docs/impl-spec/deploy/image/Dockerfile
 
 
 ## proxy build if in China
 cd $everlingo_repo
+
 DOCKER_BUILDKIT=1 docker buildx build \
-  --build-arg HTTP_PROXY=http://proxy.example.com:7890 \
-  --build-arg HTTPS_PROXY=http://proxy.example.com:7890 \
+  --build-arg HTTP_PROXY=http://192.168.16.58:8118 \
+  --build-arg HTTPS_PROXY=http://192.168.16.58:8118 \
   --build-arg NO_PROXY=localhost,127.0.0.1 \
    . -f docs/impl-spec/deploy/image/Dockerfile
 ```
