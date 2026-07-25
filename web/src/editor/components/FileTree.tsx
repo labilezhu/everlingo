@@ -44,7 +44,7 @@ export default function FileTree({ entries, selectedPath, onSelect, onLazyLoad, 
         </button>
       </div>
       {/* tree */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto overscroll-contain">
         {entries.map(entry => (
           <FileTreeNode
             key={entry.path}

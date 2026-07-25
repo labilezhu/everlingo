@@ -453,7 +453,7 @@ export default function EditorApp() {
           className={
             isDesktop
               ? 'flex flex-col shrink-0 border-r border-border bg-background'
-              : 'fixed inset-y-0 left-0 z-40 w-[85vw] max-w-sm border-r border-border bg-background transition-transform ' + (leftOpen ? 'translate-x-0' : '-translate-x-full')
+              : 'fixed inset-y-0 left-0 z-40 w-[85vw] max-w-sm flex flex-col overflow-hidden border-r border-border bg-background transition-transform ' + (leftOpen ? 'translate-x-0' : '-translate-x-full')
           }
           style={isDesktop ? { width: `${leftPct}%` } : undefined}
         >
@@ -631,7 +631,7 @@ export default function EditorApp() {
           <aside
             className={isDesktop
               ? 'flex flex-col shrink-0 bg-background overflow-hidden ' + (chatOpen ? '' : 'hidden')
-              : 'fixed inset-y-0 right-0 z-40 w-[85vw] max-w-sm border-l border-border bg-background transition-transform ' + (chatOpen ? 'translate-x-0' : 'translate-x-full')}
+              : 'fixed inset-y-0 right-0 z-40 w-[85vw] max-w-sm flex flex-col overflow-hidden border-l border-border bg-background transition-transform ' + (chatOpen ? 'translate-x-0' : 'translate-x-full')}
             style={isDesktop ? { width: `${chatPct}%` } : undefined}
           >
             <ChatWindow embedded linkListener={handleChatLinkClick} />

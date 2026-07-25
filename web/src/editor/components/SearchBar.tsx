@@ -204,7 +204,7 @@ export default function SearchBar({ selectedLang, currentPath, onSelectPath, ini
 
       {/* Results */}
       {!loading && hits.length > 0 && (
-        <div className="flex-1 overflow-y-auto border-t border-border">
+        <div className="flex-1 overflow-y-auto overscroll-contain border-t border-border">
           {hits.map(hit => {
             const isCurrent = hit.file_path === currentPath;
             return (

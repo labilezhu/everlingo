@@ -108,7 +108,7 @@ export default function ChatWindow({ embedded, linkListener }: { embedded?: bool
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-3 py-3 md:px-4 md:py-4 space-y-4">
+      <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-3 md:px-4 md:py-4 space-y-4">
         {messages.map(msg => (
           <MessageBubble key={msg.id} message={msg} onReplay={playAudio} />
         ))}

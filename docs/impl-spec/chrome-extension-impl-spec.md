@@ -893,9 +893,10 @@ npm run dev  # vite build --watch
 ### 构建
 
 ```bash
-cd extension
+pushd extension
 npm run build  # tsc 类型检查 + vite build
 # 产物在 extension/dist/
+popd
 ```
 
 ### 验证流程

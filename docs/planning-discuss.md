@@ -1,6 +1,15 @@
 
+把 docs/arts/chrome-icon.png 进行 png 缩放，replace 现在 extension/public/icons 目录下的三个文件
+
+---
+
+为 [Vault Editor](docs/impl-spec/vault-editor.md) 和 standalone [Web Chatbot](docs/impl-spec/web-chatbot.md) 均没有 favorite icon
+
+---
+
 [Vault Editor](docs/impl-spec/vault-editor.md) 的两个侧边栏， Files 和 [Web Chatbot](docs/impl-spec/web-chatbot.md) 。 在移动设备界面下，均不能 scroll 。 scroll 操作错误传到主栏上了。
 
+---
 
 [Web Chatbot](docs/impl-spec/web-chatbot.md)现在的界面设计主是要为桌面浏览器。在 移动设备 如 iphone 上没有优化，如：
 - 按钮上的文字说明在移动设备上本可以自动隐藏
