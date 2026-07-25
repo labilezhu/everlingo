@@ -12,8 +12,10 @@ ENV HTTP_PROXY=$HTTP_PROXY
 ENV HTTPS_PROXY=$HTTPS_PROXY
 
 WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
 COPY web/ ./
-RUN npm ci && npm run build
+RUN npm run build
 # 产物: /web/dist（Web Chatbot + Vault Editor SPA）
 
 # ── Stage 2: deps ────────────────────────────────────────────────────────────
@@ -28,8 +30,7 @@ ENV HTTPS_PROXY=$HTTPS_PROXY
 RUN pip install --no-cache-dir uv
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
-COPY src/ src/
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --no-install-project
 RUN .venv/bin/python -m unidic download
 # 产物: /app/.venv（含全部 Python 依赖 + unidic 词典数据）
 
@@ -62,6 +63,7 @@ COPY docs/impl-spec/deploy/image/root/ /
 RUN chown -R everlingo:everlingo /app /home/everlingo
 USER everlingo
 ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONPATH="/app/src" \
     EVERLINGO_WORKSPACE_DIR=/home/everlingo/.everlingo/workspaces/default
 EXPOSE 8000
 ENTRYPOINT ["/app/entrypoint.sh"]

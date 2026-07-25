@@ -215,6 +215,6 @@ cd $everlingo_repo
 DOCKER_BUILDKIT=1 docker buildx build \
   --build-arg HTTP_PROXY=http://192.168.16.58:8118 \
   --build-arg HTTPS_PROXY=http://192.168.16.58:8118 \
-  --build-arg NO_PROXY=localhost,127.0.0.1 \
+  --build-arg NO_PROXY="localhost,127.0.0.1,192.168.16.58,192.168.16.*" \
    . -f docs/impl-spec/deploy/image/Dockerfile
 ```

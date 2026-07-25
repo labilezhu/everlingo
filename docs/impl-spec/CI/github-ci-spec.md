@@ -115,7 +115,8 @@ permissions:
    或 RC:
    ```bash
    git tag v0.0.1-rc.1
-   git push origin v0.1.0-rc.1
+   git push origin v0.0.1-rc.1
+   git push github v0.0.1-rc.1
    ```
    
 3. GitHub Actions 自动触发 `docker-release` workflow

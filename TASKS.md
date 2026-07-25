@@ -42,6 +42,11 @@
   - Resize 手柄加 `hidden md:block`，移动端隐藏
   - 新增 `useMediaQuery` hook（`matchMedia` + listener）
   - 更新 `docs/impl-spec/vault-editor.md` 移动端小节
+- 2026-07-25 XX:XX | **Dockerfile 缓存优化**
+  - Stage 1 `frontend-builder`：先 COPY `package.json`+`package-lock.json` → `npm ci`，再 COPY `web/` → `npm run build`，使 `npm ci` 层只随 lockfile 失效
+  - Stage 2 `deps`：移除 `COPY src/`，改为 `uv sync --no-install-project`（.venv 不含本地包），再 `unidic download`；两层均只依赖 `pyproject.toml`/`uv.lock`，src 改动不再触发 unidic 重下载
+  - Stage 3 `runtime`：新增 `ENV PYTHONPATH="/app/src"` 补偿缺少的 editable .pth
+  - 参考：`docs/impl-spec/deploy/image/Dockerfile`
 - 2026-07-25 XX:XX | **为 Web Chatbot 与 Vault Editor 添加 favicon**
   - 源图 `docs/arts/chrome-icon.png` → `web/public/favicon.png`（Vite `public/` 部署）
   - `web/index.html` 与 `web/editor.html` 均添加 `<link rel="icon">`
