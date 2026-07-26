@@ -25,11 +25,13 @@ Dockerfile: docs/impl-spec/deploy/image/Dockerfile
 ### Stage 3: `runtime`
 - base: `python:3.12.13-bookworm`
 - 创建 everlingo 用户（见下「Linux 主用户」节）
-- `COPY --from=deps /app/.venv .venv`
-- `COPY src/ src/`
-- `COPY pyproject.toml ./`
-- `COPY --from=frontend-builder /web/dist web/dist`
-- `COPY docs/impl-spec/deploy/image/root/ /`（workspace 模板 + entrypoint.sh，路径相对 repo root；见下「app files」节）
+- `COPY --chown=everlingo:everlingo --from=deps /app/.venv .venv/`
+- `COPY --chown=everlingo:everlingo src/ src/`
+- `COPY --chown=everlingo:everlingo pyproject.toml ./`
+- `COPY --chown=everlingo:everlingo --from=frontend-builder /web/dist web/dist/`
+- `COPY --chown=everlingo:everlingo docs/impl-spec/deploy/image/root/ /`（workspace 模板 + entrypoint.sh，路径相对 repo root；见下「app files」节）
+
+注：所有 COPY 均添加 `--chown=everlingo:everlingo`，避免在最后出现一个 `RUN chown -R` 层。后者会使每次 `COPY src/` 变更时，整个 `/app`（含 300M+ .venv）的所有权元数据全量写进新层，导致 docker pull 重新下载大体积 layer。
 - `WORKDIR /app`
 - `ENV PATH="/app/.venv/bin:$PATH"`（使 `python` 直接指向 venv）
 - `ENV PYTHONPATH="/app/src"`（因 deps stage 用 `--no-install-project`，无 editable .pth 指向 src，需显式添加）
@@ -220,7 +222,7 @@ EOF
 docker run -d \
   -p 8000:8000 \
   -v ${host_workspace}:/home/${os_user_name}/.everlingo/workspaces/default \
-  --name everlingo --host everlingo \
+  --name everlingo -h everlingo \
   ${image}
 
 tail -f ${host_workspace}/logs/*

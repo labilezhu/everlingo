@@ -50,16 +50,14 @@ RUN groupadd -g 1000 everlingo && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 # Python 依赖 + unidic-lite 词典
-COPY --from=deps /app/.venv .venv/
+COPY --chown=everlingo:everlingo --from=deps /app/.venv .venv/
 # 应用源码
-COPY src/ src/
-COPY pyproject.toml ./
+COPY --chown=everlingo:everlingo src/ src/
+COPY --chown=everlingo:everlingo pyproject.toml ./
 # 前端 SPA 构建产物
-COPY --from=frontend-builder /web/dist web/dist/
+COPY --chown=everlingo:everlingo --from=frontend-builder /web/dist web/dist/
 # workspace 模板 + entrypoint.sh（路径相对 repo root）
-COPY docs/impl-spec/deploy/image/root/ /
-# 调整所有权
-RUN chown -R everlingo:everlingo /app /home/everlingo
+COPY --chown=everlingo:everlingo docs/impl-spec/deploy/image/root/ /
 USER everlingo
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONPATH="/app/src" \

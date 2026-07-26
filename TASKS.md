@@ -4,6 +4,10 @@
 
 ## 完成的任务
 格式：完成日期与时间(北京时间) | 任务描述 。 示例：" - 2026-06-20 19:28 | 生成主入口代码"
+- 2026-07-26 02:35 | **消除 chown 层导致的镜像层膨胀（docker pull 每次重下 200M+）**
+  - 根因：`Dockerfile` runtime stage 中 `RUN chown -R everlingo:everlingo /app` 位于 `COPY src/ src/` 之后；src 变更使该层重算，将整个 /app（含 ~300M .venv）的所有权元数据写进新层，每次 pull 必须重传此大层
+  - 修复：runtime stage 所有 COPY 添加 `--chown=everlingo:everlingo`，**删除** `RUN chown -R` 行
+  - 更新 `container-spec.md` Stage 3 描述，附注 rationale
 - 2026-07-25 22:48 | **GitHub Actions 多架构镜像发布 CI**
   - 新建 `.github/workflows/docker-release.yml`：`v*` tag / `workflow_dispatch` 触发；双 native runner（amd64=`ubuntu-24.04`，arm64=`ubuntu-24.04-arm`）并行 build，再 `manifest` job 用 `docker buildx imagetools create` 合并为多架构 manifest
   - Tag 规则：`v1.2.3`→`1.2.3`/`1.2`/`1`/`latest`；`v1.2.3-rc.1`→`1.2.3-rc.1`/`1.2.3`（无 latest）；dispatch→`dev-<run_id>` 或 `dev-<run_id>-<suffix>`
