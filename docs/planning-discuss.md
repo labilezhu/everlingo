@@ -1,5 +1,35 @@
 
+## 需求
+现在的 EverLingo 只有为每个实例指定 workspace 目录的能力，但没有支持多用户的能力。对于后面产品化上线，需要有一个实例同时多用户(同时多 workspace) 的能力。
 
+## 设计
+
+### API 设计
+API 层面，我不打算为每个 api 加上 user_id 参数。我想用前端 reverse proxy 分析 auth token ，注入 user_id 这个 http header 。
+
+### 运行期逻辑
+实现上，现在一个实例运行时，只支持一个 workspace 。 要修改成，根据 user_id 选择不同的 workspace 目录。
+
+### 数据
+有一个 ~/.everlingo/everlingo_master.sqlite 数据库文件，其中 users 表维护用户信息，有以下字段：
+user_id, user_name, user_display_name, workspace_dir 
+
+其中  user_name 限制为英文字母和下划线字符集。
+
+增加一个配置文件，叫 ~/.everlingo/everlingo_master.yaml
+配置为：
+```yaml
+sys_setting
+  workspace_workspaces: ~/.everlingo/workspaces #默认 ~/.everlingo/workspaces
+```
+
+新用户的 users 表的 workspace_dir 字段填入 `$workspace_workspaces/$user_name` 其中  $workspace_workspaces 替换为 everlingo_master.yaml 中的 workspace_workspaces 值
+
+现有的 everlingo.yaml 还是保留在每个用户自己的 workspace_dir 下。
+
+---
+
+docs/impl-spec/chrome-extension-spec.md 中的 Extension Options 。现在只有一个 “服务端地址” 的配置。现在 服务端加了个 Nginx 要 Http Basic Auth 。你加入两个用户名和密码的配置吧。并保存让 Extension 支持 Http Basic Auth 连接 服务端
 
 ---
 
