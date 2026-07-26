@@ -46,24 +46,23 @@ def _load_fugashi():
         import fugashi  # type: ignore[import-not-found]
 
         try:
-            import unidic  # type: ignore[import-not-found]
+            import unidic_lite  # type: ignore[import-not-found]
             import os as _os
 
-            # unidic (full) exposes DICDIR; unidic-lite 只提供文件目录
-            dicdir = getattr(unidic, 'DICDIR', None)
+            dicdir = getattr(unidic_lite, 'DICDIR', None)
             if dicdir is None:
-                pkg_dir = unidic.__path__._path[0]
+                pkg_dir = unidic_lite.__path__._path[0]
                 dicdir = _os.path.join(pkg_dir, 'dicdir')
             if not _os.path.isdir(dicdir) or not _os.listdir(dicdir):
                 logger.warning(
-                    "unidic 词典不可用（%s 为空）；日文退化为字符切分",
+                    "unidic-lite 词典不可用（%s 为空）；日文退化为字符切分",
                     dicdir,
                 )
                 return None
             tagger = fugashi.GenericTagger(f'-r "{dicdir}/mecabrc" -d "{dicdir}"')
             return tagger
         except Exception as e:
-            logger.warning("unidic 不可用，日文退化为字符切分: %s", e)
+            logger.warning("unidic-lite 不可用，日文退化为字符切分: %s", e)
             try:
                 return fugashi.GenericTagger()
             except Exception as e2:
@@ -86,12 +85,12 @@ def tokenizer_version() -> str:
     parts = [f"jieba:{_JIEBA_VERSION}", f"fugashi:{_FUGASHI_VERSION}"]
     if _FUGASHI_TAGGER is not None:
         try:
-            import unidic  # type: ignore[import-not-found]
+            import unidic_lite  # type: ignore[import-not-found]
             import os as _os
 
-            ver = getattr(unidic, '__version__', None)
+            ver = getattr(unidic_lite, 'VERSION', None)
             if ver is None:
-                pkg_dir = unidic.__path__._path[0]
+                pkg_dir = unidic_lite.__path__._path[0]
                 ver_file = _os.path.join(pkg_dir, 'dicdir', 'version')
                 if _os.path.isfile(ver_file):
                     ver = open(ver_file).read().strip()

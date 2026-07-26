@@ -157,23 +157,44 @@ exit "$exit_code"
 docker run --rm everlingo:v0.1 cat /home/everlingo/.everlingo/workspaces/default/everlingo.yaml
 ```
 
+## Run build image
+
+```bash
+cd $everlingo_repo
+
+DOCKER_BUILDKIT=1 docker buildx build . -f docs/impl-spec/deploy/image/Dockerfile -t everlingo:0.0.1-rc.3
+
+
+## proxy build if in China
+cd $everlingo_repo
+
+DOCKER_BUILDKIT=1 docker buildx build \
+  --build-arg HTTP_PROXY=http://192.168.16.58:8118 \
+  --build-arg HTTPS_PROXY=http://192.168.16.58:8118 \
+  --build-arg NO_PROXY="localhost,127.0.0.1,192.168.16.58,192.168.16.*" \
+   . -f docs/impl-spec/deploy/image/Dockerfile -t everlingo:0.0.1-rc.3
+```
+
 ## 经典部署方法
 
 ```bash
+# export OPENAI_API_KEY=
+# export base_url_for_browser=https://<your_domain or host>:<your_port>
+# image=ghcr.io/labilezhu/everlingo:0.0.1-rc.3
+
 # 宿主侧多用户隔离的目录命名（与容器内 os_user 无关）
 app_user_name=mark
 os_user_name=everlingo
-image=everlingo:v0.1
-
 host_workspace=~/everlingo_workspaces/${app_user_name}
+
 mkdir -p ${host_workspace}
 
 # 查看配置模板
-docker run --rm $image cat /home/everlingo/.everlingo/workspaces/default/everlingo.yaml
+docker run --rm  --entrypoint /bin/bash $image -c 'cat /home/everlingo/.everlingo/workspaces/default/everlingo.yaml'
 
-cat >${host_workspace}/everlingo.yaml <<"EOF"
+cat >${host_workspace}/everlingo.yaml << EOF
 sys_setting:
-  openai_api_key: 'sk-or-v1-xyz'
+  openai_api_key: "$OPENAI_API_KEY"
   openai_base_url: 'https://openrouter.ai/api/v1'
   openai_model: 'deepseek/deepseek-v4-flash'
   openai_embedding_model: 'baai/bge-m3'
@@ -192,7 +213,7 @@ plugins:
         port: 8000 # 默认 8000
         interface: 0.0.0.0  # 默认 localhost
       public_address: # 浏览器访问地址。如外网或 https 反向代理访问时配置
-        base_url: https://<your_domain>:<your_port>
+        base_url: $base_url_for_browser
 EOF
 
 # 整目录挂载覆盖 default workspace
@@ -200,21 +221,7 @@ docker run -d \
   -p 8000:8000 \
   -v ${host_workspace}:/home/${os_user_name}/.everlingo/workspaces/default \
   ${image}
+
+tail -f ${host_workspace}/logs/*
 ```
 
-## Run build image
-```bash
-cd $everlingo_repo
-
-DOCKER_BUILDKIT=1 docker buildx build . -f docs/impl-spec/deploy/image/Dockerfile
-
-
-## proxy build if in China
-cd $everlingo_repo
-
-DOCKER_BUILDKIT=1 docker buildx build \
-  --build-arg HTTP_PROXY=http://192.168.16.58:8118 \
-  --build-arg HTTPS_PROXY=http://192.168.16.58:8118 \
-  --build-arg NO_PROXY="localhost,127.0.0.1,192.168.16.58,192.168.16.*" \
-   . -f docs/impl-spec/deploy/image/Dockerfile
-```
