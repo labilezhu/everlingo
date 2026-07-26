@@ -1,3 +1,40 @@
+--- FIXED ---
+分析 docker logs 20c4fb357a08 。 docker image 规格： docs/impl-spec/deploy/image/container-spec.md
+
+[07/26/26 02:26:21] Error calling tool 'search'                                                                       
+                    ╭────────────────────────────── Traceback (most recent call last) ───────────────────────────────╮
+                    │ /app/.venv/lib/python3.12/site-packages/fastmcp/server/server.py:1312 in call_tool             │
+                    │                                                                                                │
+                    │ /app/.venv/lib/python3.12/site-packages/fastmcp/tools/base.py:421 in _run                      │
+                    │                                                                                                │
+                    │                                    ... 9 frames hidden ...                                     │
+                    │                                                                                                │
+                    │ /app/src/everlingo/mem/vault/search/embedding/store.py:281 in knn_with_filter                  │
+                    │                                                                                                │
+                    │   278 │   tags_op 支持 "and" / "or"。                                                          │
+                    │   279 │   """                                                                                  │
+                    │   280 │   overfetch = max(k * 3, k)                                                            │
+                    │ ❱ 281 │   candidates = _vec0_knn(conn, query_vec, overfetch)                                   │
+                    │   282 │   if not candidates:                                                                   │
+                    │   283 │   │   return []                                                                        │
+                    │   284                                                                                          │
+                    │                                                                                                │
+                    │ /app/src/everlingo/mem/vault/search/embedding/store.py:230 in _vec0_knn                        │
+                    │                                                                                                │
+                    │   227 │   if dim is None or not has_vec_table(conn):                                           │
+                    │   228 │   │   return []                                                                        │
+                    │   229 │   blob = pack_vector(query_vec, dim)                                                   │
+                    │ ❱ 230 │   rows = conn.execute(                                                                 │
+                    │   231 │   │   f"SELECT chunk_id, distance FROM {VEC_TABLE} "                                   │
+                    │   232 │   │   f"WHERE embedding MATCH ? ORDER BY distance LIMIT ?",                            │
+                    │   233 │   │   (blob, k),                                                                       │
+                    ╰────────────────────────────────────────────────────────────────────────────────────────────────╯
+                    OperationalError: A LIMIT or 'k = ?' constraint is required on vec0 knn queries.
+--- 修复：store.py _vec0_knn 的 LIMIT ? → AND k = ? 详见 TASKS.md ---
+
+
+---
+
 实现了 docs/impl-spec/vault-editor.md 中 “## 实现顺序（建议分 PR）” 的 “2. 接入 Milkdown” 后。
 1. 问题1 ： 在 浏览器 http://localhost:8000/editor 前端在 WYSIWYG 模式下。点击文件，editor 主编辑界面没有变化。只有在 从 Source 模切换到 WYSIWYG 模式 时，才显示 Milkdown 可视编辑区。
 2. 问题2 : WYSIWYG 成功加载 markdown 文件后， frontmatter 没有分行。 这样，我建议现在直接不要在 WYSIWYG 模式下， 显示 frontmatter 好了

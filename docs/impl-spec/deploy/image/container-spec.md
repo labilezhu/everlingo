@@ -220,6 +220,7 @@ EOF
 docker run -d \
   -p 8000:8000 \
   -v ${host_workspace}:/home/${os_user_name}/.everlingo/workspaces/default \
+  --name everlingo --host everlingo \
   ${image}
 
 tail -f ${host_workspace}/logs/*

@@ -69,7 +69,17 @@
   - 更新 vault_spec.md / kb_items_spec_*.md / search-spec / agent.py / memory_writer_action.py 文档
   - 测试：missing-ulid 改成功 case；新增无 ulid index_file 测试、slug 从文件名派生测试
   - 影响范围：151 vault 搜索测试 + 50 writer agent 测试全部通过
-- 2026-07-26 XX:XX | **修复 `import unidic` 包名 bug（容器镜像中日文退化为字符切分）**
+- 2026-07-26 02:50 | **修复 `import unidic` 包名 bug（容器镜像中日文退化为字符切分）**
+  - **背景**：上次迁移 `unidic → unidic-lite` 后，`tokenizer.py` 仍用 `import unidic`，但 `unidic-lite` 提供的 import 名是 **`unidic_lite`**（下划线），而非 `unidic`。本机 venv 因残留了旧版完整 `unidic` 的 `dicdir/` 目录（182MB，无 `__init__.py`，被 Python 当 namespace package）导致 `import unidic` 走通，掩盖了 bug。容器为干净环境，仅装 `unidic-lite`，`import unidic` 直接抛 `ModuleNotFoundError`，日文退化为字符切分。
+  - **更正**：上次移植条目 L49 的断言「unidic-lite 是 unidic 的 drop-in 替代，同样提供 `unidic.DICDIR` / `unidic.__version__`」——**不成立**。unidic-lite 只提供 `unidic_lite.DICDIR` / `unidic_lite.VERSION`，不提供 `unidic` 模块。
+  - `tokenizer.py`：两处 `import unidic` → `import unidic_lite`；`getattr(unidic, 'DICDIR', None)` → `getattr(unidic_lite, 'DICDIR', None)`；`getattr(unidic, '__version__', None)` → `getattr(unidic_lite, 'VERSION', None)`；日志文案 `unidic 不可用` → `unidic-lite 不可用`
+  - 本机 venv：删除残留的 `.venv/lib/python3.12/site-packages/unidic/`（182MB 旧 dicdir + unidic.zip），`uv sync --frozen` 后验证 `import unidic_lite` 且 `_load_fugashi()` 返回正常 tagger
+  - 测试：`uv run --with pytest pytest tests/test_mem_vault_search_tokenizer.py -v` 10 passed
+- 2026-07-26 02:50 | **修复 vec0 KNN 在容器中因 SQLite 版本差异（3.40.1 vs 3.45.1）报错 `LIMIT ?` 不可用**
+  - **根因**：`python:3.12.13-bookworm` 链接系统 SQLite **3.40.1**，不把 `LIMIT ?`（绑定参数）作为约束传给 vec0 xBestIndex；本地 dev（SQLite 3.45.1）通过但容器抛错
+  - `src/everlingo/mem/vault/search/embedding/store.py:230` `_vec0_knn`：`LIMIT ?` → `AND k = ?`（sqlite-vec 官方写法，两端兼容）
+  - `docs/impl-spec/search/memory-vault-embedding-spec.md`：「过滤策略」处注明 `k = ?` 语法选择与 SQLite 版本约束
+  - 验证：容器内 `k = ?` 实测通过；本地现有 `test_knn*` 全部通过
   - **背景**：上次迁移 `unidic → unidic-lite` 后，`tokenizer.py` 仍用 `import unidic`，但 `unidic-lite` 提供的 import 名是 **`unidic_lite`**（下划线），而非 `unidic`。本机 venv 因残留了旧版完整 `unidic` 的 `dicdir/` 目录（182MB，无 `__init__.py`，被 Python 当 namespace package）导致 `import unidic` 走通，掩盖了 bug。容器为干净环境，仅装 `unidic-lite`，`import unidic` 直接抛 `ModuleNotFoundError`，日文退化为字符切分。
   - **更正**：上次移植条目 L49 的断言「unidic-lite 是 unidic 的 drop-in 替代，同样提供 `unidic.DICDIR` / `unidic.__version__`」——**不成立**。unidic-lite 只提供 `unidic_lite.DICDIR` / `unidic_lite.VERSION`，不提供 `unidic` 模块。
   - `tokenizer.py`：两处 `import unidic` → `import unidic_lite`；`getattr(unidic, 'DICDIR', None)` → `getattr(unidic_lite, 'DICDIR', None)`；`getattr(unidic, '__version__', None)` → `getattr(unidic_lite, 'VERSION', None)`；日志文案 `unidic 不可用` → `unidic-lite 不可用`

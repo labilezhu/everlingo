@@ -124,6 +124,7 @@ def rebuild_for_model(conn, new_model_id, dim) -> None # drop 该 lang DB 的 ve
 ```
 
 - **过滤策略**：vec0 不支持复杂 WHERE。先取 `k * 3` 候选，再 join `chunks`+`documents` 按 item_type/kind/tags post-filter，取 top-k。无过滤时直接 top-k。lang 过滤已隐含于 DB，不再需要。
+  - **vec0 KNN 语法**：`WHERE embedding MATCH ? AND k = ? ORDER BY distance`（使用 `k = ?` 而非 `LIMIT ?`，因为 `LIMIT ?` 绑定参数仅 SQLite >=3.43 起传给 virtual table xBestIndex；容器基镜像 `python:3.12.13-bookworm` 链接系统 SQLite 3.40.1，需用 `k = ?` 保证兼容）。
 - **模型作废**：换某 lang 模型时对该 lang DB `DELETE FROM chunk_embeddings` + `DROP TABLE chunk_vec` + 用新 dim `ensure_vec_table` + 全量重嵌该 lang。其它 lang DB 不受影响。
 
 ## 查询路由

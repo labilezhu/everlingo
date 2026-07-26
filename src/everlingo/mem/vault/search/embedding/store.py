@@ -227,9 +227,14 @@ def _vec0_knn(
     if dim is None or not has_vec_table(conn):
         return []
     blob = pack_vector(query_vec, dim)
+    # 用 `AND k = ?` 而非 `LIMIT ?`：sqlite-vec 的 vec0 KNN 要求约束在 xBestIndex
+    # 阶段可见。`LIMIT ?`（绑定参数）仅在 SQLite >=3.43 起作为约束传给 virtual table；
+    # 容器基镜像 python:3.12.13-bookworm 链接系统 SQLite 3.40.1，不支持该行为会抛
+    # "A LIMIT or 'k = ?' constraint is required on vec0 knn queries"。`k = ?`
+    # 是 sqlite-vec 官方推荐写法，两端兼容。
     rows = conn.execute(
         f"SELECT chunk_id, distance FROM {VEC_TABLE} "
-        f"WHERE embedding MATCH ? ORDER BY distance LIMIT ?",
+        f"WHERE embedding MATCH ? AND k = ? ORDER BY distance",
         (blob, k),
     ).fetchall()
     return [(int(r[0]), float(r[1])) for r in rows]
