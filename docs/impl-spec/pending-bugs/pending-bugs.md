@@ -1,3 +1,9 @@
+
+Chrome Extension loop:
+INFO:     172.28.0.1:34034 - "GET /api/session/3247b77e-859b-4880-b395-9ae7c8ddc4e3/events HTTP/1.1" 404 Not Found
+
+---
+
 --- FIXED ---
 分析 docker logs 20c4fb357a08 。 docker image 规格： docs/impl-spec/deploy/image/container-spec.md
 
