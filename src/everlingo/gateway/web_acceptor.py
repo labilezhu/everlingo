@@ -3,6 +3,7 @@
 
 import asyncio
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Union
@@ -112,14 +113,23 @@ async def event_stream(session_id: str, request: Request):
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
+def _static_dir() -> str:
+    return os.path.join(os.path.dirname(__file__), "..", "..", "..", "web", "dist")
+
+
+@app.get("/manifest.webmanifest")
+async def serve_manifest():
+    path = os.path.join(_static_dir(), "manifest.webmanifest")
+    if not os.path.exists(path):
+        return {"message": "manifest not found. Run `npm run build` in the web/ directory."}
+    return FileResponse(path, media_type="application/manifest+json")
+
+
 @app.get("/editor")
 @app.get("/editor/{path:path}")
 async def serve_editor(path: str = ""):
     """提供编辑器前端 SPA（dist/editor.html fallback）。"""
-    import os
-
-    static_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "web", "dist")
-    editor_index = os.path.join(static_dir, "editor.html")
+    editor_index = os.path.join(_static_dir(), "editor.html")
 
     if not os.path.exists(editor_index):
         return {"message": "Frontend not built. Run `npm run build` in the web/ directory."}
@@ -131,9 +141,7 @@ async def serve_editor(path: str = ""):
 @app.get("/{path:path}")
 async def serve_frontend(path: str = ""):
     """提供前端静态文件。"""
-    import os
-
-    static_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "web", "dist")
+    static_dir = _static_dir()
     index_path = os.path.join(static_dir, "index.html")
 
     if not os.path.exists(index_path):
