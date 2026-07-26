@@ -79,6 +79,15 @@
   - `tokenizer.py`：两处 `import unidic` → `import unidic_lite`；`getattr(unidic, 'DICDIR', None)` → `getattr(unidic_lite, 'DICDIR', None)`；`getattr(unidic, '__version__', None)` → `getattr(unidic_lite, 'VERSION', None)`；日志文案 `unidic 不可用` → `unidic-lite 不可用`
   - 本机 venv：删除残留的 `.venv/lib/python3.12/site-packages/unidic/`（182MB 旧 dicdir + unidic.zip），`uv sync --frozen` 后验证 `import unidic_lite` 且 `_load_fugashi()` 返回正常 tagger
   - 测试：`uv run --with pytest pytest tests/test_mem_vault_search_tokenizer.py -v` 10 passed
+- 2026-07-26 22:28 | **Chrome Extension 支持 HTTP Basic Auth（Nginx Basic Auth）**
+  - 新增依赖 `@microsoft/fetch-event-source`（替换原生 `EventSource`，因无法自定义请求头）
+  - `config.ts`：新增 `SERVER_USERNAME_STORAGE_KEY` / `SERVER_PASSWORD_STORAGE_KEY`、`getApiAuth()`、`buildBasicAuthHeader()`（空 username → `null`，不启用 auth）、`getApiConfig()`
+  - `OptionsForm.tsx`：新增「服务端用户名」「服务端密码」输入框（密码框含眼睛切换图标）+「测试连接」按钮（`GET /api/session/__probe__/events` + 3s 超时）
+  - `sseClient.ts`：`sendEnvelope` / `connectSSE` 新增可选 `authHeader` 参数；`connectSSE` 用 `fetchEventSource` 替代 `EventSource`
+  - `background.ts`：`probeSession` / `createSession` 通过 `getApiConfig()` 注入 Authorization header
+  - `ChatWindow.tsx`：init 时 `getApiConfig()` 获取 authHeader，传给外层所有 `sendEnvelope` / `connectSSE` 调用
+  - 单元测试：`config.test.ts` 新增 `buildBasicAuthHeader`（空/Unicode/冒号密码等）；`sseClient.test.ts` 新增 11 条（mock fetchEventSource，验证 header 注入、event 分发、abort 清理）
+  - 文档：`chrome-extension-impl-spec.md` §7 config.ts + §9 sseClient.ts + §14.1 Options；`chrome-extension-spec.md` §4 权限表
 - 2026-07-26 02:50 | **修复 vec0 KNN 在容器中因 SQLite 版本差异（3.40.1 vs 3.45.1）报错 `LIMIT ?` 不可用**
   - **根因**：`python:3.12.13-bookworm` 链接系统 SQLite **3.40.1**，不把 `LIMIT ?`（绑定参数）作为约束传给 vec0 xBestIndex；本地 dev（SQLite 3.45.1）通过但容器抛错
   - `src/everlingo/mem/vault/search/embedding/store.py:230` `_vec0_knn`：`LIMIT ?` → `AND k = ?`（sqlite-vec 官方写法，两端兼容）

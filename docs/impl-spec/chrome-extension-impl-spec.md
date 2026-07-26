@@ -352,6 +352,8 @@ async function createSession(): Promise<string> {
 ```ts
 export const DEFAULT_API_BASE_URL = 'http://localhost:8000';
 export const SERVER_URL_STORAGE_KEY = 'server_url';
+export const SERVER_USERNAME_STORAGE_KEY = 'server_username';
+export const SERVER_PASSWORD_STORAGE_KEY = 'server_password';
 
 // 规范化：去除首尾空格，校验 scheme，去除尾斜杠
 export function normalizeUrl(input: string): string {
@@ -376,9 +378,37 @@ export async function getApiBaseUrl(): Promise<string> {
   }
   return DEFAULT_API_BASE_URL;
 }
+
+// 从 chrome.storage.local 读取 Basic Auth 凭据，未设置时返回空字符串
+export async function getApiAuth(): Promise<{ username: string; password: string }> {
+  const items = await chrome.storage.local.get([SERVER_USERNAME_STORAGE_KEY, SERVER_PASSWORD_STORAGE_KEY]);
+  return {
+    username: typeof items[SERVER_USERNAME_STORAGE_KEY] === 'string' ? items[SERVER_USERNAME_STORAGE_KEY] : '',
+    password: typeof items[SERVER_PASSWORD_STORAGE_KEY] === 'string' ? items[SERVER_PASSWORD_STORAGE_KEY] : '',
+  };
+}
+
+// 构造 HTTP Basic Auth 的 Authorization 请求头值；username 为空时返回 null（不启用）
+export function buildBasicAuthHeader(username: string, password: string): string | null {
+  const u = username.trim();
+  if (!u) return null;
+  return 'Basic ' + btoa(unescape(encodeURIComponent(`${u}:${password}`)));
+}
+
+// 聚合获取 baseUrl + authHeader，供 background/sidecar 初始化时调用
+export async function getApiConfig(): Promise<{ baseUrl: string; authHeader: string | null }> {
+  const [baseUrl, { username, password }] = await Promise.all([
+    getApiBaseUrl(),
+    getApiAuth(),
+  ]);
+  return {
+    baseUrl,
+    authHeader: buildBasicAuthHeader(username, password),
+  };
+}
 ```
 
-调用方（background、sidecar）各自在初始化时 `await getApiBaseUrl()` 获取 base URL，传递给 services 层的 `sendEnvelope(baseUrl, ...)` / `connectSSE(baseUrl, ...)`。修改配置后需重新打开 sidecar 生效。
+调用方（background、sidecar）各自在初始化时 `await getApiConfig()` 获取 base URL 与 Basic Auth header，传递给 services 层的 `sendEnvelope(baseUrl, sessionId, env, authHeader)` / `connectSSE(baseUrl, sessionId, onEvent, onError, authHeader)`。修改配置后需重新打开 sidecar 生效。
 
 ### `extension/src/types/envelope.ts`
 
@@ -515,9 +545,14 @@ export async function getSession(): Promise<GetSessionResponse> {
 
 ### `extension/src/services/sseClient.ts`
 
-改造自 `web/src/services/sseClient.ts`：
+改造自 `web/src/services/sseClient.ts`。与原版的差异：
+- URL 用绝对地址 `${baseUrl}/api/...`
+- 新增可选 `authHeader` 参数注入 HTTP Basic Auth
+- 移除 `createSession`（由 background 通过 `backgroundClient.getSession()` 处理）
+- **SSE 改用 `@microsoft/fetch-event-source`**：原生 `EventSource` 无法自定义请求头，`fetchEventSource` 基于 `fetch`，可注入 `Authorization` 头，同时支持 `AbortSignal` 清理连接。
 
 ```ts
+import { fetchEventSource } from '@microsoft/fetch-event-source';
 import type { UserInputEnvelope } from '@/types/envelope';
 import type { SSEEvent } from '@/types/chat';
 
@@ -525,10 +560,15 @@ export async function sendEnvelope(
   baseUrl: string,
   sessionId: string,
   env: UserInputEnvelope,
+  authHeader?: string | null,   // HTTP Basic Auth 请求头值，null 时不注入
 ): Promise<void> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (authHeader) {
+    headers['Authorization'] = authHeader;
+  }
   const res = await fetch(`${baseUrl}/api/session/${sessionId}/message`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ envelope: env }),
   });
   if (!res.ok) throw new Error('Failed to send envelope');
@@ -539,17 +579,39 @@ export function connectSSE(
   sessionId: string,
   onEvent: (e: SSEEvent) => void,
   onError?: () => void,
+  authHeader?: string | null,
 ): () => void {
-  const es = new EventSource(`${baseUrl}/api/session/${sessionId}/events`);
-  // ... 与 web/sseClient.ts 一致
-  return () => es.close();
+  const abortController = new AbortController();
+  const headers: Record<string, string> = {};
+  if (authHeader) {
+    headers['Authorization'] = authHeader;
+  }
+
+  fetchEventSource(`${baseUrl}/api/session/${sessionId}/events`, {
+    signal: abortController.signal,
+    headers,
+    openWhenHidden: true,
+    onmessage(msg) {
+      try {
+        const parsed = JSON.parse(msg.data);
+        if (msg.event === 'typing_hint') {
+          onEvent({ type: 'typing_hint', data: parsed });
+        } else if (msg.event === 'sound') {
+          onEvent({ type: 'sound', data: parsed });
+        } else {
+          onEvent({ type: 'message', data: parsed });
+        }
+      } catch { /* skip */ }
+    },
+    onerror(err) {
+      onError?.();
+      return 0; // 遇错停止重连，由 sidecar 的 switchToTab / 用户刷新重试
+    },
+  });
+
+  return () => abortController.abort();
 }
 ```
-
-**关键差异**（与 `web/sseClient.ts`）：
-- URL 用绝对地址 `${baseUrl}/api/...`，`baseUrl` 由调用方通过 `getApiBaseUrl()` 获取
-- 新增 `sendEnvelope` 替代 `sendMessage`，body 为 `{ envelope }` 而非 `{ text }`
-- 移除 `createSession`（由 background 通过 `backgroundClient.getSession()` 处理）
 
 > **CORS 说明**：扩展（origin = `chrome-extension://<id>`）请求后端 API 属于跨源。服务端 `web_acceptor.py` 已启用 CORSMiddleware（`allow_origins=["*"]`，详见 [web-session-acceptor.md](../docs/impl-spec/web-session-acceptor.md) §）。无需在 manifest 中申请 `host_permissions`。
 
@@ -953,9 +1015,17 @@ popd
 
 - **入口**：`extension/options.html` → `extension/src/options.tsx` → `extension/src/components/OptionsForm.tsx`
 - **技术栈**：React + Tailwind，与 sidecar 一致
-- **功能**：一个文本输入框设置 `server_url` + 保存按钮
-- **校验**：`normalizeUrl()` — 去首尾空格、必须 `http://` 或 `https://` 开头、去尾斜杠
-- **存储**：`chrome.storage.local` 的 `server_url` 键，默认 `http://localhost:8000`
+- **功能**：服务端地址 + 服务端用户名 + 服务端密码（`type="password"`，含眼睛切换显示图标）三字段 + 保存 + 测试连接
+- **校验**：
+  - 地址：`normalizeUrl()` — 去首尾空格、必须 `http://` 或 `https://` 开头、去尾斜杠
+  - 用户名/密码：无格式校验，留空则不启用 HTTP Basic Auth
+- **测试连接**：用当前表单值构造请求，`GET /api/session/__probe__/events` + 3s 超时 abort：
+  | 响应 | 提示 |
+  |---|---|
+  | 200 / 404 | ✅ 连接成功 |
+  | 401 / 403 | ❌ 用户名或密码错误 |
+  | 网络超时/错误 | ❌ 无法连接 / 连接超时 |
+- **存储**：`chrome.storage.local` 的 `server_url` / `server_username` / `server_password` 三个键，默认值分别为 `http://localhost:8000` / `''` / `''`
 - **manifest**：`"options_ui": { "page": "options.html", "open_in_tab": true }`
 
 ### 14.2 扩展图标与右键菜单

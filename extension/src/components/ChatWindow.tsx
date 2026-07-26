@@ -8,7 +8,7 @@ import { loadHistory, appendMessage, clearHistory } from '@/services/messageHist
 import { buildEnvelope, type TaskKind } from '@/types/envelope';
 import type { Message, SSEEvent } from '@/types/chat';
 import { uid } from '@/types/chat';
-import { getApiBaseUrl } from '@/config';
+import { getApiConfig } from '@/config';
 
 interface PageSnapshot {
   selection: string;
@@ -35,6 +35,7 @@ export default function ChatWindow() {
   const tabIdRef = useRef<number>(0);
   const deviceIdRef = useRef<string>('');
   const baseUrlRef = useRef<string>('');
+  const authHeaderRef = useRef<string | null>(null);
   const cleanupRef = useRef<(() => void) | undefined>(undefined);
 
   function playAudio(url: string) {
@@ -63,6 +64,7 @@ export default function ChatWindow() {
   async function handleTriggerTranslate() {
     const sid = sessionIdRef.current;
     const base = baseUrlRef.current;
+    const auth = authHeaderRef.current;
     if (!sid) return;
 
     const snapshot = await captureSnapshot();
@@ -75,7 +77,7 @@ export default function ChatWindow() {
         ...snapshot,
         deviceId: deviceIdRef.current,
       });
-      await sendEnvelope(base, sid, env);
+      await sendEnvelope(base, sid, env, auth);
       await appendMessage(tabIdRef.current, {
         role: 'user',
         text: '',
@@ -123,6 +125,7 @@ export default function ChatWindow() {
       sid,
       (e: SSEEvent) => handleSSEEvent(e, newTabId),
       () => { setError('连接断开，请刷新页面重试'); },
+      authHeaderRef.current,
     );
   }
 
@@ -142,7 +145,9 @@ export default function ChatWindow() {
   useEffect(() => {
     (async () => {
       try {
-        baseUrlRef.current = await getApiBaseUrl();
+        const config = await getApiConfig();
+        baseUrlRef.current = config.baseUrl;
+        authHeaderRef.current = config.authHeader;
         const { device_id } = await chrome.storage.local.get('device_id');
         deviceIdRef.current = device_id || '';
 
@@ -161,7 +166,7 @@ export default function ChatWindow() {
               ...snapshot,
               deviceId: deviceIdRef.current,
             });
-            await sendEnvelope(baseUrlRef.current, sid, env);
+            await sendEnvelope(baseUrlRef.current, sid, env, authHeaderRef.current);
             await appendMessage(tabIdRef.current, {
               role: 'user',
               text: '',
@@ -213,6 +218,7 @@ export default function ChatWindow() {
     async (text: string) => {
       const sid = sessionIdRef.current;
       const base = baseUrlRef.current;
+      const auth = authHeaderRef.current;
       if (!sid) return;
       const tabId = tabIdRef.current;
       setMessages((prev) => [
@@ -227,7 +233,7 @@ export default function ChatWindow() {
           ...snapshotRef.current,
           deviceId: deviceIdRef.current,
         });
-        await sendEnvelope(base, sid, env);
+        await sendEnvelope(base, sid, env, auth);
       } catch {
         setPending(false);
         setError('发送消息失败');

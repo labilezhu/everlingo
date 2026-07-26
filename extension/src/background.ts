@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from '@/config';
+import { getApiConfig } from '@/config';
 
 // ── 安装时生成 device_id + 创建右键菜单 + 设全局 side panel ──────────
 chrome.runtime.onInstalled.addListener(async () => {
@@ -77,12 +77,16 @@ async function handleGetSession(): Promise<GetSessionResponse> {
 
 async function probeSession(sid: string): Promise<boolean> {
   try {
-    const base = await getApiBaseUrl();
+    const { baseUrl, authHeader } = await getApiConfig();
+    const headers: Record<string, string> = { Accept: 'text/event-stream' };
+    if (authHeader) {
+      headers['Authorization'] = authHeader;
+    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch(`${base}/api/session/${sid}/events`, {
+    const res = await fetch(`${baseUrl}/api/session/${sid}/events`, {
       method: 'GET',
-      headers: { Accept: 'text/event-stream' },
+      headers,
       signal: controller.signal,
     });
     clearTimeout(timer);
@@ -94,8 +98,12 @@ async function probeSession(sid: string): Promise<boolean> {
 }
 
 async function createSession(): Promise<string> {
-  const base = await getApiBaseUrl();
-  const res = await fetch(`${base}/api/session`, { method: 'POST' });
+  const { baseUrl, authHeader } = await getApiConfig();
+  const headers: Record<string, string> = {};
+  if (authHeader) {
+    headers['Authorization'] = authHeader;
+  }
+  const res = await fetch(`${baseUrl}/api/session`, { method: 'POST', headers });
   if (!res.ok) {
     throw new Error(`Failed to create session: ${res.status}`);
   }
