@@ -977,14 +977,29 @@ def run_mcp_server(state: AppState, host: str, port: int) -> None:
     )
 
 
-def pick_free_port(host: str = "127.0.0.1") -> int:
-    """让 OS 分配空闲端口；返回端口号。socket 立即关闭，端口有可能被后续进程抢占
-    （MCP server 启动窗口极小，实践中安全）。"""
+DEFAULT_MCP_PORT = 8100
+
+
+def pick_free_port(host: str = "127.0.0.1", preferred: int = DEFAULT_MCP_PORT) -> int:
+    """优先尝试 preferred 端口；被占用则让 OS 分配空闲端口。
+
+    socket 立即关闭，端口有可能被后续进程抢占（MCP server 启动窗口极小，
+    实践中安全）。
+    """
     import socket as _socket
 
     s = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
     try:
-        s.bind((host, 0))
-        return s.getsockname()[1]
+        s.bind((host, preferred))
+        return preferred
+    except OSError:
+        pass
     finally:
         s.close()
+
+    s2 = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+    try:
+        s2.bind((host, 0))
+        return s2.getsockname()[1]
+    finally:
+        s2.close()

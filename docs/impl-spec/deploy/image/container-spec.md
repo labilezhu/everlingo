@@ -95,6 +95,7 @@ set -euo pipefail
 
 WS="${EVERLINGO_WORKSPACE_DIR:-/home/everlingo/.everlingo/workspaces/default}"
 MCP_URL_FILE="$WS/indexer.mcp.url"
+rm -f "$MCP_URL_FILE"  # 清理上一轮容器残留（indexer 被 SIGKILL/OOM 时 finally 不执行）
 
 # 1. 后台启动 indexer
 python -m everlingo mem indexer start &
@@ -109,9 +110,12 @@ while [ ! -f "$MCP_URL_FILE" ]; do
     exit 1
   fi
 done
-URL=$(cat "$MCP_URL_FILE")
-host_port=$(echo "$URL" | sed -E 's#https?://127\.0\.0\.1:([0-9]+).*#\1#')
-while ! (echo > /dev/tcp/127.0.0.1/$host_port) 2>/dev/null; do
+while true; do
+  URL=$(cat "$MCP_URL_FILE")
+  host_port=$(echo "$URL" | sed -E 's#https?://127\.0\.0\.1:([0-9]+).*#\1#')
+  if (echo > /dev/tcp/127.0.0.1/"$host_port") 2>/dev/null; then
+    break
+  fi
   sleep 0.5
   if ! kill -0 "$idx_pid" 2>/dev/null; then
     echo "indexer exited before ready" >&2
@@ -134,10 +138,10 @@ exit "$exit_code"
 
 | 进程 | 命令 | 职责 |
 |---|---|---|
-| indexer | `python -m everlingo mem indexer start` | SQLite 唯一写者；写 `$workspace/indexer.sock`（REST UDS）+ `$workspace/indexer.mcp.url`（MCP Streamable HTTP URL，绑 127.0.0.1 OS 端口）；见 memory-vault-search-spec.md「进程拓扑」 |
+| indexer | `python -m everlingo mem indexer start` | SQLite 唯一写者；写 `$workspace/indexer.sock`（REST UDS）+ `$workspace/indexer.mcp.url`（MCP Streamable HTTP URL，默认 8100，端口冲突时退回 OS 分配）；见 memory-vault-search-spec.md「进程拓扑」 |
 | gateway | `python -m everlingo gateway --channel_web` | Web Session Acceptor（FastAPI + 前端 SPA）；通过 `indexer.mcp.url` 发现 MCP server；见 gateway.md |
 
-启动顺序：**indexer 必须先于 gateway 启动**（gateway 依赖 `indexer.mcp.url` 文件发现 MCP server URL，见 `mem_writer_mcp_client.py:_read_mcp_url`）。entrypoint.sh 通过轮询 `indexer.mcp.url` 文件出现 + `/dev/tcp` 端口连通探测保证此顺序。
+启动顺序：**indexer 必须先于 gateway 启动**（gateway 依赖 `indexer.mcp.url` 文件发现 MCP server URL，见 `mem_writer_mcp_client.py:_read_mcp_url`）。entrypoint.sh 通过轮询 `indexer.mcp.url` 文件出现 + `/dev/tcp` 端口连通探测保证此顺序。双重保险防 stale 文件：indexer 启动时 unlink 上轮残留的 `indexer.mcp.url`（`_run_indexer`），entrypoint.sh 启动 indexer 前 `rm -f` 做第二轮兜底。
 
 进程退出：`wait -n` 等任一子进程退出即全退（容器最佳实践：避免 PID 1 在子进程死后僵尸）。stdout/stderr 不重定向，`docker logs` 可见双进程输出；日志同时写 `$workspace/logs/everlingo.log` 与 `indexer.log`。
 

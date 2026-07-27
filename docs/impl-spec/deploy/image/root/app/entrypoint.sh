@@ -3,6 +3,7 @@ set -euo pipefail
 
 WS="${EVERLINGO_WORKSPACE_DIR:-/home/everlingo/.everlingo/workspaces/default}"
 MCP_URL_FILE="$WS/indexer.mcp.url"
+rm -f "$MCP_URL_FILE"  # 清理上一轮容器残留（indexer 被 SIGKILL/OOM 时 finally 不执行）
 
 # 1. 后台启动 indexer
 python -m everlingo mem indexer start &
@@ -17,9 +18,12 @@ while [ ! -f "$MCP_URL_FILE" ]; do
     exit 1
   fi
 done
-URL=$(cat "$MCP_URL_FILE")
-host_port=$(echo "$URL" | sed -E 's#https?://127\.0\.0\.1:([0-9]+).*#\1#')
-while ! (echo > /dev/tcp/127.0.0.1/"$host_port") 2>/dev/null; do
+while true; do
+  URL=$(cat "$MCP_URL_FILE")
+  host_port=$(echo "$URL" | sed -E 's#https?://127\.0\.0\.1:([0-9]+).*#\1#')
+  if (echo > /dev/tcp/127.0.0.1/"$host_port") 2>/dev/null; then
+    break
+  fi
   sleep 0.5
   if ! kill -0 "$idx_pid" 2>/dev/null; then
     echo "indexer exited before ready" >&2

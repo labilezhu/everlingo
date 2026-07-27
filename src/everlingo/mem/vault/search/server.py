@@ -522,6 +522,8 @@ def _run_indexer(log_level: str = "info", log_path: Path | None = None) -> int:
     mcp_port = pick_free_port("127.0.0.1")
     mcp_url = f"http://127.0.0.1:{mcp_port}/mcp"
     mcp_url_path = workspace.indexer_mcp_url_path()
+    if mcp_url_path.exists():
+        mcp_url_path.unlink()
     mcp_url_path.parent.mkdir(parents=True, exist_ok=True)
     mcp_url_path.write_text(mcp_url, encoding="utf-8")
     logger.info("MCP server URL written: %s -> %s", mcp_url_path, mcp_url)

@@ -1070,3 +1070,39 @@ def test_mcp_search_tags_op_or(mcp_client, memory_root: Path):
 
     with mcp_client(body):
         pass
+
+
+# ── pick_free_port ──────────────────────────────────────────────────
+
+
+def test_pick_free_port_returns_preferred_when_free():
+    """preferred 端口空闲时返回 preferred。"""
+    import socket as _socket
+    from everlingo.mem.vault.mcp_server import pick_free_port
+
+    probe = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+    try:
+        probe.bind(("127.0.0.1", 0))
+        preferred = probe.getsockname()[1]
+    finally:
+        probe.close()
+
+    assert pick_free_port("127.0.0.1", preferred=preferred) == preferred
+
+
+def test_pick_free_port_falls_back_when_occupied():
+    """preferred 端口被占用时退回 OS 分配的端口。"""
+    import socket as _socket
+    from everlingo.mem.vault.mcp_server import pick_free_port
+
+    holder = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+    try:
+        holder.bind(("127.0.0.1", 0))
+        holder.listen(1)
+        occupied = holder.getsockname()[1]
+
+        got = pick_free_port("127.0.0.1", preferred=occupied)
+        assert got != occupied
+        assert got > 0
+    finally:
+        holder.close()

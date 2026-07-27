@@ -273,7 +273,7 @@ MCP server 在 `initialize` 响应里通过 `instructions` 字段（[MCP 2025-11
 
 下面是当前 `src/everlingo/mem/vault/mcp_server/` 实现与本 spec 的具体绑定方式，spec 本身只约束契约（工具名 / 入参 / 出参 / 错误形态），以下为实现层选择：
 
-- **绑定**：`127.0.0.1:<OS 分配空闲端口>`（`pick_free_port`），写入 `$workspace/indexer.mcp.url`；indexer 退出时清理该文件。只绑 loopback（不暴露 LAN）。
+- **绑定**：`127.0.0.1:8100`（默认端口 `DEFAULT_MCP_PORT = 8100`），端口被占用时退回 OS 分配空闲端口（`pick_free_port(host, preferred=8100)`）；URL 写入 `$workspace/indexer.mcp.url`。indexer 启动时清理上轮残留的 `indexer.mcp.url`（防 SIGKILL/OOM 后 stale 文件误导探测方）、退出时清理本轮文件。只绑 loopback（不暴露 LAN）。
 - **进程并发**：主线程跑 FastAPI UDS server，daemon 子线程跑 MCP Streamable HTTP server（`run_mcp_server`），共享同一 `AppState`。
 - **会话 id 来源**：`fastmcp.Context.session_id`（stream 级 UUID，stream 关闭即失效，state 不落盘）。
 - **包结构**：MCP server 单独成包 `src/everlingo/mem/vault/mcp_server/`（与 `search/` 平级），因工具集不只 search，还含 fs 工具集 + session.configure。
