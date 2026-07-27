@@ -29,6 +29,12 @@ sys_setting
 
 ---
 
+[Vault Editor](docs/impl-spec/vault-editor.md)  在“源码” 按钮左则，加一个类似 文件树 上的 刷新按钮，只要图标就好，不需要文字了。 功能是刷新当前打开的文件内容，重新从服务器加载。
+
+
+
+---
+
 docs/impl-spec/chrome-extension-spec.md 中的 Extension Options 。现在只有一个 “服务端地址” 的配置。现在 服务端加了个 Nginx 要 Http Basic Auth 。你加入两个用户名和密码的配置吧。并保存让 Extension 支持 Http Basic Auth 连接 服务端
 
 ---

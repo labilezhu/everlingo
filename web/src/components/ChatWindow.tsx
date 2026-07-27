@@ -45,7 +45,7 @@ export default function ChatWindow({ embedded, linkListener }: { embedded?: bool
   function handleRebuild() {
     setConnStatus(null);
     setReconnectNonce(n => n + 1);
-    setMessages(prev => [...prev, { id: uid(), text: '（小记已重新开始，之前的对话记忆已丢失）', from: 'system' }]);
+    setMessages(prev => [...prev, { id: uid(), text: '（小记刚才断片了，对话忘记了，笔记还在）', from: 'system' }]);
   }
 
   useEffect(() => {
@@ -106,7 +106,7 @@ export default function ChatWindow({ embedded, linkListener }: { embedded?: bool
         {!embedded && (
           <Button variant="ghost" size="sm" onClick={() => { window.location.href = '/editor'; }}>
             <NotebookPen />
-            <span className="hidden md:inline">笔记编辑器</span>
+            <span className="hidden md:inline">笔记</span>
           </Button>
         )}
       </header>

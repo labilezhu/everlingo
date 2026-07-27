@@ -141,7 +141,7 @@ export default function ChatWindow() {
 
     const systemMsg: Message = {
       id: uid(),
-      text: '小记已重新开始，之前的对话记忆已丢失',
+      text: '小记刚才断片了，对话忘记了，笔记还在',
       from: 'system',
     };
     setMessages((prev) => [...prev, systemMsg]);
