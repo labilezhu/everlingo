@@ -11,10 +11,8 @@ import { uid } from '@/types/chat';
 import { getApiConfig } from '@/config';
 
 interface PageSnapshot {
-  selection: string;
-  context: string;
-  url: string;
-  title: string;
+  text: string;
+  paragraph_text: string;
 }
 
 export default function ChatWindow() {
@@ -31,7 +29,7 @@ export default function ChatWindow() {
   const endRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const snapshotRef = useRef<PageSnapshot>({
-    selection: '', context: '', url: '', title: '',
+    text: '', paragraph_text: '',
   });
   const sessionIdRef = useRef<string | null>(null);
   const tabIdRef = useRef<number>(0);
@@ -71,12 +69,13 @@ export default function ChatWindow() {
 
     const snapshot = await captureSnapshot();
     snapshotRef.current = snapshot;
-    if (!snapshot.selection) return;
+    if (!snapshot.text) return;
 
     setPending(true);
     try {
       const env = buildEnvelope('translate', '', {
-        ...snapshot,
+        text: snapshot.text,
+        paragraph_text: snapshot.paragraph_text,
         deviceId: deviceIdRef.current,
       });
       await sendEnvelope(base, sid, env, auth);
@@ -202,11 +201,12 @@ export default function ChatWindow() {
         const snapshot = await captureSnapshot();
         snapshotRef.current = snapshot;
 
-        if (snapshot.selection) {
+        if (snapshot.text) {
           setPending(true);
           try {
             const env = buildEnvelope(task, '', {
-              ...snapshot,
+              text: snapshot.text,
+              paragraph_text: snapshot.paragraph_text,
               deviceId: deviceIdRef.current,
             });
             await sendEnvelope(baseUrlRef.current, sid, env, authHeaderRef.current);
@@ -272,8 +272,10 @@ export default function ChatWindow() {
       const now = new Date().toISOString();
       appendMessage(tabId, { role: 'user', text, timestamp: now });
       try {
+        const snap = snapshotRef.current;
         const env = buildEnvelope(task, text, {
-          ...snapshotRef.current,
+          text: snap.text,
+          paragraph_text: snap.paragraph_text,
           deviceId: deviceIdRef.current,
         });
         await sendEnvelope(base, sid, env, auth);
@@ -347,9 +349,9 @@ export default function ChatWindow() {
 // ── 页面快照提取（通过 chrome.scripting.executeScript 在页面上下文执行）──
 
 const SNAPSHOT_FN = () => {
-  const selection = window.getSelection()?.toString() || '';
-  let context = '';
-  if (selection) {
+  const text = window.getSelection()?.toString() || '';
+  let paragraph_text = '';
+  if (text) {
     const sel = window.getSelection();
     if (sel && sel.rangeCount) {
       const range = sel.getRangeAt(0);
@@ -367,24 +369,22 @@ const SNAPSHOT_FN = () => {
         el = el.parentElement;
       }
       if (el) {
-        context = (el.textContent || '').slice(0, 500);
+        paragraph_text = (el.textContent || '').slice(0, 500);
       } else {
         const full = document.body.innerText;
         const start = Math.max(0, range.startOffset - 250);
-        context = full.slice(start, start + 500);
+        paragraph_text = full.slice(start, start + 500);
       }
     }
   }
-  return { selection, context, url: location.href, title: document.title } as PageSnapshot;
+  return { text, paragraph_text } as PageSnapshot;
 };
 
 async function captureSnapshot(tabId?: number): Promise<PageSnapshot> {
   const tid = tabId || (await getActiveTabId());
-  // 先 fallback: 扩展自身上下文中 window.getSelection()
-  const ownSelection = window.getSelection()?.toString();
-  const ownUrl = location.href;
-  if (ownSelection && ownUrl !== 'chrome-extension://') {
-    let context = '';
+  const ownText = window.getSelection()?.toString();
+  if (ownText) {
+    let paragraph_text = '';
     const sel = window.getSelection();
     if (sel && sel.rangeCount) {
       const range = sel.getRangeAt(0);
@@ -393,12 +393,11 @@ async function captureSnapshot(tabId?: number): Promise<PageSnapshot> {
           ? (range.commonAncestorContainer as Text).parentElement
           : (range.commonAncestorContainer as Element);
       if (el) {
-        context = (el.textContent || '').slice(0, 500);
+        paragraph_text = (el.textContent || '').slice(0, 500);
       }
     }
-    return { selection: ownSelection, context, url: ownUrl, title: document.title };
+    return { text: ownText, paragraph_text };
   }
-  // 通过 scripting 在页面上下文提取
   try {
     const [result] = await chrome.scripting.executeScript({
       target: { tabId: tid },
@@ -406,7 +405,7 @@ async function captureSnapshot(tabId?: number): Promise<PageSnapshot> {
     });
     return result.result as PageSnapshot;
   } catch {
-    return { selection: '', context: '', url: '', title: '' };
+    return { text: '', paragraph_text: '' };
   }
 }
 

@@ -370,7 +370,7 @@ class TestEnvelopeSpecInjection:
         assert "## 结构化用户输入（envelope）" in prompt
         assert "schema_version" in prompt
         assert "source" in prompt
-        assert "selection" in prompt
+        assert "chat_context" in prompt
         assert "device" in prompt
         assert "<envelope>" in prompt
         # envelope_spec.md 的 h1 "# Envelope ..." 被 +2 → "### Envelope ..."

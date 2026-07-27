@@ -1,11 +1,21 @@
 export type TaskKind = 'translate' | 'look_up' | 'none';
 
+export type ResourceContext =
+  | { kind: 'vault_file'; file_path: string }
+  | { kind: 'web_page'; url: string; title?: string }
+  | {
+      kind: 'selected_text';
+      text: string;
+      start_line?: number | null;
+      start_column?: number | null;
+      paragraph_text?: string | null;
+    };
+
 export interface UserInputEnvelope {
   schema_version: number;
   task: TaskKind;
   chat: { message: string };
-  selection: { text: string };
-  context: { text: string };
+  chat_context: { resource_contexts: ResourceContext[] };
   source: {
     kind: 'web';
     surface: 'fullscreen';

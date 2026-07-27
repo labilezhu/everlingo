@@ -4,49 +4,17 @@
 
 ## schema
 
-格式举例：
-```json
-<envelope>
-{
-    "schema_version": 1,
-    "task": "translate",
-    "chat": {
-        "message": ""
-    },
-    "selection": {
-        "text": "不会"
-    },
-    "context": {
-        "text": "老用户可能还是左侧：如果用户以前修改过 Side Panel 的位置，Chrome 会保留这个偏好，不会自动改回来。",
-        "kind": "paragraph",
-        "screenshot": null
-    },
-    "source": {
-        "kind": "chrome_ext",
-        "url": "https://chatgpt.com/c/6a5e1033-22cc-83e8-aba3-d1daf5a1dde1",
-        "title": "Chrome扩展侧边栏位置",
-        "surface": "sidecar"
-    },
-    "device": {
-        "platform": "chrome_ext",
-        "locale": "en-US",
-        "timezone": "Asia/Hong_Kong"
-    }
-}
-</envelope>
-```
+用 `<envelope>JSON</envelope>` XML 包装，放入对方消息文本中。
 
-用 <envelope>. (json)..</envelope> XML 包装，放入对方消息文本中。
-
-### json 字段说明
+### 字段说明
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | `schema_version` | int | 是 | 当前为 1。用于 schema 演进兼容 |
 | `task` | enum | 是 | 用户偏好任务：`translate` / `look_up` / `none`。**是偏好不是命令**，LLM 可自由决定是否遵循 |
 | `chat.message` | str | 否 | 用户自然语言输入。可能为空（用户仅点击了 UI 按钮） |
-| `selection.text` | str | 否 | 用户选中的词/短语。纯聊天场景（stdio/wechat）恒为空 |
-| `context.text` | str | 否 | 选词周围的上下文（最多 500 字），用于消歧（如 bank 在河岸 vs 银行） |
+| `chat_context` | object | 否 | 用户操作时的上下文环境。默认 `{"resource_contexts": []}` |
+| `chat_context.resource_contexts` | array | 否 | 上下文资源列表。**可为空数组**（纯聊天场景）。每项为 tagged union（见下方 `resource_context.kind`） |
 | `source` | tagged union | 是 | 来源信息，用 `kind` 区分 |
 | `device` | optional | 否 | 设备信息，用于个性化释义 |
 
@@ -54,11 +22,66 @@
 
 可选值：`translate` / `look_up` / `none`。
 
+### `chat_context.resource_contexts`
+
+数组元素以 `kind` 字段为 discriminator。当前定义 3 个 kind：
+
+| kind | 使用场景 | 补充字段 |
+|---|---|---|
+| `vault_file` | Vault Editor 中打开的笔记文件 | `file_path` |
+| `web_page` | 用户选词的 web 页面（与 `source` 信息有重叠，用于 LLM 理解上下文内容） | `url`, `title` |
+| `selected_text` | 用户高亮选定的文本 | `text`, `start_line`, `start_column`, `paragraph_text` |
+
+#### kind="vault_file"
+
+```json
+{
+    "kind": "vault_file",
+    "file_path": "items/vocab/embedding.md"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `file_path` | str | 是 | Vault 笔记条目文件路径 |
+
+#### kind="web_page"
+
+```json
+{
+    "kind": "web_page",
+    "url": "https://example.com/article",
+    "title": "Example Article"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `url` | str | 是 | 页面 URL |
+| `title` | str | 否 | 页面 title |
+
+#### kind="selected_text"
+
+```json
+{
+    "kind": "selected_text",
+    "text": "structural",
+    "start_line": 19,
+    "start_column": 13,
+    "paragraph_text": "The embedding of the steel rods in concrete ensures structural stability"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `text` | str | 是 | 选定的文本内容 |
+| `start_line` | int / null | 否 | 选定文本的开始行（辅助定位）。不可获取时为 null |
+| `start_column` | int / null | 否 | 选定文本的开始列（辅助定位）。不可获取时为 null |
+| `paragraph_text` | str / null | 否 | 选定文本所在的段落或上下文块（最多 500 字）。不可获取时为 null |
+
 ### `source`
 
-来源信息。
-
-`source` 用 `kind` 字段作为 discriminator。 当前定义 5 个  `kind` ：
+`source` 用 `kind` 字段作为 discriminator。当前定义 6 个 `kind`：
 
 | kind | 使用场景 | 补充字段 |
 |---|---|---|
@@ -68,8 +91,6 @@
 | `pdf` | PDF 阅读器插件 | `file_path`, `page_number` |
 | `epub` | EPUB 阅读器 | `book_id` |
 | `ios_app` | iOS app 选词服务 | `bundle_id` |
-
-不同的  `kind` 可以有完全不同的字段
 
 #### kind="web"
 
@@ -81,8 +102,6 @@
         "surface": "fullscreen"
     },
 ```
-
-字段说明
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
@@ -101,8 +120,6 @@
     },
 ```
 
-字段说明
-
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | `url` | str | 否 | Chrome Extension 当前抓取选择内容的网页 URL  |
@@ -116,7 +133,6 @@
         "kind": "plain",
     },
 ```
-无其它字段
 
 ### device
 
@@ -129,8 +145,104 @@
 }
 ```
 
-字段说明
-
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | `platform` | enum | 否 | chrome_ext (Chrome Extension) / web (Web Chatbot)  |
+
+## 场景示例
+
+### 场景 1：Vault Editor 中嵌入的 Web Chatbot
+
+```json
+{
+    "schema_version": 1,
+    "task": "none",
+    "chat": {
+        "message": ""
+    },
+    "chat_context": {
+        "resource_contexts": [
+            {
+                "kind": "vault_file",
+                "file_path": "items/vocab/embedding.md"
+            },
+            {
+                "kind": "selected_text",
+                "text": "structural",
+                "start_line": 19,
+                "start_column": 13,
+                "paragraph_text": "The embedding of the steel rods in concrete ensures structural stability"
+            }
+        ]
+    },
+    "source": {
+        "kind": "web",
+        "url": "https://home-everlingo.mygraphql.com:6457/editor?lang=en&path=items%2Fvocab%2Fembedding.md",
+        "title": "🐹 小记笔记编辑器",
+        "surface": "fullscreen"
+    },
+    "device": {
+        "platform": "web",
+        "locale": "en-US",
+        "timezone": "Asia/Hong_Kong"
+    }
+}
+```
+
+### 场景 2：Chrome Extension Chatbot
+
+```json
+{
+    "schema_version": 1,
+    "task": "translate",
+    "chat": {
+        "message": ""
+    },
+    "chat_context": {
+        "resource_contexts": [
+            {
+                "kind": "selected_text",
+                "text": "structural",
+                "paragraph_text": "The embedding of the steel rods in concrete ensures structural stability"
+            }
+        ]
+    },
+    "source": {
+        "kind": "chrome_ext",
+        "url": "https://blog.mygraphql.com/en/posts/ai/ai-personal-assistant/openclaw-concepts/",
+        "title": "The Concepts Anatomy of OpenClaw",
+        "surface": "sidecar"
+    },
+    "device": {
+        "platform": "chrome_ext",
+        "locale": "en-US",
+        "timezone": "Asia/Hong_Kong"
+    }
+}
+```
+
+### 场景 3：纯聊天（Standalone Web Chatbot / stdio / WeChat）
+
+```json
+{
+    "schema_version": 1,
+    "task": "none",
+    "chat": {
+        "message": "hello"
+    },
+    "chat_context": {
+        "resource_contexts": []
+    },
+    "source": {
+        "kind": "web",
+        "url": "http://localhost:5173/",
+        "title": "小记🐹 AI 外语老师",
+        "surface": "fullscreen"
+    },
+    "device": {
+        "platform": "web",
+        "locale": "en-US",
+        "timezone": "Asia/Hong_Kong"
+    }
+}
+```

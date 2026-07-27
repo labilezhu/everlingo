@@ -64,15 +64,14 @@ task 语义遵循 [chrome-extension-spec.md §8](chrome-extension-spec.md) 的�
 
 ### Envelope 字段填充规则
 
-Standalone Web Chatbot 切换到结构化 `{envelope}` 格式发送消息（不再使用 `{text}` legacy 格式）。字段填充规则：
+Web Chatbot 切换到结构化 `{envelope}` 格式发送消息（不再使用 `{text}` legacy 格式）。字段填充规则：
 
 | 字段 | 填充来源 |
-|---|---|
+|---|---|---|
 | `schema_version` | 固定 `1` |
 | `task` | TaskSelector button group 选择 |
 | `chat.message` | 输入框文本 |
-| `selection.text` | `""`（web chatbot 无选词场景） |
-| `context.text` | `""` |
+| `chat_context.resource_contexts` | `[]`（standalone web chatbot 无上下文环境） |
 | `source.kind` | `"web"` |
 | `source.surface` | `"fullscreen"`（与 sidecar 的 `"sidecar"` 区分） |
 | `source.url` | `window.location.href` |
@@ -81,7 +80,9 @@ Standalone Web Chatbot 切换到结构化 `{envelope}` 格式发送消息（不�
 | `device.locale` | `navigator.language` |
 | `device.timezone` | `Intl.DateTimeFormat().resolvedOptions().timeZone` |
 
-`selection.text` / `context.text` 留空，因为 standalone web chatbot 没有页面选词上下文。
+`chat_context.resource_contexts` 默认为空数组，因为 standalone web chatbot 没有页面选词或笔记上下文。
+
+当 chatbot 被嵌入 Vault Editor 时（`embedded`），`resource_contexts` 由 `ChatWindow` 的 `resourceContextProvider` 回调注入，包含当前打开的笔记文件路径和编辑器选区文本。
 
 ### 示例
 
@@ -93,8 +94,7 @@ Standalone Web Chatbot 切换到结构化 `{envelope}` 格式发送消息（不�
     "schema_version": 1,
     "task": "translate",
     "chat": { "message": "bank is a financial institution" },
-    "selection": { "text": "" },
-    "context": { "text": "" },
+    "chat_context": { "resource_contexts": [] },
     "source": {
       "kind": "web",
       "surface": "fullscreen",

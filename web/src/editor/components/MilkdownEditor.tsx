@@ -1,5 +1,5 @@
-import { useCallback, useRef } from 'react';
-import { Editor, rootCtx, defaultValueCtx } from '@milkdown/kit/core';
+import { useCallback, useEffect, useRef, type MutableRefObject } from 'react';
+import { Editor, rootCtx, defaultValueCtx, editorViewCtx } from '@milkdown/kit/core';
 import { MilkdownProvider, useEditor, Milkdown } from '@milkdown/react';
 import { commonmark } from '@milkdown/kit/preset/commonmark';
 import { gfm } from '@milkdown/kit/preset/gfm';
@@ -12,23 +12,18 @@ interface MilkdownEditorProps {
   onChange: (value: string) => void;
   mode: 'source' | 'wysiwyg';
   onLinkClick?: (href: string) => boolean;
+  selectionRef: MutableRefObject<() => { text: string; start_line: number | null; start_column: number | null; paragraph_text: string | null }>;
 }
 
-function WysiwygEditor({ content, onChange, onLinkClick }: { content: string; onChange: (v: string) => void; onLinkClick?: (href: string) => boolean }) {
+function WysiwygEditor({ content, onChange, onLinkClick, selectionRef }: {
+  content: string;
+  onChange: (v: string) => void;
+  onLinkClick?: (href: string) => boolean;
+  selectionRef: MilkdownEditorProps['selectionRef'];
+}) {
   const firstUpdate = useRef(true);
 
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    const anchor = (e.target as HTMLElement).closest('a[href]');
-    if (!anchor) return;
-    if (!anchor.closest('[data-milkdown-root]')) return;
-    e.preventDefault();
-    const href = (anchor as HTMLAnchorElement).getAttribute('href');
-    if (!href) return;
-    if (onLinkClick && onLinkClick(href)) return;
-    window.open(href, '_blank', 'noopener,noreferrer');
-  }, [onLinkClick]);
-
-  useEditor((container) => {
+  const { get } = useEditor((container) => {
     return Editor
       .make()
       .config(ctx => {
@@ -50,6 +45,36 @@ function WysiwygEditor({ content, onChange, onLinkClick }: { content: string; on
         });
       });
   }, []);
+
+  useEffect(() => {
+    selectionRef.current = () => {
+      try {
+        const editor = get();
+        if (!editor) return { text: '', start_line: null, start_column: null, paragraph_text: null };
+        const view = editor.ctx.get(editorViewCtx);
+        const { from, to } = view.state.selection;
+        if (from === to) return { text: '', start_line: null, start_column: null, paragraph_text: null };
+        const text = view.state.doc.textBetween(from, to, '\n');
+        const $from = view.state.selection.$from;
+        const parent = $from.node();
+        const paragraph_text = parent.textContent.slice(0, 500);
+        return { text, start_line: null, start_column: null, paragraph_text };
+      } catch {
+        return { text: '', start_line: null, start_column: null, paragraph_text: null };
+      }
+    };
+  }, [selectionRef, get]);
+
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    const anchor = (e.target as HTMLElement).closest('a[href]');
+    if (!anchor) return;
+    if (!anchor.closest('[data-milkdown-root]')) return;
+    e.preventDefault();
+    const href = (anchor as HTMLAnchorElement).getAttribute('href');
+    if (!href) return;
+    if (onLinkClick && onLinkClick(href)) return;
+    window.open(href, '_blank', 'noopener,noreferrer');
+  }, [onLinkClick]);
 
     return (
       <div className="w-full h-full overflow-auto" onClick={handleClick}>
@@ -100,14 +125,14 @@ function WysiwygEditor({ content, onChange, onLinkClick }: { content: string; on
     );
 }
 
-export default function MilkdownEditor({ content, onChange, mode, onLinkClick }: MilkdownEditorProps) {
+export default function MilkdownEditor({ content, onChange, mode, onLinkClick, selectionRef }: MilkdownEditorProps) {
   if (mode === 'source') {
-    return <SourceEditor content={content} onChange={onChange} />;
+    return <SourceEditor content={content} onChange={onChange} selectionRef={selectionRef} />;
   }
 
   return (
     <MilkdownProvider>
-      <WysiwygEditor content={content} onChange={onChange} onLinkClick={onLinkClick} />
+      <WysiwygEditor content={content} onChange={onChange} onLinkClick={onLinkClick} selectionRef={selectionRef} />
     </MilkdownProvider>
   );
 }

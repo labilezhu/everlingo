@@ -43,7 +43,7 @@ system prompt 在 `## 用户意图分类` 之前新增 `## 结构化用户输入
 
 **运行期加载**：envelope schema 在 `_refresh_agent_if_needed()` 中通过 MCP 长连接调用 `compile_prompt(path="spec/envelope_spec.md")` 从 vault 加载（与 Memory Writer Agent 加载 `envelope_spec.md` 的机制一致），经 `shift_headings(+2)` 后注入到 `## 结构化用户输入（envelope）` 节（h1→h3 嵌套于外层 h2 之下）。vault 离线时不注入 schema（无兜底），仅保留 envelope 标签简介与延续语义规则。
 
-该节附加一条延续语义规则：当 `task=look_up` 且 `chat.message` 为空且 `selection.text` 为空时，视为"延续上一轮笔记话题"——LLM 不应回复"未收到输入"，而应基于对话历史继续推进相关工作（如读取/编辑上一轮提到的笔记）。该规则同时写入 `agent.py` system prompt。
+该节附加一条延续语义规则：当 `task=look_up` 且 `chat.message` 为空且 `chat_context.resource_contexts` 不含 `selected_text` 项时，视为"延续上一轮笔记话题"——LLM 不应回复"未收到输入"，而应基于对话历史继续推进相关工作（如读取/编辑上一轮提到的笔记）。该规则同时写入 `agent.py` system prompt。
 
 ### invoke -> ainvoke
 

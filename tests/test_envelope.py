@@ -6,7 +6,9 @@ from everlingo.gateway.channels.envelope import (
     SourcePlain,
     SourceWeb,
     SourceChromeExt,
-    ScreenshotPart,
+    ResourceContextVaultFile,
+    ResourceContextWebPage,
+    ResourceContextSelectedText,
     render_envelope_to_message_text,
     wrap_plain_text,
 )
@@ -18,8 +20,7 @@ class TestWrapPlainText:
         assert env.task == "none"
         assert env.chat.message == "hello"
         assert isinstance(env.source, SourcePlain)
-        assert env.selection.text == ""
-        assert env.context.text == ""
+        assert env.chat_context.resource_contexts == []
         assert env.schema_version == 1
 
     def test_wraps_empty_text(self):
@@ -47,8 +48,12 @@ class TestRenderEnvelopeToMessageText:
             source=SourceWeb(url="https://example.com", title="Example"),
         )
         env.chat.message = "为什么这里不是银行？"
-        env.selection.text = "bank"
-        env.context.text = "I sat on the bank of the river."
+        env.chat_context.resource_contexts = [
+            ResourceContextSelectedText(
+                text="bank",
+                paragraph_text="I sat on the bank of the river.",
+            ),
+        ]
 
         rendered = render_envelope_to_message_text(env)
         assert '"task":"translate"' in rendered
@@ -56,6 +61,8 @@ class TestRenderEnvelopeToMessageText:
         assert '"text":"bank"' in rendered
         assert '"kind":"web"' in rendered
         assert '"url":"https://example.com"' in rendered
+        assert '"paragraph_text"' in rendered
+        assert '"resource_contexts"' in rendered
 
     def test_schema_version_present(self):
         env = wrap_plain_text("hi")
@@ -136,8 +143,7 @@ class TestUserInputEnvelopeDefaults:
         env = UserInputEnvelope()
         assert env.task == "none"
         assert env.chat.message == ""
-        assert env.selection.text == ""
-        assert env.context.text == ""
+        assert env.chat_context.resource_contexts == []
         assert isinstance(env.source, SourcePlain)
         assert env.device is None
         assert env.schema_version == 1
@@ -168,23 +174,109 @@ class TestDevicePart:
         assert env.device.locale == "zh-CN"
 
 
-class TestScreenshotPart:
-    def test_screenshot_none_by_default(self):
+class TestChatContext:
+    def test_resource_contexts_defaults_to_empty(self):
         env = UserInputEnvelope()
-        assert env.context.screenshot is None
+        assert env.chat_context.resource_contexts == []
 
-    def test_screenshot_with_fields(self):
+    def test_vault_file_context(self):
         env = UserInputEnvelope(
-            context={"screenshot": ScreenshotPart(data_url="data:image/png;base64,abc")}
+            chat_context={
+                "resource_contexts": [
+                    {"kind": "vault_file", "file_path": "items/vocab/embedding.md"},
+                ],
+            },
         )
-        assert env.context.screenshot is not None
-        assert env.context.screenshot.data_url == "data:image/png;base64,abc"
-        assert env.context.screenshot.mime == "image/png"
+        ctx = env.chat_context.resource_contexts[0]
+        assert isinstance(ctx, ResourceContextVaultFile)
+        assert ctx.file_path == "items/vocab/embedding.md"
 
-    def test_screenshot_roundtrip(self):
+    def test_web_page_context(self):
         env = UserInputEnvelope(
-            context={"screenshot": ScreenshotPart(data_url="data:image/png;base64,abc", mime="image/png")}
+            chat_context={
+                "resource_contexts": [
+                    {"kind": "web_page", "url": "https://example.com", "title": "Test"},
+                ],
+            },
         )
-        rendered = render_envelope_to_message_text(env)
-        assert "data:image/png;base64,abc" in rendered
-        assert '"mime":"image/png"' in rendered
+        ctx = env.chat_context.resource_contexts[0]
+        assert isinstance(ctx, ResourceContextWebPage)
+        assert ctx.url == "https://example.com"
+        assert ctx.title == "Test"
+
+    def test_selected_text_context_with_all_fields(self):
+        env = UserInputEnvelope(
+            chat_context={
+                "resource_contexts": [
+                    {
+                        "kind": "selected_text",
+                        "text": "bank",
+                        "start_line": 5,
+                        "start_column": 10,
+                        "paragraph_text": "I sat on the bank of the river.",
+                    },
+                ],
+            },
+        )
+        ctx = env.chat_context.resource_contexts[0]
+        assert isinstance(ctx, ResourceContextSelectedText)
+        assert ctx.text == "bank"
+        assert ctx.start_line == 5
+        assert ctx.start_column == 10
+        assert ctx.paragraph_text == "I sat on the bank of the river."
+
+    def test_selected_text_with_nulls(self):
+        env = UserInputEnvelope(
+            chat_context={
+                "resource_contexts": [
+                    {
+                        "kind": "selected_text",
+                        "text": "word",
+                    },
+                ],
+            },
+        )
+        ctx = env.chat_context.resource_contexts[0]
+        assert ctx.text == "word"
+        assert ctx.start_line is None
+        assert ctx.start_column is None
+        assert ctx.paragraph_text is None
+
+    def test_multiple_contexts(self):
+        env = UserInputEnvelope(
+            chat_context={
+                "resource_contexts": [
+                    {"kind": "vault_file", "file_path": "items/vocab/foo.md"},
+                    {"kind": "selected_text", "text": "hello"},
+                ],
+            },
+        )
+        assert len(env.chat_context.resource_contexts) == 2
+
+
+class TestResourceContextTaggedUnion:
+    def test_vault_file_missing_file_path_raises(self):
+        with pytest.raises(ValidationError):
+            UserInputEnvelope(
+                chat_context={"resource_contexts": [{"kind": "vault_file"}]},
+            )
+
+    def test_web_page_missing_url_raises(self):
+        with pytest.raises(ValidationError):
+            UserInputEnvelope(
+                chat_context={"resource_contexts": [{"kind": "web_page"}]},
+            )
+
+    def test_selected_text_missing_text_raises(self):
+        with pytest.raises(ValidationError):
+            UserInputEnvelope(
+                chat_context={"resource_contexts": [{"kind": "selected_text"}]},
+            )
+
+    def test_unknown_kind_raises(self):
+        with pytest.raises(ValidationError):
+            UserInputEnvelope(
+                chat_context={
+                    "resource_contexts": [{"kind": "unknown_kind"}],
+                },
+            )

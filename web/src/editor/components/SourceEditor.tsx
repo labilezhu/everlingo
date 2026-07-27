@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type MutableRefObject } from 'react';
 import { EditorState } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import { defaultKeymap, historyKeymap, history, indentWithTab } from '@codemirror/commands';
@@ -101,10 +101,12 @@ const editorTheme = EditorView.theme({
 interface SourceEditorProps {
   content: string;
   onChange: (value: string) => void;
+  selectionRef: MutableRefObject<() => { text: string; start_line: number | null; start_column: number | null; paragraph_text: string | null }>;
 }
 
-export default function SourceEditor({ content, onChange }: SourceEditorProps) {
+export default function SourceEditor({ content, onChange, selectionRef }: SourceEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<EditorView | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -130,9 +132,26 @@ export default function SourceEditor({ content, onChange }: SourceEditorProps) {
       }),
       parent: containerRef.current,
     });
+    viewRef.current = view;
+
+    selectionRef.current = () => {
+      const sel = view.state.selection.main;
+      if (sel.empty) {
+        return { text: '', start_line: null, start_column: null, paragraph_text: null };
+      }
+      const text = view.state.sliceDoc(sel.from, sel.to);
+      const line = view.state.doc.lineAt(sel.from);
+      return {
+        text,
+        start_line: line.number,
+        start_column: sel.from - line.from,
+        paragraph_text: line.text,
+      };
+    };
 
     return () => {
       view.destroy();
+      viewRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

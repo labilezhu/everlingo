@@ -129,6 +129,24 @@ editor app 启动时读 `location.search`：
 
 反向链接（editor → chatbot）不在本 spec 范围：chatbot 使用 session id，跨页跳转会建新 session，需独立设计。
 
+### 编辑器上下文注入
+
+chatbot 侧栏发送消息时，通过 `resourceContextProvider` 回调把编辑器当前上下文注入 envelope 的 `chat_context.resource_contexts`：
+
+- **当前打开的文件** → `{kind: 'vault_file', file_path}`，取值来自 `EditorApp` 的 `currentPath` state。
+- **编辑器选区文本**（Source 模式） → `{kind: 'selected_text', text, start_line, start_column, paragraph_text}`：
+  - `text`：选中的文本内容
+  - `start_line` / `start_column`：选区起始的行号和列号（从 CodeMirror `view.state.selection` 取得）
+  - `paragraph_text`：选区所在行的行文本（`view.state.doc.lineAt(sel.from).text`）
+- **编辑器选区文本**（WYSIWYG 模式） → 同上，但 `start_line` / `start_column` 为 `null`（ProseMirror 下不可得）；`paragraph_text` 取选区所在最近 block node 的 textContent。
+- 无选区或未打开文件时对应项缺省，无缺省内容时 `resource_contexts` 为空数组。
+
+实现：
+- `EditorApp` 通过 `useRef` 创建一个 `editorSelectionRef`，传递给 `MilkdownEditor`。
+- `MilkdownEditor` 根据模式（source / wysiwyg）转发给 `SourceEditor` 或 `WysiwygEditor`，组件在挂载时用 `selectionRef.current = () => { ... }` 注册一个懒取选区文本的函数。
+- `EditorApp.getEditorResourceContext()` 读取 `currentPath` + `editorSelectionRef.current()` 构造 `ResourceContext[]`。
+- `ChatWindow` 通过 `resourceContextProvider` prop 接收该函数，发送消息时调用并拼入 `buildEnvelope`。
+
 ## 移动端适配
 
 以 Tailwind 默认 `md` 断点（768px）为界：

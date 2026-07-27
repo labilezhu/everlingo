@@ -1,6 +1,6 @@
 # Envelope 结构化用户输入协议
 
-- 状态：Implemented（2026-07-19）
+- 状态：Implemented（2026-07-27）
 - 相关文档：
   - [ADR: 引入 UserInputEnvelope 统一结构化用户输入协议](../ADR/20260719-envelope.md)
   - [Channel](./channel.md)
@@ -27,8 +27,7 @@ class UserInputEnvelope(BaseModel):
     schema_version: int = 1
     task: TaskKind = "none"
     chat: ChatPart = ChatPart()
-    selection: SelectionPart = SelectionPart()
-    context: ContextPart = ContextPart()
+    chat_context: ChatContextPart = ChatContextPart()
     source: SourcePart = Field(default_factory=SourcePlain)
     device: DevicePart | None = None
 ```
@@ -40,7 +39,7 @@ class UserInputEnvelope(BaseModel):
 
 ### `source` 字段实现补充
 
-`source` 用 `kind` 字段作为 discriminator。当前定义 5 个 kind，目前仅 `plain` 被实际使用（stdio/wechat/web `{text}` 请求产 `plain`），其余为未来预留：
+`source` 用 `kind` 字段作为 discriminator。当前定义 6 个 kind，目前仅 `plain` / `web` / `chrome_ext` 被实际使用：
 
 未知 `kind` 值时 pydantic discriminated union 会 raise `ValidationError`。
 
@@ -52,82 +51,13 @@ class UserInputEnvelope(BaseModel):
 
 所有 channel 统一产 `UserInputEnvelope`，Session 层在传给 `MainAgent.ainvoke` 前序列化为 `<envelope>{JSON}</envelope>` 标签包裹的字符串。
 
-例如一个 web 翻译请求的序列化输出：
-
-```json
-<envelope>
-{
-  "schema_version": 1,
-  "task": "translate",
-  "chat": {
-    "message": "为什么这里不是银行？"
-  },
-  "selection": {
-    "text": "bank"
-  },
-  "context": {
-    "text": "I sat on the bank of the river.",
-    "kind": "paragraph"
-  },
-  "source": {
-    "kind": "chrome_ext",
-    "surface": "sidecar",
-    "url": "https://example.com",
-    "title": "Example Article"
-  },
-  "device": {
-    "platform": "chrome_ext",
-    "locale": "zh-CN"
-  }
-}
-</envelope>
-```
-
-```json
-<envelope>
-{
-    "schema_version": 1,
-    "task": "translate",
-    "chat": {
-        "message": ""
-    },
-    "selection": {
-        "text": "不会"
-    },
-    "context": {
-        "text": "老用户可能还是左侧：如果用户以前修改过 Side Panel 的位置，Chrome 会保留这个偏好，不会自动改回来。",
-        "kind": "paragraph",
-        "screenshot": null
-    },
-    "source": {
-        "kind": "chrome_ext",
-        "url": "https://chatgpt.com/c/6a5e1033-22cc-83e8-aba3-d1daf5a1dde1",
-        "title": "Chrome扩展侧边栏位置",
-        "surface": "sidecar"
-    },
-    "device": {
-        "platform": "chrome_ext",
-        "locale": "en-US",
-        "timezone": "Asia/Hong_Kong"
-    }
-}
-</envelope>
-```
-
-
-格式要点：
-- **XML 标签 `<envelope>`**：标记结构化数据的起止边界，避免与用户纯文本输入（如 `{"name":"mark"}`）混淆。stdio/wechat 的纯文本输入被 `wrap_plain_text()` 包装后同样带此标签。
-- **JSON 体**：`model_dump_json(ensure_ascii=False)` 序列化，无额外空格。
-- **标签内无业务语义**：所有业务字段在 JSON 内，标签仅作边界标记。
-
-## 4. 工具函数
-
 ### `wrap_plain_text(text: str) -> UserInputEnvelope`
 
 把纯文本输入包装为最小 envelope：
 - `task="none"`
 - `chat.message = text`
 - `source.kind = "plain"`
+- `chat_context.resource_contexts = []`
 
 用于 stdio/wechat/web `{text}` 请求。
 
@@ -135,7 +65,7 @@ class UserInputEnvelope(BaseModel):
 
 把 envelope 序列化为 `<envelope>{JSON}</envelope>` 格式。由 `Session._handle_user_message` 在调用 `agent.ainvoke` 前使用。
 
-## 5. 数据流
+## 4. 数据流
 
 ```
 Channel (任何子类)
@@ -148,16 +78,23 @@ Channel (任何子类)
                       └→ agent.ainvoke(MessageEvent(text=text))
 ```
 
-## 6. 与各 Channel 的关系
+## 5. 与各 Channel 的关系
 
 | Channel | `recv_envelope()` 实现 | 序列化后 LLM 看到 |
 |---|---|---|
-| `StdioChannel` | 读 stdin 一行 → `wrap_plain_text(line)` | `<envelope>{"chat":{"message":"用户输入"},...}</envelope>` |
+| `StdioChannel` | 读 stdin 一行 → `wrap_plain_text(line)` | `<envelope>{"chat":{"message":"用户输入"},"chat_context":{"resource_contexts":[]},...}</envelope>` |
 | `WechatChannel` | 从 wechat sdk 队列读消息 → `wrap_plain_text(msg.text)` | 同上 |
-| `WebChannel` | 从 `_incoming` 队列读 `UserInputEnvelope`（`source.kind=web` + `surface=fullscreen` 或 `source.kind=chrome_ext` + `surface=sidecar\|popup`） | 按前端传入的 envelope 结构 |
+| `WebChannel` | 从 `_incoming` 队列读 `UserInputEnvelope`（`source.kind=web` + `surface=fullscreen` 或 `source.kind=chrome_ext` + `surface=sidecar`） | 按前端传入的 envelope 结构（含 `chat_context.resource_contexts`） |
+
+## 6. `ResourceContext` 类型
+
+见 `src/everlingo/gateway/channels/envelope.py` 的 `ResourceContext` discriminated union，三种 kind：
+- `vault_file`：Vault Editor 中当前打开的笔记文件
+- `web_page`：用户选词的 web 页面
+- `selected_text`：用户高亮选定的文本（含段落上下文）
 
 ## 7. 向后兼容
 
-- 现有 web 前端发 `{"text":"..."}` 仍可用：`web_acceptor.py` 检测到 `text` 字段时自动调用 `wrap_plain_text()` 包装为 envelope。
+- 现有 web 前端发 `{"text":"..."}` 仍可用：`web_acceptor.py` 检测到 `text` 字段时自动调用 `wrap_plain_text()` 包装为 envelope（`resource_contexts` 为空）。
 - `MainAgent.ainvoke` 签名不变（仍收 `MessageEvent(text)`），Agent 代码零改动。
 - 用户侧无感知（LLM 通过 system prompt 理解 envelope 格式）。

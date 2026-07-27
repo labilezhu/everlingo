@@ -5,7 +5,7 @@ import ChatInput from './ChatInput';
 import TaskSelector from './TaskSelector';
 import { Button } from '@/components/ui/button';
 import { createSession, sendMessage, connectSSE, buildEnvelope, type ConnStatus } from '@/services/sseClient';
-import type { TaskKind, SSEEvent } from '@/types/chat';
+import type { TaskKind, SSEEvent, ResourceContext } from '@/types/chat';
 import { Message, uid } from '@/types/chat';
 import { LinkListenerContext } from './MarkdownRenderer';
 
@@ -14,7 +14,11 @@ function decodeBase64Audio(b64: string): string {
   return URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
 }
 
-export default function ChatWindow({ embedded, linkListener }: { embedded?: boolean; linkListener?: (url: string) => boolean }) {
+export default function ChatWindow({ embedded, linkListener, resourceContextProvider }: {
+  embedded?: boolean;
+  linkListener?: (url: string) => boolean;
+  resourceContextProvider?: () => ResourceContext[];
+}) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([
     { id: uid(), text: '你好！我是小记🐹，你的 AI 外语老师。有什么可以帮你的吗？', from: 'bot' },
@@ -87,13 +91,14 @@ export default function ChatWindow({ embedded, linkListener }: { embedded?: bool
     setMessages(prev => [...prev, { id: uid(), text, from: 'user' }]);
     setPending(true);
     try {
-      const envelope = buildEnvelope(task, text);
+      const extraContexts = resourceContextProvider?.() ?? [];
+      const envelope = buildEnvelope(task, text, extraContexts);
       await sendMessage(sessionId, envelope);
     } catch {
       setPending(false);
       setError('发送消息失败');
     }
-  }, [sessionId, task]);
+  }, [sessionId, task, resourceContextProvider]);
 
   return (
     <LinkListenerContext.Provider value={linkListener}>

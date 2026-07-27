@@ -292,7 +292,7 @@ envelope 的 `task` 字段表达用户指定的任务（`translate` / `look_up` 
 - `translate` 偏向翻译
 - `none` 不影响意图识别。
 
-当 task=look_up 且 chat.message 为空且 selection.text 为空时，视为"延续上一轮笔记话题"：
+当 task=look_up 且 chat.message 为空且 chat_context.resource_contexts 不含 selected_text 项时，视为"延续上一轮笔记话题"：
 不要回复"未收到输入"，应基于对话历史继续推进相关工作（如读取/编辑上一轮提到的笔记）。
 
 `用户意图类型` 按识别优先级从高到低分为：

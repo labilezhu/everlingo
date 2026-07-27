@@ -23,6 +23,10 @@ function mergeChildren(entries: Entry[], dirPath: string, newChildren: Entry[]):
 type LeftTab = 'files' | 'search';
 
 export default function EditorApp() {
+  // ref for editor selection provider
+  const editorSelectionRef = useRef<() => { text: string; start_line: number | null; start_column: number | null; paragraph_text: string | null }>(
+    () => ({ text: '', start_line: null, start_column: null, paragraph_text: null })
+  );
   // ── state ──
   const [langs, setLangs] = useState<string[]>([]);
   const [selectedLang, setSelectedLang] = useState<string>('');
@@ -191,6 +195,25 @@ export default function EditorApp() {
       setLoading(false);
     }
   }, [selectedLang, currentPath, dirty]);
+
+  // ── editor resource context provider ──
+  const getEditorResourceContext = useCallback((): import('@/types/chat').ResourceContext[] => {
+    const ctx: import('@/types/chat').ResourceContext[] = [];
+    if (currentPath) {
+      ctx.push({ kind: 'vault_file', file_path: currentPath });
+    }
+    const sel = editorSelectionRef.current();
+    if (sel.text) {
+      ctx.push({
+        kind: 'selected_text',
+        text: sel.text,
+        start_line: sel.start_line,
+        start_column: sel.start_column,
+        paragraph_text: sel.paragraph_text,
+      });
+    }
+    return ctx;
+  }, [currentPath]);
 
   // ── chatbot link click handler ──
   const handleChatLinkClick = useCallback((url: string): boolean => {
@@ -620,6 +643,7 @@ export default function EditorApp() {
                   onChange={mode === 'wysiwyg' ? (v) => setContent(fm + v) : setContent}
                   mode={mode}
                   onLinkClick={handleEditorLinkClick}
+                  selectionRef={editorSelectionRef}
                 />
               </div>
             </>
@@ -663,7 +687,7 @@ export default function EditorApp() {
               : 'fixed inset-y-0 right-0 z-40 w-[85vw] max-w-sm flex flex-col overflow-hidden border-l border-border bg-background transition-transform ' + (chatOpen ? 'translate-x-0' : 'translate-x-full')}
             style={isDesktop ? { width: `${chatPct}%` } : undefined}
           >
-            <ChatWindow embedded linkListener={handleChatLinkClick} />
+            <ChatWindow embedded linkListener={handleChatLinkClick} resourceContextProvider={getEditorResourceContext} />
           </aside>
         )}
 

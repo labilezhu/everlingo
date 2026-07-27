@@ -1,4 +1,4 @@
-import type { TaskKind, UserInputEnvelope, SSEEvent } from '@/types/chat';
+import type { TaskKind, UserInputEnvelope, SSEEvent, ResourceContext } from '@/types/chat';
 
 export type ConnStatus =
   | { state: 'connected' }
@@ -10,13 +10,12 @@ export interface ConnectSSEResult {
   retryNow: () => void;
 }
 
-export function buildEnvelope(task: TaskKind, message: string): UserInputEnvelope {
+export function buildEnvelope(task: TaskKind, message: string, resourceContexts: ResourceContext[] = []): UserInputEnvelope {
   return {
     schema_version: 1,
     task,
     chat: { message },
-    selection: { text: '' },
-    context: { text: '' },
+    chat_context: { resource_contexts: resourceContexts },
     source: {
       kind: 'web',
       surface: 'fullscreen',

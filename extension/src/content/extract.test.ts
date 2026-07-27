@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 
-// The extractContextText function depends on DOM (Selection, Element).
+// The extractParagraphText function depends on DOM (Selection, Element).
 // We test the core algorithm by directly manipulating the DOM with jsdom-like mocks.
 // For simpler unit testing, we re-implement the logic here mock-free.
 
-function extractContextText(selection: {
+function extractParagraphText(selection: {
   rangeCount: number;
   getRangeAt: (i: number) => {
     commonAncestorContainer: { nodeType: number; textContent?: string; tagName?: string };
@@ -42,14 +42,14 @@ function extractContextText(selection: {
   return fullText.slice(start, start + 500);
 }
 
-describe('extractContextText', () => {
+describe('extractParagraphText', () => {
   it('returns empty string when no selection', () => {
-    const result = extractContextText({ rangeCount: 0, getRangeAt: () => null! });
+    const result = extractParagraphText({ rangeCount: 0, getRangeAt: () => null! });
     expect(result).toBe('');
   });
 
   it('extracts text from block-level ancestor (P tag)', () => {
-    const result = extractContextText({
+    const result = extractParagraphText({
       rangeCount: 1,
       getRangeAt: () => ({
         commonAncestorContainer: {
@@ -63,7 +63,7 @@ describe('extractContextText', () => {
   });
 
   it('navigates up through nested elements to find block ancestor', () => {
-    const result = extractContextText({
+    const result = extractParagraphText({
       rangeCount: 1,
       getRangeAt: () => ({
         commonAncestorContainer: {
@@ -81,7 +81,7 @@ describe('extractContextText', () => {
 
   it('truncates text over 500 characters', () => {
     const longText = 'A'.repeat(600);
-    const result = extractContextText({
+    const result = extractParagraphText({
       rangeCount: 1,
       getRangeAt: () => ({
         commonAncestorContainer: {
@@ -97,7 +97,7 @@ describe('extractContextText', () => {
 
   it('falls back to body text around offset when no block ancestor found', () => {
     const bodyText = 'X'.repeat(1000);
-    const result = extractContextText({
+    const result = extractParagraphText({
       rangeCount: 1,
       getRangeAt: () => ({
         commonAncestorContainer: {
@@ -112,7 +112,7 @@ describe('extractContextText', () => {
   });
 
   it('handles BLOCKQUOTE as block element', () => {
-    const result = extractContextText({
+    const result = extractParagraphText({
       rangeCount: 1,
       getRangeAt: () => ({
         commonAncestorContainer: {

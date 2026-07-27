@@ -9,7 +9,7 @@ function isBlockElement(el: Element | null): boolean {
   return BLOCK_TAGS.has(el.tagName.toUpperCase());
 }
 
-export function extractContextText(selection: Selection): string {
+export function extractParagraphText(selection: Selection): string {
   if (!selection.rangeCount) return '';
   const range = selection.getRangeAt(0);
   let block: Element | null = range.commonAncestorContainer as Element;
@@ -29,26 +29,19 @@ export function extractSelection(): string {
   return window.getSelection()?.toString() || '';
 }
 
-export function extractPageInfo(): { url: string; title: string } {
-  return { url: location.href, title: document.title };
-}
-
 export interface PageSnapshot {
-  selection: string;
-  context: string;
-  url: string;
-  title: string;
+  text: string;
+  paragraph_text: string;
 }
 
 export function captureSnapshot(): PageSnapshot {
-  const selection = extractSelection();
-  let context = '';
-  if (selection) {
+  const text = extractSelection();
+  let paragraph_text = '';
+  if (text) {
     const sel = window.getSelection();
     if (sel) {
-      context = extractContextText(sel);
+      paragraph_text = extractParagraphText(sel);
     }
   }
-  const { url, title } = extractPageInfo();
-  return { selection, context, url, title };
+  return { text, paragraph_text };
 }

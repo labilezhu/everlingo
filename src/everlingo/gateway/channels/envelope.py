@@ -11,19 +11,33 @@ class ChatPart(BaseModel):
     message: str = ""
 
 
-class SelectionPart(BaseModel):
-    text: str = ""
+class ResourceContextVaultFile(BaseModel):
+    kind: Literal["vault_file"] = "vault_file"
+    file_path: str
 
 
-class ScreenshotPart(BaseModel):
-    data_url: str
-    mime: str = "image/png"
+class ResourceContextWebPage(BaseModel):
+    kind: Literal["web_page"] = "web_page"
+    url: str
+    title: str = ""
 
 
-class ContextPart(BaseModel):
-    text: str = ""
-    kind: Literal["paragraph", "page", "screen", "plain"] = "plain"
-    screenshot: ScreenshotPart | None = None
+class ResourceContextSelectedText(BaseModel):
+    kind: Literal["selected_text"] = "selected_text"
+    text: str
+    start_line: int | None = None
+    start_column: int | None = None
+    paragraph_text: str | None = None
+
+
+ResourceContext = Annotated[
+    Union[ResourceContextVaultFile, ResourceContextWebPage, ResourceContextSelectedText],
+    Field(discriminator="kind"),
+]
+
+
+class ChatContextPart(BaseModel):
+    resource_contexts: list[ResourceContext] = Field(default_factory=list)
 
 
 class SourcePlain(BaseModel):
@@ -76,8 +90,7 @@ class UserInputEnvelope(BaseModel):
     schema_version: int = 1
     task: TaskKind = "none"
     chat: ChatPart = ChatPart()
-    selection: SelectionPart = SelectionPart()
-    context: ContextPart = ContextPart()
+    chat_context: ChatContextPart = ChatContextPart()
     source: SourcePart = Field(default_factory=SourcePlain)
     device: DevicePart | None = None
 

@@ -3,32 +3,27 @@ import { buildEnvelope } from './envelope';
 
 describe('buildEnvelope', () => {
   const snapshot = {
-    selection: 'bank',
-    context: 'I sat on the bank of the river.',
-    url: 'https://example.com/article',
-    title: 'Example Article',
+    text: 'bank',
+    paragraph_text: 'I sat on the bank of the river.',
     deviceId: 'test-device-id',
   };
 
-  it('builds a valid translate envelope with selection and context', () => {
+  it('builds a valid translate envelope with selected_text in resource_contexts', () => {
     const env = buildEnvelope('translate', '', snapshot);
     expect(env.schema_version).toBe(1);
     expect(env.task).toBe('translate');
     expect(env.chat.message).toBe('');
-    expect(env.selection.text).toBe('bank');
-    expect(env.context.text).toBe('I sat on the bank of the river.');
-    expect(env.context.kind).toBe('paragraph');
+    expect(env.chat_context.resource_contexts).toHaveLength(1);
+    const ctx = env.chat_context.resource_contexts[0];
+    expect(ctx.kind).toBe('selected_text');
+    if (ctx.kind === 'selected_text') {
+      expect(ctx.text).toBe('bank');
+      expect(ctx.paragraph_text).toBe('I sat on the bank of the river.');
+    }
     expect(env.source.kind).toBe('chrome_ext');
     expect(env.source).toHaveProperty('surface', 'sidecar');
-    expect(env.source).toHaveProperty('url', 'https://example.com/article');
     expect(env.device?.platform).toBe('chrome_ext');
     expect(env.device?.device_id).toBe('test-device-id');
-  });
-
-  it('sets context kind to plain when context text is empty', () => {
-    const env = buildEnvelope('translate', '', { ...snapshot, context: '' });
-    expect(env.context.kind).toBe('plain');
-    expect(env.context.text).toBe('');
   });
 
   it('builds a look_up envelope', () => {
@@ -41,13 +36,13 @@ describe('buildEnvelope', () => {
     expect(env.chat.message).toBe('解释一下这个词');
   });
 
-  it('handles empty selection gracefully', () => {
-    const env = buildEnvelope('none', '', { ...snapshot, selection: '' });
-    expect(env.selection.text).toBe('');
+  it('produces empty resource_contexts when no selection', () => {
+    const env = buildEnvelope('none', '', { text: '', paragraph_text: '', deviceId: 'x' });
+    expect(env.chat_context.resource_contexts).toEqual([]);
   });
 
   it('does not set device_id when not provided', () => {
-    const env = buildEnvelope('translate', 'hello', { ...snapshot, deviceId: undefined });
+    const env = buildEnvelope('translate', 'hello', { text: 'hello', paragraph_text: '', deviceId: undefined });
     expect(env.device?.device_id).toBeUndefined();
   });
 });

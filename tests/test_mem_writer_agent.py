@@ -738,7 +738,7 @@ class TestWriterSystemPrompt:
         prompt = self._build(mem_entry_spec_text, envelope_spec_text, vault_spec_text)
         assert "## 输入消息的 Envelope 格式" in prompt
         for field in (
-            "schema_version", "task", "selection", "context", "source",
+            "schema_version", "task", "chat_context", "resource_contexts", "source",
         ):
             assert field in prompt, f"missing envelope field: {field}"
 

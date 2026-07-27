@@ -6,19 +6,19 @@ export interface ChatPart {
   message: string;
 }
 
-export interface SelectionPart {
-  text: string;
-}
+export type ResourceContext =
+  | { kind: 'vault_file'; file_path: string }
+  | { kind: 'web_page'; url: string; title?: string }
+  | {
+      kind: 'selected_text';
+      text: string;
+      start_line?: number | null;
+      start_column?: number | null;
+      paragraph_text?: string | null;
+    };
 
-export interface ScreenshotPart {
-  data_url: string;
-  mime: string;
-}
-
-export interface ContextPart {
-  text: string;
-  kind: 'paragraph' | 'page' | 'screen' | 'plain';
-  screenshot?: ScreenshotPart;
+export interface ChatContextPart {
+  resource_contexts: ResourceContext[];
 }
 
 export interface SourcePlain {
@@ -52,8 +52,7 @@ export interface UserInputEnvelope {
   schema_version: 1;
   task: TaskKind;
   chat: ChatPart;
-  selection: SelectionPart;
-  context: ContextPart;
+  chat_context: ChatContextPart;
   source: SourcePart;
   device?: DevicePart;
 }
@@ -62,26 +61,28 @@ export function buildEnvelope(
   task: TaskKind,
   chatMessage: string,
   snapshot: {
-    selection: string;
-    context: string;
-    url: string;
-    title: string;
+    text: string;
+    paragraph_text: string;
     deviceId?: string;
   },
 ): UserInputEnvelope {
+  const resource_contexts: ResourceContext[] = [];
+  if (snapshot.text) {
+    resource_contexts.push({
+      kind: 'selected_text',
+      text: snapshot.text,
+      paragraph_text: snapshot.paragraph_text || null,
+    });
+  }
   return {
     schema_version: 1,
     task,
     chat: { message: chatMessage },
-    selection: { text: snapshot.selection },
-    context: {
-      text: snapshot.context,
-      kind: snapshot.context ? 'paragraph' : 'plain',
-    },
+    chat_context: { resource_contexts },
     source: {
       kind: 'chrome_ext',
-      url: snapshot.url,
-      title: snapshot.title,
+      url: '',
+      title: '',
       surface: 'sidecar',
     },
     device: {
