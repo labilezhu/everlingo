@@ -5,6 +5,7 @@ import { commonmark } from '@milkdown/kit/preset/commonmark';
 import { gfm } from '@milkdown/kit/preset/gfm';
 import { history } from '@milkdown/kit/plugin/history';
 import { listener, listenerCtx } from '@milkdown/kit/plugin/listener';
+import { ghostSelectionPlugin } from './ghostSelectionPlugin';
 import SourceEditor from './SourceEditor';
 
 interface MilkdownEditorProps {
@@ -34,6 +35,7 @@ function WysiwygEditor({ content, onChange, onLinkClick, selectionRef }: {
       .use(gfm)
       .use(history)
       .use(listener)
+      .use(ghostSelectionPlugin)
       .config(ctx => {
         const listenerApi = ctx.get(listenerCtx);
         listenerApi.markdownUpdated((_ctx, markdown, _prev) => {
@@ -79,6 +81,7 @@ function WysiwygEditor({ content, onChange, onLinkClick, selectionRef }: {
     return (
       <div className="w-full h-full overflow-auto" onClick={handleClick}>
         <style>{`
+          .pm-ghost-selection { background-color: oklch(0.9 0.02 260); border-radius: 0.125rem; }
           [data-milkdown-root] {
             min-height: 100%;
             padding: 1rem;

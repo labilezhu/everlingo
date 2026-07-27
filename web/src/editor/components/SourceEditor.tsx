@@ -1,6 +1,6 @@
 import { useEffect, useRef, type MutableRefObject } from 'react';
 import { EditorState } from '@codemirror/state';
-import { EditorView, keymap } from '@codemirror/view';
+import { EditorView, keymap, drawSelection } from '@codemirror/view';
 import { defaultKeymap, historyKeymap, history, indentWithTab } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
@@ -116,6 +116,7 @@ export default function SourceEditor({ content, onChange, selectionRef }: Source
         doc: content,
         extensions: [
           EditorView.lineWrapping,
+          drawSelection(),
           history(),
           keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
           markdown({

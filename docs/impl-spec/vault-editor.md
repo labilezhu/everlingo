@@ -146,6 +146,9 @@ chatbot 侧栏发送消息时，通过 `resourceContextProvider` 回调把编辑
 - `MilkdownEditor` 根据模式（source / wysiwyg）转发给 `SourceEditor` 或 `WysiwygEditor`，组件在挂载时用 `selectionRef.current = () => { ... }` 注册一个懒取选区文本的函数。
 - `EditorApp.getEditorResourceContext()` 读取 `currentPath` + `editorSelectionRef.current()` 构造 `ResourceContext[]`。
 - `ChatWindow` 通过 `resourceContextProvider` prop 接收该函数，发送消息时调用并拼入 `buildEnvelope`。
+- **选区视觉持久化**：
+  - Source 模式：启用 CM6 的 `drawSelection()` 扩展（`@codemirror/view`），由 CM6 自行渲染选区 DOM 元素而非依赖浏览器原生 `::selection`。编辑器失焦后选区高亮依然可见（颜色略淡，见 `SourceEditor.tsx` 的 `.cm-selectionBackground` 主题）。
+  - WYSIWYG 模式：通过 ProseMirror 插件 `ghostSelectionPlugin.ts`，在失焦时用 `Decoration.inline` 绘制 `.pm-ghost-selection` 背景，失焦后选区高亮保持可见（颜色同 Source 模式失焦色 `oklch(0.9 0.02 260)`）。
 
 ## 移动端适配
 
