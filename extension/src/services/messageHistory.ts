@@ -1,7 +1,7 @@
 const HISTORY_LIMIT_BYTES = 10 * 1024 * 1024; // 10MB
 
 export interface UIMessageRecord {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   text: string;
   timestamp: string;
 }

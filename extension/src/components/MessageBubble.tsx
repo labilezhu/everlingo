@@ -13,6 +13,14 @@ export default function MessageBubble({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);
 
+  if (message.from === 'system') {
+    return (
+      <div className="flex justify-center">
+        <span className="text-xs text-muted-foreground">{message.text}</span>
+      </div>
+    );
+  }
+
   if (message.audioUrl) {
     const toggle = () => {
       const url = message.audioUrl!;

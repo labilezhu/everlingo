@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
 import TaskSelector from './TaskSelector';
-import { connectSSE, sendEnvelope } from '@/services/sseClient';
+import { connectSSE, sendEnvelope, type ConnStatus } from '@/services/sseClient';
 import { getSession } from '@/services/backgroundClient';
 import { loadHistory, appendMessage, clearHistory } from '@/services/messageHistory';
 import { buildEnvelope, type TaskKind } from '@/types/envelope';
@@ -26,6 +26,8 @@ export default function ChatWindow() {
   const [thinking, setThinking] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [connStatus, setConnStatus] = useState<ConnStatus | null>(null);
+  const retryNowRef = useRef<(() => void) | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const snapshotRef = useRef<PageSnapshot>({
@@ -112,21 +114,62 @@ export default function ChatWindow() {
       const history = await loadHistory(newTabId);
       setMessages([
         defaultMsg,
-        ...history.map((h) => ({
-          id: uid(),
-          text: h.text,
-          from: h.role === 'user' ? 'user' as const : 'bot' as const,
-        })),
+        ...history.map((h) => {
+          const from: Message['from'] = h.role === 'user' ? 'user' : h.role === 'system' ? 'system' : 'bot';
+          return { id: uid(), text: h.text, from };
+        }),
       ]);
     }
 
-    cleanupRef.current = connectSSE(
+    const conn = connectSSE(
       baseUrlRef.current,
       sid,
       (e: SSEEvent) => handleSSEEvent(e, newTabId),
-      () => { setError('连接断开，请刷新页面重试'); },
+      (s: ConnStatus) => setConnStatus(s),
       authHeaderRef.current,
     );
+    cleanupRef.current = conn.cleanup;
+    retryNowRef.current = conn.retryNow;
+  }
+
+  async function handleRebuild() {
+    setConnStatus(null);
+    cleanupRef.current?.();
+    cleanupRef.current = undefined;
+    setThinking(false);
+    setPending(false);
+
+    const systemMsg: Message = {
+      id: uid(),
+      text: '小记已重新开始，之前的对话记忆已丢失',
+      from: 'system',
+    };
+    setMessages((prev) => [...prev, systemMsg]);
+
+    try {
+      const { sessionId: sid, tabId: newTabId } = await getSession();
+      setSessionId(sid);
+      sessionIdRef.current = sid;
+      tabIdRef.current = newTabId;
+
+      await appendMessage(newTabId, {
+        role: 'system',
+        text: systemMsg.text,
+        timestamp: new Date().toISOString(),
+      });
+
+      const conn = connectSSE(
+        baseUrlRef.current,
+        sid,
+        (e: SSEEvent) => handleSSEEvent(e, newTabId),
+        (s: ConnStatus) => setConnStatus(s),
+        authHeaderRef.current,
+      );
+      cleanupRef.current = conn.cleanup;
+      retryNowRef.current = conn.retryNow;
+    } catch {
+      setError('重新连接失败');
+    }
   }
 
   // ── tabs.onActivated 监听（切 tab 时刷新内容） ────────────────
@@ -254,6 +297,30 @@ export default function ChatWindow() {
       {error && (
         <div className="px-3 py-1.5 bg-red-50 text-red-600 text-xs border-b border-red-200">
           {error}
+        </div>
+      )}
+
+      {connStatus?.state === 'reconnecting' && (
+        <div className="px-3 py-1.5 bg-amber-50 text-amber-700 text-xs border-b border-amber-200 flex items-center justify-between gap-2">
+          <span>连接断开，{connStatus.countdown}s 后自动重试</span>
+          <button
+            onClick={() => retryNowRef.current?.()}
+            className="underline whitespace-nowrap font-medium shrink-0"
+          >
+            立即重试
+          </button>
+        </div>
+      )}
+
+      {connStatus?.state === 'session_expired' && (
+        <div className="px-3 py-1.5 bg-amber-50 text-amber-700 text-xs border-b border-amber-200 flex items-center justify-between gap-2">
+          <span>会话已过期</span>
+          <button
+            onClick={handleRebuild}
+            className="underline whitespace-nowrap font-medium shrink-0"
+          >
+            重新开始
+          </button>
         </div>
       )}
 

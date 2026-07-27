@@ -196,6 +196,26 @@ sidecar panel 收到响应:
 - **不支持浏览器重启恢复 session**：`chrome.storage.session` 在浏览器关闭时清空（`sid:${tabId}` 与 `msgs:${tabId}` 一并消失），重启后所有 tab 都需新建 session
 - **接受会话丢失**：20 分钟超时后新建 session，UI history 与 Agent 上下文同步丢失。未来优化方向见 §10
 
+### 5.6 SSE 自动重连
+
+Sidecar 在建立 SSE 连接（`GET /api/session/{id}/events`）后，按以下策略处理断线：
+
+**重连策略**（`extension/src/services/sseClient.ts:connectSSE`）：
+- 自定义 `onopen` 检测 HTTP 404 → 抛出 `SessionExpiredError` → `onerror` 抛出它停止库的重试循环。
+- 网络中断 / 非 404 错误 → `onerror` 接管重试调度，指数退避 1s→2s→4s→8s→16s→30s（封顶），无限重试。
+- 重连期间通过 `onStatus` 回调通知组件当前状态（`reconnecting` + 倒计时秒数）。
+- 连接成功（`onopen` 返回正常）→ `onStatus({ state: 'connected' })`，状态归零。
+- 暴露 `retryNow()` 供 UI「立即重试」跳过等待。
+
+**UI 表现**（`ChatWindow.tsx`）：
+- `connStatus.state === 'reconnecting'`：TaskSelector 下方 amber 色提示条：
+  `连接断开，{N}s 后自动重试 [立即重试]`
+- `connStatus.state === 'session_expired'`：amber 色提示条：
+  `会话已过期 [重新开始]`
+  - 点击「重新开始」→ `handleRebuild()：调用 background GET_SESSION 创建新 session + 连接新 SSE + 在消息列表插入灰色系统通知「小记已重新开始，之前的对话记忆已丢失」。UI 历史消息保留可见，但 Agent 上下文已重置。`
+- 正常连接、重连成功后，不显示任何提示信息。
+- 非连接类错误（如"发送消息失败"）保持红色 error banner，与连接状态分离管理。
+
 ---
 
 ## 6. Envelope 构造

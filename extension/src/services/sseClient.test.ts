@@ -3,8 +3,10 @@ import type { EventSourceMessage } from '@microsoft/fetch-event-source';
 
 let onmessage: ((msg: EventSourceMessage) => void) | null = null;
 let onerror: ((err: unknown) => number | null | undefined | void) | null = null;
+let onopen: ((response: Response) => Promise<void>) | null = null;
 let abortSignal: AbortSignal | null = null;
 let passedHeaders: Record<string, string> | undefined;
+let fetchEventSourceCallCount = 0;
 
 vi.mock('@microsoft/fetch-event-source', () => ({
   fetchEventSource(
@@ -12,24 +14,32 @@ vi.mock('@microsoft/fetch-event-source', () => ({
     opts: {
       signal?: AbortSignal;
       headers?: Record<string, string>;
+      onopen?: (response: Response) => Promise<void>;
       onmessage?: (msg: EventSourceMessage) => void;
       onerror?: (err: unknown) => number | null | undefined | void;
     },
   ) {
+    fetchEventSourceCallCount++;
     onmessage = opts.onmessage ?? null;
     onerror = opts.onerror ?? null;
+    onopen = opts.onopen ?? null;
     abortSignal = opts.signal ?? null;
     passedHeaders = opts.headers;
+    return Promise.resolve();
   },
 }));
 
 import { sendEnvelope, connectSSE } from './sseClient';
+import type { ConnStatus } from './sseClient';
 
 beforeEach(() => {
   onmessage = null;
   onerror = null;
+  onopen = null;
   abortSignal = null;
   passedHeaders = undefined;
+  fetchEventSourceCallCount = 0;
+  vi.useRealTimers();
 });
 
 describe('sendEnvelope', () => {
@@ -73,7 +83,7 @@ describe('sendEnvelope', () => {
 
 describe('connectSSE', () => {
   it('passes Authorization header to fetchEventSource', () => {
-    const cleanup = connectSSE(
+    const result = connectSSE(
       'http://localhost:8000',
       'sid-1',
       vi.fn(),
@@ -81,7 +91,7 @@ describe('connectSSE', () => {
       'Basic dXNlcjpwYXNz',
     );
     expect(passedHeaders).toEqual({ Authorization: 'Basic dXNlcjpwYXNz' });
-    cleanup();
+    result.cleanup();
   });
 
   it('does not set Authorization header when authHeader is null', () => {
@@ -119,17 +129,86 @@ describe('connectSSE', () => {
     });
   });
 
-  it('calls onError when error occurs', () => {
-    const onError = vi.fn();
-    connectSSE('http://localhost:8000', 'sid-1', vi.fn(), onError, undefined);
-    onerror!('test error');
-    expect(onError).toHaveBeenCalledOnce();
+  it('calls onStatus with connected on successful onopen', async () => {
+    const onStatus = vi.fn();
+    connectSSE('http://localhost:8000', 'sid-1', vi.fn(), onStatus);
+
+    const response = new Response(null, {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+    });
+
+    await onopen!(response);
+
+    expect(onStatus).toHaveBeenCalledWith({ state: 'connected' });
+  });
+
+  it('calls onStatus with session_expired when onopen gets 404', async () => {
+    const onStatus = vi.fn();
+    connectSSE('http://localhost:8000', 'sid-1', vi.fn(), onStatus);
+
+    const response = new Response(null, {
+      status: 404,
+      headers: { 'content-type': 'text/event-stream' },
+    });
+
+    // onopen throws SessionExpiredError; simulate library catching it
+    let thrown: unknown;
+    try {
+      await onopen!(response);
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeDefined();
+
+    // library passes the thrown error to onerror
+    expect(() => onerror!(thrown)).toThrow();
+
+    expect(onStatus).toHaveBeenCalledWith({ state: 'session_expired' });
+  });
+
+  it('calls onStatus with reconnecting on generic onerror and schedules retry', () => {
+    vi.useFakeTimers();
+    const onStatus = vi.fn();
+    connectSSE('http://localhost:8000', 'sid-1', vi.fn(), onStatus);
+
+    // Simulate library calling onerror with a generic error (non-SessionExpired)
+    expect(() => onerror!(new Error('network error'))).toThrow();
+
+    expect(onStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ state: 'reconnecting' }),
+    );
+    const statusArg = onStatus.mock.calls.find(
+      (c: ConnStatus[]) => c[0].state === 'reconnecting',
+    )?.[0] as Extract<ConnStatus, { state: 'reconnecting' }>;
+    expect(statusArg).toBeDefined();
+    expect(statusArg.countdown).toBeGreaterThan(0);
+  });
+
+  it('retryNow clears timer and starts a new connection', () => {
+    vi.useFakeTimers();
+    const onStatus = vi.fn();
+    const result = connectSSE('http://localhost:8000', 'sid-1', vi.fn(), onStatus);
+
+    const prevCount = fetchEventSourceCallCount;
+
+    // Trigger a retry
+    expect(() => onerror!(new Error('network error'))).toThrow();
+    expect(onStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ state: 'reconnecting' }),
+    );
+
+    // Before timer fires, call retryNow
+    result.retryNow();
+
+    // Should have started a new connection
+    expect(fetchEventSourceCallCount).toBe(prevCount + 1);
   });
 
   it('cleanup aborts the connection', () => {
-    const cleanup = connectSSE('http://localhost:8000', 'sid-1', vi.fn(), vi.fn());
+    const result = connectSSE('http://localhost:8000', 'sid-1', vi.fn(), vi.fn());
     expect(abortSignal!.aborted).toBe(false);
-    cleanup();
+    result.cleanup();
     expect(abortSignal!.aborted).toBe(true);
   });
 
@@ -138,5 +217,13 @@ describe('connectSSE', () => {
     connectSSE('http://localhost:8000', 'sid-1', onEvent, vi.fn());
     onmessage!({ id: '', event: 'message', data: 'not json' });
     expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  it('returns cleanup and retryNow methods', () => {
+    const result = connectSSE('http://localhost:8000', 'sid-1', vi.fn(), vi.fn());
+    expect(result).toHaveProperty('cleanup');
+    expect(result).toHaveProperty('retryNow');
+    expect(typeof result.cleanup).toBe('function');
+    expect(typeof result.retryNow).toBe('function');
   });
 });
