@@ -1,4 +1,4 @@
-# 
+# Chrome Extenstion Spec
 
 - 相关文档：
   - [Chrome Extension 实现详细设计](chrome-extension-impl-spec.md)
