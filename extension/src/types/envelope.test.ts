@@ -18,7 +18,7 @@ describe('buildEnvelope', () => {
     expect(env.selection.text).toBe('bank');
     expect(env.context.text).toBe('I sat on the bank of the river.');
     expect(env.context.kind).toBe('paragraph');
-    expect(env.source.kind).toBe('web');
+    expect(env.source.kind).toBe('chrome_ext');
     expect(env.source).toHaveProperty('surface', 'sidecar');
     expect(env.source).toHaveProperty('url', 'https://example.com/article');
     expect(env.device?.platform).toBe('chrome_ext');

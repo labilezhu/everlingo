@@ -1,6 +1,6 @@
 export type TaskKind = 'translate' | 'look_up' | 'none';
 export type SurfaceKind = 'sidecar' | 'popup' | 'fullscreen';
-export type SourceKind = 'plain' | 'web' | 'pdf' | 'epub' | 'ios_app';
+export type SourceKind = 'plain' | 'web' | 'chrome_ext' | 'pdf' | 'epub' | 'ios_app';
 
 export interface ChatPart {
   message: string;
@@ -29,10 +29,17 @@ export interface SourceWeb {
   kind: 'web';
   url: string;
   title: string;
-  surface: SurfaceKind;
+  surface: 'fullscreen';
 }
 
-export type SourcePart = SourcePlain | SourceWeb;
+export interface SourceChromeExt {
+  kind: 'chrome_ext';
+  url: string;
+  title: string;
+  surface: 'sidecar' | 'popup';
+}
+
+export type SourcePart = SourcePlain | SourceWeb | SourceChromeExt;
 
 export interface DevicePart {
   platform: 'chrome_ext' | 'ios_app' | 'pdf_reader' | 'web' | 'cli';
@@ -72,7 +79,7 @@ export function buildEnvelope(
       kind: snapshot.context ? 'paragraph' : 'plain',
     },
     source: {
-      kind: 'web',
+      kind: 'chrome_ext',
       url: snapshot.url,
       title: snapshot.title,
       surface: 'sidecar',

@@ -29,12 +29,27 @@ sys_setting
 
 ---
 
+目标 ：
+1. 让 [Vault Editor](docs/impl-spec/vault-editor.md) 中嵌入的 [Web Chatbot](docs/impl-spec/web-chatbot.md) 有感知当前 Vault Editor 用户界面上下文的能力。包括这些用户界面上下文：
+- 当前打开的笔记文件
+- 当前选择的笔记文本
+- 当前选择的笔记文本在 markdown 源码中的行号
+
+2. Web Chatbot 要把上下文，传给 Chat Agent。方法是在消息的  envelope 中加入感知的上下文内容：
+- 当前打开的笔记文件
+- 当前选择的笔记文本
+- 当前选择的笔记文本在 markdown 源码中的行号
+
+注意 Web Chatbot 不能依赖于 Vault Editor 。 只能反过来，Vault Editor 在初始化 Web Chatbot 时，加入 `获取用户界面上下文的回调方法`。 Web Chatbot 在发送用户消息时，如果 `获取用户界面上下文的回调方法` 有设置，就调用获取。
+
+---
+
 
 [Chrome Extenstion](docs/impl-spec/chrome-extension-spec.md) 和 [Web Chatbot](docs/impl-spec/web-chatbot.md) 均在用户发送消息时，用 [Envelope 结构化用户输入格式](src/everlingo/mem/vault/templates/default/spec/envelope_spec.md) 封装上下文环境信息。
 
-当前，他们的 envelope 中 source.kind 均为 web 。
+当前，他们的 envelope 中 `source.kind` 均为 `web` 。
 
-现在计划分开。让 Chrome Extenstion 的 source.kind 为 chrome_ext 。
+现在计划分开。让 Chrome Extenstion 的 `source.kind` 为 `chrome_ext` 。
 
 ---
 

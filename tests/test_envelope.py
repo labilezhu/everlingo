@@ -5,6 +5,7 @@ from everlingo.gateway.channels.envelope import (
     UserInputEnvelope,
     SourcePlain,
     SourceWeb,
+    SourceChromeExt,
     ScreenshotPart,
     render_envelope_to_message_text,
     wrap_plain_text,
@@ -78,10 +79,11 @@ class TestSourceTaggedUnion:
         assert env.source.surface == "fullscreen"
 
     def test_web_source_explicit_surface(self):
-        env = UserInputEnvelope(
-            source=SourceWeb(url="http://test.com", surface="sidecar")
-        )
-        assert env.source.surface == "sidecar"
+        env = UserInputEnvelope(source=SourceWeb(url="http://test.com"))
+        assert env.source.surface == "fullscreen"
+        # sidecar was moved to SourceChromeExt
+        with pytest.raises(ValidationError):
+            SourceWeb(url="http://test.com", surface="sidecar")
 
     def test_web_source_invalid_surface_raises(self):
         with pytest.raises(ValidationError):
@@ -90,6 +92,43 @@ class TestSourceTaggedUnion:
     def test_unknown_kind_raises(self):
         with pytest.raises(ValidationError):
             UserInputEnvelope(source={"kind": "unknown"})
+
+
+class TestSourceChromeExt:
+    def test_chrome_ext_kind(self):
+        env = UserInputEnvelope(source=SourceChromeExt(url="http://example.com"))
+        assert env.source.kind == "chrome_ext"
+
+    def test_chrome_ext_default_surface(self):
+        env = UserInputEnvelope(source=SourceChromeExt(url="http://example.com"))
+        assert env.source.surface == "sidecar"
+
+    def test_chrome_ext_explicit_surface_sidecar(self):
+        env = UserInputEnvelope(
+            source=SourceChromeExt(url="http://test.com", surface="sidecar")
+        )
+        assert env.source.surface == "sidecar"
+
+    def test_chrome_ext_explicit_surface_popup(self):
+        env = UserInputEnvelope(
+            source=SourceChromeExt(url="http://test.com", surface="popup")
+        )
+        assert env.source.surface == "popup"
+
+    def test_chrome_ext_rejects_fullscreen(self):
+        with pytest.raises(ValidationError):
+            SourceChromeExt(url="http://test.com", surface="fullscreen")
+
+    def test_chrome_ext_invalid_surface_raises(self):
+        with pytest.raises(ValidationError):
+            SourceChromeExt(url="http://test.com", surface="invalid")
+
+    def test_chrome_ext_url_and_title(self):
+        env = UserInputEnvelope(
+            source=SourceChromeExt(url="https://example.com", title="Test Page")
+        )
+        assert env.source.url == "https://example.com"
+        assert env.source.title == "Test Page"
 
 
 class TestUserInputEnvelopeDefaults:

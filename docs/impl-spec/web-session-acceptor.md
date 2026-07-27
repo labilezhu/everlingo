@@ -61,7 +61,7 @@ FastAPI 的 API。
     "chat": {"message": "为什么这里不是银行？"},
     "selection": {"text": "bank"},
     "context": {"text": "I sat on the bank of the river."},
-    "source": {"kind": "web", "url": "https://..."},
+    "source": {"kind": "chrome_ext", "url": "https://..."},
     "device": {"platform": "chrome_ext", "locale": "zh-CN"}
   }
 }

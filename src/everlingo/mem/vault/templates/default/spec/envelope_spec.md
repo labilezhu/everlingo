@@ -22,7 +22,7 @@
         "screenshot": null
     },
     "source": {
-        "kind": "web",
+        "kind": "chrome_ext",
         "url": "https://chatgpt.com/c/6a5e1033-22cc-83e8-aba3-d1daf5a1dde1",
         "title": "Chrome扩展侧边栏位置",
         "surface": "sidecar"
@@ -63,7 +63,8 @@
 | kind | 使用场景 | 补充字段 |
 |---|---|---|
 | `plain` | stdio/wechat 请求 | 无额外字段 |
-| `web` | Chrome Extension 网页选词 / Standalone Web Chatbot | `url`, `title`, `surface` |
+| `web` | Web Chatbot | `url`, `title`, `surface` |
+| `chrome_ext` | Chrome Extension 网页选词 | `url`, `title`, `surface` |
 | `pdf` | PDF 阅读器插件 | `file_path`, `page_number` |
 | `epub` | EPUB 阅读器 | `book_id` |
 | `ios_app` | iOS app 选词服务 | `bundle_id` |
@@ -75,6 +76,25 @@
 ```json
     "source": {
         "kind": "web",
+        "url": "https://example.com/article",
+        "title": "Example Article",
+        "surface": "fullscreen"
+    },
+```
+
+字段说明
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `url` | str | 否 | 当前页面的 URL  |
+| `title` | str | 否 | 当前页面的 title  |
+| `surface` | enum | 否 | 界面类型。可选值：`fullscreen` (Standalone Web Chatbot)  |
+
+#### kind="chrome_ext"
+
+```json
+    "source": {
+        "kind": "chrome_ext",
         "url": "https://chatgpt.com/c/6a5e1033-22cc-83e8-aba3-d1daf5a1dde1",
         "title": "Chrome扩展侧边栏位置",
         "surface": "sidecar"
@@ -87,7 +107,7 @@
 |---|---|---|---|
 | `url` | str | 否 | Chrome Extension 当前抓取选择内容的网页 URL  |
 | `title` | str | 否 | Chrome Extension 当前抓取选择内容的网页 title  |
-| `surface` | enum | 否 | 界面类型。可选：sidecar (Chrome扩展侧边栏位置) / fullscreen (Standalone Web Chatbot)  |
+| `surface` | enum | 否 | 界面类型。可选：`sidecar` (Chrome扩展侧边栏位置) / `popup` (独立弹窗，未来)  |
 
 #### kind="plain"
 
@@ -113,4 +133,4 @@
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `platform` | enum | 否 | chrome_ext / web (Standalone Web Chatbot)  |
+| `platform` | enum | 否 | chrome_ext (Chrome Extension) / web (Web Chatbot)  |

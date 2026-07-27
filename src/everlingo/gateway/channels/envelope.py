@@ -6,8 +6,6 @@ from pydantic import BaseModel, Field
 
 TaskKind = Literal["translate", "look_up", "none"]
 
-SurfaceKind = Literal["sidecar", "popup", "fullscreen"]
-
 
 class ChatPart(BaseModel):
     message: str = ""
@@ -36,7 +34,14 @@ class SourceWeb(BaseModel):
     kind: Literal["web"] = "web"
     url: str = ""
     title: str = ""
-    surface: SurfaceKind = "fullscreen"
+    surface: Literal["fullscreen"] = "fullscreen"
+
+
+class SourceChromeExt(BaseModel):
+    kind: Literal["chrome_ext"] = "chrome_ext"
+    url: str = ""
+    title: str = ""
+    surface: Literal["sidecar", "popup"] = "sidecar"
 
 
 class SourcePdf(BaseModel):
@@ -56,7 +61,7 @@ class SourceIosApp(BaseModel):
 
 
 SourcePart = Annotated[
-    Union[SourcePlain, SourceWeb, SourcePdf, SourceEpub, SourceIosApp],
+    Union[SourcePlain, SourceWeb, SourceChromeExt, SourcePdf, SourceEpub, SourceIosApp],
     Field(discriminator="kind")
 ]
 

@@ -19,7 +19,7 @@
 
 EverLingo 产品定位是"有记忆的 AI 外语老师"，核心创新是把"查询行为"转化为"学习资产"。浏览器是用户最高频发生查询行为的场景，Chrome Extension 是把"选词 → 翻译 → 记录场景"串起来的物理载体，也是 [PRODUCT-FUNC.md](/PRODUCT-FUNC.md) "使用方便" 一节明确列出的整合目标。
 
-Envelope 协议在设计时已为 Chrome Extension 预留了 `source.kind="web"`（见 [envelope-spec.md §source tagged union](envelope-spec.md)），本 feature 是 envelope 协议落地的第一个真实场景。后端复用现有 `WebSessionAcceptor` + `WebChannel` + `Session` + `ChatAgent` 链路，**后端代码零改动**（envelope schema 的小幅扩展除外）。
+Envelope 协议在设计时已为 Chrome Extension 预留了 `source.kind="chrome_ext"`（见 [envelope-spec.md §source tagged union](envelope-spec.md)），本 feature 是 envelope 协议落地的第一个真实场景。后端复用现有 `WebSessionAcceptor` + `WebChannel` + `Session` + `ChatAgent` 链路，**后端代码零改动**（envelope schema 的小幅扩展除外）。
 
 ### MVP 范围
 
@@ -232,7 +232,7 @@ Sidecar 在建立 SSE 连接（`GET /api/session/{id}/events`）后，按以下�
 | `selection.text` | `window.getSelection().toString()`（通过 `chrome.scripting.executeScript` 在页面上下文执行） |
 | `context.text` | 见 §6.3 算法（同样通过 `chrome.scripting.executeScript` 在页面上下文执行） |
 | `context.screenshot` | **MVP 不填**（schema 已预留，未来用 `chrome.tabs.captureVisibleTab` 填） |
-| `source.kind` | `"web"` |
+| `source.kind` | `"chrome_ext"` |
 | `source.surface` | `"sidecar"` |
 | `source.url` | `chrome.tabs.query({active:true})` 返回的 Tab 对象的 `url` 字段 |
 | `source.title` | `chrome.tabs.query({active:true})` 返回的 Tab 对象的 `title` 字段 |
@@ -241,15 +241,14 @@ Sidecar 在建立 SSE 连接（`GET /api/session/{id}/events`）后，按以下�
 | `device.locale` | `navigator.language`（sidecar panel 自身上下文即可取） |
 | `device.timezone` | `Intl.DateTimeFormat().resolvedOptions().timeZone`（sidecar panel 自身上下文即可取） |
 
-### 6.2 `source.surface` 枚举
+### 6.2 `source.surface` 枚举（Chrome Extension）
 
 | 值 | 含义 |
 |---|---|
 | `sidecar` | 浏览器右侧栏 panel（本 feature MVP 形态） |
 | `popup` | 独立弹窗（未来） |
-| `fullscreen` | 整页 web chatbot（即现有 `web/` 前端） |
 
-`SourceWeb.surface` 默认值为 `"fullscreen"`，使 standalone web chatbot 发的 envelope（`source.kind=web` + `source.surface=fullscreen`）与 Chrome Extension sidecar（`source.surface=sidecar`）天然区分。详见 [web-chatbot.md — Envelope 字段填充规则](web-chatbot.md)。
+`SourceChromeExt.surface` 默认值为 `"sidecar"`。Standalone Web Chatbot 使用 `source.kind="web"` + `source.surface="fullscreen"`，与 Chrome Extension 的 `source.kind="chrome_ext"` 天然区分。详见 [web-chatbot.md — Envelope 字段填充规则](web-chatbot.md)。
 
 ### 6.3 `context.text` 提取算法
 
@@ -293,7 +292,7 @@ function isBlockElement(el: Element | null): boolean {
   "selection": { "text": "bank" },
   "context": { "text": "I sat on the bank of the river.", "kind": "paragraph" },
   "source": {
-    "kind": "web",
+    "kind": "chrome_ext",
     "surface": "sidecar",
     "url": "https://example.com/article",
     "title": "Example Article"

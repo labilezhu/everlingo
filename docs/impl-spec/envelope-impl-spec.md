@@ -70,7 +70,8 @@ class UserInputEnvelope(BaseModel):
     "kind": "paragraph"
   },
   "source": {
-    "kind": "web",
+    "kind": "chrome_ext",
+    "surface": "sidecar",
     "url": "https://example.com",
     "title": "Example Article"
   },
@@ -99,7 +100,7 @@ class UserInputEnvelope(BaseModel):
         "screenshot": null
     },
     "source": {
-        "kind": "web",
+        "kind": "chrome_ext",
         "url": "https://chatgpt.com/c/6a5e1033-22cc-83e8-aba3-d1daf5a1dde1",
         "title": "Chrome扩展侧边栏位置",
         "surface": "sidecar"
@@ -153,7 +154,7 @@ Channel (任何子类)
 |---|---|---|
 | `StdioChannel` | 读 stdin 一行 → `wrap_plain_text(line)` | `<envelope>{"chat":{"message":"用户输入"},...}</envelope>` |
 | `WechatChannel` | 从 wechat sdk 队列读消息 → `wrap_plain_text(msg.text)` | 同上 |
-| `WebChannel` | 从 `_incoming` 队列读 `UserInputEnvelope`（`source.kind=web` + `surface=fullscreen\|sidecar`） | 按前端传入的 envelope 结构 |
+| `WebChannel` | 从 `_incoming` 队列读 `UserInputEnvelope`（`source.kind=web` + `surface=fullscreen` 或 `source.kind=chrome_ext` + `surface=sidecar\|popup`） | 按前端传入的 envelope 结构 |
 
 ## 7. 向后兼容
 

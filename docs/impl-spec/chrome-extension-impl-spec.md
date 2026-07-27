@@ -417,7 +417,7 @@ TS 类型对应 Python `UserInputEnvelope`（见 [envelope-spec.md §2](../docs/
 ```ts
 export type TaskKind = 'translate' | 'look_up' | 'none';
 export type SurfaceKind = 'sidecar' | 'popup' | 'fullscreen';
-export type SourceKind = 'plain' | 'web' | 'pdf' | 'epub' | 'ios_app';
+export type SourceKind = 'plain' | 'web' | 'chrome_ext' | 'pdf' | 'epub' | 'ios_app';
 
 export interface ChatPart { message: string; }
 export interface SelectionPart { text: string; }
@@ -433,11 +433,17 @@ export interface SourceWeb {
   kind: 'web';
   url: string;
   title: string;
-  surface: SurfaceKind;
+  surface: 'fullscreen';
+}
+export interface SourceChromeExt {
+  kind: 'chrome_ext';
+  url: string;
+  title: string;
+  surface: 'sidecar' | 'popup';
 }
 // SourcePdf / SourceEpub / SourceIosApp 预留，MVP 不用
 
-export type SourcePart = SourcePlain | SourceWeb;
+export type SourcePart = SourcePlain | SourceWeb | SourceChromeExt;
 
 export interface DevicePart {
   platform: 'chrome_ext' | 'ios_app' | 'pdf_reader' | 'web' | 'cli';
@@ -942,7 +948,7 @@ function buildEnvelope(
     selection: { text: snap.selection },
     context: { text: snap.context, kind: snap.context ? 'paragraph' : 'plain' },
     source: {
-      kind: 'web',
+      kind: 'chrome_ext',
       url: snap.url,
       title: snap.title,
       surface: 'sidecar',
@@ -1038,7 +1044,7 @@ vitest 单测 `extractContextText` 算法。由于算法依赖 DOM，用 jsdom �
 **测试用例**：
 1. `buildEnvelope` 默认 task=translate 时各字段正确
 2. `buildEnvelope` selection/context 为空时字段仍存在（不 undefined）
-3. `buildEnvelope` source.surface='sidecar'
+3. `buildEnvelope` source.kind='chrome_ext' + source.surface='sidecar'
 
 ### 运行测试
 
