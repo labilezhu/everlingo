@@ -58,7 +58,7 @@
 
 来源信息。
 
-`source` 用 `kind` 字段作为 discriminator。 当前定义 5 个 kind：
+`source` 用 `kind` 字段作为 discriminator。 当前定义 5 个  `kind` ：
 
 | kind | 使用场景 | 补充字段 |
 |---|---|---|
@@ -68,6 +68,7 @@
 | `epub` | EPUB 阅读器 | `book_id` |
 | `ios_app` | iOS app 选词服务 | `bundle_id` |
 
+不同的  `kind` 可以有完全不同的字段
 
 #### kind="web"
 

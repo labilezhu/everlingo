@@ -29,6 +29,15 @@ sys_setting
 
 ---
 
+
+[Chrome Extenstion](docs/impl-spec/chrome-extension-spec.md) 和 [Web Chatbot](docs/impl-spec/web-chatbot.md) 均在用户发送消息时，用 [Envelope 结构化用户输入格式](src/everlingo/mem/vault/templates/default/spec/envelope_spec.md) 封装上下文环境信息。
+
+当前，他们的 envelope 中 source.kind 均为 web 。
+
+现在计划分开。让 Chrome Extenstion 的 source.kind 为 chrome_ext 。
+
+---
+
 [Vault Editor](docs/impl-spec/vault-editor.md)  在“源码” 按钮左则，加一个类似 文件树 上的 刷新按钮，只要图标就好，不需要文字了。 功能是刷新当前打开的文件内容，重新从服务器加载。
 
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Code, Eye, Save, Search, FolderTree, Menu, MessageSquare, ExternalLink } from 'lucide-react';
+import { Code, Eye, Save, Search, FolderTree, Menu, MessageSquare, ExternalLink, RefreshCw } from 'lucide-react';
 import { listLangs, tree, read, write, mkdir, deleteEntry, rename } from '@/editor/services/vaultApi';
 import FileTree from './FileTree';
 import SearchBar from './SearchBar';
@@ -34,6 +34,7 @@ export default function EditorApp() {
   const [error, setError] = useState<string | null>(null);
   const [treeRefreshing, setTreeRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [reloadNonce, setReloadNonce] = useState(0);
   const [mode, setMode] = useState<'source' | 'wysiwyg'>(() => {
     return (localStorage.getItem('vault-editor:mode') as 'source' | 'wysiwyg') || 'wysiwyg';
   });
@@ -139,6 +140,7 @@ export default function EditorApp() {
       setCurrentPath(path);
       setContent(resp.content);
       setOriginalContent(resp.content);
+      setReloadNonce(n => n + 1);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -171,6 +173,24 @@ export default function EditorApp() {
       setLoading(false);
     }
   }, [selectedLang, openFileContent]);
+
+  // ── reload current file from server ──
+  const reloadFile = useCallback(async () => {
+    if (!selectedLang || !currentPath) return;
+    if (dirty && !confirm('有未保存的改动，刷新将丢弃。确定继续？')) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const resp = await read(selectedLang, currentPath);
+      setContent(resp.content);
+      setOriginalContent(resp.content);
+      setReloadNonce(n => n + 1);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedLang, currentPath, dirty]);
 
   // ── chatbot link click handler ──
   const handleChatLinkClick = useCallback((url: string): boolean => {
@@ -550,6 +570,15 @@ export default function EditorApp() {
             <>
               <div className="flex items-center gap-2 px-4 py-1 border-b border-border shrink-0 bg-muted/30">
                 <span className="flex-1 truncate text-xs text-muted-foreground">{currentPath}</span>
+                <button
+                  className="inline-flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-40 disabled:pointer-events-none shrink-0"
+                  disabled={!currentPath || loading}
+                  onClick={reloadFile}
+                  title="刷新文件内容"
+                  aria-label="刷新文件内容"
+                >
+                  <RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} />
+                </button>
                 <div className="flex items-center gap-1 rounded-lg border border-border bg-background p-0.5">
                   <button
                     className={'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ' + (mode === 'source' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}
@@ -586,7 +615,7 @@ export default function EditorApp() {
               </div>
               <div className="flex-1 overflow-auto">
                 <MilkdownEditor
-                  key={`${mode}:${currentPath || ''}`}
+                  key={`${mode}:${currentPath || ''}:${reloadNonce}`}
                   content={mode === 'wysiwyg' ? body : content}
                   onChange={mode === 'wysiwyg' ? (v) => setContent(fm + v) : setContent}
                   mode={mode}

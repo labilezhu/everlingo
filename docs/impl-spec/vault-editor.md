@@ -145,10 +145,11 @@ editor app 启动时读 `location.search`：
 |------|------|---------|
 | Header | 呼叫小记 | `EditorApp.tsx:430` |
 | Header | 转到小记 | `EditorApp.tsx:438` |
-| Header | 标题（🐹 小记笔记编辑器） | `EditorApp.tsx:415-416` |
+| Editor sub-header | 标题（🐹 小记笔记编辑器） | `EditorApp.tsx:415-416` |
 | Editor sub-header | 源码 | `EditorApp.tsx:564` |
 | Editor sub-header | 直观 | `EditorApp.tsx:574` |
 | Editor sub-header | 保存 | `EditorApp.tsx:586` |
+| Editor sub-header | 刷新（纯图标） | `EditorApp.tsx:553` |
 | Left pane tab bar | Files | `EditorApp.tsx:476` |
 | Left pane tab bar | Search | `EditorApp.tsx:490` |
 
