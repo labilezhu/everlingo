@@ -27,20 +27,168 @@ sys_setting
 
 现有的 everlingo.yaml 还是保留在每个用户自己的 workspace_dir 下。
 
+
 ---
+
+
+考虑一下以下设计的合理性、可行性、设计方案。
+
+为支持更好的聊天上下文选择语义传递。 [envelope](src/everlingo/mem/vault/templates/default/spec/envelope_spec.md) 的数据结构计划作一些重构。
+
+## envelope 格式
+
+主要变更是 selection 和 context 变化。 resource_contexts 变为一个可以为 0 长度的数组。
+
+### 场景1 : Vault Editor 中嵌入的 Web Chatbot
+
+[Vault Editor](docs/impl-spec/vault-editor.md) 中嵌入的 [Web Chatbot](docs/impl-spec/web-chatbot.md)情况下：
+
+```json
+<envelope>
+{
+    "schema_version": 1,
+    "task": "none",  
+    "chat": {
+        "message": "" //用户自然语言输入。可能为空（用户仅点击了 UI 按钮）
+    },
+    "chat_context": {
+        "resource_contexts": [
+            { // 选定上下文。 
+                "kind": "vault_file",  // 本 resource_context 的类型： vault 笔记条目文件。不能为空
+                "file_path": "items/vocab/embedding.md", // vault 笔记条目文件路。不能为空
+            },
+            {
+              "kind": "selected_text", // 本 resource_context 的类型： 用户高亮选定的文本。不能为空
+              "text": "structural", // 用户高亮选定的文本内容。不能为空
+              "start_line": 19, // 选定的文本的开始行(只是辅助定位作用，无法获取时，json 节点可为 null)
+              "start_column": 13, // 选定的文本的开始列(只是辅助定位作用，无法获取时，json 节点可为 null)    
+              "paragraph_text": "The embedding of the steel rods in concrete ensures structural stability", // 用户高亮选定的文本所在的段落。无法获取时，json 节点可为 null
+            }        
+        ],
+    },
+    "source": {
+        "kind": "web",
+        "url": "https://home-everlingo.mygraphql.com:6457/editor?lang=en&path=items%2Fvocab%2Fembedding.md",
+        "title": "🐹 小记笔记编辑器",
+        "surface": "fullscreen"
+    },
+    "device": {
+        "platform": "web",
+        "locale": "en-US",
+        "timezone": "Asia/Hong_Kong"
+    }
+}
+</envelope>
+```
+
+### 场景2 : Chrome Extension Chatbot
+
+```json
+<envelope>
+{
+    "schema_version": 1,
+    "task": "translate",  
+    "chat": {
+        "message": "" //用户自然语言输入。可能为空（用户仅点击了 UI 按钮）
+    },
+    "chat_context": {
+        "resource_contexts": [
+            { // 选定上下文。 
+                "kind": "web_page",  // 本 resource_context 的类型： web page。不能为空
+                "url": "https://blog.mygraphql.com/en/posts/ai/ai-personal-assistant/openclaw-concepts/", // vault 笔记条目文件路。不能为空
+                "title": "The Concepts Anatomy of OpenClaw"
+            },
+            {
+              "kind": "selected_text", // 本 resource_context 的类型： 用户高亮选定的文本。不能为空
+              "text": "structural", // 用户高亮选定的文本内容。不能为空
+              "paragraph_text": "The embedding of the steel rods in concrete ensures structural stability", // 用户高亮选定的文本所在的段落。无法获取时，json 节点可为 null
+            }        
+        ],
+    },
+    "source": {
+        "kind": "chrome_ext",
+        "url": "https://blog.mygraphql.com/en/posts/ai/ai-personal-assistant/openclaw-concepts/",
+        "title": "The Concepts Anatomy of OpenClaw",
+        "surface": "sidecar"
+    },
+    "device": {
+        "platform": "chrome_ext",
+        "locale": "en-US",
+        "timezone": "Asia/Hong_Kong"
+    }
+}
+</envelope>
+```
+
+
+---
+
+考虑一下以下设计的合理性、可行性、设计方案。
 
 目标 ：
 1. 让 [Vault Editor](docs/impl-spec/vault-editor.md) 中嵌入的 [Web Chatbot](docs/impl-spec/web-chatbot.md) 有感知当前 Vault Editor 用户界面上下文的能力。包括这些用户界面上下文：
-- 当前打开的笔记文件
+- 当前打开的笔记文件路径
+- 当前选择笔记文本的段落
+- 当前选择的笔记文本
+- 当前选择的笔记文本在 markdown 源码中的行号(看前端实现难度，因为两种编辑模式 `源码`与`直观`，其中直观可能难实现得出行号，如果太难，可以考虑不加上)
+
+1. Web Chatbot 要把上下文，传给 [Chat Agent](docs/impl-spec/chat-agent-spec.md)。方法是在消息的  [envelope](src/everlingo/mem/vault/templates/default/spec/envelope_spec.md) 中加入感知的上下文内容：
+- 当前打开的笔记文件路径
+- 当前选择笔记文本的段落
 - 当前选择的笔记文本
 - 当前选择的笔记文本在 markdown 源码中的行号
 
-2. Web Chatbot 要把上下文，传给 Chat Agent。方法是在消息的  envelope 中加入感知的上下文内容：
-- 当前打开的笔记文件
-- 当前选择的笔记文本
-- 当前选择的笔记文本在 markdown 源码中的行号
+
+## 设计原则
 
 注意 Web Chatbot 不能依赖于 Vault Editor 。 只能反过来，Vault Editor 在初始化 Web Chatbot 时，加入 `获取用户界面上下文的回调方法`。 Web Chatbot 在发送用户消息时，如果 `获取用户界面上下文的回调方法` 有设置，就调用获取。
+
+## 设计建议
+
+计划新的 envelope 格式举例：
+```json
+<envelope>
+{
+    "chat": {
+        "message": ""
+    },
+    "selection": {
+        "resource_context": {
+            "kind": "vault_file",
+            "file_path": "items/vocab/embedding.md",
+            "resource_context": {
+                "kind": "paragraph",
+                "text": "老用户可能还是左侧：如果用户以前修改过 Side Panel 的位置，Chrome 会保留这个偏好，不会自动改回来。",
+                "resource_context": {
+                    "kind": "text",
+                    "text": "不会",
+                    "start_line": 19,
+                    "start_column": 13,
+                }
+            },
+        },
+    },
+    "source": {
+        "kind": "web",
+        "url": "http://localhost:8000/editor?lang=en&path=items%2Fidiom%2Feating-your-own-dog-food.md",
+        "title": "",
+        "surface": "fullscreen"
+    },
+    "device": {
+        "platform": "web",
+        "locale": "en-US",
+        "timezone": "Asia/Hong_Kong"
+    }
+}
+</envelope>
+```
+
+## 未来（不是现在，但你可以考虑设计上不要与它冲突）
+
+未来将增加更多的回调方法，，如 Vault Editor 可以通过 Web Chatbot 暴露能力给 Chat Agent 。 Chat Agent 可以在回复用户文本消息外，推送 `系统事件`。应用场景如：
+- Chat Agent 更新了笔记文件后，通过 `系统事件` 通知 Vault Editor 文档内容变更事件。 Vault Editor 收到事件后，如果发现是当前打开的文档，在界面中刷新文件。
+- Chat Agent 在增加或删除笔记文件后，通过 `系统事件` 通知 Vault Editor 文档内容变更事件。 Vault Editor 收到事件后，更新 File Exploer 视图。
+
 
 ---
 
