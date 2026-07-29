@@ -4,6 +4,7 @@
 ref: web-session-acceptor.md — FastAPI 后端
 """
 import asyncio
+import pathlib
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -128,6 +129,72 @@ class TestSSEEvents:
         client = TestClient(app)
         resp = client.get("/api/session/nonexistent/events")
         assert resp.status_code == 404
+
+
+class TestHealthz:
+    """GET /healthz — gateway 进程就绪自检。
+
+    ref: docs/impl-spec/deploy/image/ws-container-spec.md — image 进程健康检查（healthz）
+    WS-Master lazy start 探活依赖此端点返回 200。
+    """
+
+    def test_returns_200_when_gateway_ready_and_indexer_url_exists(self, tmp_path, monkeypatch):
+        import everlingo.gateway.web_acceptor as wa
+        wa._gateway = _make_gateway()
+
+        # indexer.mcp.url 文件存在 → indexer 就绪
+        url_file = tmp_path / "indexer.mcp.url"
+        url_file.write_text("http://127.0.0.1:9999/mcp")
+        monkeypatch.setattr(
+            "everlingo.gateway.web_acceptor.indexer_mcp_url_path",
+            lambda: url_file,
+        )
+
+        client = TestClient(app)
+        resp = client.get("/healthz")
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "ok"}
+
+    def test_returns_503_when_gateway_not_initialized(self, tmp_path, monkeypatch):
+        import everlingo.gateway.web_acceptor as wa
+        wa._gateway = None  # acceptor 尚未注入 gateway
+
+        # 即便 indexer.mcp.url 存在，gateway 未初始化仍 503
+        url_file = tmp_path / "indexer.mcp.url"
+        url_file.write_text("http://127.0.0.1:9999/mcp")
+        monkeypatch.setattr(
+            "everlingo.gateway.web_acceptor.indexer_mcp_url_path",
+            lambda: url_file,
+        )
+
+        client = TestClient(app)
+        resp = client.get("/healthz")
+        assert resp.status_code == 503
+        assert resp.json()["status"] == "error"
+        assert resp.json()["reason"] == "gateway_not_initialized"
+
+    def test_returns_503_when_indexer_url_missing(self, monkeypatch):
+        import everlingo.gateway.web_acceptor as wa
+        wa._gateway = _make_gateway()  # gateway 已就绪
+
+        # indexer.mcp.url 不存在 → indexer 未就绪
+        missing = pathlib.Path("/nonexistent/indexer.mcp.url")
+        monkeypatch.setattr(
+            "everlingo.gateway.web_acceptor.indexer_mcp_url_path",
+            lambda: missing,
+        )
+
+        client = TestClient(app)
+        resp = client.get("/healthz")
+        assert resp.status_code == 503
+        assert resp.json()["reason"] == "indexer_not_ready"
+
+    def test_healthz_route_registered_before_catch_all(self):
+        "/healthz 路由应在 /{path:path} 之前，避免被 catch-all 吞掉。"""
+        paths = [r.path for r in app.routes if hasattr(r, "path")]
+        idx_healthz = next(i for i, p in enumerate(paths) if p == "/healthz")
+        idx_catchall = next(i for i, p in enumerate(paths) if p == "/{path:path}")
+        assert idx_healthz < idx_catchall
 
 
 class TestServeEditor:

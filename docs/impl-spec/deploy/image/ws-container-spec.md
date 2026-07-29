@@ -149,9 +149,7 @@ exit "$exit_code"
 
 ### 动机
 
-WS-Master 的 lazy start 状态机（见 [ws-master.md](../../impl-spec/multiple-users/ws-master.md) §6.1/§7）依赖「探活通过」才能将 ws-container 从 `starting` 推进到 `started` 并返回 `backend_url`。现有容器在 entrypoint.sh 内仅做**容器内**的 indexer→gateway 顺序就绪探测（`/dev/tcp` 探 MCP 端口），**对外没有**可探活的 HTTP 端点——`web_acceptor.py` 只注册了 session / SSE / SPA 路由，无 `/healthz`。
-
-为支持多用户编排（WS-Master 探活）与单用户部署的 docker `HEALTHCHECK`，gateway 侧新增一个轻量健康检查端点。
+WS-Master 的 lazy start 状态机（见 [ws-master.md](../../impl-spec/multiple-users/ws-master.md) §6.1/§7）依赖「探活通过」才能将 ws-container 从 `starting` 推进到 `started` 并返回 `backend_url`。容器在 entrypoint.sh 内仅做**容器内**的 indexer→gateway 顺序就绪探测（`/dev/tcp` 探 MCP 端口），**对外没有**可探活的 HTTP 端点。为此 gateway 侧实现一个轻量健康检查端点，供多用户编排（WS-Master 探活）与单用户部署的 docker `HEALTHCHECK` 共用。
 
 ### 端点
 
@@ -159,29 +157,39 @@ WS-Master 的 lazy start 状态机（见 [ws-master.md](../../impl-spec/multiple
 |---|---|---|
 | GET | `/healthz` | gateway 进程就绪自检 |
 
-- **位置**：`src/everlingo/gateway/web_acceptor.py`，注册在 `app` 上（与 session 路由同级）。
+- **位置**：`src/everlingo/gateway/web_acceptor.py`，注册在 `app` 上，路由顺序在 catch-all `/{path:path}` **之前**（避免被吞）。与 session 路由同级。
 - **成功** `200` `application/json`：
   ```json
   { "status": "ok" }
   ```
-- **失败** `503`：gateway 进程尚在启动 / indexer MCP client 不可达等未就绪状态（由端点内部判定，不依赖外部超时）。
-- **语义**：返回 200 表示 gateway FastAPI 已就绪、可受理 session 请求。这是「gateway 进程级」就绪信号，不深入校验下游 LLM 可达性（LLM 调用在请求时按需失败重试即可）。
-- **无鉴权**：`/healthz` 不经过认证中间件，任何来源均可探（仅返回 `ok`，无敏感信息）。
+- **未就绪** `503` `application/json`：
+  ```json
+  { "status": "error", "reason": "gateway_not_initialized" | "indexer_not_ready" }
+  ```
+- **就绪判定**（本地同步、无网络 IO，不依赖外部超时）：
+  - `_gateway` 未注入（acceptor 尚未初始化）→ 503 `gateway_not_initialized`
+  - `indexer.mcp.url` 文件不存在（indexer 未就绪）→ 503 `indexer_not_ready`
+  - 否则 → 200
+- **不校验项**（刻意保持轻量）：
+  - **不做 TCP 端口连通探测**——entrypoint.sh 已保证 gateway 启动时 indexer 端口连通；运行中崩溃由 WS-Master healthcheck task 轮询 healthz 兑底发现。
+  - **不校验 LLM 可达性**——LLM 调用在请求时按需失败重试，不属于进程就绪范畴。
+- **无鉴权**：`/healthz` 不经过认证中间件，任何来源均可探（仅返回 `status`/`reason`，无敏感信息）。
 - **探活方**：
   - WS-Master：lazy start 后轮询 `http://<ws-container-alias>:8000/healthz`，200 即 `started`（见 [ws-master.md](../../impl-spec/multiple-users/ws-master.md) §6.1）。
-  - docker `HEALTHCHECK`：镜像可选加 `HEALTHCHECK CMD`（见下）。
+  - docker `HEALTHCHECK`：见下。
 
-### Dockerfile `HEALTHCHECK`（可选）
+### Dockerfile `HEALTHCHECK`
 
-镜像内 `python:3.12-bookworm` 基础镜像自带 `python`，可用最简方式：
+镜像已配置 `HEALTHCHECK` 指令（见 [Dockerfile](./Dockerfile)），用基础镜像自带的 `python` 调 `/healthz`：
 
 ```dockerfile
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).read()" || exit 1
 ```
 
-- `start-period=30s` 给 indexer→gateway 顺序启动留窗口。
-- 单用户独立部署也受益：`docker ps` 可见 health 状态。
+- `start-period=60s`：覆盖 indexer 冷启（加载 unidic-lite 词典 + sqlite 初始化）+ gateway 起步，避免启动期间被误判 unhealthy。
+- `--interval=30s --retries=3`：启动后每 30s 探一次，连续 3 次失败才标 unhealthy。
+- 单用户独立部署也受益：`docker ps` 可见 health 状态，配合 `restart: unless-stopped` 可容器自愈。
 
 ### 与 entrypoint.sh 就绪探测的关系
 

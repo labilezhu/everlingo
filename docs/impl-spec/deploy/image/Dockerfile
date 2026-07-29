@@ -63,4 +63,8 @@ ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONPATH="/app/src" \
     EVERLINGO_WORKSPACE_DIR=/home/everlingo/.everlingo/workspaces/default
 EXPOSE 8000
+# gateway /healthz 端点探活：见 ws-container-spec.md「image 进程健康检查（healthz）」
+# start-period=60s 覆盖 indexer 冷启（加载 unidic-lite 词典 + sqlite 初始化）
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).read()" || exit 1
 ENTRYPOINT ["/app/entrypoint.sh"]

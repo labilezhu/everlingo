@@ -11,13 +11,14 @@ from typing import Any, Union
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from everlingo.gateway.channels.envelope import UserInputEnvelope, wrap_plain_text
 from everlingo.gateway.channels.web_channel import WebChannel
 from everlingo.gateway.session_acceptor import SessionAcceptor
 from everlingo.gateway.vault_editor_api import router as vault_editor_router
+from everlingo.workspace import indexer_mcp_url_path
 
 app = FastAPI()
 app.include_router(vault_editor_router)
@@ -135,6 +136,35 @@ async def serve_editor(path: str = ""):
         return {"message": "Frontend not built. Run `npm run build` in the web/ directory."}
 
     return FileResponse(editor_index)
+
+
+@app.get("/healthz")
+async def healthz():
+    """gateway 进程就绪自检。
+
+    ref: docs/impl-spec/deploy/image/ws-container-spec.md — image 进程健康检查（healthz）
+    供 WS-Master lazy start 探活与 docker HEALTHCHECK 使用。
+
+    就绪判定（本地同步、无网络 IO，不依赖外部超时）：
+    - `_gateway` 未注入 → 503（acceptor 尚未初始化）
+    - `indexer.mcp.url` 文件不存在 → 503（indexer 未就绪）
+    - 否则 → 200
+
+    不深入校验 indexer 端口连通 / LLM 可达性：entrypoint.sh 已保证 gateway
+    启动时 indexer 端口连通，运行中崩溃由 WS-Master healthcheck task 兜底；
+    LLM 调用在请求时按需失败重试。
+    """
+    if _gateway is None:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "error", "reason": "gateway_not_initialized"},
+        )
+    if not indexer_mcp_url_path().exists():
+        return JSONResponse(
+            status_code=503,
+            content={"status": "error", "reason": "indexer_not_ready"},
+        )
+    return {"status": "ok"}
 
 
 @app.get("/")
