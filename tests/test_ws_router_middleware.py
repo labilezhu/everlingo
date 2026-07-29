@@ -123,3 +123,43 @@ class TestCORS:
         )
         cors_header = resp.headers.get("access-control-allow-origin")
         assert cors_header != "https://evil.com"
+
+
+class TestCORSRegex:
+    """cors_allow_origin_regex 匹配任意 chrome-extension:// origin"""
+
+    @pytest.fixture
+    def config(self) -> RouterConfig:
+        return RouterConfig(
+            jwt_secret="test-jwt-secret",
+            master_secret="test-master-secret",
+            master_url="http://localhost:8101",
+            cors_allow_origin_regex="chrome-extension://.*",
+        )
+
+    @pytest.fixture
+    def client(self, config: RouterConfig):
+        app = create_app(config)
+        return TestClient(app)
+
+    def test_regex_matches_extension_origin(self, client):
+        resp = client.options(
+            "/some/path",
+            headers={
+                "Origin": "chrome-extension://fahmknjmbjccegjancflflfceobbcmld",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.headers.get("access-control-allow-origin") == "chrome-extension://fahmknjmbjccegjancflflfceobbcmld"
+
+    def test_regex_rejects_non_chrome_origin(self, client):
+        resp = client.options(
+            "/some/path",
+            headers={
+                "Origin": "https://evil.com",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        cors_header = resp.headers.get("access-control-allow-origin")
+        assert cors_header != "https://evil.com"

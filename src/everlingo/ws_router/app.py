@@ -73,10 +73,11 @@ def create_app(config: RouterConfig) -> FastAPI:
         )
     )
 
-    if config.cors_allow_origins:
+    if config.cors_allow_origins or config.cors_allow_origin_regex:
         app.add_middleware(
             CORSMiddleware,
             allow_origins=config.cors_allow_origins,
+            allow_origin_regex=config.cors_allow_origin_regex,
             allow_methods=["*"],
             allow_headers=["Authorization", "Content-Type"],
             allow_credentials=False,

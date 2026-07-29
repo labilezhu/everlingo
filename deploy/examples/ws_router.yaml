@@ -27,6 +27,8 @@ ws_router:
   # CORS 白名单（chrome-extension origin）
   cors_allow_origins:
     - chrome-extension://<your-extension-id>
+  # 或使用 regex 匹配任意 chrome-extension origin（开发/测试环境）
+  # cors_allow_origin_regex: chrome-extension://.*
 
   auth:
     # Phase 1 仅支持 password provider

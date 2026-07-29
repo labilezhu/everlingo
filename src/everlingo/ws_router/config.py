@@ -29,6 +29,7 @@ class RouterConfig:
     pat_verify_cache_ttl: int = 30
 
     cors_allow_origins: list[str] = field(default_factory=list)
+    cors_allow_origin_regex: str | None = None
 
     auth_providers: list[str] = field(default_factory=lambda: ["password"])
 
