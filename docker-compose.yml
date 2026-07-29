@@ -27,12 +27,13 @@ services:
     image: everlingo-ws-master:0.1
     # 同上，ENTRYPOINT 为 `python -m everlingo`
     command: ["ws_master", "--config", "/etc/everlingo/ws_master.yaml"]
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}    
     volumes:
       - "./deploy/examples/ws_master.yaml:/etc/everlingo/ws_master.yaml:ro"
       - "./deploy/examples/ws_container_everlingo_template.yaml:/etc/everlingo/ws_container_everlingo_template.yaml:ro"
-      - "master-data:/root/.everlingo"
       - "/var/run/docker.sock:/var/run/docker.sock"
-      - "${HOST_WS_DIR}:${HOST_WS_DIR}"
+      - "${HOST_WS_DIR}:/workspaces"
     group_add:
       - "${DOCKER_GID}"              # 宿主 docker 组 GID
     expose:

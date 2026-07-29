@@ -7,7 +7,7 @@ master:
   # 与 ws_router.yaml master_secret 一致（openssl rand -hex 32）
   shared_secret: ""
   # sqlite 持久化路径（挂载 master-data volume）
-  db: /root/.everlingo/ws_master.sqlite
+  db: /workspaces/ws_master.sqlite
   # 宿主侧 workspace 根目录（compose 中 ${HOST_WS_DIR} 挂载）
   host_ws_dir: /workspaces
 

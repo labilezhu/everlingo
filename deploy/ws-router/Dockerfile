@@ -18,10 +18,10 @@ RUN uv sync --frozen --no-dev --no-install-project
 # Stage: runtime
 FROM python:3.12.13-bookworm AS runtime
 RUN useradd -m -u 1000 everlingo
+WORKDIR /app
 COPY --chown=everlingo:everlingo --from=deps /app/.venv .venv/
 COPY --chown=everlingo:everlingo src/ src/
 COPY --chown=everlingo:everlingo pyproject.toml ./
-WORKDIR /app
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/src"
 USER everlingo
