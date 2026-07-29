@@ -161,14 +161,17 @@ WS-Master 容器挂载宿主 `/var/run/docker.sock`，通过 `group_add` 注入�
 
 ### 5.1 `ws_master.yaml`
 
-> 原 `everlingo_master.yaml` 重命名。`workspace_workspaces` 字段重命名为 `host_ws_dir`（语义更清晰）。LLM 配置保留于此，作为容器 env 注入源与 per-user key 的 fallback。
+> 原 `everlingo_master.yaml` 重命名。`workspace_workspaces` 字段重命名为 `host_ws_dir`（语义更清晰），新增 `container_ws_dir` 分离容器内文件操作路径。LLM 配置保留于此，作为容器 env 注入源与 per-user key 的 fallback。
+> 
+> **两条路径说明**：`host_ws_dir` 是 docker daemon bind source 使用的宿主路径；`container_ws_dir` 是 ws-master 容器内 mount 点路径（用于 mkdir / copy template / rmtree 等文件操作）。当 ws-master 容器化时两者可能不同（compose 把 `${HOST_WS_DIR}` 挂到容器内 `/workspaces`），代码通过 `host_to_container_ws_path()` 自动做前缀转换。host 部署 ws-master 时两者相等即可。
 
 ```yaml
 master:
   listen: 127.0.0.1:8101           # everlingo-net 内监听；容器内即 0.0.0.0:8101
   shared_secret: <random>          # X-Master-Token（与 ws_router.master_secret 一致）
   db: /root/.everlingo/ws_master.sqlite
-  host_ws_dir: /workspaces         # 宿主侧 workspace 根（容器内挂载点）
+  host_ws_dir: /workspaces              # 宿主侧 workspace 根路径（docker daemon bind 用）
+  container_ws_dir: /workspaces          # ws-master 容器内挂载点（文件操作用；常与 host_ws_dir 不同）
 
   image: ghcr.io/labilezhu/everlingo:0.0.1-rc.3
   network: everlingo-net

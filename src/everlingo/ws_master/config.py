@@ -20,6 +20,7 @@ class MasterConfig:
     shared_secret: str = ""
     db: str = "/root/.everlingo/ws_master.sqlite"
     host_ws_dir: str = "/workspaces"
+    container_ws_dir: str = "/workspaces"
 
     image: str = "ghcr.io/labilezhu/everlingo:0.0.1-rc.3"
     network: str = "everlingo-net"
@@ -50,8 +51,10 @@ class MasterConfig:
             raw = yaml.safe_load(f)
         master = raw.get("master", {}) if isinstance(raw, dict) else {}
 
-        # Expand ${VAR} env references for openai_* fields
+        # Expand ${VAR} env references for path / LLM fields
         env_keys = [
+            "host_ws_dir",
+            "container_ws_dir",
             "openai_api_key",
             "openai_base_url",
             "openai_model",
@@ -65,3 +68,17 @@ class MasterConfig:
                 master[key] = os.environ.get(env_var, "")
 
         return cls(**{k: v for k, v in master.items() if k in cls.__dataclass_fields__})
+
+
+def host_to_container_ws_path(host_workspace_dir: str, config: MasterConfig) -> Path:
+    """Translate a host-side workspace path to the ws-master container path.
+
+    Given a host path like ``<host_ws_dir>/<user>/<id>``, returns the equivalent
+    path under ``config.container_ws_dir``. This is used when the ws-master
+    container needs to perform file operations (mkdir, copy template, rmtree)
+    on a directory that the docker daemon accesses via the host path.
+
+    Raises ``ValueError`` if ``host_workspace_dir`` is not under ``config.host_ws_dir``.
+    """
+    rel = Path(host_workspace_dir).relative_to(config.host_ws_dir)
+    return Path(config.container_ws_dir) / rel

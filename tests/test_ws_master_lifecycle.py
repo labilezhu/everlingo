@@ -23,7 +23,8 @@ def config(tmp_path: Path) -> MasterConfig:
         listen="0.0.0.0:8101",
         shared_secret="test-secret",
         db=str(tmp_path / "test.db"),
-        host_ws_dir=str(tmp_path / "workspaces"),
+        host_ws_dir=str(tmp_path / "host_ws"),
+        container_ws_dir=str(tmp_path / "container_ws"),
         image="test-image:latest",
         network="test-net",
         ws_template=str(tmp_path / "template.yaml"),
@@ -49,14 +50,18 @@ def db_repos(config: MasterConfig, tmp_path: Path):
 
 
 @pytest.fixture
-def user_and_ws(db_repos):
-    """Create a user and a default ws-container."""
+def user_and_ws(config, db_repos):
+    """Create a user and a default ws-container.
+
+    host_workspace_dir is under config.host_ws_dir so that
+    host_to_container_ws_path can derive the container path.
+    """
     conn, user_repo, ws_repo = db_repos
     user = user_repo.add("mark", "Mark", "hash")
     ws = ws_repo.add(
         user_id=user.user_id,
         container_name="everlingo-mark-a1b2c3d4",
-        host_workspace_dir="/tmp/ws/mark/a1b2c3d4",
+        host_workspace_dir=str(Path(config.host_ws_dir) / "mark" / "a1b2c3d4"),
         is_default=True,
     )
     return user, ws
@@ -310,4 +315,58 @@ async def test_create_injects_public_base_url_env(config, db_repos, user_and_ws)
     nc = create_kwargs["networking_config"]
     assert ws.container_name in nc[config.network]["Aliases"]
     assert "network_aliases" not in create_kwargs
+    conn.close()
+
+
+@pytest.mark.asyncio
+async def test_create_bind_source_is_host_path(config, db_repos, user_and_ws):
+    """Bind source (volumes key) = host_ws_dir path; file ops on container_ws_dir path.
+
+    Regression for: host_ws_dir and container_ws_dir differ when ws-master
+    runs in a container. The docker daemon resolves bind sources on the host,
+    so the volumes key must be the host path (from host_ws_dir). The mkdir
+    and template copy happen inside the ws-master container, so they use the
+    container path (from container_ws_dir).
+    """
+    conn, user_repo, ws_repo = db_repos
+    user, ws = user_and_ws
+
+    # Create a template file
+    template_path = Path(config.ws_template)
+    template_path.parent.mkdir(parents=True, exist_ok=True)
+    template_path.write_text("key: value\n")
+
+    mock_docker = _mock_docker_client()
+    lc = ContainerLifecycle(config, ws_repo, user_repo, docker_client=mock_docker)
+    lc._probe = AsyncMock(return_value=True)
+
+    await lc.ensure_started(ws.ws_container_id)
+
+    # 1. docker create called with HOST path as volumes key
+    create_kwargs = mock_docker.containers.create.call_args.kwargs
+    volumes = create_kwargs["volumes"]
+    expected_host_key = ws.host_workspace_dir
+    assert expected_host_key in volumes, (
+        f"volumes key should be host path ({expected_host_key}), "
+        f"got keys={list(volumes.keys())}"
+    )
+    assert volumes[expected_host_key]["bind"] == "/home/everlingo/.everlingo/workspaces/default"
+    assert volumes[expected_host_key]["mode"] == "rw"
+
+    # 2. template file was copied under CONTAINER path
+    expected_container_file = (
+        Path(config.container_ws_dir) / "mark" / "a1b2c3d4" / "everlingo.yaml"
+    )
+    assert expected_container_file.exists(), (
+        f"template should be copied to container path ({expected_container_file})"
+    )
+    assert expected_container_file.read_text() == "key: value\n"
+
+    # 3. HOST path directory should NOT be created by ws-master
+    host_dir = Path(ws.host_workspace_dir)
+    assert not host_dir.exists(), (
+        f"ws-master should not mkdir on host path ({host_dir}); "
+        f"file ops go to container path"
+    )
+
     conn.close()

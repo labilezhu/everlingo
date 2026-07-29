@@ -5,7 +5,7 @@
 ## 完成的任务
 格式：完成日期与时间(GMT+8 timezone) | 任务描述 。 示例： " - 2026-06-20 19:28 | 生成主入口代码"
 
-- 2026-07-29 当前 | **Chrome Extension Header 加「笔记」按钮**：sidecar header 右侧新增「笔记」按钮（NotebookPen 图标 + "笔记" 文字），点击 `chrome.tabs.create({ url: \`${apiBaseUrl}/editor\` })` 在新 tab 打开 Vault Editor。同步 chrome-extension-spec.md 新增 §7.2 Header、重编号 §§7.2-7.4→7.3-7.5。构建测试通过。
+- 2026-07-29 当前 | **修复 host_ws_dir/container_ws_dir 路径分离**：当 ws-master 容器化时，`host_ws_dir`（docker daemon bind source）与 `container_ws_dir`（容器内文件操作）需分离。新增 `container_ws_dir` 配置字段（默认 `/workspaces`）+ `host_to_container_ws_path()` 前缀转换函数。改动：config.py（字段 + 函数 + env_keys）、lifecycle.py（_create_and_start/remove 文件操作用容器路径，bind source 用宿主路径）、cli.py（_user_rm/_ws_rm rmtree 用容器路径）、yaml 配置、测试（config fixture 分离两路径 + 新增 test_create_bind_source_is_host_path 验证 volumes key=宿主 + 模板落容器路径）。docs/ws-master.md §5.1、deploy.md §4 同步。单测 49 全通过。
 - 2026-07-29 当前 | **PR4 — Chrome Extension Token 化**：扩展 Basic Auth → PAT Bearer token。改动：config.ts/OptionsForm/background + 测试随动 + 文档同步。36 测试通过。
 
 - 2026-07-29 | 新增 `cors_allow_origin_regex` 配置字段：允许 WS-Router 通过 regex 匹配 CORS origin，解决 Chrome Extension origin 因扩展 ID 各异无法写死白名单的问题。`config.py` 新增 `cors_allow_origin_regex: str | None`，`app.py` CORSMiddleware 传参 `allow_origin_regex`。`deploy/examples/ws_router.yaml` 注释文档。`test_ws_router_middleware.py` 新增 `TestCORSRegex`（11 → 13 tests）。

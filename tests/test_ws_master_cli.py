@@ -242,6 +242,7 @@ def _write_config(tmp_path: Path, db_name: str) -> str:
         f"  shared_secret: test-secret\n"
         f"  db: {tmp_path / db_name}\n"
         f"  host_ws_dir: {tmp_path / 'workspaces'}\n"
+        f"  container_ws_dir: /workspaces\n"
         f"  image: test-image:latest\n"
         f"  network: test-net\n"
         f"  ws_template: /dev/null\n"

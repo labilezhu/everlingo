@@ -16,7 +16,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from .config import MasterConfig
+from .config import MasterConfig, host_to_container_ws_path
 from .db import get_conn
 from .pat_utils import generate_pat
 from .repo import IdentityRepo, PatRepo, UserRepo, WsContainerRepo
@@ -265,8 +265,10 @@ def _user_rm(config: MasterConfig, user_repo: UserRepo, ws_repo: WsContainerRepo
                 except Exception as e:
                     print(f"Warning: docker remove failed for {ws.container_name}: {e}", file=sys.stderr)
             # Remove host directory
-            if ws.host_workspace_dir and Path(ws.host_workspace_dir).exists():
-                shutil.rmtree(ws.host_workspace_dir, ignore_errors=True)
+            if ws.host_workspace_dir:
+                container_dir = host_to_container_ws_path(ws.host_workspace_dir, config)
+                if container_dir.exists():
+                    shutil.rmtree(str(container_dir), ignore_errors=True)
             ws_repo.delete(ws.ws_container_id)
 
     user_repo.delete(user.user_id)
@@ -439,8 +441,10 @@ def _ws_rm(config: MasterConfig, ws_repo: WsContainerRepo, args: argparse.Namesp
                     pass
             except Exception as e:
                 print(f"Warning: docker remove failed: {e}", file=sys.stderr)
-        if ws.host_workspace_dir and Path(ws.host_workspace_dir).exists():
-            shutil.rmtree(ws.host_workspace_dir, ignore_errors=True)
+        if ws.host_workspace_dir:
+            container_dir = host_to_container_ws_path(ws.host_workspace_dir, config)
+            if container_dir.exists():
+                shutil.rmtree(str(container_dir), ignore_errors=True)
 
     ws_repo.delete(ws.ws_container_id)
     print(f"ws-container '{args.ws_id}' deleted.")

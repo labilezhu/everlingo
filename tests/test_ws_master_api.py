@@ -24,6 +24,7 @@ def config(tmp_path: Path) -> MasterConfig:
         shared_secret="test-secret",
         db=str(tmp_path / "test.db"),
         host_ws_dir=str(tmp_path / "workspaces"),
+        container_ws_dir=str(tmp_path / "workspaces"),
         image="test-image:latest",
         network="test-net",
         ws_template=str(tmp_path / "template.yaml"),

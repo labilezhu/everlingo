@@ -70,7 +70,7 @@ services:
       - "./deploy/examples/ws_container_everlingo_template.yaml:/etc/everlingo/ws_container_everlingo_template.yaml:ro"
       - "master-data:/root/.everlingo"
       - "/var/run/docker.sock:/var/run/docker.sock"
-      - "${HOST_WS_DIR}:${HOST_WS_DIR}"
+      - "${HOST_WS_DIR}:/workspaces"
     group_add:
       - "${DOCKER_GID}"              # 宿主 docker 组 GID
     expose:
@@ -101,9 +101,12 @@ WS-Master 镜像内不预装 docker CLI；用 `docker` Python SDK 通过 `unix:/
 
 ## 4. Workspace 挂载策略
 
-- 宿主侧 workspace 根：`${HOST_WS_DIR}`（如 `~/everlingo/workspaces`），对应 `ws_master.yaml.master.host_ws_dir`
-- WS-Master 容器挂载 `${HOST_WS_DIR}:${HOST_WS_DIR}`，使其能以宿主同路径访问 workspace 目录
-- WS-Master 创建 ws-container 时，volume bind 使用**宿主侧绝对路径** `ws_container.host_workspace_dir`，该路径在 WS-Master 与 ws-container 间一致（因 WS-Master 也以相同路径挂载，docker daemon bind 路径解析为宿主路径）
+- 宿主侧 workspace 根：`${HOST_WS_DIR}`（如 `~/everlingo/workspaces`）
+- WS-Master 容器挂载 `${HOST_WS_DIR}:/workspaces`，使容器内 `/workspaces` 指向宿主 `${HOST_WS_DIR}`
+- `ws_master.yaml` 的两条路径：
+  - `host_ws_dir: "${HOST_WS_DIR}"` — 宿主路径，WS-Master 写入 `ws_containers.host_workspace_dir` 作为 docker bind source
+  - `container_ws_dir: "/workspaces"` — 容器内挂载点，WS-Master 用于 mkdir / copy template / rmtree 等文件操作
+- WS-Master 创建 ws-container 时，volume bind source 使用 **`host_workspace_dir`**（宿主绝对路径），docker daemon 据此绑定宿主目录；文件操作在**容器路径**下完成，代码自动做前缀转换
 
 ### 4.1 宿主侧目录结构
 

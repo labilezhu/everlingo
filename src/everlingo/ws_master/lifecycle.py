@@ -19,7 +19,7 @@ from typing import Dict, Optional, Tuple
 import docker
 import httpx
 
-from .config import MasterConfig
+from .config import MasterConfig, host_to_container_ws_path
 from .repo import UserRepo, WsContainerRepo, WsContainerRow
 
 logger = logging.getLogger(__name__)
@@ -135,15 +135,14 @@ class ContainerLifecycle:
 
         self._ws_repo.update_status(ws.ws_container_id, STATUS_CREATING)
 
-        # Prepare host workspace directory
-        host_dir = Path(ws.host_workspace_dir)
-        host_dir.mkdir(parents=True, exist_ok=True)
+        # Prepare workspace directory (container path for file ops)
+        container_dir = host_to_container_ws_path(ws.host_workspace_dir, self._config)
+        container_dir.mkdir(parents=True, exist_ok=True)
 
         # Copy template everlingo.yaml if exists
         template_path = Path(self._config.ws_template)
         if template_path.exists():
-            import shutil
-            target = host_dir / "everlingo.yaml"
+            target = container_dir / "everlingo.yaml"
             if not target.exists():
                 shutil.copy2(str(template_path), str(target))
 
@@ -164,7 +163,7 @@ class ContainerLifecycle:
                     "EVERLINGO_WORKSPACE_DIR": "/home/everlingo/.everlingo/workspaces/default",
                 },
                 volumes={
-                    str(host_dir): {
+                    ws.host_workspace_dir: {
                         "bind": "/home/everlingo/.everlingo/workspaces/default",
                         "mode": "rw",
                     },
@@ -303,9 +302,9 @@ class ContainerLifecycle:
                 logger.warning("Failed to remove container %s: %s", ws.container_name, e)
 
         if purge_dir and ws.host_workspace_dir:
-            host_dir = Path(ws.host_workspace_dir)
-            if host_dir.exists():
-                shutil.rmtree(str(host_dir), ignore_errors=True)
+            container_dir = host_to_container_ws_path(ws.host_workspace_dir, self._config)
+            if container_dir.exists():
+                shutil.rmtree(str(container_dir), ignore_errors=True)
                 logger.info("Removed host directory %s", ws.host_workspace_dir)
 
         self._ws_repo.delete(ws.ws_container_id)
