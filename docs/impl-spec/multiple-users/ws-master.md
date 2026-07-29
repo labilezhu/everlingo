@@ -203,6 +203,8 @@ master:
 
 ## 6. Internal API
 
+> 完整请求/响应 schema、错误码、字段词典见 [internal-api-contract.md](./internal-api-contract.md)（PR1/PR2 共同契约）。本节仅列端点概览。
+
 WS-Master 监听 `everlingo-net` 内 `ws_master:8101`，所有请求校验头 `X-Master-Token: <shared_secret>`。未带或不符 → 401。
 
 | Method | Path | 用途 |
