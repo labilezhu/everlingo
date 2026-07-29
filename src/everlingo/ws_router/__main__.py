@@ -1,17 +1,20 @@
-# WS-Router 模块入口（PR0 骨架占位）
-# 完整实现在 PR2，当前仅占位。
-# 正式入口通过 `everlingo ws_router --config ws_router.yaml` 调用。
+"""WS-Router 模块入口。
+
+python -m everlingo.ws_router --config ws_router.yaml  → daemon 模式（FastAPI）
+通常通过 `everlingo ws_router --config ws_router.yaml` 子命令调用。
+"""
 
 import sys
 
 
 def main() -> None:
-    print(
-        "WS-Router: not yet implemented (PR2). "
-        "Use `everlingo ws_router --help` for usage.",
-        file=sys.stderr,
-    )
-    sys.exit(1)
+    if len(sys.argv) > 1 and sys.argv[1] == "--config":
+        from .app import run_daemon
+
+        run_daemon(sys.argv[2])
+    else:
+        print("WS-Router: use `everlingo ws_router --config ws_router.yaml` for daemon mode.", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

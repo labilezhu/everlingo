@@ -1,6 +1,6 @@
 # GitHub Actions CI 规范
 
-本文档定义 EverLingo 通过 GitHub Actions 构建多架构（amd64 + arm64）Linux 容器镜像并发布到 GitHub Container Registry (GHCR) 的流程。镜像本身的构建逻辑、Dockerfile、entrypoint 等参见 [`../deploy/image/ws-container-spec.md`](../deploy/image/ws-container-spec.md)。
+本文档定义 EverLingo 通过 GitHub Actions 构建多架构（amd64 + arm64）Linux 容器镜像并发布到 GitHub Container Registry (GHCR) 的流程。镜像本身的构建逻辑、Dockerfile、entrypoint 等参见 [`../../deploy/ws-container/ws-container-spec.md`](../../deploy/ws-container/ws-container-spec.md)。
 
 ## 概述
 
@@ -130,18 +130,18 @@ permissions:
      ghcr.io/<owner>/everlingo:0.1.0
    ```
 
-部署细节（workspace 挂载、配置模板等）参见 [`ws-container-spec.md`](../deploy/image/ws-container-spec.md) 的「经典部署方法」节。
+部署细节（workspace 挂载、配置模板等）参见 [`ws-container-spec.md`](../../deploy/ws-container/ws-container-spec.md) 的「经典部署方法」节。
 
 ## 本地构建
 
-CI 仅负责发布。本地开发构建仍按 [`ws-container-spec.md`](../deploy/image/ws-container-spec.md) 的「Run build image」节执行：
+CI 仅负责发布。本地开发构建仍按 [`ws-container-spec.md`](../../deploy/ws-container/ws-container-spec.md) 的「Run build image」节执行：
 
 ```bash
 cd $everlingo_repo
-DOCKER_BUILDKIT=1 docker buildx build . -f docs/impl-spec/deploy/image/Dockerfile
+DOCKER_BUILDKIT=1 docker buildx build . -f deploy/ws-container/Dockerfile
 ```
 
 ## 相关文档
 
-- [Image 设计规范](../deploy/image/ws-container-spec.md)
+- [Image 设计规范](../../deploy/ws-container/ws-container-spec.md)
 - [产品文档](../../PRODUCT-FUNC.md)

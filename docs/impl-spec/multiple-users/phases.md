@@ -197,8 +197,8 @@ PR0 ──▶ PR1 ──▶ PR3
 ### 范围
 
 - 镜像构建：
-  - `docs/impl-spec/deploy/image/Dockerfile.ws_router`（精简构建，跳过 frontend-builder，无 `web/dist`）
-  - `docs/impl-spec/deploy/image/Dockerfile.ws_master`（同上精简构建）
+  - `deploy/ws-container/Dockerfile.ws_router`（精简构建，跳过 frontend-builder，无 `web/dist`）
+  - `deploy/ws-container/Dockerfile.ws_master`（同上精简构建）
 - `docker-compose.yml`（[deploy.md](./deploy.md) §2）：
   - `ws_router` + `ws_master` + `everlingo-net` + `master-data` volume
   - `DOCKER_GID` / `HOST_WS_DIR` 环境注入

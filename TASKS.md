@@ -1,5 +1,7 @@
 # Tasks
 
+- 2026-07-29 | 部署目录重组：`docs/impl-spec/deploy` → 顶层 `deploy/`，`docs/impl-spec/deploy/image` → `deploy/ws-container/`。全局引用更新：ARCHITECTURE.md、CI spec、multiple-users 下所有文档、web_acceptor.py 与 test_web_acceptor.py 的 ref 注释、TASKS.md。docs/archived/archived-task.md 为历史快照未改。
+
 - 2026-07-29 | 执行 `mark-specific/local-deploy/130_deploy/130-everlingo-nginx.md` 部署计划：
   - §3.1 签发 TLS 证书：acme.sh dns_ali 成功签发 `home130-everlingo.mygraphql.com`，`--installcert` 到 `/etc/nginx/cert.d/`，`--reloadcmd` 触发 `nginx -s reload`。
   - §3.3+§3.4 新建 site 配置并启用：`/etc/nginx/sites-available/home130-everlingo` 写入完整 server block（6457 ssl IPv4+IPv6、SSE 配置、proxy_pass http://192.168.16.130:8100），`ln -s` 启用，`nginx -t` 通过，`systemctl reload nginx` 成功。
@@ -10,6 +12,16 @@
   - 新增 §2.4「trusted_proxy 跨机注意」（展开为 §2.4.1~2.4.3 三小节）：§2.4.1 解释 trusted_proxy 逻辑——只采信白名单内来源 IP 的 `X-Forwarded-Proto`，防客户端伪造；该头决定 cookie `Secure` 位。§2.4.2 说明跨机场景的坑：照搬 `ws-router.md` §5 范例的 `trusted_proxy: 127.0.0.1`（同宿主前提）会导致 nginx(.68)→ws-router(.130) 来源 IP 不匹配，ws-router 忽略 `X-Forwarded-Proto`、cookie 不带 Secure、重定向/base_url 错用 `http://`。§2.4.3 给出正确配置 `trusted_proxy: 192.168.16.68`（nginx 出站 IP）。
   - §3.3 补全完整 `server` block 配置（`listen 6457 ssl` IPv4+IPv6、`ssl_certificate*`、`X-Forwarded-Proto $scheme`、`proxy_pass_request_headers on` 透传 `Authorization: Bearer`、SSE 指令、`location / proxy_pass http://192.168.16.130:8100`），附逐项对应 ws-router/external-nginx 章节的设计注解。
   - 同步更新设计文档 `docs/impl-spec/multiple-users/external-nginx.md` §5：明确「nginx 与 ws-router 跨机时 `trusted_proxy` 必须配为 nginx 出站 IP（非 127.0.0.1）」，并给出 `.68/.130` 示例，避免读者照搬同宿主范例导致 cookie Secure 失效。
+- 2026-07-29 当前 | **PR2 — WS-Router 模块**：完整实现前台反代 + 认证服务。
+  - **配置加载**：`ws_router/config.py`（`RouterConfig` dataclass，YAML 加载，零外依赖）。
+  - **缓存工具**：`ws_router/cache.py`（`TTLCache` LRU+TTL，用于 PAT verify / backend URL / /me 缓存）。
+  - **Master 客户端**：`ws_router/master_client.py`（`MasterClient` 封装 WS-Master Internal API 调用：authenticate、pat_verify、get_user、get_default_backend）。
+  - **认证模块**：`ws_router/auth.py`（`AuthProvider` Protocol + `PasswordAuthProvider`，JWT HS256 签发/验签，TTL 8h，内联登录页 HTML）。
+  - **中间件**：`ws_router/middleware.py`（`auth_middleware` 实现 Bearer→JWT→PAT→Cookie 四路径认证，浏览器 302 `/login` / 程序化 401 分流）。
+  - **反向代理**：`ws_router/proxy.py`（httpx 反代 + SSE `client.stream()` 流式透传，hop-by-hop 头剔除，`X-Everlingo-User` 注入）。
+  - **FastAPI 应用**：`ws_router/app.py`（`AppState` + `create_app` + 路由：`GET/POST /login` 表单/JSON 双格式、`GET /logout`、`GET /me` 带缓存、`GET /healthz`、catch-all `/{path:path}` 反代 + CORS 中间件）。
+  - **入口更新**：`main.py` ws_router 子命令支持 `--config` daemon 模式；`ws_router/__main__.py` daemon 入口。
+  - **测试**：30 个新测试用例（JWT 5 + login 5 + logout 1 + /me 3 + auth_middleware 8 + CORS 2 + proxy 5 + backend 2），全量 726 测试通过无回归。
 - 2026-07-29 当前 | **PR1 — WS-Master 模块**：完整实现三层架构。
   - **数据层**：`config.py`（Pydantic dataclass 读 `ws_master.yaml` + env 展开 `${VAR}`）、`db.py`（四张表幂等建表 + WAL + foreign_keys + check_same_thread=False）、`repo.py`（UserRepo/PatRepo/WsContainerRepo/IdentityRepo 纯 CRUD + 约束）、`pat_utils.py`（`elpat_<base62>` 生成 + sha256 哈希）。
   - **CLI 层**：`cli.py`（`user add/list/rm`、`pat add/list/rm`、`ws add/list/rm/start/stop/set-default`、`identity list/unlink`，直连 sqlite，`user add` 同步创建 default ws-container status=absent）。密码用 PBKDF2-SHA256（stdlib，零外依赖）。

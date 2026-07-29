@@ -134,7 +134,7 @@ class TestSSEEvents:
 class TestHealthz:
     """GET /healthz — gateway 进程就绪自检。
 
-    ref: docs/impl-spec/deploy/image/ws-container-spec.md — image 进程健康检查（healthz）
+    ref: deploy/ws-container/ws-container-spec.md — image 进程健康检查（healthz）
     WS-Master lazy start 探活依赖此端点返回 200。
     """
 

@@ -4,7 +4,7 @@
 
 runtime base image: `python:3.12.13-bookworm`
 
-Dockerfile: docs/impl-spec/deploy/image/Dockerfile
+Dockerfile: deploy/ws-container/Dockerfile
 
 ## 镜像构建
 
@@ -29,7 +29,7 @@ Dockerfile: docs/impl-spec/deploy/image/Dockerfile
 - `COPY --chown=everlingo:everlingo src/ src/`
 - `COPY --chown=everlingo:everlingo pyproject.toml ./`
 - `COPY --chown=everlingo:everlingo --from=frontend-builder /web/dist web/dist/`
-- `COPY --chown=everlingo:everlingo docs/impl-spec/deploy/image/root/ /`（workspace 模板 + entrypoint.sh，路径相对 repo root；见下「app files」节）
+- `COPY --chown=everlingo:everlingo deploy/ws-container/root/ /`（workspace 模板 + entrypoint.sh，路径相对 repo root；见下「app files」节）
 
 注：所有 COPY 均添加 `--chown=everlingo:everlingo`，避免在最后出现一个 `RUN chown -R` 层。后者会使每次 `COPY src/` 变更时，整个 `/app`（含 300M+ .venv）的所有权元数据全量写进新层，导致 docker pull 重新下载大体积 layer。
 - `WORKDIR /app`
@@ -48,7 +48,7 @@ UID & GID: 1000
 ## app files
 
 ### root 目录覆盖
-把 docs/impl-spec/deploy/image/root 目录下的目录结构和文件写入 image 的 `/`。当前 root 目录结构：
+把 deploy/ws-container/root 目录下的目录结构和文件写入 image 的 `/`。当前 root 目录结构：
 
 ```
 root/
@@ -149,7 +149,7 @@ exit "$exit_code"
 
 ### 动机
 
-WS-Master 的 lazy start 状态机（见 [ws-master.md](../../impl-spec/multiple-users/ws-master.md) §6.1/§7）依赖「探活通过」才能将 ws-container 从 `starting` 推进到 `started` 并返回 `backend_url`。容器在 entrypoint.sh 内仅做**容器内**的 indexer→gateway 顺序就绪探测（`/dev/tcp` 探 MCP 端口），**对外没有**可探活的 HTTP 端点。为此 gateway 侧实现一个轻量健康检查端点，供多用户编排（WS-Master 探活）与单用户部署的 docker `HEALTHCHECK` 共用。
+WS-Master 的 lazy start 状态机（见 [ws-master.md](../../../docs/impl-spec/multiple-users/ws-master.md) §6.1/§7）依赖「探活通过」才能将 ws-container 从 `starting` 推进到 `started` 并返回 `backend_url`。容器在 entrypoint.sh 内仅做**容器内**的 indexer→gateway 顺序就绪探测（`/dev/tcp` 探 MCP 端口），**对外没有**可探活的 HTTP 端点。为此 gateway 侧实现一个轻量健康检查端点，供多用户编排（WS-Master 探活）与单用户部署的 docker `HEALTHCHECK` 共用。
 
 ### 端点
 
@@ -175,7 +175,7 @@ WS-Master 的 lazy start 状态机（见 [ws-master.md](../../impl-spec/multiple
   - **不校验 LLM 可达性**——LLM 调用在请求时按需失败重试，不属于进程就绪范畴。
 - **无鉴权**：`/healthz` 不经过认证中间件，任何来源均可探（仅返回 `status`/`reason`，无敏感信息）。
 - **探活方**：
-  - WS-Master：lazy start 后轮询 `http://<ws-container-alias>:8000/healthz`，200 即 `started`（见 [ws-master.md](../../impl-spec/multiple-users/ws-master.md) §6.1）。
+  - WS-Master：lazy start 后轮询 `http://<ws-container-alias>:8000/healthz`，200 即 `started`（见 [ws-master.md](../../../docs/impl-spec/multiple-users/ws-master.md) §6.1）。
   - docker `HEALTHCHECK`：见下。
 
 ### Dockerfile `HEALTHCHECK`
@@ -223,7 +223,7 @@ docker run --rm everlingo:v0.1 cat /home/everlingo/.everlingo/workspaces/default
 ```bash
 cd $everlingo_repo
 
-DOCKER_BUILDKIT=1 docker buildx build . -f docs/impl-spec/deploy/image/Dockerfile -t everlingo:0.0.1-rc.3
+DOCKER_BUILDKIT=1 docker buildx build . -f deploy/ws-container/Dockerfile -t everlingo:0.0.1-rc.3
 
 
 ## proxy build if in China
@@ -233,7 +233,7 @@ DOCKER_BUILDKIT=1 docker buildx build \
   --build-arg HTTP_PROXY=http://192.168.16.58:8118 \
   --build-arg HTTPS_PROXY=http://192.168.16.58:8118 \
   --build-arg NO_PROXY="localhost,127.0.0.1,192.168.16.58,192.168.16.*" \
-   . -f docs/impl-spec/deploy/image/Dockerfile -t everlingo:0.0.1-rc.3
+   . -f deploy/ws-container/Dockerfile -t everlingo:0.0.1-rc.3
 ```
 
 ## 经典部署方法

@@ -5,7 +5,7 @@
   - [ws-router.md](./ws-router.md)
   - [ws-master.md](./ws-master.md)
   - [external-nginx.md](./external-nginx.md)
-  - [ws-container-spec.md](../deploy/image/ws-container-spec.md)（workspace container 镜像规范）
+  - [ws-container-spec.md](../../deploy/ws-container/ws-container-spec.md)（workspace container 镜像规范）
 
 ---
 
@@ -122,11 +122,11 @@ WS-Master 镜像内不预装 docker CLI；用 `docker` Python SDK 通过 `unix:/
 
 ### 5.1 workspace container 镜像
 
-复用现有 `docs/impl-spec/deploy/image/Dockerfile`（多阶段：frontend-builder + deps + runtime），产物含 `web/dist`。见 [ws-container-spec.md](../deploy/image/ws-container-spec.md)。WS-Master 配置 `master.image` 指向此镜像。
+复用现有 `deploy/ws-container/Dockerfile`（多阶段：frontend-builder + deps + runtime），产物含 `web/dist`。见 [ws-container-spec.md](../../deploy/ws-container/ws-container-spec.md)。WS-Master 配置 `master.image` 指向此镜像。
 
 ### 5.2 WS-Router 镜像
 
-`docs/impl-spec/deploy/image/Dockerfile.ws_router`，单独精简构建，跳过 frontend-builder stage（无 `web/dist`）：
+`deploy/ws-container/Dockerfile.ws_router`，单独精简构建，跳过 frontend-builder stage（无 `web/dist`）：
 
 ```dockerfile
 # Stage: deps（与现有 Dockerfile 的 deps stage 一致）
@@ -151,7 +151,7 @@ ENTRYPOINT ["python", "-m", "everlingo", "ws_router", "--config", "/etc/everling
 
 ### 5.3 WS-Master 镜像
 
-`docs/impl-spec/deploy/image/Dockerfile.ws_master`，同 WS-Router 精简构建，ENTRYPOINT 为 `ws_master`：
+`deploy/ws-container/Dockerfile.ws_master`，同 WS-Router 精简构建，ENTRYPOINT 为 `ws_master`：
 
 ```dockerfile
 # Stage: deps（同上）
@@ -186,9 +186,9 @@ export HOST_WS_DIR=$HOME/everlingo/workspaces
 mkdir -p $HOST_WS_DIR
 
 # 2. 构建 WS-Router / WS-Master 镜像
-docker buildx build -f docs/impl-spec/deploy/image/Dockerfile.ws_router \
+docker buildx build -f deploy/ws-container/Dockerfile.ws_router \
   -t everlingo-ws-router:0.1 .
-docker buildx build -f docs/impl-spec/deploy/image/Dockerfile.ws_master \
+docker buildx build -f deploy/ws-container/Dockerfile.ws_master \
   -t everlingo-ws-master:0.1 .
 
 # 3. 生成 secret
@@ -210,4 +210,4 @@ docker compose exec ws_master everlingo ws_master pat add --user mark --label "c
 
 ## 7. 单用户独立部署（对照）
 
-上述为多用户 WS-Master 编排模式。单用户独立部署仍沿用 [ws-container-spec.md](../deploy/image/ws-container-spec.md) 的「经典部署方法」：单个 everlingo 容器直挂 workspace，nginx 或直接暴露端口。两条路线并存，按部署规模选择。
+上述为多用户 WS-Master 编排模式。单用户独立部署仍沿用 [ws-container-spec.md](../../deploy/ws-container/ws-container-spec.md) 的「经典部署方法」：单个 everlingo 容器直挂 workspace，nginx 或直接暴露端口。两条路线并存，按部署规模选择。

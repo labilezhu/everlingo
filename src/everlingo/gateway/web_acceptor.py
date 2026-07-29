@@ -142,7 +142,7 @@ async def serve_editor(path: str = ""):
 async def healthz():
     """gateway 进程就绪自检。
 
-    ref: docs/impl-spec/deploy/image/ws-container-spec.md — image 进程健康检查（healthz）
+    ref: deploy/ws-container/ws-container-spec.md — image 进程健康检查（healthz）
     供 WS-Master lazy start 探活与 docker HEALTHCHECK 使用。
 
     就绪判定（本地同步、无网络 IO，不依赖外部超时）：

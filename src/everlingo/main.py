@@ -179,8 +179,13 @@ def _build_parser() -> argparse.ArgumentParser:
         default=8765,
         help="监听端口（默认 8765）",
     )
-    # ws_router 子命令（PR0 骨架，PR2 实现完整逻辑）
-    sub.add_parser("ws_router", help="前台反代 + 认证服务（多用户部署）")
+    # ws_router 子命令（PR2 实现完整反代 + 认证逻辑）
+    p_ws_router = sub.add_parser("ws_router", help="前台反代 + 认证服务（多用户部署）")
+    p_ws_router.add_argument(
+        "--config",
+        default=None,
+        help="配置文件路径（daemon 模式），如 ws_router.yaml",
+    )
     # ws_master 子命令（PR1 实现完整编排 + CLI 运维逻辑）
     p_ws_master = sub.add_parser("ws_master", help="后台编排服务（多用户部署）")
     p_ws_master.add_argument(
@@ -227,10 +232,13 @@ def _dispatch(args: argparse.Namespace) -> int:
             return cmd_serve(args)
         return 2
     if args.cmd == "ws_router":
-        # PR0 骨架占位；PR2 实现完整反代 + 认证逻辑
+        if args.config:
+            from .ws_router.app import run_daemon
+
+            run_daemon(args.config)
+            return 0
         print(
-            "WS-Router: not yet implemented (PR2). "
-            "Use `everlingo ws_router --help` for usage.",
+            "WS-Router: use `everlingo ws_router --config ws_router.yaml` for daemon mode.",
             file=sys.stderr,
         )
         return 0

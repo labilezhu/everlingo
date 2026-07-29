@@ -1,6 +1,6 @@
 # EverLingo 多阶段构建
 # 构建命令（在 repo root 执行）：
-#   docker build -t everlingo:v0.1 -f docs/impl-spec/deploy/image/Dockerfile .
+#   docker build -t everlingo:v0.1 -f deploy/ws-container/Dockerfile .
 
 # ── Stage 1: frontend-builder ────────────────────────────────────────────────
 FROM node:20-bookworm-slim AS frontend-builder
@@ -57,7 +57,7 @@ COPY --chown=everlingo:everlingo pyproject.toml ./
 # 前端 SPA 构建产物
 COPY --chown=everlingo:everlingo --from=frontend-builder /web/dist web/dist/
 # workspace 模板 + entrypoint.sh（路径相对 repo root）
-COPY --chown=everlingo:everlingo docs/impl-spec/deploy/image/root/ /
+COPY --chown=everlingo:everlingo deploy/ws-container/root/ /
 USER everlingo
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONPATH="/app/src" \
