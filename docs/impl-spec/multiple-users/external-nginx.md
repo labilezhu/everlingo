@@ -35,6 +35,8 @@ Browser / curl / Chrome Extension
 
 ## 3. 配置示例
 
+PR3 已将本节配置落地为 `deploy/nginx/everlingo.conf.example`，运维可直接复制到宿主 nginx `sites-available/` 并按实际域名 / 证书路径修改后启用。下面为内联参考：
+
 ```nginx
 server {
     listen 443 ssl;

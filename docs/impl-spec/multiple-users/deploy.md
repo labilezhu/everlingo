@@ -41,15 +41,18 @@
 
 ## 2. docker-compose.yml
 
+compose 文件落地于仓库根 `docker-compose.yml`，示例配置与 nginx conf 落地于 `deploy/examples/`、`deploy/nginx/`（见 §5.4）。
+
 ```yaml
 services:
   ws_router:
     image: everlingo-ws-router:0.1
-    command: ["python", "-m", "everlingo", "ws_router", "--config", "/etc/everlingo/ws_router.yaml"]
+    # ENTRYPOINT 已是 `python -m everlingo`（见 §5.2），command 只需补子命令 + config
+    command: ["ws_router", "--config", "/etc/everlingo/ws_router.yaml"]
     ports:
       - "127.0.0.1:8100:8100"        # 仅 nginx 可达
     volumes:
-      - "./ws_router.yaml:/etc/everlingo/ws_router.yaml:ro"
+      - "./deploy/examples/ws_router.yaml:/etc/everlingo/ws_router.yaml:ro"
     expose:
       - "8100"
     depends_on:
@@ -60,10 +63,11 @@ services:
 
   ws_master:
     image: everlingo-ws-master:0.1
-    command: ["python", "-m", "everlingo", "ws_master", "--config", "/etc/everlingo/ws_master.yaml"]
+    # 同上，ENTRYPOINT 为 `python -m everlingo`
+    command: ["ws_master", "--config", "/etc/everlingo/ws_master.yaml"]
     volumes:
-      - "./ws_master.yaml:/etc/everlingo/ws_master.yaml:ro"
-      - "./ws_container_everlingo_template.yaml:/etc/everlingo/ws_container_everlingo_template.yaml:ro"
+      - "./deploy/examples/ws_master.yaml:/etc/everlingo/ws_master.yaml:ro"
+      - "./deploy/examples/ws_container_everlingo_template.yaml:/etc/everlingo/ws_container_everlingo_template.yaml:ro"
       - "master-data:/root/.everlingo"
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "${HOST_WS_DIR}:${HOST_WS_DIR}"
@@ -83,7 +87,7 @@ volumes:
   master-data:
 ```
 
-> 变更说明：compose 服务名 `edge`→`ws_router`、`master`→`ws_master`（下划线，与源码包对齐）；镜像 tag 用连字符（docker 惯例）；新增 `ws_container_everlingo_template.yaml` 挂载；环境变量 `WORKSPACES_ROOT`→`HOST_WS_DIR`（与 `ws_master.yaml.host_ws_dir` 命名对齐）。
+> 变更说明：compose 服务名 `edge`→`ws_router`、`master`→`ws_master`（下划线，与源码包对齐）；镜像 tag 用连字符（docker 惯例）；新增 `ws_container_everlingo_template.yaml` 挂载；环境变量 `WORKSPACES_ROOT`→`HOST_WS_DIR`（与 `ws_master.yaml.host_ws_dir` 命名对齐）。**ENTRYPOINT / command 拆分**：Dockerfile `ENTRYPOINT` 仅固定基础调用 `python -m everlingo`，子命令与 `--config` 路径由 compose `command:` 提供，便于 compose 层覆盖运行参数（如临时换 config）而镜像保持通用。compose `volumes:` 相对路径以 compose 文件所在目录（仓库根）为基准，故示例配置挂载用 `./deploy/examples/...`。
 
 ## 3. 权限：WS-Master 访问 docker.sock
 
@@ -126,11 +130,17 @@ WS-Master 镜像内不预装 docker CLI；用 `docker` Python SDK 通过 `unix:/
 
 ### 5.2 WS-Router 镜像
 
-`deploy/ws-router/Dockerfile`，单独精简构建，跳过 frontend-builder stage（无 `web/dist`）：
+`deploy/ws-router/Dockerfile`，单独精简构建，跳过 frontend-builder stage（无 `web/dist`）。`ENTRYPOINT` 仅固定基础调用 `python -m everlingo`，子命令与 `--config` 由 compose `command:` 提供（见 §2）：
 
 ```dockerfile
 # Stage: deps（与现有 Dockerfile 的 deps stage 一致）
 FROM python:3.12.13-bookworm AS deps
+
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ENV HTTP_PROXY=$HTTP_PROXY
+ENV HTTPS_PROXY=$HTTPS_PROXY
+
 RUN pip install uv
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
@@ -146,16 +156,24 @@ WORKDIR /app
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/src"
 USER everlingo
-ENTRYPOINT ["python", "-m", "everlingo", "ws_router", "--config", "/etc/everlingo/ws_router.yaml"]
+ENTRYPOINT ["python", "-m", "everlingo"]
 ```
+
+> `HTTP_PROXY` / `HTTPS_PROXY` build-arg 与现有 ws-container Dockerfile 的 deps stage 对齐，代理环境传值可加速 `uv sync` 拉包；无代理环境传空值不影响构建。
 
 ### 5.3 WS-Master 镜像
 
-`deploy/ws-master/Dockerfile`，同 WS-Router 精简构建，ENTRYPOINT 为 `ws_master`：
+`deploy/ws-master/Dockerfile`，同 WS-Router 精简构建，`ENTRYPOINT` 为 `python -m everlingo`（子命令与 config 由 compose `command:` 提供，见 §2）：
 
 ```dockerfile
 # Stage: deps（同上）
 FROM python:3.12.13-bookworm AS deps
+
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ENV HTTP_PROXY=$HTTP_PROXY
+ENV HTTPS_PROXY=$HTTPS_PROXY
+
 RUN pip install uv
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
@@ -172,10 +190,45 @@ ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/src"
 # docker.sock 通常 root:docker，WS-Master 以 everlingo(1000) 身份靠 group_add 访问
 USER everlingo
-ENTRYPOINT ["python", "-m", "everlingo", "ws_master", "--config", "/etc/everlingo/ws_master.yaml"]
+ENTRYPOINT ["python", "-m", "everlingo"]
 ```
 
-> 注：`pyproject.toml` 须含 `docker>=7.0` 与 `pyjwt>=2.8` 两个新依赖（见 PR1/PR2）。
+> 注：`pyproject.toml` 须含 `docker>=7.0` 与 `pyjwt>=2.8` 两个新依赖（见 PR1/PR2）。`HTTP_PROXY` / `HTTPS_PROXY` build-arg 同 §5.2 说明。
+
+### 5.4 示例配置与 nginx conf 落地
+
+PR3 将以下示例文件落地到 `deploy/`（compose `volumes:` 相对路径以仓库根为基准）：
+
+| 文件 | 内容来源 | compose 挂载目标 |
+|---|---|---|
+| `deploy/examples/ws_router.yaml` | [ws-router.md](./ws-router.md) §5 schema | `/etc/everlingo/ws_router.yaml` |
+| `deploy/examples/ws_master.yaml` | [ws-master.md](./ws-master.md) §5.1 schema | `/etc/everlingo/ws_master.yaml` |
+| `deploy/examples/ws_container_everlingo_template.yaml` | [ws-master.md](./ws-master.md) §5.2 模板 | `/etc/everlingo/ws_container_everlingo_template.yaml` |
+| `deploy/nginx/everlingo.conf.example` | [external-nginx.md](./external-nginx.md) §3 配置示例 | 宿主 nginx `sites-available/`（运维手动复制） |
+
+示例 yaml 中 secret 字段（`jwt_secret` / `master_secret` / `shared_secret`）以占位或注释指引运维用 `openssl rand -hex 32` 生成，不写明文。`deploy/examples/ws_container_everlingo_template.yaml` 为 `docs/impl-spec/multiple-users/ws_container_everlingo_template.yaml` 的部署副本（内容一致，放在 `deploy/` 便于 compose 直接挂载）。
+
+### 5.5 `.dockerignore`
+
+仓库根新增 `.dockerignore`，排除与 ws-router/ws-master 镜像无关的大目录，缩小 build context：
+
+```
+web/
+extension/
+docs/
+tests/
+mark-specific/
+.git/
+.venv/
+node_modules/
+*.md
+.github/
+.opencode/
+.vscode/
+README.assets/
+```
+
+> ws-router/ws-master 精简构建仅 `COPY pyproject.toml uv.lock`（deps stage）与 `COPY src/ src/`（runtime stage），上述目录均不参与构建。ws-container Dockerfile 需要 `web/`，但 ws-container 复用现有 `deploy/ws-container/Dockerfile`，其构建命令与 ws-router/ws-master 互独立，`.dockerignore` 对 ws-container 构建的影响需 ws-container 维护者评估（若需排除项与 ws-container 构建冲突，可在 `deploy/ws-container/` 下单独放 `.dockerignore`，docker 按路径就近取用）。
 
 ## 6. 部署步骤（运维参考）
 
@@ -186,6 +239,7 @@ export HOST_WS_DIR=$HOME/everlingo/workspaces
 mkdir -p $HOST_WS_DIR
 
 # 2. 构建 WS-Router / WS-Master 镜像
+#    代理环境下加 --build-arg HTTP_PROXY=... --build-arg HTTPS_PROXY=...
 docker buildx build -f deploy/ws-router/Dockerfile \
   -t everlingo-ws-router:0.1 .
 docker buildx build -f deploy/ws-master/Dockerfile \
@@ -195,8 +249,11 @@ docker buildx build -f deploy/ws-master/Dockerfile \
 openssl rand -hex 32 > /tmp/jwt_secret
 openssl rand -hex 32 > /tmp/master_secret
 
-# 4. 写 ws_router.yaml / ws_master.yaml / ws_container_everlingo_template.yaml
-#    （参考 ws-router.md / ws-master.md）
+# 4. 复制示例配置并填入 secret（示例见 deploy/examples/）
+#    cp deploy/examples/ws_router.yaml ./deploy/examples/ws_router.yaml  # 就地编辑或复制到 compose 目录
+#    在 ws_router.yaml 填入 jwt_secret / master_secret（步骤 3 生成的）
+#    在 ws_master.yaml 填入 shared_secret（= master_secret）、openai_api_key 等
+#    schema 参考 ws-router.md §5 / ws-master.md §5.1
 
 # 5. 启动 compose
 docker compose up -d

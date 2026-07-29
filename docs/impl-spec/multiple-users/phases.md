@@ -197,16 +197,19 @@ PR0 ──▶ PR1 ──▶ PR3
 ### 范围
 
 - 镜像构建：
-  - `deploy/ws-router/Dockerfile`（精简构建，跳过 frontend-builder，无 `web/dist`）
+  - `deploy/ws-router/Dockerfile`（精简构建，跳过 frontend-builder，无 `web/dist`；`ENTRYPOINT` 仅 `python -m everlingo`，子命令与 `--config` 由 compose `command:` 提供）
   - `deploy/ws-master/Dockerfile`（同上精简构建）
-- `docker-compose.yml`（[deploy.md](./deploy.md) §2）：
+  - 两个 Dockerfile 的 deps stage 补 `HTTP_PROXY` / `HTTPS_PROXY` build-arg，与现有 ws-container Dockerfile 对齐
+  - 仓库根新增 `.dockerignore`，排除 `web/` / `extension/` / `docs/` / `tests/` / `mark-specific/` / `.git/` / `.venv/` 等与 ws-router/ws-master 构建无关的大目录，缩小 build context
+- `docker-compose.yml`（[deploy.md](./deploy.md) §2，落地于仓库根）：
   - `ws_router` + `ws_master` + `everlingo-net` + `master-data` volume
   - `DOCKER_GID` / `HOST_WS_DIR` 环境注入
-- 示例配置文件：
-  - `ws_router.yaml` 示例
-  - `ws_master.yaml` 示例
-  - `ws_container_everlingo_template.yaml` 挂载
-- 外部 nginx 配置示例落地（[external-nginx.md](./external-nginx.md) §3）
+  - `command:` 持子命令 + `--config` 路径（与 Dockerfile `ENTRYPOINT` 拆分，见 [deploy.md](./deploy.md) §2 变更说明）
+- 示例配置文件落地到 `deploy/`（[deploy.md](./deploy.md) §5.4）：
+  - `deploy/examples/ws_router.yaml`（取 [ws-router.md](./ws-router.md) §5 schema）
+  - `deploy/examples/ws_master.yaml`（取 [ws-master.md](./ws-master.md) §5.1 schema）
+  - `deploy/examples/ws_container_everlingo_template.yaml`（为 `docs/impl-spec/multiple-users/ws_container_everlingo_template.yaml` 的部署副本，内容一致）
+- 外部 nginx 配置示例落地 `deploy/nginx/everlingo.conf.example`（[external-nginx.md](./external-nginx.md) §3）
 - 部署步骤文档化（[deploy.md](./deploy.md) §6）
 
 ### 测试
