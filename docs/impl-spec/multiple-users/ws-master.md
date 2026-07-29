@@ -94,7 +94,7 @@ WS-Master 容器挂载宿主 `/var/run/docker.sock`，通过 `group_add` 注入�
 | `openai_model` | TEXT NULL | 同上 |
 | `openai_embedding_model` | TEXT NULL | 同上 |
 
-> 变更说明：原 `workspace_dir` 字段移除——workspace 现属 ws-container 级别，由 `ws_containers.host_workspace_dir` 表达。原 `sso_subject` 字段移除——外部 IdP 身份信息移至独立 `user_identities` 表（§4.2），支持多 SSO provider 并存与一个 user 绑定多 provider。`openai_*` 四字段为远期 per-user key 预留（见 [planning-discuss.md](../../../planning-discuss.md) per-user key roadmap），Phase 1 全部 NULL，由 `ws_master.yaml` 全局配置 + `ws_container_everlingo_template.yaml` 模板兜底。
+> 变更说明：原 `workspace_dir` 字段移除——workspace 现属 ws-container 级别，由 `ws_containers.host_workspace_dir` 表达。原 `sso_subject` 字段移除——外部 IdP 身份信息移至独立 `user_identities` 表（§4.2），支持多 SSO provider 并存与一个 user 绑定多 provider。`openai_*` 四字段为远期 per-user key 预留（见  per-user key roadmap），Phase 1 全部 NULL，由 `ws_master.yaml` 全局配置 + `ws_container_everlingo_template.yaml` 模板兜底。
 
 ### 4.2 `user_identities`
 
@@ -368,6 +368,3 @@ CLI 直连 `ws_master.sqlite`，不走 internal API。
 - LLM 密钥不写入 workspace `everlingo.yaml`；经容器 env 注入，依赖 `config.py` env fallback。
 - `user_name` 不可修改（用作容器名与 workspace 目录路径）。
 
-## 11. 与 planning-discuss.md 的关系
-
-早期 `docs/planning-discuss.md` 曾设想「单进程实例内多 workspace + user_id header 注入」路线。本设计采用「每用户独立容器 + WS-Router + WS-Master」路线取代之（planning-discuss.md 现已更新为本路线的修订草案，见该文档 `workspace container` 一节）。planning-discuss.md 其余 envelope 相关讨论与本设计无关，不受影响。per-user key 为远期 roadmap（§4.1 `users.openai_*` 已预留）。
