@@ -1,0 +1,36 @@
+# workspace container 的 everlingo.yaml 模板
+#
+# 用途：WS-Master 创建新 ws-container 时，将此文件拷贝到
+#       <host_workspace_dir>/everlingo.yaml 作为该 workspace 的初始配置。
+#       见 ws-master.md §5.2。
+#
+# 关键约定：
+# - sys_setting.openai_* 留空：依赖容器 env fallback
+#   （config.py:get_llm_config() 已支持 `ss.openai_* or os.getenv("OPENAI_*")`）。
+#   LLM 密钥由 WS-Master 作为容器 env 注入，不落宿主磁盘。
+# - user_profile.language 仅放默认值：用户首次进入后可在 UI 修改并写回此文件
+#   （复用现有 save_profile 逻辑）。
+# - public_address.base_url 留空：ws-container 经 ws-router 反代，无需感知外部域名。
+
+sys_setting:
+  openai_api_key: ""        # 留空，由容器 env OPENAI_API_KEY 注入
+  openai_base_url: ""       # 同上
+  openai_model: ""          # 同上
+  openai_embedding_model: ""# 同上
+  logging_setting:
+    log_file: ""
+    log_level: debug
+
+user_profile:
+  language:
+    interface_language: zh-CN   # 默认值，用户可在 UI 修改
+    target_language: en         # 默认值，用户可在 UI 修改
+
+plugins:
+  channels:
+    channel_web:
+      listener:
+        port: 8000
+        interface: 0.0.0.0
+      public_address:
+        base_url: ""            # 由 ws-router 反代，ws-container 无需配置

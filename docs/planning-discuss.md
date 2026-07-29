@@ -1,3 +1,95 @@
+现计划对多用户部署设计作一些修正，请你看看架构上合理性、可行性，先不用细节点源码行的级别：
+
+支持多用户部署，见文档（未实现）：
+- docs/impl-spec/multiple-users/edge.md
+- docs/impl-spec/multiple-users/everlingo-master.md
+- docs/impl-spec/multiple-users/external-nginx.md
+- docs/impl-spec/multiple-users/deploy.md
+
+计划对设计作一些修正：
+- 引入概念 `workspace container` ，即为现有的 docs/impl-spec/deploy/image/container-spec.md 的 container 实例。
+- edge 服务重命名为 `ws-router` 意为 `workspace container router`
+- everlingo-master 重命名为 `ws-master`。 意为 `workspace container master`
+- 每个 workspace 一个 `workspace container`
+- 每个用户构架上支持有多个运行中的 `workspace container` 。 
+
+## workspace container
+它对应 docker container 的状态： stopped / started 。 stop 时不删除 docker container ，以加快下次 start 速度
+
+每个  `workspace container` 有自己的属性：
+- id
+- host_workspace_dir
+- state : stopped / started / 你考虑的其它
+- docker_container_id
+- docker_container_name
+
+
+## ws-master 
+
+ws-master 维护一张 user 到 `workspace container` 的 mapping 表 。但现阶段实际是每一个 user 只会建立最多一个 workspace 。所以不考虑同一 user 到不同 `workspace container` 的路由问题。
+
+### 配置
+
+`everlingo_master.yaml` 重命名为 `ws-master.yaml` 内容举例如下 :
+
+
+```yaml
+master:
+  listen: 127.0.0.1:8101           # everlingo-net 内监听；容器内即 0.0.0.0:8101
+  shared_secret: <random>          # X-Master-Token（与 edge.master_secret 一致）
+  db: /root/.everlingo/everlingo_master.sqlite
+  host_ws_dir: /workspaces   # 宿主侧 workspace 根（容器内挂载点）
+
+  image: ghcr.io/labilezhu/everlingo:0.0.1-rc.3
+  network: everlingo-net
+
+  idle_timeout: 1200                # 无 SSE client 持续秒数 → stop（默认 20 分钟）
+  healthcheck_interval: 60          # 探活间隔秒数
+  readiness_timeout: 60             # create/start 后等待 backend 就绪秒数
+```
+
+宿主侧 host_ws_dir 的目录结构应该为：
+```
+user_id1/
+  workspace_container_id1/
+  workspace_container_id2/
+user_id2/
+  workspace_container_id3/
+  workspace_container_id4/
+```
+
+#### ws_container_everlingo_template.yaml
+
+加一个配置文件： `ws_container_everlingo_template.yaml` 。  作为新建 `workspace container` 的 everlingo.yaml 的模板可变项内容模板。内容举例如下 :
+
+```yaml
+sys_setting:
+  # LLM Provider API Key（必需）
+  openai_api_key: ${OPENAI_API_KEY} # 注入用户容器 env
+  # 兼容 OpenAI Chat Completions 的 API Base URL
+  openai_base_url: https://openrouter.ai/api/v1 # 注入用户容器 env
+  # 使用的模型名称
+  openai_model: deepseek/deepseek-v4-flash # 注入用户容器 env
+  # Embedding 模型名称（可选，无默认值）。空值时 create_ai_embedding() 抛错
+  # 复用 openai_api_key / openai_base_url，指向 OpenRouter 上的 embedding 模型
+  # （如 openai/text-embedding-3-small）
+  openai_embedding_model: baai/bge-m3 # 注入用户容器 env
+
+user_profile:
+  # 用户语言设置（必填项，首次运行时交互生成）
+  language:
+    # 界面语言。可选值: "zh-CN", "en", "ja", "fr", "de"
+    interface_language: zh-CN
+    # 目标学习语言。可选值: "zh-CN", "en", "ja", "fr", "de" 。不能与 interface_language 相同
+    target_language: en
+```
+
+
+public_address
+
+
+---
+
 
 为支持多用户在同一域名下访问不同的 everlingo container 。 有什么建议方案？
 不能再依赖 Http Basic Auth 了。要有自己的认证方案和 everlingo container 路由方案。
