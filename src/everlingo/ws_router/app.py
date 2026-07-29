@@ -100,6 +100,7 @@ def create_app(config: RouterConfig) -> FastAPI:
 
         user = await state.auth_provider.login(username, password)
         if user is None:
+            logger.warning("Login failed: username=%r remote=%s", username, request.client.host if request.client else "?")
             accept = request.headers.get("Accept", "")
             if "application/json" in accept:
                 return JSONResponse(
@@ -185,6 +186,10 @@ def create_app(config: RouterConfig) -> FastAPI:
 
 
 def run_daemon(config_path: str) -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
     config = RouterConfig.load(config_path)
     app = create_app(config)
 

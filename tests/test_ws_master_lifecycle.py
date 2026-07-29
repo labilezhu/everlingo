@@ -100,6 +100,11 @@ async def test_ensure_started_absent_to_started(config, db_repos, user_and_ws):
     assert url == f"http://{ws.container_name}:8000"
     assert mock_docker.containers.create.called
 
+    create_kwargs = mock_docker.containers.create.call_args.kwargs
+    nc = create_kwargs["networking_config"]
+    assert ws.container_name in nc[config.network]["Aliases"]
+    assert "network_aliases" not in create_kwargs
+
     # Verify DB status
     updated = ws_repo.get_by_id(ws.ws_container_id)
     assert updated.status == "started"
@@ -294,4 +299,8 @@ async def test_create_injects_public_base_url_env(config, db_repos, user_and_ws)
     create_kwargs = mock_docker.containers.create.call_args.kwargs
     env = create_kwargs["environment"]
     assert env["EVERLINGO_PUBLIC_BASE_URL"] == "https://app.everlingo.com"
+
+    nc = create_kwargs["networking_config"]
+    assert ws.container_name in nc[config.network]["Aliases"]
+    assert "network_aliases" not in create_kwargs
     conn.close()

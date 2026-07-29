@@ -153,7 +153,9 @@ class ContainerLifecycle:
                 image=self._config.image,
                 name=ws.container_name,
                 network=self._config.network,
-                network_aliases=[ws.container_name],
+                networking_config={
+                    self._config.network: {"Aliases": [ws.container_name]},
+                },
                 environment={
                     "OPENAI_API_KEY": user.openai_api_key or self._config.openai_api_key,
                     "OPENAI_BASE_URL": user.openai_base_url or self._config.openai_base_url,

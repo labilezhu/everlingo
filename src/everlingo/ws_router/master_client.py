@@ -49,6 +49,7 @@ class MasterClient:
                     user_name=data["user_name"],
                     display_name=data["display_name"],
                 )
+            logger.warning("MasterClient.authenticate: master returned status=%d", resp.status_code)
             return None
         except httpx.RequestError as e:
             logger.warning("MasterClient.authenticate failed: %s", e)
@@ -67,6 +68,7 @@ class MasterClient:
                     user_name=data["user_name"],
                     display_name=data["display_name"],
                 )
+            logger.warning("MasterClient.pat_verify: master returned status=%d", resp.status_code)
             return None
         except httpx.RequestError as e:
             logger.warning("MasterClient.pat_verify failed: %s", e)
@@ -82,6 +84,7 @@ class MasterClient:
                     user_name=data["user_name"],
                     display_name=data["display_name"],
                 )
+            logger.warning("MasterClient.get_user: master returned status=%d", resp.status_code)
             return None
         except httpx.RequestError as e:
             logger.warning("MasterClient.get_user failed: %s", e)
@@ -97,6 +100,7 @@ class MasterClient:
                     backend_url=data["backend_url"],
                     status=data["status"],
                 )
+            logger.warning("MasterClient.get_default_backend: master returned status=%d", resp.status_code)
             return None
         except httpx.RequestError as e:
             logger.warning("MasterClient.get_default_backend failed: %s", e)

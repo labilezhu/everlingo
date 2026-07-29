@@ -314,6 +314,10 @@ def create_app(config: MasterConfig) -> FastAPI:
 
 def run_daemon(config_path: str) -> None:
     """Start WS-Master daemon."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
     config = MasterConfig.load(config_path)
     app = create_app(config)
 
