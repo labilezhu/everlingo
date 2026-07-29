@@ -216,10 +216,11 @@
 ```json
 {
   "ws_container_id": "770e8400-...",
-  "backend_url": "http://everlingo-mark-a1b2c3d4:8000",
+  "backend_url": "http://172.18.0.42:8000",
   "status": "started"
 }
-```
+
+> `backend_url` 使用容器在 `everlingo-net` 上的动态 IP（`_container_ip()` 从 docker attrs 读取），每次解析现取，不依赖 hostname 解析。
 
 **语义**（见 [ws-master.md](./ws-master.md) §6.1）：
 1. 查 `ws_containers` 中 `user_id` 且 `is_default=1` 的行
@@ -266,10 +267,9 @@
 ```json
 {
   "ws_container_id": "...",
-  "backend_url": "http://everlingo-mark-a1b2c3d4:8000",
+  "backend_url": "http://172.18.0.42:8000",
   "status": "started"
 }
-```
 
 **错误**
 

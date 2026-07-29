@@ -67,12 +67,19 @@ def user_and_ws(db_repos):
 # ---------------------------------------------------------------------------
 
 
-def _mock_docker_client() -> MagicMock:
+def _mock_docker_client(container_ip: str = "172.18.0.3") -> MagicMock:
     """Create a mock docker client with a mock container."""
     client = MagicMock()
     mock_container = MagicMock()
     mock_container.id = "docker-id-123"
     type(mock_container).status = PropertyMock(return_value="running")
+    mock_container.attrs = {
+        "NetworkSettings": {
+            "Networks": {
+                "test-net": {"IPAddress": container_ip},
+            },
+        },
+    }
     client.containers.create.return_value = mock_container
     client.containers.get.return_value = mock_container
     return client
@@ -97,7 +104,7 @@ async def test_ensure_started_absent_to_started(config, db_repos, user_and_ws):
 
     url, status = await lc.ensure_started(ws.ws_container_id)
     assert status == "started"
-    assert url == f"http://{ws.container_name}:8000"
+    assert url == "http://172.18.0.3:8000"
     assert mock_docker.containers.create.called
 
     create_kwargs = mock_docker.containers.create.call_args.kwargs

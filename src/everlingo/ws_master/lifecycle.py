@@ -104,9 +104,8 @@ class ContainerLifecycle:
             raise ValueError(f"ws-container {ws_container_id} not found")
 
         if ws.status == STATUS_STARTED:
-            # Re-probe
-            url = self._backend_url(ws)
-            if await self._probe(url):
+            url = await self._backend_url(ws)
+            if url and await self._probe(url):
                 self._ws_repo.update_status(ws.ws_container_id, STATUS_STARTED, last_seen_at=_now_iso())
                 return url, STATUS_STARTED
             else:
@@ -202,36 +201,29 @@ class ContainerLifecycle:
             self._ws_repo.update_status(ws.ws_container_id, STATUS_ERROR, error_message=str(e))
             return None, STATUS_ERROR
 
-        # Probe health
-        url = self._backend_url(ws)
-        if await self._probe_with_retry(url):
-            now = _now_iso()
-            self._ws_repo.update_status(
-                ws.ws_container_id,
-                STATUS_STARTED,
-                started_at=now,
-                last_seen_at=now,
-            )
-            logger.info("Container %s is healthy", ws.container_name)
-            return url, STATUS_STARTED
-        else:
-            self._ws_repo.update_status(
-                ws.ws_container_id,
-                STATUS_ERROR,
-                error_message=f"Health check timed out after {self._config.readiness_timeout}s",
-            )
-            logger.warning("Container %s health check timed out", ws.container_name)
-            return None, STATUS_ERROR
-
-    async def _probe_with_retry(self, url: str) -> bool:
-        """Probe health endpoint with retry until readiness_timeout."""
+        # Probe with retry, fetching fresh IP each iteration
         deadline = asyncio.get_event_loop().time() + self._config.readiness_timeout
-        # Retry every 2 seconds
         while asyncio.get_event_loop().time() < deadline:
-            if await self._probe(url):
-                return True
+            url = await self._backend_url(ws)
+            if url and await self._probe(url):
+                now = _now_iso()
+                self._ws_repo.update_status(
+                    ws.ws_container_id,
+                    STATUS_STARTED,
+                    started_at=now,
+                    last_seen_at=now,
+                )
+                logger.info("Container %s is healthy", ws.container_name)
+                return url, STATUS_STARTED
             await asyncio.sleep(2)
-        return False
+
+        self._ws_repo.update_status(
+            ws.ws_container_id,
+            STATUS_ERROR,
+            error_message=f"Health check timed out after {self._config.readiness_timeout}s",
+        )
+        logger.warning("Container %s health check timed out", ws.container_name)
+        return None, STATUS_ERROR
 
     async def _probe(self, url: str) -> bool:
         """Probe a single health endpoint."""
@@ -245,9 +237,34 @@ class ContainerLifecycle:
             logger.exception("Unexpected error probing %s", health_url)
             return False
 
-    def _backend_url(self, ws: WsContainerRow) -> str:
-        """Build backend URL from container name."""
-        return f"http://{ws.container_name}:8000"
+    def _container_ip(self, ws: WsContainerRow) -> Optional[str]:
+        """Read container IP on everlingo-net from docker attrs."""
+        try:
+            container = self._docker.containers.get(ws.docker_container_id or ws.container_name)
+            container.reload()
+            nets = container.attrs.get("NetworkSettings", {}).get("Networks", {})
+            net = nets.get(self._config.network)
+            if net:
+                ip = net.get("IPAddress")
+                if ip:
+                    return ip
+            for n in nets.values():
+                ip = n.get("IPAddress")
+                if ip:
+                    return ip
+            return None
+        except docker.errors.NotFound:
+            return None
+        except Exception:
+            logger.exception("Failed to read IP for %s", ws.container_name)
+            return None
+
+    async def _backend_url(self, ws: WsContainerRow) -> Optional[str]:
+        """Build backend URL from container IP on everlingo-net."""
+        ip = self._container_ip(ws)
+        if not ip:
+            return None
+        return f"http://{ip}:8000"
 
     async def stop(self, ws_container_id: str) -> bool:
         """Stop a ws-container (docker stop, don't remove)."""
@@ -308,9 +325,8 @@ class ContainerLifecycle:
                 try:
                     container = self._docker.containers.get(ws.docker_container_id)
                     if container.status == "running":
-                        # Probe health
-                        url = self._backend_url(ws)
-                        if await self._probe(url):
+                        url = await self._backend_url(ws)
+                        if url and await self._probe(url):
                             now = _now_iso()
                             self._ws_repo.update_status(
                                 ws.ws_container_id,
@@ -350,8 +366,8 @@ class ContainerLifecycle:
         now = _now_iso()
 
         for ws in rows:
-            url = self._backend_url(ws)
-            if await self._probe(url):
+            url = await self._backend_url(ws)
+            if url and await self._probe(url):
                 self._ws_repo.update_status(ws.ws_container_id, STATUS_STARTED, last_seen_at=now)
             else:
                 # Probe failed, stop container

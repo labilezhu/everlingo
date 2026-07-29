@@ -71,7 +71,7 @@ WS-Router ──http──▶ WS-Master(:8101, everlingo-net only)
                        │
                        │ create/start/stop (network=everlingo-net, alias=everlingo-<user>-<short_id>)
                        ▼
-                   everlingo-<user>-<short_id>:8000  (仅 everlingo-net 内可达)
+                   <container_ip>:8000  (仅 everlingo-net 内可达；IP 由 docker 分配，每次动态读取)
 ```
 
 WS-Master 容器挂载宿主 `/var/run/docker.sock`，通过 `group_add` 注入宿主 docker GID 获得访问权限（见 [deploy.md](./deploy.md) §权限）。
@@ -229,7 +229,7 @@ WS-Master 监听 `everlingo-net` 内 `ws_master:8101`，所有请求校验头 `X
 ### 6.1 `GET /internal/users/{user_id}/default-ws/backend` 行为
 
 1. 查 `ws_containers` 表中 `user_id` 且 `is_default=1` 的行
-2. `status=started` 且探活成功 → 返回 `http://everlingo-<user_name>-<short_id>:8000`
+2. `status=started` 且探活成功 → 返回 `http://<container_ip>:8000`（IP 由 `_container_ip()` 从 docker attrs 动态读取，不依赖 hostname 解析）
 3. `status=stopped` → `docker start` → 探活就绪 → 返回 URL
 4. `status=absent` → `docker create`（挂载 host_workspace_dir、注入 env、network=`everlingo-net`、alias=`everlingo-<user_name>-<short_id>`、不设 ports）→ `docker start` → 探活就绪 → 返回 URL
 5. 探活失败超 `readiness_timeout` → 返回 503
@@ -265,7 +265,7 @@ docker.containers.create(
 
 不设 `ports`——ws-container 仅靠 docker network alias 可达，不对宿主映射端口。复用现有 [ws-container-spec.md](../../deploy/ws-container/ws-container-spec.md) 镜像（entrypoint.sh + indexer + gateway 二进程不变）。
 
-backend_url = `http://everlingo-<user_name>-<short_id>:8000`。
+探活与 backend_url 均使用容器在 `everlingo-net` 上的动态 IP（由 `_container_ip()` 读取 `NetworkSettings.Networks[everlingo-net].IPAddress`），每次解析现取——IP 随容器重启变动，不写库缓存。后端 URL 格式：`http://<container_ip>:8000`（不需 hostname 解析，解决 ws-master 本地开发时容器 hostname 不可达的问题）。
 
 ## 7. ws-container 生命周期（状态机）
 
