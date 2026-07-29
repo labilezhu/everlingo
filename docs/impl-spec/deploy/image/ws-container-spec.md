@@ -1,4 +1,4 @@
-# Image 设计规范
+# Workspace Container Image 设计规范
 
 ## base image
 
@@ -144,6 +144,53 @@ exit "$exit_code"
 启动顺序：**indexer 必须先于 gateway 启动**（gateway 依赖 `indexer.mcp.url` 文件发现 MCP server URL，见 `mem_writer_mcp_client.py:_read_mcp_url`）。entrypoint.sh 通过轮询 `indexer.mcp.url` 文件出现 + `/dev/tcp` 端口连通探测保证此顺序。双重保险防 stale 文件：indexer 启动时 unlink 上轮残留的 `indexer.mcp.url`（`_run_indexer`），entrypoint.sh 启动 indexer 前 `rm -f` 做第二轮兜底。
 
 进程退出：`wait -n` 等任一子进程退出即全退（容器最佳实践：避免 PID 1 在子进程死后僵尸）。stdout/stderr 不重定向，`docker logs` 可见双进程输出；日志同时写 `$workspace/logs/everlingo.log` 与 `indexer.log`。
+
+## image 进程健康检查（healthz）
+
+### 动机
+
+WS-Master 的 lazy start 状态机（见 [ws-master.md](../../impl-spec/multiple-users/ws-master.md) §6.1/§7）依赖「探活通过」才能将 ws-container 从 `starting` 推进到 `started` 并返回 `backend_url`。现有容器在 entrypoint.sh 内仅做**容器内**的 indexer→gateway 顺序就绪探测（`/dev/tcp` 探 MCP 端口），**对外没有**可探活的 HTTP 端点——`web_acceptor.py` 只注册了 session / SSE / SPA 路由，无 `/healthz`。
+
+为支持多用户编排（WS-Master 探活）与单用户部署的 docker `HEALTHCHECK`，gateway 侧新增一个轻量健康检查端点。
+
+### 端点
+
+| Method | Path | 说明 |
+|---|---|---|
+| GET | `/healthz` | gateway 进程就绪自检 |
+
+- **位置**：`src/everlingo/gateway/web_acceptor.py`，注册在 `app` 上（与 session 路由同级）。
+- **成功** `200` `application/json`：
+  ```json
+  { "status": "ok" }
+  ```
+- **失败** `503`：gateway 进程尚在启动 / indexer MCP client 不可达等未就绪状态（由端点内部判定，不依赖外部超时）。
+- **语义**：返回 200 表示 gateway FastAPI 已就绪、可受理 session 请求。这是「gateway 进程级」就绪信号，不深入校验下游 LLM 可达性（LLM 调用在请求时按需失败重试即可）。
+- **无鉴权**：`/healthz` 不经过认证中间件，任何来源均可探（仅返回 `ok`，无敏感信息）。
+- **探活方**：
+  - WS-Master：lazy start 后轮询 `http://<ws-container-alias>:8000/healthz`，200 即 `started`（见 [ws-master.md](../../impl-spec/multiple-users/ws-master.md) §6.1）。
+  - docker `HEALTHCHECK`：镜像可选加 `HEALTHCHECK CMD`（见下）。
+
+### Dockerfile `HEALTHCHECK`（可选）
+
+镜像内 `python:3.12-bookworm` 基础镜像自带 `python`，可用最简方式：
+
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).read()" || exit 1
+```
+
+- `start-period=30s` 给 indexer→gateway 顺序启动留窗口。
+- 单用户独立部署也受益：`docker ps` 可见 health 状态。
+
+### 与 entrypoint.sh 就绪探测的关系
+
+| 机制 | 作用域 | 用途 |
+|---|---|---|
+| entrypoint.sh `/dev/tcp` 探 indexer MCP 端口 | **容器内** | 保证 indexer 先于 gateway 启动（进程编排顺序） |
+| `/healthz` 端点 | **容器外** | WS-Master / docker daemon 探活 gateway 是否就绪受理请求 |
+
+两者互补，不重叠：entrypoint.sh 保证「进程拉起顺序」，`/healthz` 对外宣告「gateway 已可服务」。
 
 ## image expose port
 

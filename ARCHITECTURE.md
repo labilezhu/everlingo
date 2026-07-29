@@ -41,7 +41,7 @@
 
 ## 部署
 
-- [Image 设计规范](docs/impl-spec/deploy/image/container-spec.md)
+- [Image 设计规范](docs/impl-spec/deploy/image/ws-container-spec.md)
 
 
 ## 应用的主入口

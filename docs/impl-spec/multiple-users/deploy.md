@@ -5,7 +5,7 @@
   - [ws-router.md](./ws-router.md)
   - [ws-master.md](./ws-master.md)
   - [external-nginx.md](./external-nginx.md)
-  - [container-spec.md](../deploy/image/container-spec.md)（workspace container 镜像规范）
+  - [ws-container-spec.md](../deploy/image/ws-container-spec.md)（workspace container 镜像规范）
 
 ---
 
@@ -122,7 +122,7 @@ WS-Master 镜像内不预装 docker CLI；用 `docker` Python SDK 通过 `unix:/
 
 ### 5.1 workspace container 镜像
 
-复用现有 `docs/impl-spec/deploy/image/Dockerfile`（多阶段：frontend-builder + deps + runtime），产物含 `web/dist`。见 [container-spec.md](../deploy/image/container-spec.md)。WS-Master 配置 `master.image` 指向此镜像。
+复用现有 `docs/impl-spec/deploy/image/Dockerfile`（多阶段：frontend-builder + deps + runtime），产物含 `web/dist`。见 [ws-container-spec.md](../deploy/image/ws-container-spec.md)。WS-Master 配置 `master.image` 指向此镜像。
 
 ### 5.2 WS-Router 镜像
 
@@ -210,4 +210,4 @@ docker compose exec ws_master everlingo ws_master pat add --user mark --label "c
 
 ## 7. 单用户独立部署（对照）
 
-上述为多用户 WS-Master 编排模式。单用户独立部署仍沿用 [container-spec.md](../deploy/image/container-spec.md) 的「经典部署方法」：单个 everlingo 容器直挂 workspace，nginx 或直接暴露端口。两条路线并存，按部署规模选择。
+上述为多用户 WS-Master 编排模式。单用户独立部署仍沿用 [ws-container-spec.md](../deploy/image/ws-container-spec.md) 的「经典部署方法」：单个 everlingo 容器直挂 workspace，nginx 或直接暴露端口。两条路线并存，按部署规模选择。

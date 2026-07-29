@@ -6,7 +6,7 @@
   - [ws-router.md](./ws-router.md)
   - [deploy.md](./deploy.md)
   - [external-nginx.md](./external-nginx.md)
-  - [container-spec.md](../deploy/image/container-spec.md)（workspace container 镜像规范）
+  - [ws-container-spec.md](../deploy/image/ws-container-spec.md)（workspace container 镜像规范）
 
 ---
 
@@ -24,7 +24,7 @@ WS-Master **不**反代用户流量、**不**面向公网、**不**签发 WS-Rou
 
 ## 2. 概念模型：workspace container（ws-container）
 
-**workspace container**（简称 ws-container）即 [container-spec.md](../deploy/image/container-spec.md) 描述的容器实例——一个运行 everlingo 双进程（indexer + gateway）的 docker container，承载一个 workspace 的全部数据与进程。
+**workspace container**（简称 ws-container）即 [ws-container-spec.md](../deploy/image/ws-container-spec.md) 描述的容器实例——一个运行 everlingo 双进程（indexer + gateway）的 docker container，承载一个 workspace 的全部数据与进程。
 
 引入此概念是为了把「容器生命周期」与「用户身份」解耦：
 
@@ -256,7 +256,7 @@ docker.containers.create(
 )
 ```
 
-不设 `ports`——ws-container 仅靠 docker network alias 可达，不对宿主映射端口。复用现有 [container-spec.md](../deploy/image/container-spec.md) 镜像（entrypoint.sh + indexer + gateway 二进程不变）。
+不设 `ports`——ws-container 仅靠 docker network alias 可达，不对宿主映射端口。复用现有 [ws-container-spec.md](../deploy/image/ws-container-spec.md) 镜像（entrypoint.sh + indexer + gateway 二进程不变）。
 
 backend_url = `http://everlingo-<user_name>-<short_id>:8000`。
 
