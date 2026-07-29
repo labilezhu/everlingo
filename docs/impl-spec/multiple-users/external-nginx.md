@@ -90,7 +90,7 @@ server {
 
 - WS-Router 配置 `ws_router.trusted_proxy: 127.0.0.1`（仅信任 nginx 来源 IP 的 `X-Forwarded-Proto`），防客户端伪造。
 - WS-Router 容器 `ports: ["127.0.0.1:8100:8100"]`（仅监听宿主 loopback，不对外）。
-- 若 WS-Router 与 nginx 同宿主，`127.0.0.1` 足够；若 nginx 在另一台机器，改为 nginx 可达的地址并收紧 `trusted_proxy`。
+- 若 WS-Router 与 nginx 同宿主，`127.0.0.1` 足够；若 nginx 在另一台机器（跨机拓扑），`proxy_pass` 改为 nginx 可达的 ws-router 地址，且 `trusted_proxy` 必须配为 **nginx 的出站 IP**（ws-router 看到的来源 IP），而非 `127.0.0.1`——否则 ws-router 会把 nginx 当作不可信来源，忽略 `X-Forwarded-Proto`，导致 cookie 不带 Secure 位、HTTPS 下行为异常。例：nginx 在 `192.168.16.68`、ws-router 在 `192.168.16.130`，则 `trusted_proxy: 192.168.16.68`，`proxy_pass http://192.168.16.130:8100`。
 
 ## 6. WebSocket（未来）
 

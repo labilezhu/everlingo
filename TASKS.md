@@ -1,5 +1,15 @@
 # Tasks
 
+- 2026-07-29 | 执行 `mark-specific/local-deploy/130_deploy/130-everlingo-nginx.md` 部署计划：
+  - §3.1 签发 TLS 证书：acme.sh dns_ali 成功签发 `home130-everlingo.mygraphql.com`，`--installcert` 到 `/etc/nginx/cert.d/`，`--reloadcmd` 触发 `nginx -s reload`。
+  - §3.3+§3.4 新建 site 配置并启用：`/etc/nginx/sites-available/home130-everlingo` 写入完整 server block（6457 ssl IPv4+IPv6、SSE 配置、proxy_pass http://192.168.16.130:8100），`ln -s` 启用，`nginx -t` 通过，`systemctl reload nginx` 成功。
+  - §4 验证：在 `.130:8100` mock HTTP server，curl `https://home130-everlingo.mygraphql.com:6457/` 返回 `200 Hello from ws-router mock`。TLSv1.3 握手成功，证书验证通过，nginx 正确透传到上游。
+- 2026-07-29 | 完善 `mark-specific/local-deploy/130_deploy/130-everlingo-nginx.md`（公网 nginx TLS 反代到 `.130:8100` ws-router 的本地测试计划）：
+  - §2.2 改写为「TLS terminate + 明文 HTTP `proxy_pass` 跨机透传，nginx 不做 HTTP 层业务逻辑（无认证/无分流/无缓冲）」，消除原「不处理 HTTP 协议」与「转发明文 HTTP」的自相矛盾，并点明与 `external-nginx.md` 同宿主假设的差异（`proxy_pass http://192.168.16.130:8100`）。
+  - 新增 §2.3「SSE 长连接 / 无 buffer」指令表（`proxy_buffering off` / `proxy_cache off` / `proxy_read/send_timeout 3600s` / `proxy_http_version 1.1` + `Connection ""`），与 `external-nginx.md` §4 对齐；标注当前仅 SSE、不设 WebSocket `Upgrade` 头。
+  - 新增 §2.4「trusted_proxy 跨机注意」（展开为 §2.4.1~2.4.3 三小节）：§2.4.1 解释 trusted_proxy 逻辑——只采信白名单内来源 IP 的 `X-Forwarded-Proto`，防客户端伪造；该头决定 cookie `Secure` 位。§2.4.2 说明跨机场景的坑：照搬 `ws-router.md` §5 范例的 `trusted_proxy: 127.0.0.1`（同宿主前提）会导致 nginx(.68)→ws-router(.130) 来源 IP 不匹配，ws-router 忽略 `X-Forwarded-Proto`、cookie 不带 Secure、重定向/base_url 错用 `http://`。§2.4.3 给出正确配置 `trusted_proxy: 192.168.16.68`（nginx 出站 IP）。
+  - §3.3 补全完整 `server` block 配置（`listen 6457 ssl` IPv4+IPv6、`ssl_certificate*`、`X-Forwarded-Proto $scheme`、`proxy_pass_request_headers on` 透传 `Authorization: Bearer`、SSE 指令、`location / proxy_pass http://192.168.16.130:8100`），附逐项对应 ws-router/external-nginx 章节的设计注解。
+  - 同步更新设计文档 `docs/impl-spec/multiple-users/external-nginx.md` §5：明确「nginx 与 ws-router 跨机时 `trusted_proxy` 必须配为 nginx 出站 IP（非 127.0.0.1）」，并给出 `.68/.130` 示例，避免读者照搬同宿主范例导致 cookie Secure 失效。
 - 2026-07-29 当前 | **PR1 — WS-Master 模块**：完整实现三层架构。
   - **数据层**：`config.py`（Pydantic dataclass 读 `ws_master.yaml` + env 展开 `${VAR}`）、`db.py`（四张表幂等建表 + WAL + foreign_keys + check_same_thread=False）、`repo.py`（UserRepo/PatRepo/WsContainerRepo/IdentityRepo 纯 CRUD + 约束）、`pat_utils.py`（`elpat_<base62>` 生成 + sha256 哈希）。
   - **CLI 层**：`cli.py`（`user add/list/rm`、`pat add/list/rm`、`ws add/list/rm/start/stop/set-default`、`identity list/unlink`，直连 sqlite，`user add` 同步创建 default ws-container status=absent）。密码用 PBKDF2-SHA256（stdlib，零外依赖）。
