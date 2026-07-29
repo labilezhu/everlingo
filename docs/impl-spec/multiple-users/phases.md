@@ -200,7 +200,7 @@ PR0 ──▶ PR1 ──▶ PR3
   - `deploy/ws-router/Dockerfile`（精简构建，跳过 frontend-builder，无 `web/dist`；`ENTRYPOINT` 仅 `python -m everlingo`，子命令与 `--config` 由 compose `command:` 提供）
   - `deploy/ws-master/Dockerfile`（同上精简构建）
   - 两个 Dockerfile 的 deps stage 补 `HTTP_PROXY` / `HTTPS_PROXY` build-arg，与现有 ws-container Dockerfile 对齐
-  - 仓库根新增 `.dockerignore`，排除 `web/` / `extension/` / `docs/` / `tests/` / `mark-specific/` / `.git/` / `.venv/` 等与 ws-router/ws-master 构建无关的大目录，缩小 build context
+  - 仓库根新增 `.dockerignore`，排除 `web/node_modules/` / `web/dist/` / `extension/` / `docs/` / `tests/` / `mark-specific/` / `.git/` / `.venv/` 等与 ws-router/ws-master 构建无关的大目录（排除 `web/node_modules/` + `web/dist/` 而非整个 `web/`，因为 ws-container 共用同一 build context 的 `.dockerignore`，需要 `web/` 中其他文件构建前端），缩小 build context
 - `docker-compose.yml`（[deploy.md](./deploy.md) §2，落地于仓库根）：
   - `ws_router` + `ws_master` + `everlingo-net` + `master-data` volume
   - `DOCKER_GID` / `HOST_WS_DIR` 环境注入

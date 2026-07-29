@@ -25,6 +25,12 @@ master:
   openai_model: deepseek/deepseek-v4-flash
   openai_embedding_model: baai/bge-m3
 
+  # 外部访问地址（HTTPS）。注入 ws-container env EVERLINGO_PUBLIC_BASE_URL，
+  # 供 ws-container 内 setting.get_web_public_base_url() env fallback 使用——
+  # Chat Agent 据此生成指向外部域名的笔记链接（Web Chatbot / Chrome Extension 均依赖）。
+  # 应与 ws_router.yaml 的 public_base_url 保持一致。
+  public_base_url: https://app.everlingo.com
+
   # 无 SSE client 持续秒数 → stop（默认 20 分钟）
   idle_timeout: 1200
   # 探活间隔秒数

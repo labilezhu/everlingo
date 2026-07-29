@@ -120,12 +120,22 @@ def get_web_listener() -> WebListener:
 def get_web_public_base_url() -> str:
     """返回 Web 前端浏览器访问地址。
 
-    优先使用配置的 public_address.base_url；
-    空值时从 listener 生效配置自动生成：http://{interface}:{port}。
+    优先级：
+    1. 配置的 public_address.base_url（everlingo.yaml）
+    2. 环境变量 EVERLINGO_PUBLIC_BASE_URL（多用户拓扑下由 WS-Master 注入）
+    3. listener 生效配置自动生成：http://{interface}:{port}
+
+    ref: docs/impl-spec/web-session-acceptor.md — public_address
+    ref: docs/impl-spec/multiple-users/ws-master.md — public_base_url 透传
     """
+    import os
+
     setting = load_setting()
     web = setting.plugins.channels.channel_web
     if web.public_address.base_url.strip():
         return web.public_address.base_url.strip()
+    env = os.getenv("EVERLINGO_PUBLIC_BASE_URL", "")
+    if env.strip():
+        return env.strip()
     listener = web.listener
     return f"http://{listener.interface}:{listener.port}"

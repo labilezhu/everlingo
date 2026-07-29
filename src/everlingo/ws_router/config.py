@@ -17,7 +17,7 @@ class RouterConfig:
     """WS-Router 配置，对应 ws_router.yaml 的 `ws_router:` 节。"""
 
     listen: str = "0.0.0.0:8100"
-    base_url: str = "http://localhost:8100"
+    public_base_url: str = "http://localhost:8100"
     trusted_proxy: str = "127.0.0.1"
 
     master_url: str = "http://ws_master:8101"

@@ -30,6 +30,13 @@ class MasterConfig:
     openai_model: str = ""
     openai_embedding_model: str = ""
 
+    # 外部访问地址（如 https://app.everlingo.com）：注入 ws-container env
+    # EVERLINGO_PUBLIC_BASE_URL，供 ws-container 内 setting.get_web_public_base_url()
+    # env fallback 使用——Chat Agent 据此生成指向外部域名的笔记链接
+    # （Web Chatbot / Chrome Extension 均依赖）。
+    # 应与 ws_router.yaml 的 public_base_url 保持一致。
+    public_base_url: str = ""
+
     idle_timeout: int = 1200
     healthcheck_interval: int = 60
     readiness_timeout: int = 60
@@ -49,6 +56,7 @@ class MasterConfig:
             "openai_base_url",
             "openai_model",
             "openai_embedding_model",
+            "public_base_url",
         ]
         for key in env_keys:
             val = master.get(key, "")

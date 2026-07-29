@@ -10,7 +10,10 @@
 #   LLM 密钥由 WS-Master 作为容器 env 注入，不落宿主磁盘。
 # - user_profile.language 仅放默认值：用户首次进入后可在 UI 修改并写回此文件
 #   （复用现有 save_profile 逻辑）。
-# - public_address.base_url 留空：ws-container 经 ws-router 反代，无需感知外部域名。
+# - public_address.base_url 留空：外部域名不写进 template（避免被用户在 UI 误改、
+#   且部署域名变更后无法跟随更新）。改由 WS-Master 把 ws_master.yaml 的
+#   public_base_url 经容器 env EVERLINGO_PUBLIC_BASE_URL 注入，
+#   setting.get_web_public_base_url() 的 env fallback 据此返回外部域名。
 
 sys_setting:
   openai_api_key: ""        # 留空，由容器 env OPENAI_API_KEY 注入
@@ -33,4 +36,4 @@ plugins:
         port: 8000
         interface: 0.0.0.0
       public_address:
-        base_url: ""            # 由 ws-router 反代，ws-container 无需配置
+        base_url: ""            # 留空；由 WS-Master 注入 EVERLINGO_PUBLIC_BASE_URL env

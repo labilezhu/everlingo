@@ -635,6 +635,43 @@ def test_get_web_public_base_url_custom(monkeypatch, tmp_path):
     assert url == "https://myapp.com"
 
 
+def test_get_web_public_base_url_env_fallback(monkeypatch, tmp_path):
+    """base_url 留空但有 EVERLINGO_PUBLIC_BASE_URL env 时返回 env 值。
+
+    多用户拓扑下 WS-Master 把 ws_master.yaml 的 public_base_url 经 env 注入
+    ws-container，setting.get_web_public_base_url() 据此 env fallback 返回外部域名。
+    ref: docs/impl-spec/multiple-users/ws-master.md — public_base_url 透传
+    """
+    from everlingo import workspace
+    monkeypatch.setattr(workspace, "WORKSPACE_ROOT", tmp_path)
+    ws = tmp_path
+    cfg = ws / "everlingo.yaml"
+    cfg.write_text(
+        "plugins:\n  channels:\n    channel_web:\n      listener:\n        interface: 0.0.0.0\n        port: 8888\n",
+        encoding="utf-8",
+    )
+    workspace.init_workspace(str(ws))
+    monkeypatch.setenv("EVERLINGO_PUBLIC_BASE_URL", "https://app.everlingo.com")
+    url = get_web_public_base_url()
+    assert url == "https://app.everlingo.com"
+
+
+def test_get_web_public_base_url_env_overridden_by_config(monkeypatch, tmp_path):
+    """显式配置 base_url 优先于 env（用户在 everlingo.yaml 手填则以其为准）。"""
+    from everlingo import workspace
+    monkeypatch.setattr(workspace, "WORKSPACE_ROOT", tmp_path)
+    ws = tmp_path
+    cfg = ws / "everlingo.yaml"
+    cfg.write_text(
+        "plugins:\n  channels:\n    channel_web:\n      public_address:\n        base_url: https://from-yaml.com\n",
+        encoding="utf-8",
+    )
+    workspace.init_workspace(str(ws))
+    monkeypatch.setenv("EVERLINGO_PUBLIC_BASE_URL", "https://from-env.com")
+    url = get_web_public_base_url()
+    assert url == "https://from-yaml.com"
+
+
 def test_get_web_listener(monkeypatch, tmp_path):
     from everlingo import workspace
     monkeypatch.setattr(workspace, "WORKSPACE_ROOT", tmp_path)

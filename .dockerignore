@@ -1,7 +1,16 @@
-# 排除 ws-router/ws-master 精简构建不需要的大目录
-# ws-container 构建（deploy/ws-container/Dockerfile）需要 web/，若冲突则
-# 在 deploy/ws-container/ 下单独放 .dockerignore（docker 按路径就近取用）。
-web/
+# 顶层 .dockerignore — 三 Dockerfile（ws-container / ws-router / ws-master）共用 repo root 作 build context
+# （均以 `docker buildx build -f deploy/xxx/Dockerfile .` 构建），故此处排除项必须对三者皆无 COPY 依赖。
+# Docker 只读取 build context root 下的这一个 .dockerignore（不支持 per-Dockerfile .dockerignore），
+# 旧版注释中的「docker 按路径就近取用」为错误表述，已修正。
+#
+# ws-container 需要 web/（Stage1 COPY web/package.json web/package-lock.json → npm ci → COPY web/ → npm run build，
+# 在自己的 stage 内生成 /web/dist 进最终镜像）与 deploy/ws-container/root/（COPY root/ /），二者不可排除。
+# ws-router/ws-master 仅 COPY pyproject.toml uv.lock 与 src/，不 COPY web/。
+# web/node_modules/ 与 web/dist/ 是本地前端构建产物/依赖目录，三 Dockerfile 均不 COPY 它们
+# （ws-container Stage1 在自己环境内 npm ci + npm run build 现场重建），排除之可大幅缩小 context。
+
+web/node_modules/
+web/dist/
 extension/
 docs/
 tests/

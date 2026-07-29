@@ -205,7 +205,7 @@ CORSMiddleware(
 ```yaml
 ws_router:
   listen: 0.0.0.0:8100
-  base_url: https://app.everlingo.com
+  public_base_url: https://app.everlingo.com   # 外部访问地址；应与 ws_master.yaml 的 public_base_url 保持一致
   trusted_proxy: 127.0.0.1          # 仅信任 nginx 来源
 
   master_url: http://ws_master:8101

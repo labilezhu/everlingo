@@ -159,6 +159,7 @@ class ContainerLifecycle:
                     "OPENAI_BASE_URL": user.openai_base_url or self._config.openai_base_url,
                     "OPENAI_MODEL": user.openai_model or self._config.openai_model,
                     "OPENAI_EMBEDDING_MODEL": user.openai_embedding_model or self._config.openai_embedding_model,
+                    "EVERLINGO_PUBLIC_BASE_URL": self._config.public_base_url,
                     "EVERLINGO_WORKSPACE_DIR": "/home/everlingo/.everlingo/workspaces/default",
                 },
                 volumes={

@@ -210,10 +210,11 @@ PR3 将以下示例文件落地到 `deploy/`（compose `volumes:` 相对路径�
 
 ### 5.5 `.dockerignore`
 
-仓库根新增 `.dockerignore`，排除与 ws-router/ws-master 镜像无关的大目录，缩小 build context：
+仓库根放 `.dockerignore`（Docker 只读取 build context root 下的这一个，不支持 per-Dockerfile `.dockerignore`，「按路径就近取用」为错误表述，已在源文件注释中修正）。排除与 ws-router/ws-master 构建无关的大目录，同时不影响 ws-container 构建：
 
 ```
-web/
+web/node_modules/
+web/dist/
 extension/
 docs/
 tests/
@@ -228,7 +229,7 @@ node_modules/
 README.assets/
 ```
 
-> ws-router/ws-master 精简构建仅 `COPY pyproject.toml uv.lock`（deps stage）与 `COPY src/ src/`（runtime stage），上述目录均不参与构建。ws-container Dockerfile 需要 `web/`，但 ws-container 复用现有 `deploy/ws-container/Dockerfile`，其构建命令与 ws-router/ws-master 互独立，`.dockerignore` 对 ws-container 构建的影响需 ws-container 维护者评估（若需排除项与 ws-container 构建冲突，可在 `deploy/ws-container/` 下单独放 `.dockerignore`，docker 按路径就近取用）。
+> ws-router/ws-master 精简构建仅 `COPY pyproject.toml uv.lock`（deps stage）与 `COPY src/ src/`（runtime stage），上述目录均不参与构建。ws-container 需要 `web/` 但不需要 `web/node_modules/`（Stage1 自会 `npm ci` 重建）与 `web/dist/`（Stage1 自会 `npm run build` 现场生成），故排除二者而非整个 `web/`。三 Dockerfile 均以 `docker buildx build -f deploy/xxx/Dockerfile .` 从 repo root 构建，共用同一个 `.dockerignore`。
 
 ## 6. 部署步骤（运维参考）
 

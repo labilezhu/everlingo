@@ -180,6 +180,12 @@ master:
   openai_model: deepseek/deepseek-v4-flash
   openai_embedding_model: baai/bge-m3
 
+  # 外部访问地址（如 https://app.everlingo.com）。注入 ws-container env
+  # EVERLINGO_PUBLIC_BASE_URL，供 ws-container 内 setting.get_web_public_base_url()
+  # env fallback 使用——Chat Agent 据此生成指向外部域名的笔记链接（Web Chatbot /
+  # Chrome Extension 均依赖）。应与 ws_router.yaml 的 public_base_url 保持一致。
+  public_base_url: https://app.everlingo.com
+
   idle_timeout: 1200                # 无 SSE client 持续秒数 → stop（默认 20 分钟）
   healthcheck_interval: 60          # 探活间隔秒数
   readiness_timeout: 60             # create/start 后等待 backend 就绪秒数
@@ -199,7 +205,7 @@ master:
 关键约定：
 - `sys_setting.openai_*` **留空**——依赖容器 env fallback（`config.py` 已支持），避免密钥落盘。
 - `user_profile.language` 仅放**默认值**——用户首次进入后可在 UI 修改并写回此文件（复用现有 `save_profile` 逻辑）。
-- `plugins.channels.channel_web.public_address.base_url` 留空——ws-container 经 ws-router 反代，无需感知外部域名。
+- `plugins.channels.channel_web.public_address.base_url` **留空**——外部域名不写进 template（避免被用户在 UI 误改、且部署域名变更后无法跟随更新）。改由 WS-Master 把 `ws_master.yaml` 的 `public_base_url` 经容器 env `EVERLINGO_PUBLIC_BASE_URL` 注入，`setting.get_web_public_base_url()` 的 env fallback（优先级：yaml 显式配置 > env > listener 自动生成）据此返回外部域名。Chat Agent 用此值生成笔记链接（见 [chat-agent-spec.md §笔记文件地址的输出格式](../chat-agent-spec.md)），Web Chatbot `/editor` 跳转与 Chrome Extension 点笔记链接均依赖此地址正确。
 
 ## 6. Internal API
 
@@ -244,6 +250,7 @@ docker.containers.create(
         "OPENAI_BASE_URL": user.openai_base_url or master_config.openai_base_url,
         "OPENAI_MODEL": user.openai_model or master_config.openai_model,
         "OPENAI_EMBEDDING_MODEL": user.openai_embedding_model or master_config.openai_embedding_model,
+        "EVERLINGO_PUBLIC_BASE_URL": master_config.public_base_url,
         "EVERLINGO_WORKSPACE_DIR": "/home/everlingo/.everlingo/workspaces/default",
     },
     volumes={
@@ -368,5 +375,6 @@ CLI 直连 `ws_master.sqlite`，不走 internal API。
 - WS-Master 不签发 WS-Router JWT；JWT 签发与验签在 WS-Router 侧（共享 `jwt_secret`）。
 - `docker stop` 不删 workspace；只有显式 `ws rm --purge` 或 `user rm --purge` 才删。
 - LLM 密钥不写入 workspace `everlingo.yaml`；经容器 env 注入，依赖 `config.py` env fallback。
+- 外部访问域名（`public_base_url`）不写入 workspace `everlingo.yaml`；由 WS-Master 经容器 env `EVERLINGO_PUBLIC_BASE_URL` 注入，依赖 `setting.get_web_public_base_url()` env fallback。应与 `ws_router.yaml` 的 `public_base_url` 保持一致。
 - `user_name` 不可修改（用作容器名与 workspace 目录路径）。
 

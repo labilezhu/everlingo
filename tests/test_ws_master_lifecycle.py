@@ -268,3 +268,30 @@ async def test_reconcile_started_running(config, db_repos, user_and_ws):
     updated = ws_repo.get_by_id(ws.ws_container_id)
     assert updated.status == "started"
     conn.close()
+
+
+@pytest.mark.asyncio
+async def test_create_injects_public_base_url_env(config, db_repos, user_and_ws):
+    """创建 ws-container 时把 MasterConfig.public_base_url 注入为
+    EVERLINGO_PUBLIC_BASE_URL env。
+
+    ws-container 内 setting.get_web_public_base_url() 据此 env fallback 返回外部域名，
+    Chat Agent 据此生成指向外部域名的笔记链接（Web Chatbot / Chrome Extension 依赖）。
+    ref: docs/impl-spec/multiple-users/ws-master.md — public_base_url 透传
+    """
+    conn, user_repo, ws_repo = db_repos
+    user, ws = user_and_ws
+
+    # 设一个非默认 public_base_url
+    config.public_base_url = "https://app.everlingo.com"
+
+    mock_docker = _mock_docker_client()
+    lc = ContainerLifecycle(config, ws_repo, user_repo, docker_client=mock_docker)
+    lc._probe = AsyncMock(return_value=True)  # type: ignore
+
+    await lc.ensure_started(ws.ws_container_id)
+
+    create_kwargs = mock_docker.containers.create.call_args.kwargs
+    env = create_kwargs["environment"]
+    assert env["EVERLINGO_PUBLIC_BASE_URL"] == "https://app.everlingo.com"
+    conn.close()
