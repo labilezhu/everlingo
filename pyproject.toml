@@ -28,6 +28,8 @@ dependencies = [
     "sqlite-vec>=0.1.0",
     "fastmcp>=2.0",
     "langchain-mcp-adapters>=0.3.0",
+    "docker>=7.0",
+    "pyjwt>=2.8",
 ]
 
 [project.scripts]
@@ -47,4 +49,10 @@ markers = [
 ]
 addopts = [
     "-m", "not integration",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
 ]

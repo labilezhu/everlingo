@@ -1,9 +1,11 @@
 # ref: app-entry.md — python module main
 # everlingo 主入口。向后兼容：无子命令时 = 当前 stdio gateway 行为。
 # 子命令：
-#   everlingo mem ...     memory vault 搜索索引维护
-#   everlingo gateway ... 显式启动 gateway 进程
-#   everlingo wiki ...    wiki 知识库静态站构建与服务
+#   everlingo mem ...        memory vault 搜索索引维护
+#   everlingo gateway ...    显式启动 gateway 进程
+#   everlingo wiki ...       wiki 知识库静态站构建与服务
+#   everlingo ws_router ...  前台反代 + 认证服务（多用户部署，PR2 实现）
+#   everlingo ws_master ...  后台编排服务（多用户部署，PR1 实现）
 
 import argparse
 import asyncio
@@ -125,6 +127,10 @@ def _build_parser() -> argparse.ArgumentParser:
         default=8765,
         help="监听端口（默认 8765）",
     )
+    # ws_router 子命令（PR0 骨架，PR2 实现完整逻辑）
+    sub.add_parser("ws_router", help="前台反代 + 认证服务（多用户部署）")
+    # ws_master 子命令（PR0 骨架，PR1 实现完整逻辑）
+    sub.add_parser("ws_master", help="后台编排服务（多用户部署）")
     return parser
 
 
@@ -161,6 +167,22 @@ def _dispatch(args: argparse.Namespace) -> int:
 
             return cmd_serve(args)
         return 2
+    if args.cmd == "ws_router":
+        # PR0 骨架占位；PR2 实现完整反代 + 认证逻辑
+        print(
+            "WS-Router: not yet implemented (PR2). "
+            "Use `everlingo ws_router --help` for usage.",
+            file=sys.stderr,
+        )
+        return 0
+    if args.cmd == "ws_master":
+        # PR0 骨架占位；PR1 实现完整编排 + CLI 运维逻辑
+        print(
+            "WS-Master: not yet implemented (PR1). "
+            "Use `everlingo ws_master --help` for usage.",
+            file=sys.stderr,
+        )
+        return 0
     # 无子命令：向后兼容 = stdio gateway
     _apply_workspace_args(args)
     from .gateway.gateway import Gateway
