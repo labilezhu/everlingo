@@ -62,12 +62,12 @@ describe('sendEnvelope', () => {
     const mockFetch = vi.fn().mockResolvedValue({ ok: true });
     vi.stubGlobal('fetch', mockFetch);
     const env = { schema_version: 1 } as any;
-    await sendEnvelope('http://localhost:8000', 'sid-1', env, 'Basic dXNlcjpwYXNz');
+    await sendEnvelope('http://localhost:8000', 'sid-1', env, 'Bearer elpat_test123');
     expect(mockFetch).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
         headers: expect.objectContaining({
-          Authorization: 'Basic dXNlcjpwYXNz',
+          Authorization: 'Bearer elpat_test123',
         }),
       }),
     );
@@ -88,9 +88,9 @@ describe('connectSSE', () => {
       'sid-1',
       vi.fn(),
       vi.fn(),
-      'Basic dXNlcjpwYXNz',
+      'Bearer elpat_test123',
     );
-    expect(passedHeaders).toEqual({ Authorization: 'Basic dXNlcjpwYXNz' });
+    expect(passedHeaders).toEqual({ Authorization: 'Bearer elpat_test123' });
     result.cleanup();
   });
 

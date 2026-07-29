@@ -1,7 +1,6 @@
 export const DEFAULT_API_BASE_URL = 'http://localhost:8000';
 export const SERVER_URL_STORAGE_KEY = 'server_url';
-export const SERVER_USERNAME_STORAGE_KEY = 'server_username';
-export const SERVER_PASSWORD_STORAGE_KEY = 'server_password';
+export const SERVER_TOKEN_STORAGE_KEY = 'server_token';
 
 export function normalizeUrl(input: string): string {
   let url = input.trim();
@@ -25,27 +24,24 @@ export async function getApiBaseUrl(): Promise<string> {
   return DEFAULT_API_BASE_URL;
 }
 
-export async function getApiAuth(): Promise<{ username: string; password: string }> {
-  const items = await chrome.storage.local.get([SERVER_USERNAME_STORAGE_KEY, SERVER_PASSWORD_STORAGE_KEY]);
-  return {
-    username: typeof items[SERVER_USERNAME_STORAGE_KEY] === 'string' ? items[SERVER_USERNAME_STORAGE_KEY] : '',
-    password: typeof items[SERVER_PASSWORD_STORAGE_KEY] === 'string' ? items[SERVER_PASSWORD_STORAGE_KEY] : '',
-  };
+export async function getApiToken(): Promise<string> {
+  const { [SERVER_TOKEN_STORAGE_KEY]: stored } = await chrome.storage.local.get(SERVER_TOKEN_STORAGE_KEY);
+  return typeof stored === 'string' ? stored : '';
 }
 
-export function buildBasicAuthHeader(username: string, password: string): string | null {
-  const u = username.trim();
-  if (!u) return null;
-  return 'Basic ' + btoa(unescape(encodeURIComponent(`${u}:${password}`)));
+export function buildBearerHeader(token: string): string | null {
+  const t = token.trim();
+  if (!t) return null;
+  return 'Bearer ' + t;
 }
 
 export async function getApiConfig(): Promise<{ baseUrl: string; authHeader: string | null }> {
-  const [baseUrl, { username, password }] = await Promise.all([
+  const [baseUrl, token] = await Promise.all([
     getApiBaseUrl(),
-    getApiAuth(),
+    getApiToken(),
   ]);
   return {
     baseUrl,
-    authHeader: buildBasicAuthHeader(username, password),
+    authHeader: buildBearerHeader(token),
   };
 }

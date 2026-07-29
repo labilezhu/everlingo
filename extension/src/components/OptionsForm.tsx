@@ -5,17 +5,15 @@ import { Eye, EyeOff } from 'lucide-react';
 import {
   DEFAULT_API_BASE_URL,
   SERVER_URL_STORAGE_KEY,
-  SERVER_USERNAME_STORAGE_KEY,
-  SERVER_PASSWORD_STORAGE_KEY,
+  SERVER_TOKEN_STORAGE_KEY,
   normalizeUrl,
-  buildBasicAuthHeader,
+  buildBearerHeader,
 } from '@/config';
 
 export default function OptionsForm() {
   const [url, setUrl] = useState('');
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPwd, setShowPwd] = useState(false);
+  const [token, setToken] = useState('');
+  const [showToken, setShowToken] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
   const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'ok' | 'fail'>('idle');
@@ -25,12 +23,10 @@ export default function OptionsForm() {
     (async () => {
       const items = await chrome.storage.local.get([
         SERVER_URL_STORAGE_KEY,
-        SERVER_USERNAME_STORAGE_KEY,
-        SERVER_PASSWORD_STORAGE_KEY,
+        SERVER_TOKEN_STORAGE_KEY,
       ]);
       setUrl(typeof items[SERVER_URL_STORAGE_KEY] === 'string' ? items[SERVER_URL_STORAGE_KEY] : DEFAULT_API_BASE_URL);
-      setUsername(typeof items[SERVER_USERNAME_STORAGE_KEY] === 'string' ? items[SERVER_USERNAME_STORAGE_KEY] : '');
-      setPassword(typeof items[SERVER_PASSWORD_STORAGE_KEY] === 'string' ? items[SERVER_PASSWORD_STORAGE_KEY] : '');
+      setToken(typeof items[SERVER_TOKEN_STORAGE_KEY] === 'string' ? items[SERVER_TOKEN_STORAGE_KEY] : '');
     })();
   }, []);
 
@@ -46,8 +42,7 @@ export default function OptionsForm() {
       const normalized = normalizeUrl(url);
       await chrome.storage.local.set({
         [SERVER_URL_STORAGE_KEY]: normalized,
-        [SERVER_USERNAME_STORAGE_KEY]: username,
-        [SERVER_PASSWORD_STORAGE_KEY]: password,
+        [SERVER_TOKEN_STORAGE_KEY]: token,
       });
       setUrl(normalized);
       setSaved(true);
@@ -71,7 +66,7 @@ export default function OptionsForm() {
       return;
     }
 
-    const authHeader = buildBasicAuthHeader(username, password);
+    const authHeader = buildBearerHeader(token);
     const headers: Record<string, string> = { Accept: 'text/event-stream' };
     if (authHeader) {
       headers['Authorization'] = authHeader;
@@ -90,7 +85,7 @@ export default function OptionsForm() {
         setTestMsg(res.ok ? '连接成功' : '连接成功（服务端已就绪）');
       } else if (res.status === 401 || res.status === 403) {
         setTestStatus('fail');
-        setTestMsg(res.status === 401 ? '用户名或密码错误（401）' : '访问被拒绝（403），请检查凭据');
+        setTestMsg(res.status === 401 ? 'Token 无效（401）' : '访问被拒绝（403），请检查凭据');
       } else {
         setTestStatus('fail');
         setTestMsg(`服务端返回异常状态码 ${res.status}`);
@@ -129,38 +124,30 @@ export default function OptionsForm() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground" htmlFor="server-username">服务端用户名</label>
-          <Input
-            id="server-username"
-            value={username}
-            onChange={(e) => { setUsername(e.target.value); markUnsaved(); }}
-            placeholder="（若 Nginx 启用了 Basic Auth 则填写）"
-            autoComplete="username"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground" htmlFor="server-password">服务端密码</label>
+          <label className="text-sm font-medium text-foreground" htmlFor="server-token">服务端 Token</label>
           <div className="relative">
             <Input
-              id="server-password"
-              type={showPwd ? 'text' : 'password'}
-              value={password}
-              onChange={(e) => { setPassword(e.target.value); markUnsaved(); }}
-              placeholder="（留空则不启用 Basic Auth）"
-              autoComplete="current-password"
+              id="server-token"
+              type={showToken ? 'text' : 'password'}
+              value={token}
+              onChange={(e) => { setToken(e.target.value); markUnsaved(); }}
+              placeholder="（直连 ws-container 可留空）"
+              autoComplete="off"
               className="pr-10"
             />
             <button
               type="button"
-              onClick={() => setShowPwd((v) => !v)}
+              onClick={() => setShowToken((v) => !v)}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               tabIndex={-1}
-              aria-label={showPwd ? '隐藏密码' : '显示密码'}
+              aria-label={showToken ? '隐藏 Token' : '显示 Token'}
             >
-              {showPwd ? <EyeOff size={18} /> : <Eye size={18} />}
+              {showToken ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
+          <p className="text-xs text-muted-foreground">
+            PAT 通过 <code className="text-xs bg-muted px-1 rounded">everlingo ws_master pat add --user &lt;name&gt; --label &lt;label&gt;</code> 生成；直连 ws-container 无需填写。
+          </p>
         </div>
 
         <div className="flex gap-2">

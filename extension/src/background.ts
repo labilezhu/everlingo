@@ -9,6 +9,9 @@ chrome.runtime.onInstalled.addListener(async () => {
     await chrome.storage.local.set({ device_id: crypto.randomUUID() });
   }
 
+  // 迁移：清除旧版 Basic Auth 凭据
+  await chrome.storage.local.remove(['server_username', 'server_password']);
+
   chrome.contextMenus.create({
     id: 'translate-selection',
     title: '用小记🐹翻译',

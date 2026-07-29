@@ -19,9 +19,9 @@
 |---|---|---|---|
 | PR0 | 依赖与骨架 | — | ✅ |
 | PR1 | WS-Master 模块 | PR0 | ✅ |
-| PR2 | WS-Router 模块 | PR0 + PR1 契约 | ⬜ |
+| PR2 | WS-Router 模块 | PR0 + PR1 契约 | ✅ |
 | PR3 | 部署编排 | PR1 + PR2 | ✅ |
-| PR4 | Chrome Extension Token 化 | PR2 | ⬜ |
+| PR4 | Chrome Extension Token 化 | PR2 | ✅ |
 
 状态标记：⬜ Planned / 🚧 In Progress / ✅ Done / ⚠️ Blocked。
 
@@ -231,28 +231,36 @@ PR0 ──▶ PR1 ──▶ PR3
 
 ## PR4 — Chrome Extension Token 化
 
-**目标**：替换现有 Basic Auth，改用 PAT/access_token。多用户上线后的客户端适配。
+**目标**：替换现有 Basic Auth，改用 PAT（Personal Access Token）。多用户上线后的客户端适配。
 
 ### 范围
 
-- Extension Options 加 Token 配置字段（PAT 或 access_token）
-- 或弹窗内「登录」按钮调 WS-Router `POST /login`（JSON）拿 access_token 存 `chrome.storage`
-- 请求 WS-Router 时带 `Authorization: Bearer <token>`
-- 涉及 `extension/` 下 envelope.ts / 请求层改造
+- `extension/src/config.ts`：移除 Basic Auth 相关代码（`SERVER_USERNAME_STORAGE_KEY` / `SERVER_PASSWORD_STORAGE_KEY` /
+  `getApiAuth` / `buildBasicAuthHeader`）；新增 `SERVER_TOKEN_STORAGE_KEY` / `getApiToken` / `buildBearerHeader`。
+  `getApiConfig()` 返回形状保持 `{baseUrl, authHeader}`（值改为 `Bearer <token>` 或 `null`），5 个调用点零改动。
+- `extension/src/components/OptionsForm.tsx`：用户名/密码两字段 → 单一 Token 字段（password 类型 + 显隐切换）。
+  提示文案引导用户通过 `everlingo ws_master pat add` CLI 生成 PAT。直连裸 ws-container 时 Token 留空，不发送任
+  何 Authorization 头。
+- `extension/src/background.ts`：`onInstalled` 加一次性迁移，清除遗留的 `server_username` / `server_password` 旧 key。
+- 请求层（`sseClient.ts` / `background.ts` 内 `fetch`）无需改代码——`authHeader` 字符串值由 `Bearer <token>` 替代
+  `Basic ...`，调用站点不变。
+- 不引入弹窗登录流（不走 `POST /login` JSON），纯 PAT 配置流。
+- 不引入新 npm 依赖。
 
 ### 测试
 
-- extension 端 ts 测试覆盖 token 注入
-- 可加 mock WS-Router 的集成测试
+- `config.test.ts`：`buildBasicAuthHeader` describe → `buildBearerHeader` describe（空/空白→null、非空→`Bearer ...`、JWT 格式）
+- `sseClient.test.ts`：`'Basic ...'` fixture → `'Bearer elpat_...'` fixture
 
 ### 验收点
 
-- Extension 配置 PAT 后，请求自动带 Bearer，WS-Router 认证通过
-- 或弹窗登录 → access_token 存储 → 后续请求自动带
+- Extension Options 配置 PAT 后，请求自动带 `Authorization: Bearer <pat>`，WS-Router 认证通过
+- Token 留空时，请求不带 Authorization 头，直连裸 ws-container 可通过
+- 旧版 Basic Auth 凭据（`server_username` / `server_password`）在扩展更新后自动清除，不残留
 
 ### 依赖点
 
-- 依赖 PR2 的 `/login` JSON 接口与 PAT 机制定型
+- 依赖 PR2 的 PAT 验证机制定型（WS-Router `Authorization: Bearer` → 本地 JWT 验签 → 回退 WS-Master `/internal/pat/verify`）
 
 ---
 

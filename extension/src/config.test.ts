@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeUrl, DEFAULT_API_BASE_URL, buildBasicAuthHeader } from './config';
+import { normalizeUrl, DEFAULT_API_BASE_URL, buildBearerHeader } from './config';
 
 describe('normalizeUrl', () => {
   it('returns default for empty string', () => {
@@ -28,38 +28,25 @@ describe('normalizeUrl', () => {
   });
 });
 
-describe('buildBasicAuthHeader', () => {
-  it('returns null when username is empty', () => {
-    expect(buildBasicAuthHeader('', 'pass')).toBeNull();
-    expect(buildBasicAuthHeader('', '')).toBeNull();
+describe('buildBearerHeader', () => {
+  it('returns null when token is empty', () => {
+    expect(buildBearerHeader('')).toBeNull();
   });
 
-  it('returns null when username is only whitespace', () => {
-    expect(buildBasicAuthHeader('  ', 'pass')).toBeNull();
+  it('returns null when token is only whitespace', () => {
+    expect(buildBearerHeader('  ')).toBeNull();
   });
 
-  it('builds valid Basic header with username and password', () => {
-    const result = buildBasicAuthHeader('alice', 'secret');
-    expect(result).toBe('Basic ' + btoa('alice:secret'));
+  it('builds valid Bearer header with token', () => {
+    expect(buildBearerHeader('elpat_abc123')).toBe('Bearer elpat_abc123');
   });
 
-  it('handles empty password', () => {
-    const result = buildBasicAuthHeader('admin', '');
-    expect(result).toBe('Basic ' + btoa('admin:'));
+  it('trims whitespace around token', () => {
+    expect(buildBearerHeader('  elpat_abc123  ')).toBe('Bearer elpat_abc123');
   });
 
-  it('handles password containing colon', () => {
-    const result = buildBasicAuthHeader('user', 'pass:word');
-    expect(result).toBe('Basic ' + btoa('user:pass:word'));
-  });
-
-  it('handles Unicode characters in username and password', () => {
-    const result = buildBasicAuthHeader('用户', '密码');
-    expect(result).toBe('Basic ' + btoa(unescape(encodeURIComponent('用户:密码'))));
-  });
-
-  it('handles special characters', () => {
-    const result = buildBasicAuthHeader('user@host', 'p@$$!');
-    expect(result).toBe('Basic ' + btoa('user@host:p@$$!'));
+  it('handles access_token (JWT) format', () => {
+    const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.x';
+    expect(buildBearerHeader(jwt)).toBe('Bearer ' + jwt);
   });
 });
