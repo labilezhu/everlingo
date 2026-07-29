@@ -359,7 +359,7 @@ CLI 直连 `ws_master.sqlite`，不走 internal API。
 
 ## 9. 镜像
 
-`deploy/ws-container/Dockerfile.ws_master`，单独精简构建（跳过 frontend-builder stage，无 `web/dist`）。详见 [deploy.md](./deploy.md) §镜像构建。
+`deploy/ws-master/Dockerfile`，单独精简构建（跳过 frontend-builder stage，无 `web/dist`）。详见 [deploy.md](./deploy.md) §镜像构建。
 
 ## 10. 关键不变量
 

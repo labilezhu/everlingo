@@ -126,7 +126,7 @@ WS-Master 镜像内不预装 docker CLI；用 `docker` Python SDK 通过 `unix:/
 
 ### 5.2 WS-Router 镜像
 
-`deploy/ws-container/Dockerfile.ws_router`，单独精简构建，跳过 frontend-builder stage（无 `web/dist`）：
+`deploy/ws-router/Dockerfile`，单独精简构建，跳过 frontend-builder stage（无 `web/dist`）：
 
 ```dockerfile
 # Stage: deps（与现有 Dockerfile 的 deps stage 一致）
@@ -151,7 +151,7 @@ ENTRYPOINT ["python", "-m", "everlingo", "ws_router", "--config", "/etc/everling
 
 ### 5.3 WS-Master 镜像
 
-`deploy/ws-container/Dockerfile.ws_master`，同 WS-Router 精简构建，ENTRYPOINT 为 `ws_master`：
+`deploy/ws-master/Dockerfile`，同 WS-Router 精简构建，ENTRYPOINT 为 `ws_master`：
 
 ```dockerfile
 # Stage: deps（同上）
@@ -186,9 +186,9 @@ export HOST_WS_DIR=$HOME/everlingo/workspaces
 mkdir -p $HOST_WS_DIR
 
 # 2. 构建 WS-Router / WS-Master 镜像
-docker buildx build -f deploy/ws-container/Dockerfile.ws_router \
+docker buildx build -f deploy/ws-router/Dockerfile \
   -t everlingo-ws-router:0.1 .
-docker buildx build -f deploy/ws-container/Dockerfile.ws_master \
+docker buildx build -f deploy/ws-master/Dockerfile \
   -t everlingo-ws-master:0.1 .
 
 # 3. 生成 secret

@@ -229,7 +229,7 @@ ws_router:
 
 ## 6. 镜像
 
-`deploy/ws-container/Dockerfile.ws_router`，单独精简构建（跳过 frontend-builder stage，无 `web/dist`）。详见 [deploy.md](./deploy.md) §镜像构建。
+`deploy/ws-router/Dockerfile`，单独精简构建（跳过 frontend-builder stage，无 `web/dist`）。详见 [deploy.md](./deploy.md) §镜像构建。
 
 ## 7. 关键不变量
 
