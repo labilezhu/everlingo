@@ -244,17 +244,17 @@ def _dispatch(args: argparse.Namespace) -> int:
         return 0
     if args.cmd == "ws_master":
         # PR1 实现完整编排 + CLI 运维逻辑
+        if args.ws_master_cmd:
+            # CLI 模式（user/pat/ws/identity），--config 仅用于定位 sqlite
+            from .ws_master.cli import dispatch
+
+            return dispatch(args)
         if args.config:
             # Daemon 模式
             from .ws_master.app import run_daemon
 
             run_daemon(args.config)
             return 0
-        if args.ws_master_cmd:
-            # CLI 模式
-            from .ws_master.cli import dispatch
-
-            return dispatch(args)
         # 无子命令且无 --config，显示帮助
         print(
             "WS-Master: use `everlingo ws_master --config ws_master.yaml` for daemon mode,\n"

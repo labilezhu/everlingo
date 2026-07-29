@@ -161,6 +161,10 @@ ENTRYPOINT ["python", "-m", "everlingo"]
 
 > `HTTP_PROXY` / `HTTPS_PROXY` build-arg 与现有 ws-container Dockerfile 的 deps stage 对齐，代理环境传值可加速 `uv sync` 拉包；无代理环境传空值不影响构建。
 
+```bash
+DOCKER_BUILDKIT=1 docker buildx build . -f deploy/ws-router/Dockerfile  -t everlingo-ws-router:0.1
+```
+
 ### 5.3 WS-Master 镜像
 
 `deploy/ws-master/Dockerfile`，同 WS-Router 精简构建，`ENTRYPOINT` 为 `python -m everlingo`（子命令与 config 由 compose `command:` 提供，见 §2）：
@@ -194,6 +198,10 @@ ENTRYPOINT ["python", "-m", "everlingo"]
 ```
 
 > 注：`pyproject.toml` 须含 `docker>=7.0` 与 `pyjwt>=2.8` 两个新依赖（见 PR1/PR2）。`HTTP_PROXY` / `HTTPS_PROXY` build-arg 同 §5.2 说明。
+
+```bash
+DOCKER_BUILDKIT=1 docker buildx build . -f deploy/ws-router/Dockerfile  -t everlingo-ws-master:0.1
+```
 
 ### 5.4 示例配置与 nginx conf 落地
 
