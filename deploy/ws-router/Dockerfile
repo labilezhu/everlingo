@@ -4,6 +4,12 @@
 
 # Stage: deps（与现有 Dockerfile 的 deps stage 一致）
 FROM python:3.12.13-bookworm AS deps
+
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ENV HTTP_PROXY=$HTTP_PROXY
+ENV HTTPS_PROXY=$HTTPS_PROXY
+
 RUN pip install uv
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
@@ -19,4 +25,5 @@ WORKDIR /app
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/src"
 USER everlingo
-ENTRYPOINT ["python", "-m", "everlingo", "ws_router", "--config", "/etc/everlingo/ws_router.yaml"]
+# ENTRYPOINT 仅固定基础调用，子命令与 --config 由 compose command: 提供
+ENTRYPOINT ["python", "-m", "everlingo"]

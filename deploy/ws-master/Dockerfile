@@ -4,6 +4,12 @@
 
 # Stage: deps（同 ws-router）
 FROM python:3.12.13-bookworm AS deps
+
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ENV HTTP_PROXY=$HTTP_PROXY
+ENV HTTPS_PROXY=$HTTPS_PROXY
+
 RUN pip install uv
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
@@ -20,4 +26,5 @@ ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/src"
 # docker.sock 通常 root:docker，WS-Master 以 everlingo(1000) 身份靠 group_add 访问
 USER everlingo
-ENTRYPOINT ["python", "-m", "everlingo", "ws_master", "--config", "/etc/everlingo/ws_master.yaml"]
+# ENTRYPOINT 仅固定基础调用，子命令与 --config 由 compose command: 提供
+ENTRYPOINT ["python", "-m", "everlingo"]

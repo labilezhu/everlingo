@@ -1,0 +1,49 @@
+# EverLingo 多用户部署编排
+# 使用前准备：
+#   export DOCKER_GID=$(getent group docker | cut -d: -f3)
+#   export HOST_WS_DIR=$HOME/everlingo/workspaces
+# 示例配置见 deploy/examples/，填入 secret 后启动：
+#   docker compose up -d
+#
+# 文档：docs/impl-spec/multiple-users/deploy.md
+services:
+  ws_router:
+    image: everlingo-ws-router:0.1
+    # ENTRYPOINT 已是 `python -m everlingo`（见 Dockerfile），command 只需补子命令 + config
+    command: ["ws_router", "--config", "/etc/everlingo/ws_router.yaml"]
+    ports:
+      - "127.0.0.1:8100:8100"        # 仅 nginx 可达
+    volumes:
+      - "./deploy/examples/ws_router.yaml:/etc/everlingo/ws_router.yaml:ro"
+    expose:
+      - "8100"
+    depends_on:
+      - ws_master
+    networks:
+      - everlingo-net
+    restart: unless-stopped
+
+  ws_master:
+    image: everlingo-ws-master:0.1
+    # 同上，ENTRYPOINT 为 `python -m everlingo`
+    command: ["ws_master", "--config", "/etc/everlingo/ws_master.yaml"]
+    volumes:
+      - "./deploy/examples/ws_master.yaml:/etc/everlingo/ws_master.yaml:ro"
+      - "./deploy/examples/ws_container_everlingo_template.yaml:/etc/everlingo/ws_container_everlingo_template.yaml:ro"
+      - "master-data:/root/.everlingo"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "${HOST_WS_DIR}:${HOST_WS_DIR}"
+    group_add:
+      - "${DOCKER_GID}"              # 宿主 docker 组 GID
+    expose:
+      - "8101"
+    networks:
+      - everlingo-net
+    restart: unless-stopped
+
+networks:
+  everlingo-net:
+    name: everlingo-net
+
+volumes:
+  master-data:

@@ -1,0 +1,37 @@
+# EverLingo WS-Router 配置示例
+# 复制到宿主后按需修改，填入 secret（用 openssl rand -hex 32 生成）。
+# 完整 schema 见 docs/impl-spec/multiple-users/ws-router.md §5。
+ws_router:
+  listen: 0.0.0.0:8100
+  # 外部访问 base URL（HTTPS），影响 cookie Secure 位与重定向
+  base_url: https://app.everlingo.com
+  # 仅信任 nginx 来源 IP 的 X-Forwarded-Proto
+  # 跨机部署时改为 nginx 出站 IP（见 external-nginx.md §5）
+  trusted_proxy: 127.0.0.1
+
+  # WS-Master Internal API 地址（everlingo-net 内）
+  master_url: http://ws_master:8101
+  # 与 ws_master.yaml master.shared_secret 一致
+  master_secret: ""
+
+  # JWT HS256 签名密钥（openssl rand -hex 32）
+  jwt_secret: ""
+  # 会话 TTL，秒（默认 8h）
+  session_ttl: 28800
+  # backend URL 缓存秒数
+  backend_cache_ttl: 60
+  # PAT 校验结果缓存秒数
+  pat_verify_cache_ttl: 30
+
+  # CORS 白名单（chrome-extension origin）
+  cors_allow_origins:
+    - chrome-extension://<your-extension-id>
+
+  auth:
+    # Phase 1 仅支持 password provider
+    providers: [password]
+    # Google SSO 预留（Phase 2+）
+    google_sso:
+      client_id: ""
+      client_secret: ""
+      redirect_uri: ""

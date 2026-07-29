@@ -20,7 +20,7 @@
 | PR0 | 依赖与骨架 | — | ✅ |
 | PR1 | WS-Master 模块 | PR0 | ✅ |
 | PR2 | WS-Router 模块 | PR0 + PR1 契约 | ⬜ |
-| PR3 | 部署编排 | PR1 + PR2 | ⬜ |
+| PR3 | 部署编排 | PR1 + PR2 | ✅ |
 | PR4 | Chrome Extension Token 化 | PR2 | ⬜ |
 
 状态标记：⬜ Planned / 🚧 In Progress / ✅ Done / ⚠️ Blocked。

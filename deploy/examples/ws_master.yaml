@@ -1,0 +1,35 @@
+# EverLingo WS-Master 配置示例
+# 复制到宿主后按需修改，填入 secret 与 LLM 配置。
+# 完整 schema 见 docs/impl-spec/multiple-users/ws-master.md §5.1。
+master:
+  # 监听地址（everlingo-net 内，容器内用 0.0.0.0）
+  listen: 0.0.0.0:8101
+  # 与 ws_router.yaml master_secret 一致（openssl rand -hex 32）
+  shared_secret: ""
+  # sqlite 持久化路径（挂载 master-data volume）
+  db: /root/.everlingo/ws_master.sqlite
+  # 宿主侧 workspace 根目录（compose 中 ${HOST_WS_DIR} 挂载）
+  host_ws_dir: /workspaces
+
+  # ws-container 镜像（复用现有 everlingo 镜像，见 deploy/ws-container/Dockerfile）
+  image: ghcr.io/labilezhu/everlingo:0.0.1-rc.3
+  # docker network（ws-container 也在此网络内）
+  network: everlingo-net
+  # ws-container 的 everlingo.yaml 模板路径
+  ws_template: /etc/everlingo/ws_container_everlingo_template.yaml
+
+  # LLM 配置：作为容器 env 注入 ws-container
+  # 支持 ${VAR} 环境变量展开
+  openai_api_key: ${OPENAI_API_KEY}
+  openai_base_url: https://openrouter.ai/api/v1
+  openai_model: deepseek/deepseek-v4-flash
+  openai_embedding_model: baai/bge-m3
+
+  # 无 SSE client 持续秒数 → stop（默认 20 分钟）
+  idle_timeout: 1200
+  # 探活间隔秒数
+  healthcheck_interval: 60
+  # create/start 后等待 backend 就绪秒数
+  readiness_timeout: 60
+  # Phase 1 限制每 user 1 个 ws-container
+  max_ws_per_user: 1

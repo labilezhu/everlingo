@@ -1,0 +1,16 @@
+# 排除 ws-router/ws-master 精简构建不需要的大目录
+# ws-container 构建（deploy/ws-container/Dockerfile）需要 web/，若冲突则
+# 在 deploy/ws-container/ 下单独放 .dockerignore（docker 按路径就近取用）。
+web/
+extension/
+docs/
+tests/
+mark-specific/
+.git/
+.venv/
+node_modules/
+*.md
+.github/
+.opencode/
+.vscode/
+README.assets/

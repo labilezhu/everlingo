@@ -1,0 +1,50 @@
+# EverLingo 外部 Nginx 反代配置示例
+#
+# 用途：宿主现有 nginx 服务，TLS 终止 + 反代到 WS-Router。
+# 文档：docs/impl-spec/multiple-users/external-nginx.md
+#
+# 使用步骤：
+#   1. 复制到 /etc/nginx/sites-available/everlingo
+#   2. 修改 server_name、ssl_certificate* 路径
+#   3. 若 WS-Router 不在本机，修改 proxy_pass 地址并调整 trusted_proxy
+#   4. ln -s /etc/nginx/sites-available/everlingo /etc/nginx/sites-enabled/
+#   5. nginx -t && systemctl reload nginx
+
+server {
+    listen 443 ssl;
+    server_name app.everlingo.com;
+
+    ssl_certificate     /etc/letsencrypt/live/app.everlingo.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/app.everlingo.com/privkey.pem;
+
+    # 透传给 WS-Router，用于判断 cookie Secure 位与生成 base_url
+    proxy_set_header Host              $host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto  $scheme;
+
+    # 透传 Authorization（Bearer token）
+    proxy_pass_request_headers on;
+
+    # SSE 关键：禁用缓冲 + 长读超时
+    proxy_buffering       off;
+    proxy_cache           off;
+    proxy_read_timeout    3600s;
+    proxy_send_timeout    3600s;
+    # HTTP/1.1 + keep-alive，支持 chunked 流式
+    proxy_http_version    1.1;
+    proxy_set_header      Connection "";
+
+    client_max_body_size  10m;
+
+    location / {
+        proxy_pass http://127.0.0.1:8100;
+    }
+}
+
+# 80 → 443 跳转
+server {
+    listen 80;
+    server_name app.everlingo.com;
+    return 301 https://$host$request_uri;
+}
