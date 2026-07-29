@@ -48,6 +48,58 @@ def _apply_workspace_args(args: argparse.Namespace) -> None:
         workspace.init_workspace(args.workspace)
 
 
+def _add_ws_master_cli_subparsers(sub) -> None:
+    """Add ws_master CLI subcommand parsers (user/pat/ws/identity)."""
+    # user
+    p_user = sub.add_parser("user", help="用户管理")
+    user_sub = p_user.add_subparsers(dest="user_cmd", required=True)
+    p_user_add = user_sub.add_parser("add", help="创建用户")
+    p_user_add.add_argument("--name", required=True, help="用户名（英文字母 + 下划线）")
+    p_user_add.add_argument("--display-name", required=True, help="展示名")
+    p_user_add.add_argument("--password", default=None, help="密码（不指定则交互输入）")
+    user_sub.add_parser("list", help="列出所有用户")
+    p_user_rm = user_sub.add_parser("rm", help="删除用户")
+    p_user_rm.add_argument("--name", required=True, help="用户名")
+    p_user_rm.add_argument("--purge", action="store_true", help="同时 stop+remove 所有 ws-container 并删 host 目录")
+
+    # pat
+    p_pat = sub.add_parser("pat", help="PAT 管理")
+    pat_sub = p_pat.add_subparsers(dest="pat_cmd", required=True)
+    p_pat_add = pat_sub.add_parser("add", help="生成 PAT")
+    p_pat_add.add_argument("--user", required=True, help="用户名")
+    p_pat_add.add_argument("--label", required=True, help="标签")
+    p_pat_add.add_argument("--expires", default=None, help="过期时间（ISO8601 或相对天数如 365d）")
+    p_pat_list = pat_sub.add_parser("list", help="列出 PAT")
+    p_pat_list.add_argument("--user", required=True, help="用户名")
+    p_pat_rm = pat_sub.add_parser("rm", help="吊销 PAT")
+    p_pat_rm.add_argument("--id", required=True, dest="pat_id", help="PAT ID")
+
+    # ws
+    p_ws = sub.add_parser("ws", help="ws-container 管理")
+    ws_sub = p_ws.add_subparsers(dest="ws_cmd", required=True)
+    p_ws_add = ws_sub.add_parser("add", help="新增 ws-container")
+    p_ws_add.add_argument("--user", required=True, help="用户名")
+    p_ws_list = ws_sub.add_parser("list", help="列出 ws-container")
+    p_ws_list.add_argument("--user", default=None, help="按用户名筛选")
+    p_ws_rm = ws_sub.add_parser("rm", help="删除 ws-container")
+    p_ws_rm.add_argument("--id", required=True, dest="ws_id", help="ws-container ID")
+    p_ws_rm.add_argument("--purge", action="store_true", help="同时 stop+remove 容器并删 host 目录")
+    p_ws_start = ws_sub.add_parser("start", help="强制拉起 ws-container")
+    p_ws_start.add_argument("--id", required=True, dest="ws_id", help="ws-container ID")
+    p_ws_stop = ws_sub.add_parser("stop", help="强制停机 ws-container")
+    p_ws_stop.add_argument("--id", required=True, dest="ws_id", help="ws-container ID")
+    p_ws_default = ws_sub.add_parser("set-default", help="切换默认 ws-container")
+    p_ws_default.add_argument("--id", required=True, dest="ws_id", help="ws-container ID")
+
+    # identity
+    p_identity = sub.add_parser("identity", help="外部身份管理")
+    identity_sub = p_identity.add_subparsers(dest="identity_cmd", required=True)
+    p_id_list = identity_sub.add_parser("list", help="列出外部身份")
+    p_id_list.add_argument("--user", required=True, help="用户名")
+    p_id_unlink = identity_sub.add_parser("unlink", help="解绑外部身份")
+    p_id_unlink.add_argument("--id", required=True, dest="identity_id", help="identity ID")
+
+
 def _add_gateway_channel_args(parser: argparse.ArgumentParser) -> None:
     """gateway 子命令的 --channel_* 参数。"""
     ch_group = parser.add_mutually_exclusive_group()
@@ -129,8 +181,15 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     # ws_router 子命令（PR0 骨架，PR2 实现完整逻辑）
     sub.add_parser("ws_router", help="前台反代 + 认证服务（多用户部署）")
-    # ws_master 子命令（PR0 骨架，PR1 实现完整逻辑）
-    sub.add_parser("ws_master", help="后台编排服务（多用户部署）")
+    # ws_master 子命令（PR1 实现完整编排 + CLI 运维逻辑）
+    p_ws_master = sub.add_parser("ws_master", help="后台编排服务（多用户部署）")
+    p_ws_master.add_argument(
+        "--config",
+        default=None,
+        help="配置文件路径（daemon 模式），如 ws_master.yaml",
+    )
+    ws_master_sub = p_ws_master.add_subparsers(dest="ws_master_cmd")
+    _add_ws_master_cli_subparsers(ws_master_sub)
     return parser
 
 
@@ -176,10 +235,22 @@ def _dispatch(args: argparse.Namespace) -> int:
         )
         return 0
     if args.cmd == "ws_master":
-        # PR0 骨架占位；PR1 实现完整编排 + CLI 运维逻辑
+        # PR1 实现完整编排 + CLI 运维逻辑
+        if args.config:
+            # Daemon 模式
+            from .ws_master.app import run_daemon
+
+            run_daemon(args.config)
+            return 0
+        if args.ws_master_cmd:
+            # CLI 模式
+            from .ws_master.cli import dispatch
+
+            return dispatch(args)
+        # 无子命令且无 --config，显示帮助
         print(
-            "WS-Master: not yet implemented (PR1). "
-            "Use `everlingo ws_master --help` for usage.",
+            "WS-Master: use `everlingo ws_master --config ws_master.yaml` for daemon mode,\n"
+            "or `everlingo ws_master user add/list ...` for CLI mode.",
             file=sys.stderr,
         )
         return 0

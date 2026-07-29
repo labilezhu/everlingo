@@ -18,7 +18,7 @@
 | PR | 标题 | 依赖 | 状态 |
 |---|---|---|---|
 | PR0 | 依赖与骨架 | — | ✅ |
-| PR1 | WS-Master 模块 | PR0 | ⬜ |
+| PR1 | WS-Master 模块 | PR0 | ✅ |
 | PR2 | WS-Router 模块 | PR0 + PR1 契约 | ⬜ |
 | PR3 | 部署编排 | PR1 + PR2 | ⬜ |
 | PR4 | Chrome Extension Token 化 | PR2 | ⬜ |
