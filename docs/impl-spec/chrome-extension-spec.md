@@ -161,9 +161,9 @@ sidecar panel 收到响应:
 **设计要点**：
 
 - **不在打开 sidecar 前预创建 session**：避免用户立即关闭 sidecar 产生孤儿 session（session 已在后端建立却无人连接）。改为 sidecar 启动后主动查询，session 创建与 sidecar 实际使用绑定。
-- **session 管理集中在 background**：sidecar panel 不直接读写 `chrome.storage.session` 的 `sid:${tabId}`，session 状态由 background 统一管理（UI history 的读写见 §7.4）。
+- **session 管理集中在 background**：sidecar panel 不直接读写 `chrome.storage.session` 的 `sid:${tabId}`，session 状态由 background 统一管理（UI history 的读写见 §7.5）。
 - **全局 panel + tab 切换刷新内容**：`setPanelBehavior({ openPanelOnActionClick: true })` 使 panel 全局化——点图标 toggle，切 tab 时 panel 保持显示。sidecar 监听 `chrome.tabs.onActivated`，切 tab 时自动调用 `switchToTab()`：关旧 SSE → 查新 tab session → 加载 UI history → 连新 SSE。不同 tab 的 sidecar 状态互相隔离，切换不串扰。切 tab 时不 capture snapshot 也不 auto-send（因无 `activeTab` 授权 + 避免频繁打扰）。
-- **UI history 与 Agent 上下文同步**：session 重建时 background 先 `remove(msgs:${tabId})` 再返回 `fresh=true`，sidecar 据此清空 UI，避免"UI 有历史但 Agent 不记得"的错配。详见 §7.4。
+- **UI history 与 Agent 上下文同步**：session 重建时 background 先 `remove(msgs:${tabId})` 再返回 `fresh=true`，sidecar 据此清空 UI，避免"UI 有历史但 Agent 不记得"的错配。详见 §7.5。
 
 ### 5.3 隐藏与二次激活
 
@@ -316,20 +316,26 @@ function isBlockElement(el: Element | null): boolean {
 - 复用 [web-chatbot.md](web-chatbot.md) 的设计规范：Chatbot 名"小记🐹"、markdown 渲染、发送按钮脉冲动画等
 - 与 `web/` chatbox 的差异：不跟随窗口宽度动态调整（sidecar 宽度由 Chrome 决定）
 
-### 7.2 交互
+### 7.2 Header
+
+sidecar header 右侧显示「笔记」按钮（`NotebookPen` 图标 + "笔记" 文字，`variant=ghost` 按钮），点击打开 Vault Editor（[Vault Editor](vault-editor.md)）。
+
+与 [Web Chatbot](web-chatbot.md) 的同窗跳转不同，sidecar 运行在窄宽 side panel 中，不适合内嵌全屏 Vault Editor，故点击后调用 `chrome.tabs.create({ url: `${apiBaseUrl}/editor` })` 在新浏览器标签页打开 Editor。
+
+### 7.3 交互
 
 - sidecar 打开后，若检测到 `selection.text` 非空 → 自动用首次构造的 envelope 发起一次请求（即使用户没在输入框输入文字）；若 `selection.text` 为空 → 不自动发起请求，仅显示输入框等待用户操作
 - 顶部有 task 切换按钮：翻译 / 查词 / 自由聊天
 - 用户在输入框继续追问时，`task` 保持当前选择，`selection`/`context` 字段保留为**本次 per-tab 激活周期内**的快照（不重新抓取），`chat.message` 为用户新输入
 - 二次激活（隐藏后重新打开，或 tab 切换后 Chrome 重建 panel）视为新的"激活周期"：重新抓取 selection/context，按上一条规则决定是否自动发起请求
 - Agent 回复通过 SSE 推送，前端渲染为消息气泡
-- **UI message history 持久化**：sidecar 每发送一条 user message、每收到一条 SSE `message` 事件时，均 append 到 `chrome.storage.session` 的 `msgs:${tabId}`（详见 §7.4）。sidecar 启动时先读 storage 恢复 UI history，再向 background 查询 session。这样 sidecar 隐藏/重开 20 分钟内可恢复完整聊天记录。
+- **UI message history 持久化**：sidecar 每发送一条 user message、每收到一条 SSE `message` 事件时，均 append 到 `chrome.storage.session` 的 `msgs:${tabId}`（详见 §7.5）。sidecar 启动时先读 storage 恢复 UI history，再向 background 查询 session。这样 sidecar 隐藏/重开 20 分钟内可恢复完整聊天记录。
 
-### 7.3 技术栈
+### 7.4 技术栈
 
 复用 [web-chatbot.md — 前端技术选型](web-chatbot.md)：Vite + React + TailwindCSS + shadcn/ui + react-markdown。打包为 CRX 时用 `@crxjs/vite-plugin` 或类似工具。
 
-### 7.4 UI message history 持久化
+### 7.5 UI message history 持久化
 
 sidecar panel 关闭后 React 组件被 Chrome 销毁，本地 state 丢失；重新打开时若仅恢复 sessionId 而不恢复 UI history，会出现"Agent 记得但 UI 空白"的体验割裂。本节定义 UI history 的客户端持久化方案。
 
@@ -399,7 +405,7 @@ type MsgsStorageValue = UIMessageRecord[];
 - **选词自动弹图标**：申请 `host_permissions` + content script 监听 `mouseup`，仿 Google Translate Extension 体验（当前已通过右键菜单 + 扩展图标点击实现翻译触发，用户可主动调起）
 - **截图记忆锚点**：实现 `chrome.tabs.captureVisibleTab` 填充 `context.screenshot`，对齐 [product-phase-2.md](../phases/phase2/product-phase-2.md) 的"原屏幕截图"目标
 - **Session 持久化**：`Session` 对话历史落盘（[session.md](session.md) 明确"暂时不需要支持持久化"），支持浏览器重启后恢复
-- **服务端 message history API 作为权威源**：当前方案 B（§7.4）依赖 client storage，未来可加 `GET /api/session/{id}/messages?since=<seq>` 作为单一事实源，解决多设备/多 sidecar 实例同步问题
+- **服务端 message history API 作为权威源**：当前方案 B（§7.5）依赖 client storage，未来可加 `GET /api/session/{id}/messages?since=<seq>` 作为单一事实源，解决多设备/多 sidecar 实例同步问题
 - **跨 tab 共享 session**：当前 sidecar 切换 tab 时各 tab 独立 session（§5.5），未来可支持用户主动合并多 tab 对话上下文
 - **鉴权**：extension_id 白名单 或 一次性 token
 - **PDF / EPUB 阅读器内嵌**：复用 envelope `source.kind=pdf` / `epub` 预留字段

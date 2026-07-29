@@ -738,7 +738,7 @@ export function connectSSE(
 
 ### `extension/src/services/messageHistory.ts`
 
-实现 spec §7.4 的 UI message history 持久化。
+实现 spec §7.5 的 UI message history 持久化。
 
 ```ts
 import type { Message } from '@/types/chat';

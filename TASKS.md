@@ -5,6 +5,7 @@
 ## 完成的任务
 格式：完成日期与时间(GMT+8 timezone) | 任务描述 。 示例： " - 2026-06-20 19:28 | 生成主入口代码"
 
+- 2026-07-29 当前 | **Chrome Extension Header 加「笔记」按钮**：sidecar header 右侧新增「笔记」按钮（NotebookPen 图标 + "笔记" 文字），点击 `chrome.tabs.create({ url: \`${apiBaseUrl}/editor\` })` 在新 tab 打开 Vault Editor。同步 chrome-extension-spec.md 新增 §7.2 Header、重编号 §§7.2-7.4→7.3-7.5。构建测试通过。
 - 2026-07-29 当前 | **PR4 — Chrome Extension Token 化**：扩展 Basic Auth → PAT Bearer token。改动：config.ts/OptionsForm/background + 测试随动 + 文档同步。36 测试通过。
 
 - 2026-07-29 | 新增 `cors_allow_origin_regex` 配置字段：允许 WS-Router 通过 regex 匹配 CORS origin，解决 Chrome Extension origin 因扩展 ID 各异无法写死白名单的问题。`config.py` 新增 `cors_allow_origin_regex: str | None`，`app.py` CORSMiddleware 传参 `allow_origin_regex`。`deploy/examples/ws_router.yaml` 注释文档。`test_ws_router_middleware.py` 新增 `TestCORSRegex`（11 → 13 tests）。

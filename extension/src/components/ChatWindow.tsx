@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { NotebookPen } from 'lucide-react';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
 import TaskSelector from './TaskSelector';
+import { Button } from '@/components/ui/button';
 import { connectSSE, sendEnvelope, type ConnStatus } from '@/services/sseClient';
 import { getSession } from '@/services/backgroundClient';
 import { loadHistory, appendMessage, clearHistory } from '@/services/messageHistory';
@@ -289,9 +291,17 @@ export default function ChatWindow() {
 
   return (
     <div className="flex flex-col h-screen border-x border-border bg-background">
-      <header className="flex items-center gap-2 px-3 py-2 border-b border-border">
-        <span className="text-lg">🐹</span>
-        <h1 className="text-base font-semibold text-foreground">小记</h1>
+      <header className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">🐹</span>
+          <h1 className="text-base font-semibold text-foreground">小记</h1>
+        </div>
+        <Button variant="ghost" size="sm" onClick={() => {
+          chrome.tabs.create({ url: `${baseUrlRef.current}/editor` });
+        }}>
+          <NotebookPen />
+          <span>笔记</span>
+        </Button>
       </header>
 
       <TaskSelector task={task} onChange={setTask} />
