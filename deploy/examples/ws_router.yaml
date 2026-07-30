@@ -5,18 +5,18 @@ ws_router:
   listen: 0.0.0.0:8100
   # 外部访问地址（HTTPS），影响 cookie Secure 位与重定向
   # 应与 ws_master.yaml master.public_base_url 保持一致
-  public_base_url: https://app.everlingo.com
+  public_base_url: ${EVERLINGO_PUBLIC_BASE_URL}
   # 仅信任 nginx 来源 IP 的 X-Forwarded-Proto
   # 跨机部署时改为 nginx 出站 IP（见 external-nginx.md §5）
-  trusted_proxy: 127.0.0.1
+  trusted_proxy: ${TRUSTED_PROXY}
 
   # WS-Master Internal API 地址（everlingo-net 内）
   master_url: http://ws_master:8101
   # 与 ws_master.yaml master.shared_secret 一致
-  master_secret: ""
+  master_secret: ${MASTER_SECRET}
 
   # JWT HS256 签名密钥（openssl rand -hex 32）
-  jwt_secret: ""
+  jwt_secret: ${JWT_SECRET}
   # 会话 TTL，秒（默认 8h）
   session_ttl: 28800
   # backend URL 缓存秒数
@@ -25,11 +25,9 @@ ws_router:
   pat_verify_cache_ttl: 30
 
   # CORS 白名单（chrome-extension origin）
-  cors_allow_origins:
-    - chrome-extension://<your-extension-id>
-  # 或使用 regex 匹配任意 chrome-extension origin（开发/测试环境）
-  # cors_allow_origin_regex: chrome-extension://.*
-
+  # cors_allow_origins:
+  #   - chrome-extension://<your-extension-id>
+  cors_allow_origin_regex: chrome-extension://.*
   auth:
     # Phase 1 仅支持 password provider
     providers: [password]

@@ -1,6 +1,6 @@
 # 部署编排（WS-Master 模式）
 
-- 状态：Planned（2026-07-29 修订）
+- 状态：Done（2026-07-29 修订）
 - 相关文档：
   - [ws-router.md](./ws-router.md)
   - [ws-master.md](./ws-master.md)

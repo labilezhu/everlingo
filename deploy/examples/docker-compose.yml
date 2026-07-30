@@ -8,11 +8,19 @@
 # 文档：docs/impl-spec/multiple-users/deploy.md
 services:
   ws_router:
-    image: everlingo-ws-router:0.1
+    image: ${WS_ROUTER_IMAGE}
+    labels:
+      app: everlingo    
+      everlingo.container: ws_router
     # ENTRYPOINT 已是 `python -m everlingo`（见 Dockerfile），command 只需补子命令 + config
     command: ["ws_router", "--config", "/etc/everlingo/ws_router.yaml"]
+    environment:
+      EVERLINGO_PUBLIC_BASE_URL: ${EVERLINGO_PUBLIC_BASE_URL}     
+      MASTER_SECRET: ${MASTER_SECRET} 
+      JWT_SECRET: ${JWT_SECRET} 
+      WS_ROUTER_TRUSTED_PROXY_IP: ${WS_ROUTER_TRUSTED_PROXY_IP} 
     ports:
-      - "127.0.0.1:8100:8100"        # 仅 nginx 可达
+      - ${WS_ROUTER_LISTEN}:8100        # 仅 nginx 可达
     volumes:
       - "./deploy/examples/ws_router.yaml:/etc/everlingo/ws_router.yaml:ro"
     expose:
@@ -24,11 +32,21 @@ services:
     restart: unless-stopped
 
   ws_master:
-    image: everlingo-ws-master:0.1
+    image: ${WS_MASTER_IMAGE}
+    labels:
+      app: everlingo  
+      everlingo.container: ws_master   
     # 同上，ENTRYPOINT 为 `python -m everlingo`
     command: ["ws_master", "--config", "/etc/everlingo/ws_master.yaml"]
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY}    
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL}    
+      OPENAI_MODEL: ${OPENAI_MODEL}   
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL}   
+      HOST_WS_DIR: ${HOST_WS_DIR}   
+      EVERLINGO_PUBLIC_BASE_URL: ${EVERLINGO_PUBLIC_BASE_URL} 
+      WORKSPLACE_IMAGE: ${WORKSPLACE_IMAGE}
+      MASTER_SECRET: ${MASTER_SECRET} 
     volumes:
       - "./deploy/examples/ws_master.yaml:/etc/everlingo/ws_master.yaml:ro"
       - "./deploy/examples/ws_container_everlingo_template.yaml:/etc/everlingo/ws_container_everlingo_template.yaml:ro"

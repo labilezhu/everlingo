@@ -5,14 +5,16 @@ master:
   # 监听地址（everlingo-net 内，容器内用 0.0.0.0）
   listen: 0.0.0.0:8101
   # 与 ws_router.yaml master_secret 一致（openssl rand -hex 32）
-  shared_secret: ""
+  shared_secret: ${MASTER_SECRET}
   # sqlite 持久化路径（挂载 master-data volume）
   db: /workspaces/ws_master.sqlite
   # 宿主侧 workspace 根目录（compose 中 ${HOST_WS_DIR} 挂载）
-  host_ws_dir: /workspaces
+  host_ws_dir: ${HOST_WS_DIR}
+  # ws-master 容器内挂载点（compose 中 ${HOST_WS_DIR} 挂载到此路径）
+  container_ws_dir: /workspaces
 
   # ws-container 镜像（复用现有 everlingo 镜像，见 deploy/ws-container/Dockerfile）
-  image: ghcr.io/labilezhu/everlingo:0.0.1-rc.3
+  image: ${WORKSPLACE_IMAGE}
   # docker network（ws-container 也在此网络内）
   network: everlingo-net
   # ws-container 的 everlingo.yaml 模板路径
@@ -21,15 +23,15 @@ master:
   # LLM 配置：作为容器 env 注入 ws-container
   # 支持 ${VAR} 环境变量展开
   openai_api_key: ${OPENAI_API_KEY}
-  openai_base_url: https://openrouter.ai/api/v1
-  openai_model: deepseek/deepseek-v4-flash
-  openai_embedding_model: baai/bge-m3
+  openai_base_url: ${OPENAI_BASE_URL}
+  openai_model: ${OPENAI_MODEL}
+  openai_embedding_model: ${OPENAI_EMBEDDING_MODEL}
 
   # 外部访问地址（HTTPS）。注入 ws-container env EVERLINGO_PUBLIC_BASE_URL，
   # 供 ws-container 内 setting.get_web_public_base_url() env fallback 使用——
   # Chat Agent 据此生成指向外部域名的笔记链接（Web Chatbot / Chrome Extension 均依赖）。
   # 应与 ws_router.yaml 的 public_base_url 保持一致。
-  public_base_url: https://app.everlingo.com
+  public_base_url: ${EVERLINGO_PUBLIC_BASE_URL}
 
   # 无 SSE client 持续秒数 → stop（默认 20 分钟）
   idle_timeout: 1200
