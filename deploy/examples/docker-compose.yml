@@ -22,7 +22,7 @@ services:
     ports:
       - ${WS_ROUTER_LISTEN}:8100        # 仅 nginx 可达
     volumes:
-      - "./deploy/examples/ws_router.yaml:/etc/everlingo/ws_router.yaml:ro"
+      - "./ws_router.yaml:/etc/everlingo/ws_router.yaml:ro"
     expose:
       - "8100"
     depends_on:
@@ -48,8 +48,8 @@ services:
       WORKSPLACE_IMAGE: ${WORKSPLACE_IMAGE}
       MASTER_SECRET: ${MASTER_SECRET} 
     volumes:
-      - "./deploy/examples/ws_master.yaml:/etc/everlingo/ws_master.yaml:ro"
-      - "./deploy/examples/ws_container_everlingo_template.yaml:/etc/everlingo/ws_container_everlingo_template.yaml:ro"
+      - "./ws_master.yaml:/etc/everlingo/ws_master.yaml:ro"
+      - "./ws_container_everlingo_template.yaml:/etc/everlingo/ws_container_everlingo_template.yaml:ro"
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "${HOST_WS_DIR}:/workspaces"
     group_add:

@@ -35,7 +35,7 @@
 ```bash
 ######## base conf ########
 
-export EVERLINGO_VER=0.1.0-rc.13
+export EVERLINGO_VER=0.1.0-rc.14
 export OPENAI_API_KEY=<your_api_key>
 export OPENAI_BASE_URL=https://openrouter.ai/api/v1
 export OPENAI_MODEL=deepseek/deepseek-v4-flash
@@ -62,22 +62,18 @@ cd ~/deploy_home
 export DEPLOY_WORK_HOME=$(pwd)
 
 git clone --branch v${EVERLINGO_VER} --depth 1 https://github.com/labilezhu/everlingo.git
-export $SRC_REPO_HOME=$(pwd)/everlingo
+export SRC_REPO_HOME=$(pwd)/everlingo
 
-cp -r $SRC_REPO_HOME/deploy ./
+cp $SRC_REPO_HOME/deploy/examples/* ./
 
 ######## run container #######
 
-# rm -rf $HOST_WS_DIR
 mkdir -p $HOST_WS_DIR
 
 # 5. 启动 compose
 
-docker network rm everlingo-net
 
 cd $DEPLOY_WORK_HOME
-# docker compose -p everctl down
-# docker ps -aq --filter label=app=everlingo | xargs -r docker rm -f
 
 export WORKSPLACE_IMAGE=ghcr.io/labilezhu/everlingo:${EVERLINGO_VER}
 export WS_MASTER_IMAGE=ghcr.io/labilezhu/everlingo-ws-master:${EVERLINGO_VER}
@@ -139,4 +135,16 @@ EOF
 ```bash
 sudo ln -s /etc/nginx/sites-available/home-everlingo /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
+```
+
+
+## Clean up
+
+```bash
+docker compose -p everctl down
+
+docker ps -aq --filter label=app=everlingo | xargs -r docker rm -f
+
+docker network rm everlingo-net
+rm -rf $HOST_WS_DIR
 ```
