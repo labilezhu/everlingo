@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import yaml
@@ -117,6 +118,17 @@ def get_web_listener() -> WebListener:
     return setting.plugins.channels.channel_web.listener
 
 
+def _validate_base_url(url: str, source: str) -> str:
+    """Check base_url starts with http:// or https:// and remove trailing slash."""
+    url = url.strip().rstrip("/")
+    if not re.match(r"^https?://", url):
+        raise ValueError(
+            f"public_address.base_url from {source} must start with http:// or https://, "
+            f"got: {url!r}"
+        )
+    return url
+
+
 def get_web_public_base_url() -> str:
     """返回 Web 前端浏览器访问地址。
 
@@ -133,9 +145,9 @@ def get_web_public_base_url() -> str:
     setting = load_setting()
     web = setting.plugins.channels.channel_web
     if web.public_address.base_url.strip():
-        return web.public_address.base_url.strip()
+        return _validate_base_url(web.public_address.base_url, "everlingo.yaml")
     env = os.getenv("EVERLINGO_PUBLIC_BASE_URL", "")
     if env.strip():
-        return env.strip()
+        return _validate_base_url(env, "env EVERLINGO_PUBLIC_BASE_URL")
     listener = web.listener
     return f"http://{listener.interface}:{listener.port}"

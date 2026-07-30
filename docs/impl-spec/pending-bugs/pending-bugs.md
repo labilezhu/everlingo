@@ -1,5 +1,21 @@
 # Pending Bugs
 
+
+## 未修复
+
+按
+mark-specific/local-deploy/130_deploy/router-master@container/router-master@container.md
+部署的 [Web Chatbot](docs/impl-spec/web-chatbot.md) 用户聊天中要求找笔记，笔记是找对了，但消息中的 markdown url link 变成了：
+
+```
+https://home130-everlingo.mygraphql.com:6457/home130-everlingo.mygraphql.com:6457/editor?lang=en&path=items%2Fvocab%2Fdocker.md
+```
+
+重复了前缀 home130-everlingo.mygraphql.com:6457
+
+
+---
+
 ## 已修复
 
 ### 1. Bind mount source 路径错用容器内路径（2026-07-29）
@@ -14,9 +30,5 @@
 
 ---
 
-## 未修复
 
-
-
----
 

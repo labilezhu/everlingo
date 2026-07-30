@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -66,6 +67,17 @@ class MasterConfig:
             if isinstance(val, str) and val.startswith("${") and val.endswith("}"):
                 env_var = val[2:-1]
                 master[key] = os.environ.get(env_var, "")
+
+        # Validate public_base_url scheme if non-empty
+        pbu = master.get("public_base_url", "")
+        if isinstance(pbu, str) and pbu.strip():
+            pbu = pbu.strip().rstrip("/")
+            if not re.match(r"^https?://", pbu):
+                raise ValueError(
+                    f"master.public_base_url must start with http:// or https://, "
+                    f"got: {pbu!r}"
+                )
+            master["public_base_url"] = pbu
 
         return cls(**{k: v for k, v in master.items() if k in cls.__dataclass_fields__})
 

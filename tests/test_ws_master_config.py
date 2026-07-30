@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from everlingo.ws_master.config import MasterConfig
 
 
@@ -36,6 +38,18 @@ def test_public_base_url_env_expansion(tmp_path: Path, monkeypatch):
     )
     cfg = MasterConfig.load(yaml_path)
     assert cfg.public_base_url == "https://from-env.everlingo.com"
+
+
+def test_public_base_url_invalid_scheme_raises(tmp_path: Path):
+    """public_base_url 不以 http(s):// 开头时 raise ValueError。"""
+    yaml_path = tmp_path / "ws_master.yaml"
+    yaml_path.write_text(
+        "master:\n"
+        "  public_base_url: home130-everlingo.mygraphql.com:6457\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="must start with http:// or https://"):
+        MasterConfig.load(yaml_path)
 
 
 def test_public_base_url_env_unset_falls_back_to_empty(tmp_path: Path, monkeypatch):

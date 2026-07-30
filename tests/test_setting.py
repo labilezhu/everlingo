@@ -672,6 +672,52 @@ def test_get_web_public_base_url_env_overridden_by_config(monkeypatch, tmp_path)
     assert url == "https://from-yaml.com"
 
 
+def test_get_web_public_base_url_validates_yaml_scheme(monkeypatch, tmp_path):
+    """base_url 不以 http:// 或 https:// 开头时 raise ValueError."""
+    from everlingo import workspace
+    monkeypatch.setattr(workspace, "WORKSPACE_ROOT", tmp_path)
+    ws = tmp_path
+    cfg = ws / "everlingo.yaml"
+    cfg.write_text(
+        "plugins:\n  channels:\n    channel_web:\n      public_address:\n        base_url: home130-everlingo.mygraphql.com:6457\n",
+        encoding="utf-8",
+    )
+    workspace.init_workspace(str(ws))
+    with pytest.raises(ValueError, match="must start with http:// or https://"):
+        get_web_public_base_url()
+
+
+def test_get_web_public_base_url_validates_env_scheme(monkeypatch, tmp_path):
+    """env EVERLINGO_PUBLIC_BASE_URL 不以 http(s):// 开头时 raise ValueError."""
+    from everlingo import workspace
+    monkeypatch.setattr(workspace, "WORKSPACE_ROOT", tmp_path)
+    ws = tmp_path
+    cfg = ws / "everlingo.yaml"
+    cfg.write_text(
+        "plugins:\n  channels:\n    channel_web:\n      listener:\n        interface: 0.0.0.0\n        port: 8888\n",
+        encoding="utf-8",
+    )
+    workspace.init_workspace(str(ws))
+    monkeypatch.setenv("EVERLINGO_PUBLIC_BASE_URL", "home130-everlingo.mygraphql.com:6457")
+    with pytest.raises(ValueError, match="must start with http:// or https://"):
+        get_web_public_base_url()
+
+
+def test_get_web_public_base_url_strips_trailing_slash(monkeypatch, tmp_path):
+    """base_url 尾部多余的 / 应被移除。"""
+    from everlingo import workspace
+    monkeypatch.setattr(workspace, "WORKSPACE_ROOT", tmp_path)
+    ws = tmp_path
+    cfg = ws / "everlingo.yaml"
+    cfg.write_text(
+        "plugins:\n  channels:\n    channel_web:\n      public_address:\n        base_url: https://app.everlingo.com/\n",
+        encoding="utf-8",
+    )
+    workspace.init_workspace(str(ws))
+    url = get_web_public_base_url()
+    assert url == "https://app.everlingo.com"
+
+
 def test_get_web_listener(monkeypatch, tmp_path):
     from everlingo import workspace
     monkeypatch.setattr(workspace, "WORKSPACE_ROOT", tmp_path)
