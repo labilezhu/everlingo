@@ -287,7 +287,10 @@ docker run -d \
 tail -f ${host_workspace}/logs/*
 ```
 
-##
-```
-本地开发兼容：Dockerfile 用 ARG DEPS_IMAGE 默认指向 ghcr，本地构建可传 --build-arg DEPS_IMAGE=everlingo-deps:local 配合本地 deploy/deps-base/Dockerfile 构建。
+## local build
+```bash
+# 本地开发兼容：Dockerfile 用 ARG DEPS_IMAGE 默认指向 ghcr，本地构建可传 --build-arg DEPS_IMAGE=everlingo-deps:local 配合本地 deploy/deps-base/Dockerfile 构建。
+DOCKER_BUILDKIT=1 docker buildx build . -f deploy/deps-base/Dockerfile -t everlingo-deps:local
+DOCKER_BUILDKIT=1 docker buildx build . -f deploy/ws-router/Dockerfile -t everlingo-ws-router:test --build-arg DEPS_IMAGE=everlingo-deps:local
+DOCKER_BUILDKIT=1 docker buildx build . -f deploy/ws-master/Dockerfile -t everlingo-ws-master:test --build-arg DEPS_IMAGE=everlingo-deps:local
 ```

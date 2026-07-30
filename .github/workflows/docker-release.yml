@@ -19,8 +19,121 @@ permissions:
   packages: write
 
 jobs:
+  # ── Deps-base 镜像（Python 依赖 .venv，三镜像共用）─────────────────────────
+  deps-build:
+    name: deps-base (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+            cache_scope: everlingo-deps-amd64
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            cache_scope: everlingo-deps-arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/everlingo-deps
+          flavor: |
+            latest=true
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=dev-${{ github.run_id }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.tag_suffix == '' }}
+            type=raw,value=dev-${{ github.run_id }}-${{ inputs.tag_suffix }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.tag_suffix != '' }}
+
+      - name: Append arch suffix to tags
+        id: arch_tags
+        run: |
+          {
+            echo "tags<<EOF"
+            echo "${{ steps.meta.outputs.tags }}" | sed "s/$/-${{ matrix.arch }}/"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build & push single-arch deps-base
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/deps-base/Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          push: true
+          tags: ${{ steps.arch_tags.outputs.tags }}
+          cache-from: type=gha,scope=${{ matrix.cache_scope }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.cache_scope }}
+
+  # ── Deps-base 多架构 manifest 合并 ──────────────────────────────────────────
+  deps-manifest:
+    name: merge deps-base manifest
+    needs: deps-build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker meta (re-derive base tags)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/everlingo-deps
+          flavor: |
+            latest=true
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=dev-${{ github.run_id }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.tag_suffix == '' }}
+            type=raw,value=dev-${{ github.run_id }}-${{ inputs.tag_suffix }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.tag_suffix != '' }}
+
+      - name: Create multi-arch manifests
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          echo "$TAGS" | while IFS= read -r tag; do
+            [ -z "$tag" ] && continue
+            docker buildx imagetools create -t "$tag" \
+              "$tag-amd64" \
+              "$tag-arm64"
+            echo "✓ merged deps-base: $tag"
+          done
+
+      - name: Show final tags
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          {
+            echo "## Published deps-base tags"
+            echo "$TAGS" | while IFS= read -r tag; do echo "- \`$tag\`"; done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ── 应用镜像（everlingo / ws-master / ws-router）───────────────────────────
   build:
     name: build ${{ matrix.image }} (${{ matrix.arch }})
+    needs: deps-build
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -97,6 +210,17 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
+      # Derive version used by DEPS_IMAGE build-arg (matches metadata-action semver/dev tag)
+      - name: Derive DEPS version
+        id: deps_ver
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="dev-${{ github.run_id }}${{ inputs.tag_suffix && format('-{0}', inputs.tag_suffix) || '' }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "deps_version=${VERSION}" >> "$GITHUB_OUTPUT"
+
       - name: Build & push single-arch image
         uses: docker/build-push-action@v6
         with:
@@ -105,6 +229,8 @@ jobs:
           platforms: linux/${{ matrix.arch }}
           push: true
           tags: ${{ steps.arch_tags.outputs.tags }}
+          build-args: |
+            DEPS_IMAGE=ghcr.io/${{ github.repository_owner }}/everlingo-deps:${{ steps.deps_ver.outputs.deps_version }}-${{ matrix.arch }}
           cache-from: type=gha,scope=${{ matrix.cache_scope }}
           cache-to: type=gha,mode=max,scope=${{ matrix.cache_scope }}
 

@@ -1,9 +1,10 @@
 # GitHub Actions CI 规范
 
-本文档定义 EverLingo 通过 GitHub Actions 构建多架构（amd64 + arm64）Linux 容器镜像并发布到 GitHub Container Registry (GHCR) 的流程。涵盖三组镜像：
+本文档定义 EverLingo 通过 GitHub Actions 构建多架构（amd64 + arm64）Linux 容器镜像并发布到 GitHub Container Registry (GHCR) 的流程。涵盖四组镜像：
 
 | Package | Dockerfile | 用途 | 说明 |
 |---|---|---|---|
+| `everlingo-deps` | `deploy/deps-base/Dockerfile` | Python 依赖基础镜像（`.venv` + runtime setup） | 三应用镜像 `FROM` 此 base，源码改动不触发 deps 层重下 |
 | `everlingo` | `deploy/ws-container/Dockerfile` | workspace container（单用户独立部署或用 WS-Master 动态创建） | 多阶段构建，含 `web/dist` 前端 SPA |
 | `everlingo-ws-master` | `deploy/ws-master/Dockerfile` | 多用户编排服务 | 精简构建，跳过 frontend-builder，无 `web/dist` |
 | `everlingo-ws-router` | `deploy/ws-router/Dockerfile` | 多用户路由入口 | 精简构建，同 ws-master |
@@ -13,9 +14,9 @@
 ## 概述
 
 - **触发方式**：推送 `v*` tag（正式发布 / prerelease）或 `workflow_dispatch` 手动触发
-- **产物 Registry**：`ghcr.io/<owner>/everlingo`、`ghcr.io/<owner>/everlingo-ws-master`、`ghcr.io/<owner>/everlingo-ws-router`
+- **产物 Registry**：`ghcr.io/<owner>/everlingo-deps`、`ghcr.io/<owner>/everlingo`、`ghcr.io/<owner>/everlingo-ws-master`、`ghcr.io/<owner>/everlingo-ws-router`
 - **认证**：使用 workflow 默认的 `GITHUB_TOKEN`，无需额外 secret
-- **构建策略**：双 native runner 并行构建（amd64 / arm64 各自原生 runner，避免 QEMU 模拟），再以 manifest 合并为统一多架构镜像。三组镜像在一次触发中并行构建，互不阻塞。
+- **构建策略**：双 native runner 并行构建（amd64 / arm64 各自原生 runner，避免 QEMU 模拟），再以 manifest 合并为统一多架构镜像。先构建 `everlingo-deps` base 镜像，三应用镜像 `FROM` 之并只追加源码层（KB 级），源码改动不复下载 ≈100M 的 `.venv` 依赖层。
 - **缓存**：`type=gha`，按镜像 × arch 分 scope
 
 ## Workflow 文件
@@ -55,37 +56,43 @@ GitHub Actions 页面 → 选择 `docker-release` workflow → Run workflow。
 | `linux/amd64` | `ubuntu-24.04` | GitHub 原生 x86_64 runner |
 | `linux/arm64` | `ubuntu-24.04-arm` | GitHub 原生 arm64 runner（无需 QEMU 模拟） |
 
-`build` job 以 matrix 枚举 6 个组合（3 image × 2 arch），各自并行执行 `docker buildx build --platform=linux/<arch> --push`，推到 GHCR 的 `<tag>-<arch>` 单架构 tag。
+`deps-build` job 以 matrix 枚举 2 个 arch（amd64 / arm64），构建并推送 `everlingo-deps` base 镜像。`deps-manifest` job 合并其多架构 manifest。
+
+`build` job 以 matrix 枚举 6 个组合（3 image × 2 arch），`needs: deps-build`，各自执行 `docker buildx build --platform=linux/<arch> --push --build-arg DEPS_IMAGE=...`，推到 GHCR 的 `<tag>-<arch>` 单架构 tag。三个 Dockerfile 均 `FROM ${DEPS_IMAGE}`（即刚构建的 `everlingo-deps`），不再各自 `uv sync`，仅追加源码层。
 
 `manifest` job 以 matrix 枚举 3 个 image，对每镜像用 `docker buildx imagetools create` 将对应 amd64 + arm64 单架构 tag 合并为同名多架构 tag，使 `docker pull ghcr.io/<owner>/everlingo:<tag>` 自动按宿主架构拉取。
 
 ### 构建矩阵
 
 ```
-image            | dockerfile                    | arch   | runner
-─────────────────|───────────────────────────────|────────|────────────────
-everlingo        | deploy/ws-container/Dockerfile | amd64  | ubuntu-24.04
-everlingo        | deploy/ws-container/Dockerfile | arm64  | ubuntu-24.04-arm
-everlingo-ws-master | deploy/ws-master/Dockerfile | amd64  | ubuntu-24.04
-everlingo-ws-master | deploy/ws-master/Dockerfile | arm64  | ubuntu-24.04-arm
-everlingo-ws-router | deploy/ws-router/Dockerfile | amd64  | ubuntu-24.04
-everlingo-ws-router | deploy/ws-router/Dockerfile | arm64  | ubuntu-24.04-arm
+job             | image              | dockerfile                    | arch   | runner
+────────────────|────────────────────|───────────────────────────────|────────|────────────────
+deps-build      | everlingo-deps     | deploy/deps-base/Dockerfile   | amd64  | ubuntu-24.04
+deps-build      | everlingo-deps     | deploy/deps-base/Dockerfile   | arm64  | ubuntu-24.04-arm
+build           | everlingo          | deploy/ws-container/Dockerfile | amd64  | ubuntu-24.04
+build           | everlingo          | deploy/ws-container/Dockerfile | arm64  | ubuntu-24.04-arm
+build           | everlingo-ws-master| deploy/ws-master/Dockerfile   | amd64  | ubuntu-24.04
+build           | everlingo-ws-master| deploy/ws-master/Dockerfile   | arm64  | ubuntu-24.04-arm
+build           | everlingo-ws-router| deploy/ws-router/Dockerfile   | amd64  | ubuntu-24.04
+build           | everlingo-ws-router| deploy/ws-router/Dockerfile   | arm64  | ubuntu-24.04-arm
 ```
 
 ### 缓存
 
 每镜像每平台独立 GHA cache：
 
-| cache scope | 对应构建 |
-|---|---|
-| `everlingo-amd64` | everlingo × amd64 |
-| `everlingo-arm64` | everlingo × arm64 |
-| `everlingo-ws-master-amd64` | everlingo-ws-master × amd64 |
-| `everlingo-ws-master-arm64` | everlingo-ws-master × arm64 |
-| `everlingo-ws-router-amd64` | everlingo-ws-router × amd64 |
-| `everlingo-ws-router-arm64` | everlingo-ws-router × arm64 |
+| cache scope | 对应构建 | 说明 |
+|---|---|---|
+| `everlingo-deps-amd64` | everlingo-deps × amd64 | 仅在 deps-build 中使用 |
+| `everlingo-deps-arm64` | everlingo-deps × arm64 | 同上 |
+| `everlingo-amd64` | everlingo × amd64 | 应用镜像仅缓存 frontend-builder + src 层 |
+| `everlingo-arm64` | everlingo × arm64 | 同上 |
+| `everlingo-ws-master-amd64` | everlingo-ws-master × amd64 | 同上 |
+| `everlingo-ws-master-arm64` | everlingo-ws-master × arm64 | 同上 |
+| `everlingo-ws-router-amd64` | everlingo-ws-router × amd64 | 同上 |
+| `everlingo-ws-router-arm64` | everlingo-ws-router × arm64 | 同上 |
 
-`mode=max` 缓存多阶段所有 layer，二次构建命中后显著加速（尤其 `uv sync` 的 deps stage）。三组镜像的 deps stage 内容相同，但 cache scope 分离，可并行读写互不冲突。
+`mode=max` 缓存多阶段所有 layer。三个应用镜像不再包含 deps stage（由 `deps-build` 产出的 `everlingo-deps` base 镜像提供），因此 cache payload 大幅减小，且在 GHA 10 GB 上限下的 eviction 风险降低。
 
 ## Tag 规则
 
@@ -149,8 +156,9 @@ permissions:
    ```
 
 3. GitHub Actions 自动触发 `docker-release` workflow
-4. 6 个 build job 并行执行（每个平台约 5–10 分钟，首次较慢，命中 cache 后更快）
-5. 3 个 manifest job 各自合并多架构 tag（约 1 分钟）
+4. `deps-build` job 先执行（2 个 arch 并行，约 5 分钟）
+5. 6 个 `build` job 随后并行执行，因 `FROM` 已 push 的 `everlingo-deps` base 镜像，不再 `uv sync`，仅追加源码层（约 3–5 分钟）
+6. `deps-manifest` 与 `manifest` job 各自合并多架构 tag（约 1 分钟）
 6. 拉取使用：
    ```bash
    docker pull ghcr.io/<owner>/everlingo:0.1.0
@@ -162,22 +170,39 @@ permissions:
 
 ## 本地构建
 
-CI 仅负责发布。本地开发构建仍按相应设计文档执行：
+CI 仅负责发布。本地开发构建需先构建 deps-base，再构建目标应用镜像：
 
 ```bash
 cd $everlingo_repo
 
+# 1. 先构建 deps-base 并标记为 :local（创建 everlingo user + .venv）
+DOCKER_BUILDKIT=1 docker buildx build . \
+  -f deploy/deps-base/Dockerfile \
+  -t everlingo-deps:local
+
+# 2. 构建应用镜像，传入 --build-arg DEPS_IMAGE=everlingo-deps:local
 # workspace container（含前端）
-DOCKER_BUILDKIT=1 docker buildx build . -f deploy/ws-container/Dockerfile -t everlingo:dev
+DOCKER_BUILDKIT=1 docker buildx build . \
+  -f deploy/ws-container/Dockerfile \
+  -t everlingo:dev \
+  --build-arg DEPS_IMAGE=everlingo-deps:local
 
 # ws-master（无前端）
-DOCKER_BUILDKIT=1 docker buildx build . -f deploy/ws-master/Dockerfile -t everlingo-ws-master:dev
+DOCKER_BUILDKIT=1 docker buildx build . \
+  -f deploy/ws-master/Dockerfile \
+  -t everlingo-ws-master:dev \
+  --build-arg DEPS_IMAGE=everlingo-deps:local
 
 # ws-router（无前端）
-DOCKER_BUILDKIT=1 docker buildx build . -f deploy/ws-router/Dockerfile -t everlingo-ws-router:dev
+DOCKER_BUILDKIT=1 docker buildx build . \
+  -f deploy/ws-router/Dockerfile \
+  -t everlingo-ws-router:dev \
+  --build-arg DEPS_IMAGE=everlingo-deps:local
 ```
 
-代理环境下加 `--build-arg HTTP_PROXY=... --build-arg HTTPS_PROXY=...`。
+代理环境下所有 `docker buildx build` 加 `--build-arg HTTP_PROXY=... --build-arg HTTPS_PROXY=...`。
+
+**注意**：源码改动后重复步骤 2 即可（deps-base 不变则无需重 build），构建速度秒级，不复 `uv sync`。
 
 ## 相关文档
 
