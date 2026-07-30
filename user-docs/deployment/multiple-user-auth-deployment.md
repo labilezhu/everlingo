@@ -92,6 +92,7 @@ docker compose -p everctl up
 
 docker exec -it everctl-ws_master-1  python -m everlingo ws_master --config /etc/everlingo/ws_master.yaml user add --name $INIT_USER_NAME --display-name "$INIT_USER_NAME" --password $INIT_USER_PASSWORD
 
+docker exec -it everctl-ws_master-1  python -m everlingo ws_master --config /etc/everlingo/ws_master.yaml ws start --user $INIT_USER_NAME
 
 ```
 

@@ -367,7 +367,7 @@ WS-Master 启动时遍历 `ws_containers` 中 `status ∈ {creating, starting, s
 | `ws add --user mark` | 新增 ws-container；Phase 1 该 user 已有 ws 则拒绝（`max_ws_per_user` 超限） |
 | `ws list [--user mark]` | 列出 ws-container 状态 |
 | `ws rm --id <ws_id> [--purge]` | 删除 ws-container；`--purge` stop+remove 容器并删 host 目录 |
-| `ws start (--id <ws_id> | --user <user_name>)` | 强制拉起；`--user` 解析该 user 的 default ws-container（预热用），与 `--id` 互斥 |
+| `ws start (--id <ws_id> \| --user <user_name>)` | 强制拉起；`--user` 解析该 user 的 default ws-container（预热用），与 `--id` 互斥 |
 | `ws stop --id <ws_id>` | 强制停机 |
 | `ws set-default --id <ws_id>` | 切换默认 ws-container（Phase 1 仅一个，预留） |
 | `pat add --user mark --label "curl-laptop" [--expires 365d]` | 生成 PAT，明文打印一次 |
