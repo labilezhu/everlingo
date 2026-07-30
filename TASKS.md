@@ -5,6 +5,7 @@
 ## 完成的任务
 格式：完成日期与时间(GMT+8 timezone) | 任务描述 。 示例： " - 2026-06-20 19:28 | 生成主入口代码"
 
+- 2026-07-30 | 修复 `ws_master.yaml` 的 `image` 字段 `${WORKSPLACE_IMAGE}` 未被 env 展开的 bug（白名单漏 `image`）。改为三处配置（`everlingo.yaml` / `ws_master.yaml` / `ws_router.yaml`）统一使用 `os.path.expandvars` 对所有字符串字段递归展开（支持嵌入式 `${VAR}` / `$VAR`，未设 env 保留字面量 fail-loud）。新增共享工具 `src/everlingo/utils/yaml_env.py:expand_env_vars`。更新 test_ws_master_config.py（移除白名单模式，改 unset env 测试为预期 ValueError）、新建 test_ws_router_config.py（3 项 env 展开测试）、test_setting.py（1 项 everlingo.yaml 展开测试）。文档 ws-master.md §5.1 / ws-router.md §5 同步。
 - 2026-07-30 | `public_base_url` scheme 校验：在 `setting.get_web_public_base_url()` 与 `MasterConfig.load()` 中增加 `^https?://` 校验（非 http(s) 开头 raise ValueError），防止配置 typo 静默传播导致 Chat Agent 生成畸形笔记链接。同时添加 trailing slash 剥离、补充 4 项单测（yaml/env 非法 scheme、trailing slash 修剪、ws_master config 非法 scheme），65 相关测试通过无回归。
 - 2026-07-29 当前 | **修复 host_ws_dir/container_ws_dir 路径分离**：当 ws-master 容器化时，`host_ws_dir`（docker daemon bind source）与 `container_ws_dir`（容器内文件操作）需分离。新增 `container_ws_dir` 配置字段（默认 `/workspaces`）+ `host_to_container_ws_path()` 前缀转换函数。改动：config.py（字段 + 函数 + env_keys）、lifecycle.py（_create_and_start/remove 文件操作用容器路径，bind source 用宿主路径）、cli.py（_user_rm/_ws_rm rmtree 用容器路径）、yaml 配置、测试（config fixture 分离两路径 + 新增 test_create_bind_source_is_host_path 验证 volumes key=宿主 + 模板落容器路径）。docs/ws-master.md §5.1、deploy.md §4 同步。单测 49 全通过。
 - 2026-07-29 当前 | **PR4 — Chrome Extension Token 化**：扩展 Basic Auth → PAT Bearer token。改动：config.ts/OptionsForm/background + 测试随动 + 文档同步。36 测试通过。

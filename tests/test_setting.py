@@ -18,6 +18,7 @@ from everlingo.setting import (
     dict_to_setting,
     get_web_listener,
     get_web_public_base_url,
+    load_setting,
     setting_to_dict,
 )
 
@@ -731,3 +732,19 @@ def test_get_web_listener(monkeypatch, tmp_path):
     listener = get_web_listener()
     assert listener.interface == "::"
     assert listener.port == 9000
+
+
+def test_env_expansion_in_everlingo_yaml(monkeypatch, tmp_path):
+    from everlingo import workspace
+    monkeypatch.setattr(workspace, "WORKSPACE_ROOT", tmp_path)
+    ws = tmp_path
+    cfg = ws / "everlingo.yaml"
+    cfg.write_text(
+        "sys_setting:\n"
+        "  openai_api_key: ${OPENAI_API_KEY}\n",
+        encoding="utf-8",
+    )
+    workspace.init_workspace(str(ws))
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-expanded")
+    setting = load_setting()
+    assert setting.sys_setting.openai_api_key == "sk-test-expanded"

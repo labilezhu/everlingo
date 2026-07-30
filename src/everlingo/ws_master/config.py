@@ -5,12 +5,13 @@
 
 from __future__ import annotations
 
-import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
+
+from everlingo.utils.yaml_env import expand_env_vars
 
 
 @dataclass
@@ -52,21 +53,8 @@ class MasterConfig:
             raw = yaml.safe_load(f)
         master = raw.get("master", {}) if isinstance(raw, dict) else {}
 
-        # Expand ${VAR} env references for path / LLM fields
-        env_keys = [
-            "host_ws_dir",
-            "container_ws_dir",
-            "openai_api_key",
-            "openai_base_url",
-            "openai_model",
-            "openai_embedding_model",
-            "public_base_url",
-        ]
-        for key in env_keys:
-            val = master.get(key, "")
-            if isinstance(val, str) and val.startswith("${") and val.endswith("}"):
-                env_var = val[2:-1]
-                master[key] = os.environ.get(env_var, "")
+        # Expand ${VAR} / $VAR env references for all string fields
+        master = expand_env_vars(master)
 
         # Validate public_base_url scheme if non-empty
         pbu = master.get("public_base_url", "")

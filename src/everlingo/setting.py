@@ -9,6 +9,7 @@ from .models import (
     UserProfile,
     WebListener,
 )
+from .utils.yaml_env import expand_env_vars
 
 # ref: docs/impl-spec/worksplace/workspace.md — workspace 概念
 # 配置/USER.md 路径不再 hard code 到 ~/.everlingo 根目录，而是
@@ -47,7 +48,8 @@ def _load_raw() -> dict:
     if path.exists():
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
-        return data if isinstance(data, dict) else {}
+        data = expand_env_vars(data) if isinstance(data, dict) else {}
+        return data
     return {}
 
 

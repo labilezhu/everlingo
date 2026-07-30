@@ -200,7 +200,8 @@ CORSMiddleware(
 
 ## 5. 配置
 
-`ws_router.yaml`：
+`ws_router.yaml` 所有字符串字段默认支持 `os.path.expandvars` 环境变量展开（`${VAR}` / `$VAR` 嵌入式均可），
+未设 env 时保留原字面量（fail-loud）。典型用例：`master_secret: ${MASTER_SECRET}`。
 
 ```yaml
 ws_router:
@@ -209,9 +210,9 @@ ws_router:
   trusted_proxy: 127.0.0.1          # 仅信任 nginx 来源
 
   master_url: http://ws_master:8101
-  master_secret: <random>           # 与 master.shared_secret 一致，注入 X-Master-Token
+  master_secret: ${MASTER_SECRET}   # 与 master.shared_secret 一致，注入 X-Master-Token
 
-  jwt_secret: <random>             # HS256 签名密钥
+  jwt_secret: ${JWT_SECRET}         # HS256 签名密钥
   session_ttl: 28800               # 8h
   backend_cache_ttl: 60            # backend URL LRU 缓存秒数
   pat_verify_cache_ttl: 30         # PAT 校验结果缓存秒数

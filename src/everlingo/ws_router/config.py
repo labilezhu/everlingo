@@ -5,11 +5,12 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
+
+from everlingo.utils.yaml_env import expand_env_vars
 
 
 @dataclass
@@ -38,6 +39,6 @@ class RouterConfig:
         path = Path(path)
         with open(path, encoding="utf-8") as f:
             raw = yaml.safe_load(f)
-        cfg = raw.get("ws_router", {}) if isinstance(raw, dict) else {}
+        cfg = expand_env_vars(raw.get("ws_router", {})) if isinstance(raw, dict) else {}
 
         return cls(**{k: v for k, v in cfg.items() if k in cls.__dataclass_fields__})

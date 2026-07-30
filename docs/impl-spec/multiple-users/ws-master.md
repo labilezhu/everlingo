@@ -173,7 +173,7 @@ master:
   host_ws_dir: /workspaces              # 宿主侧 workspace 根路径（docker daemon bind 用）
   container_ws_dir: /workspaces          # ws-master 容器内挂载点（文件操作用；常与 host_ws_dir 不同）
 
-  image: ghcr.io/labilezhu/everlingo:0.0.1-rc.3
+  image: ${WORKSPLACE_IMAGE}          # 容器化部署时由宿主编环境变量 WORKSPLACE_IMAGE 注入
   network: everlingo-net
   ws_template: /etc/everlingo/ws_container_everlingo_template.yaml  # 新建 ws-container 的 everlingo.yaml 模板
 
@@ -195,8 +195,13 @@ master:
   max_ws_per_user: 1                # Phase 1 = 1；未来放开以支持多 ws
 ```
 
+**环境变量展开**：
+- `ws_master.yaml` 的所有字符串字段默认支持 `os.path.expandvars` 展开（`${VAR}` / `$VAR` 嵌入式均可），未设 env 时保留原字面量（fail-loud）。
+- 典型用例：`image: ${WORKSPLACE_IMAGE}`、`openai_api_key: ${OPENAI_API_KEY}`、`host_ws_dir: ${HOST_WS_DIR}`。
+- `everlingo.yaml` / `ws_router.yaml` 配置同理（`setting.py:expand_env_vars` / `config.py:expand_env_vars`）。
+
 **LLM 密钥流向**：
-- `ws_master.yaml` 的 `openai_*` 由 WS-Master 读取（自身 env 展开 `${VAR}`），作为**容器 env** 注入 ws-container。
+- `ws_master.yaml` 的 `openai_*` 由 WS-Master 读取（自身 env 展开），作为**容器 env** 注入 ws-container。
 - **不**写入 workspace 的 `everlingo.yaml`——密钥不落宿主磁盘（workspace 目录在宿主上可被运维访问）。
 - ws-container 内 `config.py:get_llm_config()` 的 env fallback（`ss.openai_api_key or os.getenv("OPENAI_API_KEY")`）自动生效。
 - 远期 per-user key：优先读 `users.openai_*`，为空则回退 `ws_master.yaml`。

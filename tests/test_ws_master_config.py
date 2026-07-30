@@ -1,4 +1,4 @@
-"""WS-Master 配置加载测试：public_base_url 字段与 env 展开。"""
+"""WS-Master 配置加载测试：env 展开（expand_env_vars + fail-loud）。"""
 
 from __future__ import annotations
 
@@ -10,13 +10,11 @@ from everlingo.ws_master.config import MasterConfig
 
 
 def test_public_base_url_default_empty():
-    """未配置时 public_base_url 默认空串。"""
     cfg = MasterConfig()
     assert cfg.public_base_url == ""
 
 
 def test_public_base_url_loaded_from_yaml(tmp_path: Path):
-    """ws_master.yaml 的 public_base_url 直接加载。"""
     yaml_path = tmp_path / "ws_master.yaml"
     yaml_path.write_text(
         "master:\n"
@@ -28,7 +26,6 @@ def test_public_base_url_loaded_from_yaml(tmp_path: Path):
 
 
 def test_public_base_url_env_expansion(tmp_path: Path, monkeypatch):
-    """public_base_url 支持 ${VAR} env 展开（与 openai_* 同形）。"""
     monkeypatch.setenv("EVERLINGO_PUBLIC_BASE_URL", "https://from-env.everlingo.com")
     yaml_path = tmp_path / "ws_master.yaml"
     yaml_path.write_text(
@@ -41,7 +38,6 @@ def test_public_base_url_env_expansion(tmp_path: Path, monkeypatch):
 
 
 def test_public_base_url_invalid_scheme_raises(tmp_path: Path):
-    """public_base_url 不以 http(s):// 开头时 raise ValueError。"""
     yaml_path = tmp_path / "ws_master.yaml"
     yaml_path.write_text(
         "master:\n"
@@ -52,8 +48,9 @@ def test_public_base_url_invalid_scheme_raises(tmp_path: Path):
         MasterConfig.load(yaml_path)
 
 
-def test_public_base_url_env_unset_falls_back_to_empty(tmp_path: Path, monkeypatch):
-    """${VAR} 但 env 未设 → 空串（不影响 setting.py 的 listener 回退）。"""
+def test_public_base_url_env_unset_is_literal_then_fails_scheme(
+    tmp_path: Path, monkeypatch,
+):
     monkeypatch.delenv("EVERLINGO_PUBLIC_BASE_URL", raising=False)
     yaml_path = tmp_path / "ws_master.yaml"
     yaml_path.write_text(
@@ -61,5 +58,31 @@ def test_public_base_url_env_unset_falls_back_to_empty(tmp_path: Path, monkeypat
         "  public_base_url: ${EVERLINGO_PUBLIC_BASE_URL}\n",
         encoding="utf-8",
     )
+    with pytest.raises(ValueError, match="must start with http:// or https://"):
+        MasterConfig.load(yaml_path)
+
+
+def test_image_env_expansion(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("WORKSPLACE_IMAGE", "ghcr.io/labilezhu/everlingo:latest")
+    yaml_path = tmp_path / "ws_master.yaml"
+    yaml_path.write_text(
+        "master:\n"
+        "  image: ${WORKSPLACE_IMAGE}\n"
+        "  public_base_url: http://localhost\n",
+        encoding="utf-8",
+    )
     cfg = MasterConfig.load(yaml_path)
-    assert cfg.public_base_url == ""
+    assert cfg.image == "ghcr.io/labilezhu/everlingo:latest"
+
+
+def test_openai_base_url_embedded_env(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("OPENAI_HOST", "openrouter.ai")
+    yaml_path = tmp_path / "ws_master.yaml"
+    yaml_path.write_text(
+        "master:\n"
+        "  openai_base_url: https://${OPENAI_HOST}/api/v1\n"
+        "  public_base_url: http://localhost\n",
+        encoding="utf-8",
+    )
+    cfg = MasterConfig.load(yaml_path)
+    assert cfg.openai_base_url == "https://openrouter.ai/api/v1"
