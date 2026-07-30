@@ -35,7 +35,7 @@
 ```bash
 ######## base conf ########
 
-export EVERLINGO_VER=0.1.0-rc.14
+export EVERLINGO_VER=0.1.0-rc.15
 export OPENAI_API_KEY=<your_api_key>
 export OPENAI_BASE_URL=https://openrouter.ai/api/v1
 export OPENAI_MODEL=deepseek/deepseek-v4-flash
@@ -70,7 +70,7 @@ cp $SRC_REPO_HOME/deploy/examples/* ./
 
 mkdir -p $HOST_WS_DIR
 
-# 5. 启动 compose
+# 启动 compose
 
 
 cd $DEPLOY_WORK_HOME
@@ -78,6 +78,7 @@ cd $DEPLOY_WORK_HOME
 export WORKSPLACE_IMAGE=ghcr.io/labilezhu/everlingo:${EVERLINGO_VER}
 export WS_MASTER_IMAGE=ghcr.io/labilezhu/everlingo-ws-master:${EVERLINGO_VER}
 export WS_ROUTER_IMAGE=ghcr.io/labilezhu/everlingo-ws-router:${EVERLINGO_VER}
+
 
 docker pull $WS_ROUTER_IMAGE
 docker pull $WS_MASTER_IMAGE
