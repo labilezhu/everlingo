@@ -41,6 +41,7 @@ WS-Master **不**反代用户流量、**不**面向公网、**不**签发 WS-Rou
 | `state` | 生命周期状态，见 §4 |
 | `docker_container_id` | docker create 后回填的容器 ID |
 | `docker_container_name` | `everlingo-<user_name>-<short_id>`，`short_id` = `ws_container_id` 前 8 位 |
+| `docker_labels` | 固定 `app=everlingo`、`everlingo.container=ws_container`，外加 `everlingo.user=<user_name>`、`everlingo.ws.id=<ws_container_id>`，便于 `docker ps --filter label=...` 检索（见 §6.2） |
 | `is_default` | 是否为该 user 的默认 ws-container（路由用）；每 user 恰好一个 default |
 
 ### 2.2 命名约定
@@ -239,7 +240,7 @@ WS-Master 监听 `everlingo-net` 内 `ws_master:8101`，所有请求校验头 `X
 1. 查 `ws_containers` 表中 `user_id` 且 `is_default=1` 的行
 2. `status=started` 且探活成功 → 返回 `http://<container_ip>:8000`（IP 由 `_container_ip()` 从 docker attrs 动态读取，不依赖 hostname 解析）
 3. `status=stopped` → `docker start` → 探活就绪 → 返回 URL
-4. `status=absent` → `docker create`（挂载 host_workspace_dir、注入 env、network=`everlingo-net`、alias=`everlingo-<user_name>-<short_id>`、不设 ports）→ `docker start` → 探活就绪 → 返回 URL
+4. `status=absent` → `docker create`（挂载 host_workspace_dir、注入 env、network=`everlingo-net`、alias=`everlingo-<user_name>-<short_id>`、打上 label `app=everlingo` / `everlingo.container=ws_container` / `everlingo.user=<user_name>` / `everlingo.ws.id=<ws_container_id>`、不设 ports，见 §6.2）→ `docker start` → 探活就绪 → 返回 URL
 5. 探活失败超 `readiness_timeout` → 返回 503
 
 ### 6.2 创建 ws-container 参数
@@ -253,6 +254,12 @@ docker.containers.create(
     name=container_name,
     network=master_config.network,
     network_aliases=[container_name],
+    labels={
+        "app": "everlingo",
+        "everlingo.container": "ws_container",
+        "everlingo.user": user.user_name,
+        "everlingo.ws.id": ws_container.ws_container_id,
+    },
     environment={
         "OPENAI_API_KEY": user.openai_api_key or master_config.openai_api_key,
         "OPENAI_BASE_URL": user.openai_base_url or master_config.openai_base_url,
@@ -380,6 +387,7 @@ CLI 直连 `ws_master.sqlite`，不走 internal API。
 
 - WS-Master 是 `ws_master.sqlite` 与 docker daemon 的唯一访问者；WS-Router 不直接访问二者。
 - ws-container 不对宿主映射端口，仅靠 `everlingo-net` 内 alias 可达。
+- 所有动态创建的 ws-container 必带 docker label：`app=everlingo`、`everlingo.container=ws_container`、`everlingo.user=<user_name>`、`everlingo.ws.id=<ws_container_id>`，便于 `docker ps --filter label=everlingo.container=ws_container` 列出全部 ws-container（WS-Master 启动对账、运维清理用）。
 - WS-Master 不签发 WS-Router JWT；JWT 签发与验签在 WS-Router 侧（共享 `jwt_secret`）。
 - `docker stop` 不删 workspace；只有显式 `ws rm --purge` 或 `user rm --purge` 才删。
 - LLM 密钥不写入 workspace `everlingo.yaml`；经容器 env 注入，依赖 `config.py` env fallback。
