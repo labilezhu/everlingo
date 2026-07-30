@@ -14,6 +14,10 @@ ws_router:
   master_url: http://ws_master:8101
   # 与 ws_master.yaml master.shared_secret 一致
   master_secret: ${MASTER_SECRET}
+  # 调用 ws-master Internal API 的 HTTP 超时（秒）
+  # 必须 >= ws_master.yaml 的 readiness_timeout + buffer，
+  # 否则 router 会在 master 仍阻塞等待 ws-container 就绪时先超时返回 backend_unavailable
+  master_timeout: 90
 
   # JWT HS256 签名密钥（openssl rand -hex 32）
   jwt_secret: ${JWT_SECRET}

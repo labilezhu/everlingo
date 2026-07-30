@@ -23,6 +23,7 @@ class RouterConfig:
 
     master_url: str = "http://ws_master:8101"
     master_secret: str = ""
+    master_timeout: int = 90
 
     jwt_secret: str = ""
     session_ttl: int = 28800

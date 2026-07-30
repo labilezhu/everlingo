@@ -1,5 +1,7 @@
 # Tasks
 
+- 2026-07-30 | **修复 ws-router MasterClient 30s 硬超时导致 browser 过早 503 backend_unavailable**：根因——`master_client.py` 硬编码 `httpx.Timeout(30.0)`，而 `get_default_backend`（router→master 触发 ws-container 创建/启动）在 ws_master 侧可能阻塞长达 `readiness_timeout`（默认 60s，68 慢机器已调至 120s）。router 在 30s 先超时 → `get_default_backend` 返回 None → `catch_all` 回 503 `backend_unavailable`，尽管容器稍后（65s）正常就绪。修复：`RouterConfig` 新增可配字段 `master_timeout: int = 90`（默认 90s，≥ 默认 readiness_timeout 60s + 30s buffer）；`MasterClient.__init__` 接收 `timeout` 参数替代硬编码 30s；`AppState` 传入 `config.master_timeout`。示例配置与 68 env `ws_router.yaml` 同步更新（68 env 设 `master_timeout: 135`，对应当地 `readiness_timeout: 120 + 15s buffer`）。文档 ws-router.md §5 配置表同步。新增测试：`test_ws_router_config.py`（默认值 90 + 自定义 135）、`test_ws_router_master_client.py`（默认 90 / 自定义 / float 转换）。相关测试 15 通过无回归。
+
 ## 计划的任务
 
 ## 完成的任务

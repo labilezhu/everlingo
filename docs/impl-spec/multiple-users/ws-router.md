@@ -211,6 +211,9 @@ ws_router:
 
   master_url: http://ws_master:8101
   master_secret: ${MASTER_SECRET}   # 与 master.shared_secret 一致，注入 X-Master-Token
+  master_timeout: 90                # 调用 master Internal API 的 HTTP 超时（秒）
+                                    # 必须 >= ws_master 的 readiness_timeout + buffer
+                                    # 否则 router 会在 master 仍在等就绪时先超时 → 503 假错误
 
   jwt_secret: ${JWT_SECRET}         # HS256 签名密钥
   session_ttl: 28800               # 8h

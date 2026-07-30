@@ -28,10 +28,10 @@ class BackendInfo:
 
 
 class MasterClient:
-    def __init__(self, base_url: str, secret: str):
+    def __init__(self, base_url: str, secret: str, timeout: int = 90):
         self._base_url = base_url.rstrip("/")
         self._headers = {"X-Master-Token": secret, "Content-Type": "application/json"}
-        self._client = httpx.AsyncClient(base_url=self._base_url, headers=self._headers, timeout=httpx.Timeout(30.0))
+        self._client = httpx.AsyncClient(base_url=self._base_url, headers=self._headers, timeout=httpx.Timeout(float(timeout)))
 
     async def close(self) -> None:
         await self._client.aclose()

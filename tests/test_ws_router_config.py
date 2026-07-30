@@ -51,3 +51,21 @@ def test_literal_value_no_expansion(tmp_path: Path, monkeypatch):
     )
     cfg = RouterConfig.load(yaml_path)
     assert cfg.master_secret == "${NONEXISTENT_VAR}"
+
+
+def test_master_timeout_default(tmp_path):
+    yaml_path = _write_config(
+        tmp_path,
+        "ws_router:\n  jwt_secret: dummy\n",
+    )
+    cfg = RouterConfig.load(yaml_path)
+    assert cfg.master_timeout == 90
+
+
+def test_master_timeout_custom(tmp_path):
+    yaml_path = _write_config(
+        tmp_path,
+        "ws_router:\n  jwt_secret: dummy\n  master_timeout: 135\n",
+    )
+    cfg = RouterConfig.load(yaml_path)
+    assert cfg.master_timeout == 135

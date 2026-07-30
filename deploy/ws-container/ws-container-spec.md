@@ -287,3 +287,7 @@ docker run -d \
 tail -f ${host_workspace}/logs/*
 ```
 
+##
+```
+本地开发兼容：Dockerfile 用 ARG DEPS_IMAGE 默认指向 ghcr，本地构建可传 --build-arg DEPS_IMAGE=everlingo-deps:local 配合本地 deploy/deps-base/Dockerfile 构建。
+```

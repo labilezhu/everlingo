@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 class AppState:
     def __init__(self, config: RouterConfig) -> None:
         self.config = config
-        self.master = MasterClient(config.master_url, config.master_secret)
+        self.master = MasterClient(config.master_url, config.master_secret, config.master_timeout)
         self.auth_provider: AuthProvider = PasswordAuthProvider(self.master)
         self.proxy_client = httpx.AsyncClient(timeout=httpx.Timeout(600.0))
         self.pat_cache = TTLCache(maxsize=256, ttl=config.pat_verify_cache_ttl)
