@@ -74,7 +74,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ws_rm.add_argument("--purge", action="store_true", help="同时 stop+remove 容器并删 host 目录")
 
     p_ws_start = ws_sub.add_parser("start", help="强制拉起 ws-container")
-    p_ws_start.add_argument("--id", required=True, dest="ws_id", help="ws-container ID")
+    p_ws_start.add_argument("--id", dest="ws_id", default=None, help="ws-container ID（与 --user 互斥）")
+    p_ws_start.add_argument("--user", dest="user_name", default=None, help="预拉起该用户的 default ws-container（预热用，与 --id 互斥）")
 
     p_ws_stop = ws_sub.add_parser("stop", help="强制停机 ws-container")
     p_ws_stop.add_argument("--id", required=True, dest="ws_id", help="ws-container ID")
@@ -363,7 +364,7 @@ def _dispatch_ws(args: argparse.Namespace) -> int:
     if args.ws_cmd == "rm":
         return _ws_rm(config, ws_repo, args)
     if args.ws_cmd == "start":
-        return _ws_start(ws_repo, args)
+        return _ws_start(config, user_repo, ws_repo, args)
     if args.ws_cmd == "stop":
         return _ws_stop(ws_repo, args)
     if args.ws_cmd == "set-default":
@@ -451,19 +452,53 @@ def _ws_rm(config: MasterConfig, ws_repo: WsContainerRepo, args: argparse.Namesp
     return 0
 
 
-def _ws_start(ws_repo: WsContainerRepo, args: argparse.Namespace) -> int:
-    ws = ws_repo.get_by_id(args.ws_id)
+def _ws_start(config: MasterConfig, user_repo: UserRepo, ws_repo: WsContainerRepo, args: argparse.Namespace) -> int:
+    ws_id = getattr(args, "ws_id", None)
+    user_name = getattr(args, "user_name", None)
+
+    if not ws_id and not user_name:
+        print("Error: specify --id or --user.", file=sys.stderr)
+        return 1
+    if ws_id and user_name:
+        print("Error: --id and --user are mutually exclusive.", file=sys.stderr)
+        return 1
+
+    if ws_id:
+        ws = ws_repo.get_by_id(ws_id)
+        if not ws:
+            print(f"Error: ws-container '{ws_id}' not found.", file=sys.stderr)
+            return 1
+        if ws.status not in ("stopped", "absent", "error"):
+            print(f"ws-container is in status '{ws.status}', cannot start.")
+            return 1
+        ws_repo.update_status(ws.ws_container_id, "starting")
+        print(f"ws-container '{ws_id}' status set to 'starting'.")
+        print("Note: Use daemon mode for actual docker lifecycle management.")
+        return 0
+
+    # --user: pre-warm by running docker lifecycle synchronously
+    user = user_repo.get_by_name(user_name)
+    if not user:
+        print(f"Error: user '{user_name}' not found.", file=sys.stderr)
+        return 1
+    ws = ws_repo.get_default(user.user_id)
     if not ws:
-        print(f"Error: ws-container '{args.ws_id}' not found.", file=sys.stderr)
+        print(f"Error: no ws-container found for user '{user_name}'.", file=sys.stderr)
         return 1
-    if ws.status not in ("stopped", "absent", "error"):
-        print(f"ws-container is in status '{ws.status}', cannot start.")
+
+    import asyncio
+    import docker as docker_py
+    from .lifecycle import ContainerLifecycle
+
+    docker_client = docker_py.from_env()
+    lifecycle = ContainerLifecycle(config, ws_repo, user_repo, docker_client)
+    url, status = asyncio.run(lifecycle.ensure_started(ws.ws_container_id))
+    if status == "started":
+        print(f"Container '{ws.container_name}' is ready at {url}")
+        return 0
+    else:
+        print(f"Container '{ws.container_name}' failed to start (status={status}).", file=sys.stderr)
         return 1
-    # For CLI, just update status to starting - actual docker start handled by lifecycle
-    ws_repo.update_status(ws.ws_container_id, "starting")
-    print(f"ws-container '{args.ws_id}' status set to 'starting'.")
-    print("Note: Use daemon mode for actual docker lifecycle management.")
-    return 0
 
 
 def _ws_stop(ws_repo: WsContainerRepo, args: argparse.Namespace) -> int:

@@ -380,20 +380,18 @@ class ContainerLifecycle:
                 await self.stop(ws.ws_container_id)
 
         # Check idle timeout (no SSE client = no last_seen recently)
-        # Since we can't directly count SSE clients, we use a simple heuristic:
-        # if started_at is old and no recent last_seen, consider idle
-        # Actually, the spec says "SSE client 计数" - for Phase 1, we'll use a simple
-        # timeout: if last_seen_at is older than idle_timeout, stop.
+        # idle_timeout=0 disables auto-stop entirely.
         idle_timeout = self._config.idle_timeout
-        for ws in rows:
-            if ws.last_seen_at:
-                import datetime
-                last_seen = datetime.datetime.fromisoformat(ws.last_seen_at)
-                now_dt = datetime.datetime.fromisoformat(_now_iso())
-                elapsed = (now_dt - last_seen).total_seconds()
-                if elapsed > idle_timeout:
-                    logger.info("Idle timeout for %s (%ds idle)", ws.container_name, elapsed)
-                    await self.stop(ws.ws_container_id)
+        if idle_timeout > 0:
+            for ws in rows:
+                if ws.last_seen_at:
+                    import datetime
+                    last_seen = datetime.datetime.fromisoformat(ws.last_seen_at)
+                    now_dt = datetime.datetime.fromisoformat(_now_iso())
+                    elapsed = (now_dt - last_seen).total_seconds()
+                    if elapsed > idle_timeout:
+                        logger.info("Idle timeout for %s (%ds idle)", ws.container_name, elapsed)
+                        await self.stop(ws.ws_container_id)
 
 
 def _now_iso() -> str:

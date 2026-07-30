@@ -33,8 +33,8 @@ master:
   # 应与 ws_router.yaml 的 public_base_url 保持一致。
   public_base_url: ${EVERLINGO_PUBLIC_BASE_URL}
 
-  # 无 SSE client 持续秒数 → stop（默认 20 分钟）
-  idle_timeout: 1200
+  # 0 = 禁用自动停机（默认）；>0 = 空闲 N 秒后 stop
+  idle_timeout: 0
   # 探活间隔秒数
   healthcheck_interval: 60
   # create/start 后等待 backend 就绪秒数

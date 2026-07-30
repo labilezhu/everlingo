@@ -190,7 +190,7 @@ master:
   # Chrome Extension 均依赖）。应与 ws_router.yaml 的 public_base_url 保持一致。
   public_base_url: https://app.everlingo.com
 
-  idle_timeout: 1200                # 无 SSE client 持续秒数 → stop（默认 20 分钟）
+  idle_timeout: 0                   # 0 = 禁用自动停机（默认）；>0 = 空闲 N 秒后 stop
   healthcheck_interval: 60          # 探活间隔秒数
   readiness_timeout: 60             # create/start 后等待 backend 就绪秒数
   max_ws_per_user: 1                # Phase 1 = 1；未来放开以支持多 ws
@@ -341,6 +341,7 @@ WS-Router GET /internal/users/{uid}/default-ws/backend
 ```
 
 - `docker stop` 保留 `ws_containers` 表记录与 `status=stopped`，下次请求直接 `docker start`（容器对象仍在）。
+- `idle_timeout=0` 时上述空闲判定不生效，容器一旦 started 即常驻，直到 `ws stop` / `ws rm --purge` / Master 重启对账。
 - `docker remove` 仅在 `ws rm --purge` 时调用，并删除 `host_workspace_dir`（需 `--purge` 确认）。
 
 ### 7.3 WS-Master 启动对账
@@ -366,7 +367,7 @@ WS-Master 启动时遍历 `ws_containers` 中 `status ∈ {creating, starting, s
 | `ws add --user mark` | 新增 ws-container；Phase 1 该 user 已有 ws 则拒绝（`max_ws_per_user` 超限） |
 | `ws list [--user mark]` | 列出 ws-container 状态 |
 | `ws rm --id <ws_id> [--purge]` | 删除 ws-container；`--purge` stop+remove 容器并删 host 目录 |
-| `ws start --id <ws_id>` | 强制拉起 |
+| `ws start (--id <ws_id> | --user <user_name>)` | 强制拉起；`--user` 解析该 user 的 default ws-container（预热用），与 `--id` 互斥 |
 | `ws stop --id <ws_id>` | 强制停机 |
 | `ws set-default --id <ws_id>` | 切换默认 ws-container（Phase 1 仅一个，预留） |
 | `pat add --user mark --label "curl-laptop" [--expires 365d]` | 生成 PAT，明文打印一次 |

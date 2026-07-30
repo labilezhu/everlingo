@@ -199,6 +199,53 @@ class TestWsCli:
         rc = dispatch(args)
         assert rc == 0
 
+    def test_ws_start_id(self, tmp_path: Path):
+        config_path = _write_config(tmp_path, "test.db")
+        dispatch(_make_args(config_path, ws_master_cmd="user", user_cmd="add", name="mark", display_name="Mark", password="pw"))
+        conn = get_conn(str(tmp_path / "test.db"))
+        ws_repo = WsContainerRepo(conn)
+        user_repo = UserRepo(conn)
+        user = user_repo.get_by_name("mark")
+        ws_list = ws_repo.list_by_user(user.user_id)
+        conn.close()
+
+        args = _make_args(config_path, ws_master_cmd="ws", ws_cmd="start", ws_id=ws_list[0].ws_container_id)
+        rc = dispatch(args)
+        assert rc == 0
+
+    def test_ws_start_id_not_found(self, tmp_path: Path):
+        config_path = _write_config(tmp_path, "test.db")
+        args = _make_args(config_path, ws_master_cmd="ws", ws_cmd="start", ws_id="nonexistent")
+        rc = dispatch(args)
+        assert rc == 1
+
+    def test_ws_start_user_no_docker(self, tmp_path: Path):
+        """--user without docker available should fail gracefully."""
+        config_path = _write_config(tmp_path, "test.db")
+        dispatch(_make_args(config_path, ws_master_cmd="user", user_cmd="add", name="mark", display_name="Mark", password="pw"))
+        args = _make_args(config_path, ws_master_cmd="ws", ws_cmd="start", user_name="mark")
+        rc = dispatch(args)
+        # docker not available in test env, expect failure
+        assert rc == 1
+
+    def test_ws_start_user_not_found(self, tmp_path: Path):
+        config_path = _write_config(tmp_path, "test.db")
+        args = _make_args(config_path, ws_master_cmd="ws", ws_cmd="start", user_name="nonexistent")
+        rc = dispatch(args)
+        assert rc == 1
+
+    def test_ws_start_no_args(self, tmp_path: Path):
+        config_path = _write_config(tmp_path, "test.db")
+        args = _make_args(config_path, ws_master_cmd="ws", ws_cmd="start")
+        rc = dispatch(args)
+        assert rc == 1
+
+    def test_ws_start_both_args(self, tmp_path: Path):
+        config_path = _write_config(tmp_path, "test.db")
+        args = _make_args(config_path, ws_master_cmd="ws", ws_cmd="start", ws_id="some-id", user_name="mark")
+        rc = dispatch(args)
+        assert rc == 1
+
     def test_ws_rm_not_found(self, tmp_path: Path):
         config_path = _write_config(tmp_path, "test.db")
         args = _make_args(config_path, ws_master_cmd="ws", ws_cmd="rm", ws_id="nonexistent", purge=False)
@@ -250,7 +297,7 @@ def _write_config(tmp_path: Path, db_name: str) -> str:
         f"  openai_base_url: https://test.api\n"
         f"  openai_model: test-model\n"
         f"  openai_embedding_model: test-embed\n"
-        f"  idle_timeout: 1200\n"
+        f"  idle_timeout: 0\n"
         f"  healthcheck_interval: 60\n"
         f"  readiness_timeout: 60\n"
         f"  max_ws_per_user: 1\n"

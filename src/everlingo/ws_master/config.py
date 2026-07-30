@@ -40,7 +40,7 @@ class MasterConfig:
     # 应与 ws_router.yaml 的 public_base_url 保持一致。
     public_base_url: str = ""
 
-    idle_timeout: int = 1200
+    idle_timeout: int = 0
     healthcheck_interval: int = 60
     readiness_timeout: int = 60
     max_ws_per_user: int = 1

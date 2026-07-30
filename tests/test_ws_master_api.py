@@ -32,7 +32,7 @@ def config(tmp_path: Path) -> MasterConfig:
         openai_base_url="https://test.api",
         openai_model="test-model",
         openai_embedding_model="test-embed",
-        idle_timeout=1200,
+        idle_timeout=0,
         healthcheck_interval=60,
         readiness_timeout=5,
         max_ws_per_user=1,
