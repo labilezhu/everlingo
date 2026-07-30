@@ -154,6 +154,12 @@ class ContainerLifecycle:
                 networking_config={
                     self._config.network: {"Aliases": [ws.container_name]},
                 },
+                labels={
+                    "app": "everlingo",
+                    "everlingo.container": "ws_container",
+                    "everlingo.user": user.user_name,
+                    "everlingo.ws.id": ws.ws_container_id,
+                },
                 environment={
                     "OPENAI_API_KEY": user.openai_api_key or self._config.openai_api_key,
                     "OPENAI_BASE_URL": user.openai_base_url or self._config.openai_base_url,

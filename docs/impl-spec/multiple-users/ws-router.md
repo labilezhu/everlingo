@@ -1,6 +1,6 @@
 # WS-Router Service
 
-- 状态：Planned（2026-07-29 修订）
+- 状态：Done（2026-07-29 修订）
 - 进程入口：`python -m everlingo ws_router --config ws_router.yaml`（见 [app-entry.md](../app-entry.md)）
 - 相关文档：
   - [ws-master.md](./ws-master.md)

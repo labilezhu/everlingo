@@ -117,6 +117,12 @@ async def test_ensure_started_absent_to_started(config, db_repos, user_and_ws):
     assert ws.container_name in nc[config.network]["Aliases"]
     assert "network_aliases" not in create_kwargs
 
+    labels = create_kwargs["labels"]
+    assert labels["app"] == "everlingo"
+    assert labels["everlingo.container"] == "ws_container"
+    assert labels["everlingo.user"] == user.user_name
+    assert labels["everlingo.ws.id"] == ws.ws_container_id
+
     # Verify DB status
     updated = ws_repo.get_by_id(ws.ws_container_id)
     assert updated.status == "started"
@@ -315,6 +321,12 @@ async def test_create_injects_public_base_url_env(config, db_repos, user_and_ws)
     nc = create_kwargs["networking_config"]
     assert ws.container_name in nc[config.network]["Aliases"]
     assert "network_aliases" not in create_kwargs
+
+    labels = create_kwargs["labels"]
+    assert labels["app"] == "everlingo"
+    assert labels["everlingo.container"] == "ws_container"
+    assert labels["everlingo.user"] == user.user_name
+    assert labels["everlingo.ws.id"] == ws.ws_container_id
     conn.close()
 
 
