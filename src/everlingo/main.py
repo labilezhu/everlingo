@@ -56,7 +56,7 @@ def _add_ws_master_cli_subparsers(sub) -> None:
     p_user_add = user_sub.add_parser("add", help="创建用户")
     p_user_add.add_argument("--name", required=True, help="用户名（英文字母 + 下划线）")
     p_user_add.add_argument("--display-name", required=True, help="展示名")
-    p_user_add.add_argument("--password", default=None, help="密码（不指定则交互输入）")
+    p_user_add.add_argument("--password", default=None, help="密码（指定则跳过确认，不指定则交互输入）")
     user_sub.add_parser("list", help="列出所有用户")
     p_user_rm = user_sub.add_parser("rm", help="删除用户")
     p_user_rm.add_argument("--name", required=True, help="用户名")

@@ -360,7 +360,7 @@ WS-Master 启动时遍历 `ws_containers` 中 `status ∈ {creating, starting, s
 
 | 命令 | 说明 |
 |---|---|
-| `user add --name mark --display-name "Mark"` | 创建用户，交互输入密码；**同时创建 default ws-container**（status=absent，首次访问时 lazy create） |
+| `user add --name mark --display-name "Mark" [--password <pwd>]` | 创建用户；默认交互输入密码（二次确认），指定 `--password` 则直接采用、跳过确认；**同时创建 default ws-container**（status=absent，首次访问时 lazy create） |
 | `user list` | 列出所有用户 |
 | `user rm --name mark [--purge]` | 删除用户；`--purge` 同时 stop+remove 所有 ws-container 并删 host 目录 |
 | `ws add --user mark` | 新增 ws-container；Phase 1 该 user 已有 ws 则拒绝（`max_ws_per_user` 超限） |
