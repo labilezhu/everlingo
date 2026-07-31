@@ -47,7 +47,7 @@ bot.run()
 `bot.run()` 的过程，其实包括了：
 
 ```python
-await bot.login(force=False)	# QR login (auto-skips if creds exist)
+await bot.login(force=False)	# QR login (auto-skips and return success if credentials exist)
 await bot.start()	# Start long-poll loop
 ```
 
