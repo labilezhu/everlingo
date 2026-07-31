@@ -5,18 +5,26 @@
 # recv() 从线程安全的同步 Queue 阻塞读取消息；send() 用保存的 user_id 主动发送。
 
 import asyncio
+import logging
 import queue
 import threading
 from pathlib import Path
 from typing import Optional
 
 
-from wechatbot import WeChatBot
+from wechatbot import AuthError, WeChatBot
 
 from everlingo import workspace
 from everlingo.gateway.channels.channel import Channel, ChannelMetadata
 from everlingo.gateway.channels.envelope import UserInputEnvelope, wrap_plain_text
 from everlingo.gateway.wechat_admin.state import WechatAdminState
+
+
+logger = logging.getLogger(__name__)
+
+# 初始登录 QR 连续过期后重试间隔（秒）。SDK 单次 login 在 QR 连续过期 3 次后
+# abort（wechatbot/auth.py MAX_QR_REFRESH_COUNT=3），重试重新获取新 QR。
+LOGIN_RETRY_INTERVAL = 5.0
 
 
 class WechatChannel(Channel):
@@ -130,6 +138,10 @@ class WechatChannel(Channel):
             loop.run_until_complete(main_task)
         except asyncio.CancelledError:
             pass
+        except Exception:
+            # 非取消异常（如登录网络错误）：记日志而非裸 traceback，
+            # 进程仍经 _run_done 走正常收尾（acceptor 关 admin server 退出）
+            logger.exception("Wechat bot 线程异常退出")
         finally:
             self._run_loop = None
             self._run_main_task = None
@@ -140,10 +152,18 @@ class WechatChannel(Channel):
         """首登 + 长轮询。等价于 SDK 的 _run_sync()，但注入 logined 状态。
 
         ref: docs/impl-spec/workspace-console/architecture.md — logined 注入
+        初始登录 QR 连续过期 3 次（AuthError）时重试获取新 QR，进程驻留
+        waiting_scan 直到扫码成功；网络等其它登录错误仍传播（进程退出）。
         """
         try:
             self._wrap_login()
-            await self._bot.login()
+            while True:
+                try:
+                    await self._bot.login()
+                    break
+                except AuthError:
+                    # SDK 单次 login 在 QR 连续过期后 abort；重新获取新 QR
+                    await asyncio.sleep(LOGIN_RETRY_INTERVAL)
             await self._bot.start()
         finally:
             # Channel 结束信号：session 收到 None 后退出（session.py）

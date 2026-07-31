@@ -1,4 +1,5 @@
 import logging
+import sys
 import tempfile
 from pathlib import Path
 
@@ -44,6 +45,44 @@ def test_setup_logging_custom_loglevel(monkeypatch):
         setup_logging()
         logger = logging.getLogger("everlingo")
         assert logger.level == logging.ERROR
+
+
+def test_setup_logging_adds_stdout_handler(monkeypatch):
+    """日志同时输出 stdout（调试方便）。"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        monkeypatch.setattr(
+            "everlingo.log_utils._get_setting",
+            lambda: LoggingSetting(log_file=str(Path(tmpdir) / "test.log"), log_level="info"),
+        )
+        setup_logging()
+        handlers = logging.getLogger("everlingo").handlers
+        stdout_handlers = [
+            h
+            for h in handlers
+            if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler)
+        ]
+        assert len(stdout_handlers) == 1
+        assert stdout_handlers[0].stream is sys.stdout
+
+
+def test_setup_logging_idempotent(monkeypatch):
+    """重复调用 setup_logging 不叠加同类型 handler。"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        monkeypatch.setattr(
+            "everlingo.log_utils._get_setting",
+            lambda: LoggingSetting(log_file=str(Path(tmpdir) / "test.log"), log_level="debug"),
+        )
+        setup_logging()
+        setup_logging()
+        handlers = logging.getLogger("everlingo").handlers
+        file_count = sum(1 for h in handlers if isinstance(h, logging.FileHandler))
+        stdout_count = sum(
+            1
+            for h in handlers
+            if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler)
+        )
+        assert file_count == 1
+        assert stdout_count == 1
 
 
 def test_setup_logging_format(monkeypatch):

@@ -59,6 +59,12 @@ uv run python -m everlingo.gateway.gateway --channel_wechat   # 应报锁占用�
 - `tests/gateway/wechat_admin/test_state.py`：回调序列 → 状态转移（含 `logined → waiting_scan` 重登、`on_error` 不改 state）
 - `tests/gateway/wechat_admin/test_lifecycle.py`：lockfile 单例（mock flock，第二个 acquire 失败）
 
+人手验证：
+```bash
+watch -d "curl --unix-socket $workspace/plugins/channels/wechat_channel/channel_admin.sock  http://localhost/status"
+```
+
+
 ### 本阶段不包含
 
 - web 侧调用（P2）

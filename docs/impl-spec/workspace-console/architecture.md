@@ -123,6 +123,26 @@ admin server `GET /status` 返回的 `state` 取值：
 - `logined → waiting_scan`：长轮询中 session expired，SDK `clear_credentials` + `login(force=True)` 会重新触发 `on_qr_url`。
 - `logined` 注入点：SDK 无 `on_logged_in` 回调（见 [channel-wechat-ilink.md](../channel-wechat-ilink.md) / `wechatbot/auth.py`）。首登在 `WechatChannel._run()` 内 `await bot.login()` 返回后置 `logined`。**重登后的 `logined`** 由 monkey-patch `bot.login` 捕获（见 §3.4）。
 - `on_error`：只写 `last_error`，不改 state。错误可能是瞬时（重试中）或重登失败，UI 显示但不阻断状态展示与 QR 按钮。
+- **新 QR 清错误**：`on_qr_url` 在进入 `waiting_scan` 时同时清空 `last_error`/`last_error_at`，避免「QR 连续过期」之类的噪音错误长期残留 UI。
+
+### 3.2.1 登录重试（AuthError 兜底）
+
+SDK 单次 `login()` 在 QR 连续过期 3 次（`MAX_QR_REFRESH_COUNT`）后抛 `AuthError` abort（`wechatbot/auth.py`），但**进程不退出**，由 `WechatChannel._run()` 捕获并重试：
+
+```python
+while True:
+    try:
+        creds = await self._bot.login()
+        break                      # 成功，退出重试
+    except AuthError:
+        # 新一轮 QR 轮询，on_qr_url 会自动清掉 last_error
+        await asyncio.sleep(LOGIN_RETRY_INTERVAL)   # 默认 5.0s
+    # 其他异常（网络错误等）不重试，向上传播 → 进程退出
+```
+
+- 重试期间进程驻留 `waiting_scan`，UI 表现为「QR 一直在轮换」，`on_qr_url` 每次清 `last_error`。
+- `LOGIN_RETRY_INTERVAL = 5.0`（常量，测试中 patch 为 0）。
+- 设计取舍：不合并 `AuthError` 与信号错误，仅对「登录被扫码策略中止」这一可自愈场景重试；其余失败仍退出以便 web 侧可见失败态。
 
 ### 3.3 Admin socket 接口
 

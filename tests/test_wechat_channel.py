@@ -8,8 +8,10 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from wechatbot import AuthError
 
 from everlingo import workspace
+from everlingo.gateway.channels import wechat_channel as wechat_channel_mod
 from everlingo.gateway.channels.wechat_channel import WechatChannel
 
 
@@ -334,6 +336,74 @@ class TestWechatChannelStop:
             assert main_task.cancelled()
         finally:
             loop.close()
+
+
+class TestWechatChannelLoginRetry:
+    """ref: docs/impl-spec/workspace-console/architecture.md — 登录重试循环
+
+    SDK 单次 login 在 QR 连续过期 3 次后抛 AuthError abort；初始登录由
+    _run() 重试，进程驻留 waiting_scan 直到扫码成功。
+    """
+
+    def _make_channel(self, login_side_effect):
+        channel = WechatChannel()
+        mock_bot = MagicMock()
+        login_mock = AsyncMock(side_effect=login_side_effect)
+        mock_bot.login = login_mock
+        mock_bot.start = AsyncMock()
+        channel._bot = mock_bot
+        channel._wrap_login()
+        return channel, login_mock, mock_bot
+
+    def test_run_retries_login_on_auth_error(self, isolated_workspace):
+        """login 抛 AuthError 后重试，成功后进入 start() 并置 logined。"""
+        channel, login_mock, mock_bot = self._make_channel(
+            [AuthError("QR code expired 3 times — login aborted"), "creds"]
+        )
+        with patch.object(wechat_channel_mod, "LOGIN_RETRY_INTERVAL", 0):
+            asyncio.run(channel._run())
+
+        assert login_mock.await_count == 2
+        mock_bot.start.assert_awaited_once()
+        assert channel.admin_state.snapshot()["state"] == "logined"
+        assert channel.admin_state.snapshot()["qr_url"] is None
+        # Channel 结束信号已入队
+        assert channel._queue.get_nowait() is None
+
+    def test_run_non_auth_error_propagates(self, isolated_workspace):
+        """非 AuthError（如网络错误）仍传播，进程退出。"""
+        channel, _, _ = self._make_channel(ValueError("net down"))
+        with patch.object(wechat_channel_mod, "LOGIN_RETRY_INTERVAL", 0):
+            with pytest.raises(ValueError, match="net down"):
+                asyncio.run(channel._run())
+
+    def test_run_thread_logs_and_sets_done_on_exception(self, isolated_workspace):
+        """_run_thread 内异常记日志而非裸 traceback，且 _run_done 置位。"""
+        channel = WechatChannel()
+        channel._bot = MagicMock()
+
+        async def boom():
+            raise RuntimeError("boom")
+
+        channel._run = boom
+        with patch.object(wechat_channel_mod.logger, "exception") as mock_exc:
+            channel._run_thread()
+        assert channel._run_done.is_set()
+        mock_exc.assert_called_once()
+
+    def test_run_thread_no_log_on_cancel(self, isolated_workspace):
+        """正常取消（CancelledError）不记 exception 日志。"""
+        channel = WechatChannel()
+        channel._bot = MagicMock()
+
+        async def cancelled():
+            raise asyncio.CancelledError
+
+        channel._run = cancelled
+        with patch.object(wechat_channel_mod.logger, "exception") as mock_exc:
+            channel._run_thread()
+        mock_exc.assert_not_called()
+        assert channel._run_done.is_set()
 
 
 class TestWechatChannelMetadata:

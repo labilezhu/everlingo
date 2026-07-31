@@ -1,4 +1,5 @@
 import logging
+import sys
 from pathlib import Path
 
 from langchain_core.callbacks import BaseCallbackHandler
@@ -38,18 +39,34 @@ def setup_logging() -> None:
 
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
-    handler = logging.FileHandler(str(log_path), encoding="utf-8")
-    handler.setLevel(level)
     formatter = logging.Formatter(
         "%(asctime)s.%(msecs)03d [%(levelname)s] [%(thread)d] [%(threadName)s] "
         "[%(module)s] [%(name)s] : %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
-    handler.setFormatter(formatter)
 
     root_logger = logging.getLogger("everlingo")
     root_logger.setLevel(level)
-    root_logger.addHandler(handler)
+
+    # 按 handler 类型幂等去重：重复调用 setup_logging 不叠加同类型 handler。
+    # FileHandler 是 StreamHandler 子类，判空需先排除文件 handler。
+    has_file = any(isinstance(h, logging.FileHandler) for h in root_logger.handlers)
+    has_stdout = any(
+        isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler)
+        for h in root_logger.handlers
+    )
+
+    if not has_file:
+        handler = logging.FileHandler(str(log_path), encoding="utf-8")
+        handler.setLevel(level)
+        handler.setFormatter(formatter)
+        root_logger.addHandler(handler)
+
+    if not has_stdout:
+        stdout_handler = logging.StreamHandler(sys.stdout)
+        stdout_handler.setLevel(level)
+        stdout_handler.setFormatter(formatter)
+        root_logger.addHandler(stdout_handler)
 
 
 class LLMLoggingHandler(BaseCallbackHandler):
