@@ -48,9 +48,12 @@ class TestWechatChannelInit:
 
         mock_wechatbot_class.assert_called_once()
 
-    def test_init_starts_bot_run_in_daemon_thread(self, isolated_workspace):
-        """init() 在独立 daemon 线程中启动 bot.run()。"""
-        mock_wechatbot_class, mock_thread_class, mock_bot = self._patched_init()
+    def test_init_starts_login_in_daemon_thread(self, isolated_workspace):
+        """init() 在独立 daemon 线程中运行 _run_thread()（首登 + 长轮询）。
+
+        ref: docs/impl-spec/workspace-console/architecture.md — 登录路径改造
+        """
+        mock_wechatbot_class, mock_thread_class, _ = self._patched_init()
         with patch("everlingo.gateway.channels.wechat_channel.WeChatBot", mock_wechatbot_class), \
              patch("threading.Thread", mock_thread_class) as MockThread:
             mock_thread_instance = MagicMock()
@@ -59,7 +62,11 @@ class TestWechatChannelInit:
             channel = WechatChannel()
             asyncio.run(channel.init())
 
-        mock_thread_class.assert_called_once_with(target=mock_bot.run, daemon=True)
+        # 线程 target 应为 channel._run_thread（替代 SDK 的 bot.run）
+        _, kwargs = mock_thread_class.call_args
+        assert kwargs["daemon"] is True
+        assert callable(kwargs["target"])
+        assert kwargs["target"].__self__ is channel
         mock_thread_instance.start.assert_called_once()
 
     def test_init_creates_credentials_directory(self, isolated_workspace):
@@ -218,6 +225,115 @@ class TestWechatChannelMessageCallback:
 
         assert channel._last_user_id == "user_abc@im.wechat"
         assert channel._queue.get_nowait() == "学习英语"
+
+
+class TestWechatChannelAdminState:
+    """ref: docs/impl-spec/workspace-console/architecture.md — 状态机与回调注入"""
+
+    def test_init_injects_admin_callbacks(self, isolated_workspace):
+        """init() 把 SDK 回调注入 WechatAdminState。"""
+        mock_bot = MagicMock()
+        mock_bot.on_message = MagicMock(side_effect=lambda f: f)
+
+        with patch("everlingo.gateway.channels.wechat_channel.WeChatBot", return_value=mock_bot) as MockBot, \
+             patch("threading.Thread"):
+            channel = WechatChannel()
+            asyncio.run(channel.init())
+
+        kwargs = MockBot.call_args.kwargs
+        assert kwargs["on_qr_url"] == channel.admin_state.on_qr_url
+        assert kwargs["on_scanned"] == channel.admin_state.on_scanned
+        assert kwargs["on_expired"] == channel.admin_state.on_expired
+        assert kwargs["on_error"] == channel.admin_state.set_last_error
+
+    def test_wrap_login_sets_logined(self, isolated_workspace):
+        """包装 bot.login 成功后置 logined 并清 QR。"""
+        channel = WechatChannel()
+        mock_bot = MagicMock()
+        mock_bot.login = AsyncMock(return_value="creds")
+        channel._bot = mock_bot
+
+        channel.admin_state.on_qr_url("https://example.com/qr1")
+        channel._wrap_login()
+
+        async def run():
+            await mock_bot.login()
+
+        asyncio.run(run())
+        snap = channel.admin_state.snapshot()
+        assert snap["state"] == "logined"
+        assert snap["qr_url"] is None
+
+    def test_wrap_login_sets_last_error_on_failure(self, isolated_workspace):
+        """包装 bot.login 失败时记 last_error 并重新抛出。"""
+        channel = WechatChannel()
+        mock_bot = MagicMock()
+        mock_bot.login = AsyncMock(side_effect=RuntimeError("net down"))
+        channel._bot = mock_bot
+
+        channel._wrap_login()
+
+        async def run():
+            await mock_bot.login()
+
+        with pytest.raises(RuntimeError, match="net down"):
+            asyncio.run(run())
+        assert channel.admin_state.snapshot()["last_error"] == "net down"
+
+    def test_wrap_login_covers_relogin(self, isolated_workspace):
+        """start() 内 session-expired 重登（login(force=True)）也经包装置 logined。"""
+        channel = WechatChannel()
+        mock_bot = MagicMock()
+        mock_bot.login = AsyncMock(side_effect=lambda **kw: "creds")
+        channel._bot = mock_bot
+
+        channel._wrap_login()
+
+        async def run():
+            await mock_bot.login(force=True)
+
+        asyncio.run(run())
+        assert channel.admin_state.snapshot()["state"] == "logined"
+
+
+class TestWechatChannelStop:
+    """ref: docs/impl-spec/workspace-console/architecture.md — 停止语义"""
+
+    def test_request_stop_calls_bot_stop(self, isolated_workspace):
+        """request_stop() 调用 bot.stop()。"""
+        channel = WechatChannel()
+        mock_bot = MagicMock()
+        channel._bot = mock_bot
+        channel.request_stop()
+        mock_bot.stop.assert_called_once()
+
+    def test_request_stop_without_bot_is_safe(self, isolated_workspace):
+        """init 前 request_stop() 静默忽略 bot，不报错。"""
+        channel = WechatChannel()
+        channel.request_stop()  # _bot 为 None
+
+    def test_request_stop_cancels_running_main_task(self, isolated_workspace):
+        """QR 等待 / 长轮询阶段 stop() 不生效 → 取消主协程保证及时退出。"""
+        channel = WechatChannel()
+        channel._bot = MagicMock()
+
+        loop = asyncio.new_event_loop()
+        try:
+            async def forever():
+                await asyncio.sleep(3600)
+
+            main_task = loop.create_task(forever())
+            channel._run_loop = loop
+            channel._run_main_task = main_task
+
+            channel.request_stop()
+            # 让 loop 处理 call_soon_threadsafe 调度的 cancel
+            loop.run_until_complete(asyncio.sleep(0))
+            with pytest.raises(asyncio.CancelledError):
+                loop.run_until_complete(main_task)
+            assert main_task.cancelled()
+        finally:
+            loop.close()
 
 
 class TestWechatChannelMetadata:

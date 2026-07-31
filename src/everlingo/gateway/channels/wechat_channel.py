@@ -1,6 +1,7 @@
 # ref: channel-wechat-ilink.md — Wechat Channel 实现
 # 使用 wechatbot-sdk 接入微信，收发消息。
-# WeChatBot 是长生命单例，bot.run() 在独立线程中阻塞运行。
+# WeChatBot 是长生命单例；登录 + 长轮询在独立线程运行（替代 bot.run()，
+# 以注入 logined 状态，见 workspace-console/architecture.md）。
 # recv() 从线程安全的同步 Queue 阻塞读取消息；send() 用保存的 user_id 主动发送。
 
 import asyncio
@@ -15,6 +16,7 @@ from wechatbot import WeChatBot
 from everlingo import workspace
 from everlingo.gateway.channels.channel import Channel, ChannelMetadata
 from everlingo.gateway.channels.envelope import UserInputEnvelope, wrap_plain_text
+from everlingo.gateway.wechat_admin.state import WechatAdminState
 
 
 class WechatChannel(Channel):
@@ -22,7 +24,8 @@ class WechatChannel(Channel):
 
     ref: /docs/impl-spec/channel-wechat-ilink.md
     ref: ADR 20260719 — 使用 recv_envelope 替代 recv
-    - init: 创建 WeChatBot 单例，注册消息回调，在独立线程启动 bot.run()
+    ref: docs/impl-spec/workspace-console/architecture.md — 登录路径改造
+    - init: 创建 WeChatBot 单例，注册消息回调，在独立线程启动 _run_thread()
     - recv_envelope: 从线程安全的同步 Queue 读取消息并包装为 envelope；返回 None 表示 Channel 结束
     - send: 使用最近一次保存的 user_id 调用 bot.send() 主动发送消息
     """
@@ -33,8 +36,15 @@ class WechatChannel(Channel):
         # 每次收到消息时保存最新的 user_id，用于主动发送消息
         self._last_user_id: Optional[str] = None
         # 线程安全的同步队列：回调将消息放入，recv() 阻塞读取
-        # ref: channel-wechat-ilink.md — recv 阻塞读取，bot.run() 在独立线程运行
+        # ref: channel-wechat-ilink.md — recv 阻塞读取，bot 在独立线程运行
         self._queue: queue.Queue[Optional[str]] = queue.Queue()
+        # admin 状态：由 SDK 回调（bot 线程）更新，admin server（uvicorn 线程）读取
+        self.admin_state = WechatAdminState(state="starting")
+        # 标记 bot 线程结束（shutdown / 崩溃），供 acceptor 据此退出进程
+        self._run_done = threading.Event()
+        # bot 线程的 asyncio loop 与主协程 task（供跨线程取消）
+        self._run_loop: Optional[asyncio.AbstractEventLoop] = None
+        self._run_main_task: Optional[asyncio.Task] = None
 
     def _credentials_path(self) -> Path:
         """返回 SDK 保存用户 credentials 的文件路径。
@@ -54,15 +64,23 @@ class WechatChannel(Channel):
         """初始化 Wechat Channel。
 
         ref: /docs/impl-spec/channel-wechat-ilink.md
-        创建 WeChatBot 单例，注册消息回调，在独立线程启动 bot.run()。
-        bot.run() 会在 stdout 输出登录 QR-CODE，提示用户扫码登录。
+        ref: docs/impl-spec/workspace-console/architecture.md — 登录路径改造
+        创建 WeChatBot 单例（注入 admin 回调），注册消息回调，
+        在独立线程运行 _run_thread()（首登 + 长轮询）。
         """
         # ref: channel-wechat-ilink.md — 指定 sdk 保存用户 credentials 的文件
         # 目录不存在时自动创建；调用 WeChatBot 前完成
         cred_path = self._credentials_path()
         cred_path.parent.mkdir(parents=True, exist_ok=True)
 
-        self._bot = WeChatBot(cred_path=str(cred_path))
+        # 注入 admin 回调：登录过程状态反馈到 WechatAdminState
+        self._bot = WeChatBot(
+            cred_path=str(cred_path),
+            on_qr_url=self.admin_state.on_qr_url,
+            on_scanned=self.admin_state.on_scanned,
+            on_expired=self.admin_state.on_expired,
+            on_error=self.admin_state.set_last_error,
+        )
 
         # 注册消息回调：收到消息时将文字放入队列
         @self._bot.on_message
@@ -72,10 +90,85 @@ class WechatChannel(Channel):
             # queue.Queue 是线程安全的，可从任意线程 put
             self._queue.put(msg.text)
 
-        # bot.run() 会 block 当前线程，因此在独立线程中运行
-        # ref: channel-wechat-ilink.md — 在 stdout 中输出登录QR-CODE，block 当前线程，所以必要时需要专用线程
-        bot_thread = threading.Thread(target=self._bot.run, daemon=True)
+        # login/start 会 block 当前线程，因此在独立线程中运行
+        # ref: channel-wechat-ilink.md — block 当前线程，所以必要时需要专用线程
+        bot_thread = threading.Thread(target=self._run_thread, daemon=True)
         bot_thread.start()
+
+    # ── 登录与长轮询（替代 bot.run()，注入 logined 状态） ──────────
+
+    def wait_run_done(self) -> None:
+        """阻塞等待 bot 线程结束（shutdown / 崩溃）。供 acceptor 退出进程。"""
+        self._run_done.wait()
+
+    def request_stop(self) -> None:
+        """请求 bot 优雅停止（/shutdown 回调）。
+
+        bot 尚未创建（init 前）时仅尝试取消主协程。
+        - bot.stop()：让 start() 长轮询优雅退出
+        - 取消主协程：bot 处于 QR 等待 / get_updates 长轮询时 stop() 不生效，
+          用 task.cancel() 跨线程打断，保证进程及时退出
+        """
+        if self._bot is not None:
+            self._bot.stop()
+        loop = self._run_loop
+        task = self._run_main_task
+        if loop is not None and task is not None and not task.done():
+            loop.call_soon_threadsafe(task.cancel)
+
+    def _run_thread(self) -> None:
+        """bot 线程入口：跑 _run()，结束后置 _run_done。
+
+        显式建 loop + main task，以便 request_stop() 跨线程取消。
+        """
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        main_task = loop.create_task(self._run())
+        self._run_loop = loop
+        self._run_main_task = main_task
+        try:
+            loop.run_until_complete(main_task)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            self._run_loop = None
+            self._run_main_task = None
+            loop.close()
+            self._run_done.set()
+
+    async def _run(self) -> None:
+        """首登 + 长轮询。等价于 SDK 的 _run_sync()，但注入 logined 状态。
+
+        ref: docs/impl-spec/workspace-console/architecture.md — logined 注入
+        """
+        try:
+            self._wrap_login()
+            await self._bot.login()
+            await self._bot.start()
+        finally:
+            # Channel 结束信号：session 收到 None 后退出（session.py）
+            self._queue.put(None)
+
+    def _wrap_login(self) -> None:
+        """monkey-patch bot.login 注入 logined / last_error。
+
+        SDK 无 on_logged_in 回调（见 channel-wechat-ilink.md / wechatbot/auth.py），
+        通过包装 bot.login 覆盖首登与 start() 内 session-expired 重登两条路径。
+        """
+        orig = self._bot.login
+        state = self.admin_state
+
+        async def wrapped(*args, **kwargs):
+            try:
+                creds = await orig(*args, **kwargs)
+            except Exception as e:
+                state.set_last_error(e)
+                raise
+            state.set_state("logined")
+            state.set_qr_url(None)
+            return creds
+
+        self._bot.login = wrapped
 
     async def recv_envelope(self) -> UserInputEnvelope | None:
         """阻塞读取微信消息，包装为 UserInputEnvelope。

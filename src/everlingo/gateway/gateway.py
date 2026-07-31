@@ -12,6 +12,7 @@ from ..models import LANGUAGES, UserProfile
 from ..setting import get_web_listener, load_profile, save_profile
 from ._memory_writer import memory_writer
 from .session_acceptor import StdioSessionAcceptor, WechatSessionAcceptor
+from .wechat_admin.lifecycle import LockAcquireError
 from .session_events import SystemNotice
 from .web_acceptor import WebSessionAcceptor
 from .session import Session
@@ -170,7 +171,11 @@ class Gateway:
         else:
             acceptor = StdioSessionAcceptor()
 
-        task = await acceptor.start(self)
+        try:
+            task = await acceptor.start(self)
+        except LockAcquireError as e:
+            logger.error("无法启动 Wechat gateway: %s", e)
+            return
         await task
 
 
