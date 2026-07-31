@@ -2,252 +2,209 @@
 
 ## 1. 概览
 
-Workspace Console 是 `--channel_web` 进程内的一个 FastAPI router 子模块 + 一组静态前端页面。它**不新增进程**，而是复用 8000 端口的 Web Session Acceptor（[web-session-acceptor.md](../web-session-acceptor.md)）既有的 FastAPI app。
+Workspace Console 是 web 进程内 FastAPI app 的一组 router + 一组静态前端页面，**不新增进程**。它复用 8000 端口的 Web Session Acceptor（[web-session-acceptor.md](../web-session-acceptor.md)）既有的 FastAPI app。
 
-它管理的对象是**其它 channel 的 gateway 子进程**（首个：wechat gateway），通过 Unix Domain Socket（UDS）与之通信。
+它管理的对象是**同进程内的 wechat channel 实例**——由 `WechatRuntime`（实现 `SessionAcceptor` 协议）托管，web console 经 router 直接调用其内存方法（状态读取 / 启停），不经 IPC。
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  --channel_web 进程（FastAPI on :8000）                       │
-│                                                              │
-│  ┌──────────────┐  ┌─────────────────┐  ┌───────────────┐  │
-│  │ Web Session  │  │ Vault Editor API │  │ Workspace     │  │
-│  │ Acceptor     │  │ router           │  │ Console router│  │
-│  │ (chatbot)    │  │ (existing)       │  │ (new)         │  │
-│  └──────────────┘  └─────────────────┘  └──────┬───────┘  │
-│                                                  │           │
-│                                  ┌───────────────┴────────┐  │
-│                                  │ wechat lifecycle mgr   │  │
-│                                  │ (subprocess + lock)   │  │
-│                                  └───────────┬───────────┘  │
-└──────────────────────────────────────────────┼──────────────┘
-                                               │ spawn / kill
-                                               ▼
-┌──────────────────────────────────────────────────────────────┐
-│  --channel_wechat 进程（独立 OS 进程）                          │
-│                                                              │
-│  ┌──────────────┐   thread   ┌────────────────────────────┐  │
-│  │ WechatSession│            │ WeChatBot (sdk)           │  │
-│  │ Acceptor     │            │  └ login() / start()      │  │
-│  └──────────────┘            └────────────────────────────┘  │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │ wechat admin server (FastAPI over UDS)               │   │
-│  │  socket: $workspace/plugins/channels/                │   │
-│  │           wechat_channel/channel_admin.sock           │   │
-│  │  GET /status · GET /last_error · POST /shutdown      │   │
-│  └──────────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│  gateway 进程（python -m everlingo.gateway [无参 | --channel_X]）  │
+│                                                                   │
+│  Gateway.run                                                      │
+│    explicit --channel_X → 单 acceptor                             │
+│    无参 → 读 everlingo.yaml.plugins.channels                      │
+│           凡节点存在且 enable!=false 的 channel 起 acceptor       │
+│           asyncio.gather 所有 acceptor supervisor task            │
+│                                                                   │
+│  ┌─────────────────────────┐  ┌─────────────────────────────────┐ │
+│  │ WebSessionAcceptor      │  │ WechatRuntime (SessionAcceptor) │ │
+│  │ FastAPI on :8000        │  │  acquire_lock（跨进程单例）      │ │
+│  │  ├ chatbot router       │  │  WechatChannel（bot 线程）       │ │
+│  │  ├ vault_editor router  │  │  WechatAdminState（内存）       │ │
+│  │  ├ workspace_console ◄──┼──┤  on_logined → 写 enable=true     │ │
+│  │  │   router（直调）     │  │  stop → 写 enable=false          │ │
+│  │  └ 静态页 fallback     │  │  supervisor task（idle/running） │ │
+│  └─────────────────────────┘  └─────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-### 1.1 为何 wechat gateway 保持独立进程
+### 1.1 为何 wechat channel 改为 in-process 托管（2026-07 设计变更）
 
-- **保留手动启动用法**：`python -m everlingo.gateway.gateway --channel_wechat` 仍是合法且完整的入口，用户可在无 web 环境下直接跑。
-- **进程隔离**：wechat SDK 阻塞 `bot.run()`、依赖网络长轮询，独立进程避免拖累 web 进程的 asyncio loop。
-- **生命周期解耦**：web 进程退出时 wechat 子进程可继续运行（`start_new_session=True` 解耦），下次 web 重启后重新 attach。
-- 代价：需要一套 IPC + 单例锁定。IPC 范式复用 [memory-vault-search-spec.md](../search/memory-vault-search-spec.md) 已建立的 UDS + FastAPI 模式，不引入新模式。
+原计划（P1 已实现）让 wechat gateway 跑在独立子进程、web 经 UDS admin socket 管理。经评估，子进程模型的维护成本（IPC + 单例锁 + pid 探活 + 信号收尾）超过收益，改为 **web 进程内 in-process 托管**。原 §1.1 给出的三条独立进程理由逐条复核：
 
-### 1.2 为何 admin server 复用 UDS 而非 TCP
+- **asyncio loop 隔离**：P1 已把 `bot.run()` 换成 `_run_thread()` + 独立 `asyncio.new_event_loop()`，bot 长轮询跑在 daemon 线程的独立 loop 上，不拖累 web 进程的 asyncio loop。**此理由已被 P1 消解**。
+- **生命周期解耦**（web 崩溃时 wechat 子进程可继续跑、web 重启后 re-attach）：in-process 后此属性消失——web 崩溃即丢失 wechat 会话。已确认接受：单用户本地场景 web 崩溃罕见；且 SDK 保存 `credentials.json`，重启后 `login(force=False)` 可免扫码自动恢复（见 [channel-wechat-ilink.md §分开 login](../channel-wechat-ilink.md)），配合 `channel_wechat.enable` 配置自动重启 wechat，体验已足够。
+- **保留手动启动用法**：`python -m everlingo.gateway --channel_wechat` 仍是合法且完整的 standalone 入口（无 web 环境直接跑）。in-process 改造不影响它。
 
-- 同机通信，UDS 免端口占用、免网络栈、天然具备「文件路径即地址」的 workspace 隔离语义。
-- 与 `indexer.sock`（`$workspace/indexer.sock`）一致：admin socket 放 `$workspace/plugins/channels/wechat_channel/channel_admin.sock`，按 channel 维度隔离。
-- UDS 文件本身可用作「进程存活探针」（文件存在 + 可连接 ≈ 进程在跑）。
+收益：少一个 OS 进程、少一套 IPC、调试更简单（单进程单日志流）；并为未来多 channel（telegram/discord/...）的 in-process 托管铺平范式。
+
+### 1.2 为何不再用 UDS admin server
+
+in-process 后 router 与 `WechatAdminState` 同进程，直接读 `state.snapshot()` 即可，无需 HTTP over UDS 中转。`wechat_admin/server.py`（P1 产物）整体移除。`wechat_admin/lifecycle.py` 的 `write_pid`/`clear_pid`/`pid_path` 一并移除（无子进程，无需 pid 探活）；保留 `acquire_lock`/`lock_path` 作为跨进程单例锁（防止 standalone `--channel_wechat` 与 web 内嵌 wechat 同时跑）。
 
 ## 2. 进程拓扑与职责
 
-### 2.1 `--channel_web` 进程内新增
+### 2.1 gateway 进程内模块
 
 | 模块 | 文件 | 职责 |
 |---|---|---|
-| workspace console router | `src/everlingo/gateway/workspace_console/router.py` | FastAPI router，挂到 `web_acceptor.app`，提供 `/api/wechat-channel/*` 与 `/me`、`/web-console` 静态页 fallback |
-| wechat lifecycle manager | `src/everlingo/gateway/workspace_console/wechat_lifecycle.py` | `acquire_lock` / `probe_admin_socket` / `start_wechat_gateway` / `stop_wechat_gateway` |
+| gateway 主入口 | `src/everlingo/gateway/gateway.py` | explicit flag → 单 acceptor；无参 → 读 config 多 channel + gather。提供 `start_channel`/`stop_channel` 运行时注册（供 console 动态启停 wechat） |
+| web acceptor | `src/everlingo/gateway/web_acceptor.py`（既有，改） | 挂 `workspace_console_router`；新增 `/me`、`/web-console` 静态页 fallback |
+| wechat runtime | `src/everlingo/gateway/wechat_admin/runtime.py`（新） | `WechatRuntime`：实现 `SessionAcceptor`；托管 wechat channel 生命周期；on_logined 持久化；console 启停接口 |
+| workspace console router | `src/everlingo/gateway/workspace_console/router.py`（新） | `/api/wechat-channel/{status,start,stop}` 直调 `WechatRuntime` |
+| admin state | `src/everlingo/gateway/wechat_admin/state.py`（P1，保留） | 线程安全状态机，router 直接读 `snapshot()` |
+| lifecycle（lock） | `src/everlingo/gateway/wechat_admin/lifecycle.py`（P1，简化） | 仅 `acquire_lock`/`lock_path`（跨进程单例）；删 pid 相关 |
 | 前端入口 | `web/me.html` + `web/web-console.html` + `web/src/me/` + `web/src/web-console/` | Me 页、console 首页、wechat channel admin 页 |
 
-### 2.2 `--channel_wechat` 进程内新增
+### 2.2 `WechatChannel`（既有，不改）
 
-| 模块 | 文件 | 职责 |
-|---|---|---|
-| wechat admin server | `src/everlingo/gateway/wechat_admin/server.py` | FastAPI app + uvicorn over UDS，与 session task 并行跑在主 asyncio loop |
-| admin state | `src/everlingo/gateway/wechat_admin/state.py` | 线程安全状态机 `WechatAdminState`，由 SDK 回调更新，admin server 读取 |
-| lifecycle（lock + pid） | `src/everlingo/gateway/wechat_admin/lifecycle.py` | `acquire_lock`（fcntl.flock 独占）、`write_pid`、退出清理 |
-
-`WechatChannel`（`src/everlingo/gateway/channels/wechat_channel.py`）改造：注入 SDK 回调、启动路径由 `bot.run()` 改为 `asyncio.run(self._run())`（见 §3.4）。
+`src/everlingo/gateway/channels/wechat_channel.py` 保持 P1 改造后的形态：`init()` 起 daemon 线程跑 `_run_thread()`（独立 loop + main task），`_run()` 跑 `login()` + `start()`，`recv_envelope()` 用 `asyncio.to_thread(self._queue.get)` 不阻塞 web loop，`request_stop()` 跨线程取消。in-process 托管不需要再改它。
 
 ### 2.3 谁不做什么
 
-- **web 进程不直接调 `WeChatBot`**：所有 wechat 操作经 admin socket IPC，不导入 wechatbot SDK。
-- **admin server 不做业务决策**：只暴露状态与 shutdown，不转发聊天消息（聊天走既有 Session/WebChannel 路径）。
-- **wechat 子进程不知道 web 进程存在**：单向被管理，解耦。
+- **router 不直接操作 `WechatChannel`**：经 `WechatRuntime` 的 `start()`/`stop()`/`status()` 方法，runtime 持有 channel 引用并管理锁。
+- **runtime 不做业务决策**：只管启停 + 状态 + 持久化 enable，不介入聊天消息收发（聊天走既有 Session/WechatChannel 路径，见 [gateway.md](../gateway.md)）。
+- **`WechatChannel` 不依赖 `setting` 模块**：持久化 enable 由 runtime 通过 `on_logined` 回调注入完成，channel 不导入 setting。
 
-## 3. 状态机与 IPC 协议
+## 3. 状态机
 
 ### 3.1 Wechat channel 状态
 
-admin server `GET /status` 返回的 `state` 取值：
+`WechatAdminState.snapshot()` 返回的 `state` 取值（与 P1 一致）：
 
 | state | 含义 | qr_url |
 |---|---|---|
-| `starting` | 进程已起、bot 尚未到登录阶段 | `null` |
+| `starting` | runtime 已起、bot 尚未到登录阶段 | `null` |
 | `waiting_scan` | 已发 QR-Code 网页地址，等待用户扫码 | 当前 QR 网页 URL |
 | `scanned` | 用户已扫码、等待手机端确认 | `null`（或保留旧 QR） |
 | `logined` | 登录成功、长轮询运行中 | `null` |
-| `not_running` | 进程未运行（仅 web 侧综合判断，admin server 不会返回此值） | — |
+| `stopped` | runtime 未启动 wechat（idle）/ 用户停止后 | — |
+| `conflict` | acquire_lock 失败（standalone wechat 占用锁） | — |
 
-**无 `error` 态**：错误不作为状态，改由 `GET /last_error` 独立接口提供最近一次错误信息。错误发生时 state 保持当前值或按 SDK 回调流转（见下）。
+新增 `stopped`（runtime idle，wechat 未跑）与 `conflict`（锁冲突）两个 runtime 综合态，由 router 在 `status()` 里据 runtime 状态判定，不写入 `WechatAdminState`（state.py 仍只含 SDK 驱动的四态）。
 
 ### 3.2 状态转移
 
+P1 已定义的 SDK 驱动转移（`starting → waiting_scan → scanned → logined`、`logined → waiting_scan` 重登、QR 过期重试）不变，见 [P1 文档记录](../../TASKS.md) 与 `state.py`。in-process 改造新增的转移由 `WechatRuntime` 管理：
+
 ```
-            ┌───────────┐
-进程启动 ──►│ starting  │
-            └─────┬─────┘
-                  │ on_qr_url(首次)
-                  ▼
-            ┌──────────────┐  on_expired / 新 QR 轮换
-        ┌──►│ waiting_scan │────────────────────┐
-        │   └──────┬───────┘                   │
-        │          │ on_scanned                │
-        │          ▼                           │
-        │   ┌────────────┐                      │
-        │   │  scanned   │                      │
-        │   └──────┬─────┘                      │
-        │          │ login() 返回              │
-        │          ▼                           │
-        │   ┌────────────┐                      │
-        │   │  logined   │                      │
-        │   └──────┬─────┘                      │
-        │          │ session expired (重登)     │
-        └──────────┘  on_qr_url(重登) ──────────┘
+                  ┌─────────┐
+  runtime.start() │ stopped │ ◄──────── 用户 stop / 启动后锁冲突解决
+                  └────┬────┘
+       acquire_lock ok │  + channel.init() + accept_session
+       acquire_lock ✗ │
+                  ┌────┴────┐
+                  │ conflict │
+                  └─────────┘
+                       │ bot 线程跑起来
+                       ▼
+                 ┌───────────┐
+                 │ starting  │ ──► SDK 驱动流转 ──► logined
+                 └───────────┘                       │
+                                                     │ on_logined 回调
+                                                     ▼
+                                              save enable=true
 ```
 
-关键转移规则：
-- `logined → waiting_scan`：长轮询中 session expired，SDK `clear_credentials` + `login(force=True)` 会重新触发 `on_qr_url`。
-- `logined` 注入点：SDK 无 `on_logged_in` 回调（见 [channel-wechat-ilink.md](../channel-wechat-ilink.md) / `wechatbot/auth.py`）。首登在 `WechatChannel._run()` 内 `await bot.login()` 返回后置 `logined`。**重登后的 `logined`** 由 monkey-patch `bot.login` 捕获（见 §3.4）。
-- `on_error`：只写 `last_error`，不改 state。错误可能是瞬时（重试中）或重登失败，UI 显示但不阻断状态展示与 QR 按钮。
-- **新 QR 清错误**：`on_qr_url` 在进入 `waiting_scan` 时同时清空 `last_error`/`last_error_at`，避免「QR 连续过期」之类的噪音错误长期残留 UI。
+关键规则：
+- **`on_logined` 注入**：runtime 在 `start()` 时向 `WechatChannel.init()` 传入 `on_logined` 回调（或经 channel 注入到 `_wrap_login`），login 成功后回调 `save_setting(channel_wechat.enable=true)`。若 yaml 中尚无 `channel_wechat` 节点，回调负责补写。
+- **停止写 enable=false**：runtime `stop()` 在 bot 退出、锁释放后 `save_setting(channel_wechat.enable=false)`。用户主动停止 = 不再自动启动。
+- **锁冲突不改 enable**：conflict 态下 enable 保持原值，UI 提示「wechat 已在 standalone 运行，请先停止」。
 
-### 3.2.1 登录重试（AuthError 兜底）
+### 3.3 登录重试（AuthError 兜底）
 
-SDK 单次 `login()` 在 QR 连续过期 3 次（`MAX_QR_REFRESH_COUNT`）后抛 `AuthError` abort（`wechatbot/auth.py`），但**进程不退出**，由 `WechatChannel._run()` 捕获并重试：
+P1 已实现：SDK 单次 `login()` 在 QR 连续过期 3 次后抛 `AuthError`，`WechatChannel._run()` 捕获后睡 `LOGIN_RETRY_INTERVAL=5.0` 重试，进程驻留 `waiting_scan`，`on_qr_url` 每轮清 `last_error`。in-process 不改此逻辑。
+
+## 4. WechatRuntime 与生命周期管理
+
+### 4.1 WechatRuntime 即 SessionAcceptor
+
+`WechatRuntime` 实现 `SessionAcceptor` 协议（`start(gateway) -> asyncio.Task`），同时是 console 的控制句柄。它取代 P1 的 `WechatSessionAcceptor`。
 
 ```python
-while True:
-    try:
-        creds = await self._bot.login()
-        break                      # 成功，退出重试
-    except AuthError:
-        # 新一轮 QR 轮询，on_qr_url 会自动清掉 last_error
-        await asyncio.sleep(LOGIN_RETRY_INTERVAL)   # 默认 5.0s
-    # 其他异常（网络错误等）不重试，向上传播 → 进程退出
+class WechatRuntime:
+    def __init__(self, auto_start: bool) -> None:
+        self._auto_start = auto_start   # config enable=true 时 True；idle 模式 False
+        self._channel: WechatChannel | None = None
+        self._session_id: str | None = None
+        self._lock_fd: int | None = None
+        self._gateway: Any = None
+        self._stop_event = asyncio.Event()
+
+    async def start(self, gateway) -> asyncio.Task:
+        self._gateway = gateway
+        if self._auto_start:
+            await self._start_wechat()
+        return asyncio.create_task(self._supervise())
+
+    async def _supervise(self) -> None:
+        await self._stop_event.wait()   # gateway shutdown 时 set
+
+    # ── console 控制接口 ──
+    async def start_wechat(self) -> dict: ...   # 幂等；调 _start_wechat
+    async def stop_wechat(self) -> dict: ...    # request_stop + 等退出 + 释放锁 + 写 enable=false
+    def status(self) -> dict: ...               # 综合 lock/channel/admin_state → snapshot
+
+    async def _start_wechat(self) -> None:
+        self._lock_fd = acquire_lock()  # 失败 → conflict 态，不抛、记状态
+        self._channel = WechatChannel(on_logined=self._on_logined)
+        await self._channel.init()
+        self._session_id = str(uuid.uuid4())
+        await self._gateway.accept_session(self._channel, self._session_id)
+
+    def _on_logined(self) -> None:
+        save_setting_channel_wechat(enable=True)
 ```
 
-- 重试期间进程驻留 `waiting_scan`，UI 表现为「QR 一直在轮换」，`on_qr_url` 每次清 `last_error`。
-- `LOGIN_RETRY_INTERVAL = 5.0`（常量，测试中 patch 为 0）。
-- 设计取舍：不合并 `AuthError` 与信号错误，仅对「登录被扫码策略中止」这一可自愈场景重试；其余失败仍退出以便 web 侧可见失败态。
+- `start()` 返回的 supervisor task 在 runtime 整个生命周期存活（即使 wechat 被 stop 进入 idle 也保持），仅 gateway shutdown 时 `_stop_event.set()` 退出。这保证 `asyncio.gather` 的 task 集稳定，wechat 启停不增删 gather 集。
+- wechat 启停产生的 bot 线程 / session task 由 runtime 内部管理（session task 经 `gateway.accept_session` 注册，bot 线程经 `channel.wait_run_done` 监控），不直接进 gather。
 
-### 3.3 Admin socket 接口
+### 4.2 acceptor 选择规则（gateway.py）
 
-HTTP/1.1 over UDS，REST + JSON。uvicorn 绑定 `$workspace/plugins/channels/wechat_channel/channel_admin.sock`。
+| 启动方式 | 创建的 acceptor | wechat 行为 |
+|---|---|---|
+| `--channel_wechat` | `WechatRuntime(auto_start=True)` 单独 | 忽略 config，强制启动 wechat；SIGINT/SIGTERM → `stop_wechat()` |
+| `--channel_web` | `WebSessionAcceptor` + `WechatRuntime(auto_start=False)` | 忽略 config 的 wechat 项；wechat idle，console 可手动 start |
+| `--channel_stdio` | `StdioSessionAcceptor` 单独 | 不创建 WechatRuntime（无 console，无控制入口） |
+| 无参 | 读 config：`channel_web` enable → `WebSessionAcceptor`；`channel_wechat` enable → `WechatRuntime(auto_start=True)`；web 存在但 wechat 未 enable → 额外创建 `WechatRuntime(auto_start=False)` 供 console 手动控制 | wechat 按 config 自动启 |
 
-| 方法 | 路径 | 响应 | 说明 |
-|---|---|---|---|
-| GET | `/status` | `{state: "starting"\|"waiting_scan"\|"scanned"\|"logined", qr_url: str\|null}` | 当前 channel 状态与扫码 URL |
-| GET | `/last_error` | `{message: str, at: ISO8601}` 或 `{}` | 最近一次错误；无错误返回空对象 |
-| POST | `/shutdown` | `{ok: true}` | 调 `bot.stop()` 优雅退出长轮询，进程随后退出 |
+- **explicit flag 忽略 config 多 channel 节点**：`--channel_X` 只跑指定的 X（`--channel_web` 额外带一个 idle WechatRuntime 仅为提供 console 控制能力，不自动启 wechat，不违反「只跑 web」）。
+- **无参全 config 驱动**：凡 `plugins.channels` 下节点存在且 `enable != false` 的 channel 都启动。
 
-所有端点供 `--channel_web` 进程的 lifecycle manager 调用，也支持 `curl --unix-socket` 手工调试（与 `indexer.sock` 一致）。
+### 4.3 跨进程单例锁
 
-### 3.4 `logined` 注入与启动路径改造
+`acquire_lock()`（`wechat_admin/lifecycle.py`，flock `LOCK_EX|LOCK_NB` on `$workspace/plugins/channels/wechat_channel/gateway.lock`）保证「standalone wechat 与 web 内嵌 wechat 不同时跑」。
 
-现状（`wechat_channel.py:77`）：
-
-```python
-bot_thread = threading.Thread(target=self._bot.run, daemon=True)
-```
-
-`bot.run()` 内部 `asyncio.run(self._run_sync())`，`_run_sync` 调 `await self.login()` 后 `await self.start()`。login 在 SDK 内部调用，无法外挂回调。
-
-改造方案：**不调 `bot.run()`**，改在独立线程内跑自定义 `_run()`：
-
-```python
-async def _run(self) -> None:
-    # 首登
-    self._wrap_login()              # monkey-patch bot.login 以注入 logined
-    await self._bot.login()         # 触发 patch，成功后 state=logined
-    await self._bot.start()         # 长轮询；session expired 时内部重登也走 patch
-
-def _wrap_login(self) -> None:
-    orig = self._bot.login
-    state = self._admin_state
-    async def wrapped(*a, **kw):
-        try:
-            creds = await orig(*a, **kw)
-            state.set(state="logined", qr_url=None)
-            return creds
-        except Exception as e:
-            state.set_last_error(e)
-            raise
-    self._bot.login = wrapped
-```
-
-- monkey-patch 覆盖首登与 `start()` 内部 session-expired 重登两条路径，统一注入 `logined`。
-- `bot.start()` 阻塞至 `bot.stop()`，`POST /shutdown` 调 `bot.stop()` 让其退出。
-- `on_qr_url` / `on_scanned` / `on_expired` / `on_error` 四个回调由 `WeChatBot.__init__` 注入，更新 `WechatAdminState`。
-
-## 4. 单例与生命周期管理
-
-### 4.1 单例锁定
-
-「不能有多个 Wechat gateway 进程」由双重机制保证：
-
-1. **lockfile 独占锁**（强约束）：`--channel_wechat` 进程在 `gateway._run` 的 wechat 分支入口 `acquire_lock()`，`fcntl.flock(fd, LOCK_EX | LOCK_NB)` on `$workspace/plugins/channels/wechat_channel/gateway.lock`。拿不到即 log error + 退出。flock 在进程退出（含崩溃）时自动释放。
-2. **socket probe**（健康判断）：web 侧 `start_wechat_gateway()` 启动前先 `probe_admin_socket()` 连 `channel_admin.sock`：
-   - 可连 → 进程在跑，不重复启动，返回「已在运行」。
-   - 不可连 → 再按 pid 文件判进程存活（`os.kill(pid, 0)`）：
-     - 进程在但 socket 不响应 → 状态异常，提示用户手动 stop / kill。
-     - 进程不在 → 启动新进程。
-
-lockfile 保证「不会有两个进程同时跑」；socket probe 保证「web 侧不会盲启第二个」。
-
-### 4.2 子进程启动
-
-`start_wechat_gateway()`（web 进程内）：
-
-```python
-subprocess.Popen(
-    [sys.executable, "-m", "everlingo.gateway.gateway", "--channel_wechat"],
-    stdout=open(log_path, "a"),
-    stderr=subprocess.STDOUT,
-    stdin=subprocess.DEVNULL,
-    start_new_session=True,   # 解耦：web 退出时 wechat 继续跑
-    cwd=workspace.root(),
-    env={**os.environ, "EVERLINGO_WORKSPACE_DIR": str(workspace.root())},
-)
-```
-
-- 日志重定向到 `$workspace/logs/wechat-gateway.log`。
-- pid 写 `$workspace/plugins/channels/wechat_channel/gateway.pid`（由子进程自己写，见 §4.3）。
-- `start_new_session=True`：脱离 web 进程的 session/process group，web 崩溃不带走 wechat。
-
-### 4.3 子进程内的 lock + pid
-
-`wechat_admin/lifecycle.py`（在 `--channel_wechat` 进程内）：
-
-- `acquire_lock()`：flock 独占锁，失败退出。锁 fd 全程持有（不关闭），进程退出自动释放。
-- `write_pid()`：写 `gateway.pid`，退出时清理（`atexit` + `try/finally`）。
-- lockfile 与 pid 文件同目录：`$workspace/plugins/channels/wechat_channel/`。
+- `WechatRuntime._start_wechat()` 先 `acquire_lock()`，失败 → runtime 进入 `conflict` 态（不抛异常），console `status()` 返回 `state=conflict` + 提示。
+- flock fd 全程持有，`stop_wechat()` 释放（`os.close`），进程退出自动释放。
+- 原 P1 的 `write_pid`/`clear_pid`/`pid_path` 删除（无子进程，无需 pid 探活）。
 
 ### 4.4 停止语义
 
-`stop_wechat_gateway()`（web 进程内）优先优雅：
+`WechatRuntime.stop_wechat()`：
+1. `channel.request_stop()`（`bot.stop()` + 跨线程 `task.cancel()`，见 P1 `wechat_channel.py`）。
+2. `await asyncio.to_thread(channel.wait_run_done)`（带超时，如 10s）。
+3. 清理 session（gateway `_cleanup_session` 经 session task done callback 自动移除）。
+4. `os.close(self._lock_fd)` 释放锁。
+5. `save_setting(channel_wechat.enable=false)`。
+6. runtime 回到 `stopped`/idle，supervisor task 仍存活（等 console 再次 start 或 gateway shutdown）。
 
-1. `POST /shutdown`（admin socket，3s 超时）→ `bot.stop()` → 长轮询退出 → 进程退出。
-2. 超时或 socket 不可连 → 读 `gateway.pid` → `os.kill(pid, SIGTERM)`，再等若干秒。
-3. 仍存活 → `SIGKILL`。
-4. 清理 `gateway.pid`、`channel_admin.sock`（socket 文件由 admin server 退出时清理或下次启动覆盖）。
+### 4.5 standalone 信号优雅停（`--channel_wechat`）
 
-### 4.5 迁移说明
+standalone 模式无 admin server（P1 的 UDS admin server 已删），`WechatRuntime` 在 `start()` 时注册 `loop.add_signal_handler(SIGINT/SIGTERM, ...)` → 触发 `stop_wechat()` 优雅停 bot。Linux docker 环境生效；无 SIGTERM 平台回退到 `KeyboardInterrupt`/atexit（本期 Linux 优先）。
 
-加入 lockfile 后，**现存手动启动的 wechat gateway 进程（无锁）必须重启一次**才能被 console 管理。重启后该进程持有锁，web 侧 socket probe 可正常探活。此为已知一次性迁移成本，已确认接受。
+### 4.6 进程退出语义（无参多 channel）
+
+`Gateway.run` 无参分支 `asyncio.gather(*acceptor_tasks)`。**所有 acceptor supervisor task 结束才退进程**：
+- wechat 被 stop → wechat supervisor 仍存活（idle）→ 不触发退出，web 继续服务。
+- web 崩溃 → web task 结束 → 此时若 wechat supervisor 仍存活，gather 未全部完成，进程不退；需 wechat supervisor 也退出才退。web 崩溃如何带动 wechat supervisor 退出：web task 结束时 gateway 触发 shutdown（`_stop_event.set()` 所有 runtime）→ wechat supervisor 退出 → gather 完成 → 退进程。
+- SIGINT → gateway 捕获 → 触发所有 runtime stop + web 退出 → gather 完成。
+
+具体「web 崩溃带动 shutdown」的实现机制在 P2 定（倾向 gateway 监听任一 acceptor task 异常退出 → set 所有 runtime `_stop_event` + cancel web），文档此处只确立语义。
+
+### 4.7 迁移说明
+
+in-process 改造后，P1 产物的 `wechat_admin/server.py` 删除、`lifecycle.py` 简化、`WechatSessionAcceptor`（`session_acceptor.py`）删除。现存手动启动 `--channel_wechat` 仍可用（走 `WechatRuntime(auto_start=True)` 路径）。`channel_admin.sock` 不再产生。已确认接受。
 
 ## 5. web_acceptor 集成
 
@@ -262,22 +219,20 @@ app.include_router(workspace_console_router)
 
 ### 5.2 API 端点
 
-workspace console router 暴露（前缀 `/api/wechat-channel`）：
+workspace console router 暴露（前缀 `/api/wechat-channel`），直调 `gateway` 持有的 `WechatRuntime` 实例（经 web_acceptor 既有的 `_gateway` 全局访问 gateway，再经 gateway 暴露的 `wechat_runtime` 属性获取）：
 
 | 方法 | 路径 | 行为 |
 |---|---|---|
-| GET | `/api/wechat-channel/status` | 综合：socket probe + pid → 返回 `{running: bool, state?, qr_url?, last_error?}`。`running=false` 时其余字段省略 |
-| POST | `/api/wechat-channel/start` | 探活后若 not_running 才 `start_wechat_gateway()`；已运行则幂等返回 |
-| POST | `/api/wechat-channel/stop` | 调 `stop_wechat_gateway()`（优雅 → SIGTERM → SIGKILL） |
+| GET | `/api/wechat-channel/status` | 调 `runtime.status()` → `{running: bool, state, qr_url, last_error}`。state ∈ SDK 四态 + `stopped`/`conflict` |
+| POST | `/api/wechat-channel/start` | 调 `runtime.start_wechat()`（幂等：已 running 返回当前状态；conflict 返回提示） |
+| POST | `/api/wechat-channel/stop` | 调 `runtime.stop_wechat()`（写 enable=false） |
 
 ### 5.3 静态页 fallback
 
-仿 `/editor`（`web_acceptor.py:129`）新增 SPA fallback：
+仿 `/editor`（`web_acceptor.py`）新增 SPA fallback（早于 catch-all `/{path:path}` 注册）：
 
 - `GET /me` → `web/dist/me.html`
 - `GET /web-console`、`GET /web-console/{path}` → `web/dist/web-console.html`
-
-均早于 catch-all `/{path:path}` 注册。
 
 ## 6. 前端结构
 
@@ -312,7 +267,7 @@ web/src/
 
 ### 6.3 ChatWindow header 改动
 
-`web/src/components/ChatWindow.tsx` header（现「笔记编辑器」按钮，line 112）右侧加 `Me` 按钮：
+`web/src/components/ChatWindow.tsx` header（现「笔记编辑器」按钮右侧）加 `Me` 按钮：
 
 ```tsx
 {!embedded && (
@@ -335,11 +290,12 @@ web/src/
 
 | running | state | UI |
 |---|---|---|
-| false | — | 「Wechat gateway 未运行」+ `[启动]` 按钮 |
+| false | stopped | 「Wechat channel 未运行」+ `[启动]` 按钮 |
 | true | starting | 「启动中…」+ `[停止]` |
 | true | waiting_scan | 「等待扫码」+ `[打开扫码页]`（`window.open(qr_url)` 新 Tab）+ `[停止]` |
 | true | scanned | 「已在手机确认，等待登录完成」+ `[停止]` |
 | true | logined | 「已登录 ✅」+ `[停止]` |
+| — | conflict | 「Wechat 已在 standalone 运行，请先停止该进程」+ `[重试]`（再调 start） |
 
 `last_error` 非空时，UI 顶部红色 banner 显示 message，不阻断当前状态展示与按钮。
 
@@ -347,23 +303,56 @@ web/src/
 
 项目不用 react-router（`/editor` 走 `window.location.href` 全页跳转）。`/me`、`/web-console` 沿用同模式，各自独立 entry。`/web-console` 下子页（wechat channel admin）目前单一，无需客户端路由；将来多子项时用 hash 或 query 区分。
 
-## 7. 安全与边界
+## 7. 自动启动与 enable 持久化
 
-- **默认 localhost**：`plugins.channels.channel_web.listener.interface` 默认 `localhost`，console 与 admin socket 仅本机可达。
+### 7.1 配置模型
+
+`src/everlingo/models.py` 新增：
+
+```python
+class ChannelWechat(BaseModel):
+    enable: bool = Field(default=False, description="是否启用 wechat channel（重启后自动启动）")
+
+class Channels(BaseModel):
+    channel_web: ChannelWeb = Field(default_factory=ChannelWeb, ...)
+    channel_wechat: ChannelWechat = Field(default_factory=ChannelWechat, ...)
+```
+
+- `channel_wechat` 节点在用户首次经 console 登录成功后由 `on_logined` 回调写入（节点不存在时补写）。
+- 节点不存在 = 未启用；节点存在且 `enable: true` = 自动启动；`enable: false` = 用户主动停后不再自动启。
+
+### 7.2 自动启动触发
+
+gateway 无参启动 → `Gateway.run` 读 config → `channel_wechat.enable=true` → 创建 `WechatRuntime(auto_start=True)` → `start()` 内 `_start_wechat()`。因 `credentials.json` 已存（首次登录时 SDK 保存），`bot.login(force=False)` 自动跳过 QR 直接 logined（见 [channel-wechat-ilink.md §分开 login](../channel-wechat-ilink.md)），用户无感知恢复。
+
+### 7.3 enable 写入时机汇总
+
+| 事件 | enable | 触发点 |
+|---|---|---|
+| console 点「启动」并 login 成功（state→logined） | `true` | `WechatRuntime._on_logined` 回调 `save_setting` |
+| console 点「停止」（用户主动停） | `false` | `WechatRuntime.stop_wechat` 内 `save_setting` |
+| 重启后自动启动、login 仍成功 | 保持 `true` | 不改 |
+| 重启后自动启动、credential 过期需重扫码 | 保持 `true` | 不改（state=waiting_scan，用户扫码后 on_logined 再次写 true） |
+| 重启后自动启动、锁冲突（standalone 占用） | 保持 `true` | 不改（status 显示 conflict） |
+
+## 8. 安全与边界
+
+- **默认 localhost**：`plugins.channels.channel_web.listener.interface` 默认 `localhost`，console 仅本机可达。
 - **CORS**：`web_acceptor.py` 现有 `allow_origins=["*"]`（[web-session-acceptor.md §CORS](../web-session-acceptor.md)）。console 的 `/api/wechat-channel/*` 同源访问，不受 CORS 影响；但 `allow_origins=["*"]` 意味着任意可达 8000 的网页可调启停接口。公网部署时须收敛白名单 + 加鉴权，本期不做。
-- **不暴露 secrets**：admin socket 只传状态与 shutdown 命令，不传 credentials（credentials 由 SDK 自管于 `credentials.json`，见 [channel-wechat-ilink.md §sdk 保存用户 credentials](../channel-wechat-ilink.md)）。
-- **进程管理边界**：web 进程只管启/停 wechat 子进程，不介入其聊天消息收发（聊天走既有 Session/WebChannel 路径，见 [gateway.md](../gateway.md)）。
+- **不暴露 secrets**：runtime / admin_state 只传状态与启停命令，不传 credentials（credentials 由 SDK 自管于 `credentials.json`，见 [channel-wechat-ilink.md §sdk 保存用户 credentials](../channel-wechat-ilink.md)）。
+- **进程管理边界**：runtime 只管启停 wechat channel 实例，不介入其聊天消息收发（聊天走既有 Session/WechatChannel 路径，见 [gateway.md](../gateway.md)）。
 
-## 8. 与现有架构的契合
+## 9. 与现有架构的契合
 
 - 复用 `web_acceptor.py` 的 FastAPI app，不新增 server。
-- IPC 范式复用 [memory-vault-search-spec.md](../search/memory-vault-search-spec.md) 的 UDS + FastAPI/uvicorn。
+- `WechatRuntime` 实现 `SessionAcceptor` 协议，与 `WebSessionAcceptor` 同构，gateway 统一调度。
 - 前端复用 [web-chatbot.md](../web-chatbot.md) 技术栈与多入口构建。
-- wechat gateway 内部改造限于 `wechat_channel.py` 启动路径与回调注入，不影响 Session/WebChannel 的聊天收发协议。
-- 不引入新依赖（FastAPI/uvicorn/httpx 已在依赖中；前端无新运行时依赖）。
+- `WechatChannel` 与 `WechatAdminState`（P1 产物）不动，runtime 直接复用。
+- config-driven 多 channel 复用既有 `everlingo.yaml` + pydantic 模型 + `save_setting` 范式。
+- 不引入新依赖（FastAPI/uvicorn/pydantic/yaml 已在依赖中；前端无新运行时依赖）。
 
-## 9. 扩展位
+## 10. 扩展位
 
-- `channels admin` 下将来可加其它 channel admin（如 stdio channel 调试页），共用 `/web-console/plugins/channels/{channel}/admin` 路径约定与 admin socket 范式。
+- `channels` 下将来可加其它 channel 配置节点（如 `channel_telegram`），gateway 无参自动按 config 启动对应 acceptor；console 的 `channels admin` 下可加对应 admin 页。
 - `Me` 页预留更多入口（profile、settings 等）。
-- admin socket 协议为 REST/JSON，新增端点即可扩展（如 `/logs` 流式日志、`/metrics`）。
+- runtime 的 `status()` 可扩展更多字段（如 `/logs` 流式日志、`/metrics`），router 加端点即可。

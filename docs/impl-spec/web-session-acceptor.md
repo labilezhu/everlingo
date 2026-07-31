@@ -94,6 +94,18 @@ app.add_middleware(
 - 生产前应收敛到白名单（列出已知扩展 ID 或使用 `allow_origin_regex`）。
 - CORSMiddleware 自动处理 OPTIONS 预检请求（返回 200 + CORS 头），因此无需在路由层额外注册 OPTIONS handler。
 
+## 挂载的额外 router
+
+`web_acceptor.py` 的根 FastAPI app 除 chatbot 本身外，还挂载：
+
+- `vault_editor_router`（既有）—— vault 编辑器 API。
+- `workspace_console_router`（2026-07 新增）—— Workspace Console 管理控制台 API（`/api/wechat-channel/*`），in-process 控制 wechat channel 启停与状态。详见 [workspace-console/architecture.md](/docs/impl-spec/workspace-console/architecture.md)。
+
+静态页 fallback（早于 catch-all `/{path:path}` 注册）：
+- `/editor`、`/editor/{path}` → `web/dist/editor.html`（既有）
+- `/me` → `web/dist/me.html`（2026-07 新增）
+- `/web-console`、`/web-console/{path}` → `web/dist/web-console.html`（2026-07 新增）
+
 
 ## Session 超时回收
 

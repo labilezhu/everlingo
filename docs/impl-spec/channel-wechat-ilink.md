@@ -100,3 +100,25 @@ https://github.com/corespeed-io/wechatbot/raw/refs/heads/main/python/README.md
 https://raw.githubusercontent.com/corespeed-io/wechatbot/refs/heads/main/python/README.md
 https://pypi.org/project/weixin-bot-sdk/
 https://www.wechatbot.dev/zh/python -->
+
+## in-process 托管与自动启动（2026-07 设计变更）
+
+Wechat channel 不再作为独立子进程运行，改由 web 进程内的 `WechatRuntime`（`src/everlingo/gateway/wechat_admin/runtime.py`）in-process 托管。详见 [workspace-console/architecture.md](/docs/impl-spec/workspace-console/architecture.md)。
+
+### 托管方式
+
+- `WechatRuntime` 实现 `SessionAcceptor` 协议，由 `Gateway.run` 按 config-driven（无参）或 explicit flag（`--channel_wechat` / `--channel_web`）创建。
+- runtime 持有 `WechatChannel` 实例 + 跨进程单例锁（`acquire_lock`，flock on `$workspace/plugins/channels/wechat_channel/gateway.lock`，防止 standalone 与 web 内嵌同时跑）。
+- web console router 直调 runtime 的 `start_wechat()` / `stop_wechat()` / `status()`（同进程内存调用，不经 IPC）。
+
+### on_logined 持久化 enable
+
+用户首次经 web console 登录成功（state→logined）后，runtime 的 `on_logined` 回调向 `everlingo.yaml` 写入 `plugins.channels.channel_wechat.enable: true`（节点不存在则补写）。用户主动停止则写 `enable: false`。
+
+### 重启后自动恢复
+
+gateway 无参启动时读 `channel_wechat.enable`，为 `true` 则自动 `WechatRuntime(auto_start=True)` 启动 wechat。因 `credentials.json` 已存（首次登录时 SDK 保存于 `$workspace/plugins/channels/wechat_channel/credentials/credentials.json`），`bot.login(force=False)` 自动跳过 QR 直接 logined（见上 §分开 login 与 message long-polling），用户无感知恢复。credential 过期时回到 `waiting_scan`，用户扫码后 `on_logined` 再次确认 enable。
+
+### standalone 入口
+
+`python -m everlingo.gateway --channel_wechat` 仍可用（无 web 环境）：`WechatRuntime(auto_start=True)` 单独跑，SIGINT/SIGTERM 经 `loop.add_signal_handler` 触发 `stop_wechat()` 优雅停。此时锁被占用，web console 的 `start_wechat` 会进入 `conflict` 态。

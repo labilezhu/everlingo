@@ -36,6 +36,8 @@ plugins:
         port: 8000
       public_address:
         base_url:
+    channel_wechat:
+      enable: false
 ```
 
 配置文件包括以下子小节的内容。
@@ -107,3 +109,11 @@ plugins:
 | `public_address.base_url` | `http://{interface}:{port}` | 浏览器访问地址。空值时由 listener 生效配置自动生成。外网或 https 反向代理时需显式设置 |
 
 代码中 class 名称叫 `ChannelWeb`。
+
+#### Wechat 通道配置 - ChannelWechat
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `enable` | `false` | 是否启用 wechat channel。`true` 时 gateway 无参启动会自动 in-process 启动 wechat；`false` 或节点不存在则不启动。用户首次经 web console 登录成功后自动写 `true`，用户主动停止后写 `false` |
+
+代码中 class 名称叫 `ChannelWechat`。详见 [workspace-console/architecture.md](/docs/impl-spec/workspace-console/architecture.md)。
