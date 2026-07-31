@@ -35,7 +35,7 @@
 ```bash
 ######## base conf ########
 
-export EVERLINGO_VER=0.1.0-rc.16
+export EVERLINGO_VER=0.1.0-rc.18
 
 export OPENAI_API_KEY=<your_api_key>
 export OPENAI_BASE_URL=https://openrouter.ai/api/v1
@@ -88,7 +88,7 @@ export DOCKER_GID=$(getent group docker | cut -d: -f3)
 docker compose -p everctl up
 
 
-##### 创建用户与 PAT（同时创建 default ws-container，status=absent） #####
+##### 创建用户与 预启动 workspace container #####
 
 docker exec -it everctl-ws_master-1  python -m everlingo ws_master --config /etc/everlingo/ws_master.yaml user add --name $INIT_USER_NAME --display-name "$INIT_USER_NAME" --password $INIT_USER_PASSWORD
 
@@ -149,5 +149,7 @@ docker compose -p everctl down
 docker ps -aq --filter label=app=everlingo | xargs -r docker rm -f
 
 docker network rm everlingo-net
-rm -rf $HOST_WS_DIR
+
+# rm -rf $HOST_WS_DIR
+# rm -rf $DEPLOY_WORK_HOME/*
 ```
