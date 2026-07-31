@@ -1,0 +1,99 @@
+
+看看这个设计的合理性、可行性。包括产品设计、架构设计、实现设计上
+
+## 需求
+
+增加一个叫 `workspace console` 的 Web UI 模块
+
+`workspace console` 的首个功能是 `channels admin` ，其中，一个子功能是 `wechat channel admin`：
+- `Wechat gateway` 的生命周期管理
+- 为运行中的 `Wechat gateway` 提供一个扫描 QR-Code 登录 wechat 和反馈登录 过程 的 Web UI.
+
+在 Standalone 的 [Web Chatbot](docs/impl-spec/web-chatbot.md) 界面的 header 上，在现有的 "笔记"键钮右侧加入 `Me` 按钮，按上后，转到 `Me` 页 。 `Me` 页 中，包含一个到 `workspace console` 的按钮 。页面关系如：
+
+Standalone Web Chatbot -> Me -> `workspace console` -> `channels admin` -> `wechat channel admin`
+
+##  设计
+
+增加一个叫 `workspace console` 的 Web 模块，， 与 [Web Gateway](docs/impl-spec/web-session-acceptor.md) 共用 8000 http server 。
+
+现在的 Wechat gateway 是个后台进程：
+
+```
+python -m everlingo.gateway.gateway --channel_wechat 
+```
+
+我计划让他现有的功能不变。加入一个 类似 docs/impl-spec/search/memory-vault-search-spec.md 中 unix socket 的接口： $workspace/plugins/channels/wechat_channel/channel_admin.sock
+
+`workspace console` 提供一个页面 /web-console/plugins/channels/wechat_channel/admin ，有以下功能： 
+- `Wechat gateway` 进程的生命周期管理：可以 停止、启动 `Wechat gateway` 进程 
+- 为运行中的 `channel 状态`.
+- 为运行中的 `Wechat gateway` 提供一个扫描 QR-Code 登录 wechat 和反馈登录 过程 的 Web UI.
+- 可以发送测试消息到已经是 login 了的 wechat
+
+
+channel_admin.sock 的 接口包括：
+- 获取 `channel 状态`: waitting_scan / scanned / logined / error(带上 error message)
+- 获取 QR-CODE URL
+
+`workspace console` 在用户访问网页 /web-console/plugins/channels/wechat_channel/admin 时：
+- 每 2s poll channel_admin.sock
+- 如 `channel 状态` waitting_scan / scanned 后端负责下载 QR-CODE URL(相同的 URL 不要多次下载) 和展示到 Web UI 。
+- 如 `channel 状态` logined 界面说明已经成功登录。
+- 如 `channel 状态` error 界面说明 error message 。 但后端还是要负责下载 QR-CODE URL(相同的 URL 不要多次下载) 和展示到 Web UI 。
+
+
+要保证，不能有多个 `Wechat gateway` 进程
+
+- 上面说的 QR-CODE URL 有误，是个 网页地址，所以 `workspace console` 用弹出新浏览器 Tab 的方法访问最安全。
+- 不需要发测试消息的功能了
+
+-  wechat gateway 保持独立进程
+- 加入 lock 后，现存手动启动的 wechat gateway 进程必须重启一次才能被 console 管理。接受？ 接受
+- 不要 error 状态了，加一个接口，get last error 好了
+
+“socket probe：web console 启动前先连 channel_admin.sock 探活；在线就不启，离线才启。lockfile 只能判「进程在不在」，socket 判「是否健康响应」”
+
+### 细节
+
+核心的  wechat 接入实现见：
+
+docs/impl-spec/channel-wechat-ilink.md:68
+src/everlingo/gateway/channels/wechat_channel.py:65
+
+其中 WeChatBot 的初始化提供了：
+- login 状态反馈 callback
+- 用户可扫码 login 的 QR-CODE URL
+
+```python
+bot = WeChatBot(
+    base_url="https://ilinkai.weixin.qq.com",   # default
+    cred_path="$workspace/plugins/channels/wechat_channel/credentials/credentials.json",   # default
+    on_qr_url=lambda url: print(f"Scan: {url}"),
+    on_scanned=lambda: print("Scanned!"),
+    on_expired=lambda: print("Expired..."),
+    on_error=lambda err: print(f"Error: {err}"),
+)
+```
+
+一些数据示例：
+
+```
+[wechatbot] Logged in as o9cq805ZthUFwDAt5M-l7TJPRQ1Q@im.wechat
+[wechatbot] Long-poll started
+[wechatbot] Session expired — re-login
+[wechatbot] Scan this URL in WeChat: https://liteapp.weixin.qq.com/q/7GiQu1?qrcode=935292264c25f87e68d8af0aedfe24d3&bot_type=3
+[wechatbot] QR expired — requesting new one
+[wechatbot] Scan this URL in WeChat: https://liteapp.weixin.qq.com/q/7GiQu1?qrcode=df8fe96b5b39d63676fa3e6980ea83cb&bot_type=3
+
+```
+## 分阶段实施
+
+1. `Wechat gateway` 实施
+2. `workspace console` 后端实施
+3. `workspace console` 前端实施
+
+
+---
+
+检查 docs/impl-spec/search/memory-vault-search-spec.md 中 unix socket 能力部分是否有在应用内其它地方使用，如果没有，我打算删除了

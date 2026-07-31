@@ -13,7 +13,7 @@ export OPENAI_MODEL=deepseek/deepseek-v4-flash
 export OPENAI_EMBEDDING_MODEL=baai/bge-m3
 export target_language=en
 
-export EVERLINGO_VER=0.1.0-rc.13
+export EVERLINGO_VER=0.1.0-rc.19
 
 # 宿主侧多用户隔离的目录命名（与容器内 os_user 无关）
 
