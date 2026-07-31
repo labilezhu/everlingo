@@ -1,5 +1,5 @@
 """
-WechatAdmin lifecycle 单测：单例锁 + pid 文件。
+WechatAdmin lifecycle 单测：单例锁。
 
 ref: TEST_STYLE.md
 ref: docs/impl-spec/workspace-console/architecture.md — 单例与生命周期
@@ -50,24 +50,3 @@ class TestAcquireLock:
                 lifecycle.acquire_lock()
         finally:
             os.close(fd1)
-
-
-class TestPid:
-    def test_write_pid_creates_file_with_current_pid(self, isolated_workspace):
-        lifecycle.write_pid()
-        try:
-            assert lifecycle.pid_path().is_file()
-            assert lifecycle.pid_path().read_text(encoding="utf-8") == str(
-                os.getpid()
-            )
-        finally:
-            lifecycle.clear_pid()
-
-    def test_clear_pid_removes_file(self, isolated_workspace):
-        lifecycle.write_pid()
-        lifecycle.clear_pid()
-        assert not lifecycle.pid_path().exists()
-
-    def test_clear_pid_idempotent(self, isolated_workspace):
-        lifecycle.clear_pid()  # 不存在也不抛错
-        assert not lifecycle.pid_path().exists()

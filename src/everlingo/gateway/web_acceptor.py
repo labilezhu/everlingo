@@ -18,10 +18,12 @@ from everlingo.gateway.channels.envelope import UserInputEnvelope, wrap_plain_te
 from everlingo.gateway.channels.web_channel import WebChannel
 from everlingo.gateway.session_acceptor import SessionAcceptor
 from everlingo.gateway.vault_editor_api import router as vault_editor_router
+from everlingo.gateway.workspace_console.router import router as workspace_console_router
 from everlingo.workspace import indexer_mcp_url_path
 
 app = FastAPI()
 app.include_router(vault_editor_router)
+app.include_router(workspace_console_router)
 
 # MVP: 允许扩展跨源请求（扩展 origin = chrome-extension://<id>）
 # 生产前应收敛 allow_origins 到白名单
@@ -136,6 +138,29 @@ async def serve_editor(path: str = ""):
         return {"message": "Frontend not built. Run `npm run build` in the web/ directory."}
 
     return FileResponse(editor_index)
+
+
+@app.get("/me")
+async def serve_me():
+    """Me 页（Workspace Console 入口）。"""
+    index = os.path.join(_static_dir(), "me.html")
+
+    if not os.path.exists(index):
+        return {"message": "Frontend not built. Run `npm run build` in the web/ directory."}
+
+    return FileResponse(index)
+
+
+@app.get("/web-console")
+@app.get("/web-console/{path:path}")
+async def serve_web_console(path: str = ""):
+    """Workspace Console SPA（dist/web-console.html fallback）。"""
+    index = os.path.join(_static_dir(), "web-console.html")
+
+    if not os.path.exists(index):
+        return {"message": "Frontend not built. Run `npm run build` in the web/ directory."}
+
+    return FileResponse(index)
 
 
 @app.get("/healthz")

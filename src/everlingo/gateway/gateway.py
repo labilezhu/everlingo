@@ -6,15 +6,21 @@
 import argparse
 import asyncio
 import logging
+import signal
 
 from ..log_utils import setup_logging
 from ..models import LANGUAGES, UserProfile
-from ..setting import get_web_listener, load_profile, save_profile
+from ..setting import (
+    channel_enabled,
+    get_web_listener,
+    load_profile,
+    save_profile,
+)
 from ._memory_writer import memory_writer
-from .session_acceptor import StdioSessionAcceptor, WechatSessionAcceptor
-from .wechat_admin.lifecycle import LockAcquireError
+from .session_acceptor import SessionAcceptor, StdioSessionAcceptor
 from .session_events import SystemNotice
 from .web_acceptor import WebSessionAcceptor
+from .wechat_admin.runtime import STOP_TIMEOUT, WechatRuntime
 from .session import Session
 
 
@@ -86,6 +92,8 @@ class Gateway:
     def __init__(self) -> None:
         self.sessions: dict[str, Session] = {}
         self._profile: UserProfile | None = None
+        # wechat channel 的 in-process 托管者（供 workspace_console router 控制）
+        self.wechat_runtime: WechatRuntime | None = None
         # 注册为 NoticeSink（供 Memory Writer 跨线程推送通知）
         memory_writer.set_notice_sink(self)
 
@@ -150,11 +158,65 @@ class Gateway:
         if removed is not None:
             logger.info("Session %s cleaned up", session_id)
 
-    async def run(self, channel_type: str = "stdio") -> None:
+    def _request_shutdown(self) -> None:
+        """触发所有托管 runtime 的 graceful shutdown（supervisor task 退出）。"""
+        if self.wechat_runtime is not None:
+            self.wechat_runtime.request_shutdown()
+
+    def _build_acceptors(self, channel_type: str | None) -> list[SessionAcceptor]:
+        """按启动模式组装 acceptor 列表。
+
+        ref: gateway.md 启动模式语义 / workspace-console/architecture.md §4.2
+        - explicit flag → 单 channel（--channel_web 额外带 idle WechatRuntime）
+        - 无参（None）→ config-driven 多 channel
+        """
+        acceptors: list[SessionAcceptor] = []
+        if channel_type == "wechat":
+            # standalone：忽略 config；bot 崩溃 / SIGINT 时退出进程
+            self.wechat_runtime = WechatRuntime(
+                auto_start=True, on_bot_exit=self._request_shutdown
+            )
+            acceptors.append(self.wechat_runtime)
+        elif channel_type == "web":
+            # 仅 web；带 idle WechatRuntime 供 console 手动启停
+            listener = get_web_listener()
+            acceptors.append(
+                WebSessionAcceptor(host=listener.interface, port=listener.port)
+            )
+            self.wechat_runtime = WechatRuntime(auto_start=False)
+            acceptors.append(self.wechat_runtime)
+        elif channel_type == "stdio":
+            acceptors.append(StdioSessionAcceptor())
+        else:
+            # config-driven 多 channel（无参）
+            web_enabled = channel_enabled("channel_web")
+            wechat_enabled = channel_enabled("channel_wechat")
+            if web_enabled:
+                listener = get_web_listener()
+                acceptors.append(
+                    WebSessionAcceptor(host=listener.interface, port=listener.port)
+                )
+                # web 存在 → 提供 console 控制（idle 或 auto_start）
+                self.wechat_runtime = WechatRuntime(auto_start=wechat_enabled)
+                acceptors.append(self.wechat_runtime)
+            elif wechat_enabled:
+                # 无 web 时 wechat standalone（config-driven）
+                self.wechat_runtime = WechatRuntime(
+                    auto_start=True, on_bot_exit=self._request_shutdown
+                )
+                acceptors.append(self.wechat_runtime)
+            if not acceptors:
+                # 无任何 enable 的 channel → 默认 stdio（保持旧行为）
+                acceptors.append(StdioSessionAcceptor())
+        return acceptors
+
+    async def run(self, channel_type: str | None = None) -> None:
         """Gateway 主入口。
 
         Args:
-            channel_type: "stdio" 或 "wechat" 或 "web"
+            channel_type: "stdio" / "wechat" / "web" 单 channel（explicit flag）；
+                None → 无参 config-driven 多 channel（读 plugins.channels）。
+                ref: gateway.md 启动模式语义
         """
         setup_logging()
         try:
@@ -163,32 +225,59 @@ class Gateway:
             print(f"\n配置错误: {e}")
             return
 
-        if channel_type == "wechat":
-            acceptor = WechatSessionAcceptor()
-        elif channel_type == "web":
-            listener = get_web_listener()
-            acceptor = WebSessionAcceptor(host=listener.interface, port=listener.port)
-        else:
-            acceptor = StdioSessionAcceptor()
+        tasks = [await a.start(self) for a in self._build_acceptors(channel_type)]
+        await self._serve(tasks)
 
+    async def _serve(self, tasks: list[asyncio.Task]) -> None:
+        """等待所有 acceptor task 结束；任一结束则带停其余（进程退出）。
+
+        多 channel 语义：所有 channel 结束才退进程。wechat supervisor 驻留至
+        gateway shutdown，故 wechat 被 stop 不会单独触发进程退出；web 结束 /
+        SIGINT 时 request_shutdown → wechat supervisor 退出 → gather 完成。
+        """
+        loop = asyncio.get_running_loop()
+        installed_signal = False
+        if len(tasks) == 1 and self.wechat_runtime is not None:
+            # standalone wechat：SIGINT/SIGTERM → 优雅停（无 uvicorn 兜底）
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                try:
+                    loop.add_signal_handler(sig, self._request_shutdown)
+                    installed_signal = True
+                except NotImplementedError:
+                    pass
         try:
-            task = await acceptor.start(self)
-        except LockAcquireError as e:
-            logger.error("无法启动 Wechat gateway: %s", e)
-            return
-        await task
+            if len(tasks) == 1:
+                await tasks[0]
+            else:
+                _, pending = await asyncio.wait(
+                    tasks, return_when=asyncio.FIRST_COMPLETED
+                )
+                self._request_shutdown()
+                if pending:
+                    await asyncio.wait(pending, timeout=STOP_TIMEOUT + 2.0)
+                    for t in pending:
+                        if not t.done():
+                            t.cancel()
+                            await asyncio.gather(t, return_exceptions=True)
+        finally:
+            if installed_signal:
+                for sig in (signal.SIGINT, signal.SIGTERM):
+                    try:
+                        loop.remove_signal_handler(sig)
+                    except (NotImplementedError, ValueError):
+                        pass
 
 
 def main() -> None:
     """Gateway 进程入口（被 console script `gateway` 调用）。
 
     用法：
-        gateway --channel_stdio   # 启动 Stdio Channel（默认）
-        gateway                   # 同上，默认启动 Stdio Channel
-        gateway --channel_wechat  # 启动 Wechat Channel
-        gateway --channel_web     # 启动 Web Channel（FastAPI + 前端）
+        gateway                    # config-driven 多 channel（读 everlingo.yaml channels）
+        gateway --channel_stdio    # 仅 Stdio Channel
+        gateway --channel_wechat   # 仅 Wechat Channel（standalone）
+        gateway --channel_web      # 仅 Web Channel（FastAPI + 前端）
 
-    ref: /docs/impl-spec/gateway.md
+    ref: /docs/impl-spec/gateway.md — 启动模式语义
     """
     args = _parse_args()
     _run(args)
@@ -201,13 +290,13 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--channel_stdio",
         action="store_true",
         default=False,
-        help="启动 Stdio Channel（默认）",
+        help="启动 Stdio Channel",
     )
     channel_group.add_argument(
         "--channel_wechat",
         action="store_true",
         default=False,
-        help="启动 Wechat Channel",
+        help="启动 Wechat Channel（standalone）",
     )
     channel_group.add_argument(
         "--channel_web",
@@ -223,8 +312,11 @@ def _run(args: argparse.Namespace) -> None:
         channel_type = "wechat"
     elif args.channel_web:
         channel_type = "web"
-    else:
+    elif args.channel_stdio:
         channel_type = "stdio"
+    else:
+        # 无参 → config-driven 多 channel
+        channel_type = None
     gateway = Gateway()
     asyncio.run(gateway.run(channel_type=channel_type))
 

@@ -120,6 +120,24 @@ def get_web_listener() -> WebListener:
     return setting.plugins.channels.channel_web.listener
 
 
+def channel_enabled(channel_name: str) -> bool:
+    """返回 channel 是否启用（gateway 无参 config-driven 多 channel 用）。
+
+    语义：`plugins.channels` 下节点存在且 `enable != false` → 启用。
+    节点不存在，或节点内 `enable` 显式为 false → 不启用。空节点（如
+    `channel_wechat:`）默认启用。
+
+    ref: docs/impl-spec/workspace-console/architecture.md §4.2 acceptor 选择规则
+    """
+    data = _load_raw()
+    node = data.get("plugins", {}).get("channels", {}).get(channel_name)
+    if node is None:
+        return False
+    if isinstance(node, dict) and node.get("enable") is False:
+        return False
+    return True
+
+
 def _validate_base_url(url: str, source: str) -> str:
     """Check base_url starts with http:// or https:// and remove trailing slash."""
     url = url.strip().rstrip("/")

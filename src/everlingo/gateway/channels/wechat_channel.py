@@ -9,7 +9,7 @@ import logging
 import queue
 import threading
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 
 from wechatbot import AuthError, WeChatBot
@@ -38,7 +38,10 @@ class WechatChannel(Channel):
     - send: 使用最近一次保存的 user_id 调用 bot.send() 主动发送消息
     """
 
-    def __init__(self) -> None:
+    def __init__(self, on_logined: Optional[Callable[[], None]] = None) -> None:
+        # 登录成功回调（注入：runtime 持久化 enable=true）。
+        # ref: workspace-console/architecture.md §3.2 on_logined 注入
+        self._on_logined = on_logined
         # WeChatBot 单例，应用生命周期内只创建一次
         self._bot: Optional[WeChatBot] = None
         # 每次收到消息时保存最新的 user_id，用于主动发送消息
@@ -186,6 +189,8 @@ class WechatChannel(Channel):
                 raise
             state.set_state("logined")
             state.set_qr_url(None)
+            if self._on_logined is not None:
+                self._on_logined()
             return creds
 
         self._bot.login = wrapped

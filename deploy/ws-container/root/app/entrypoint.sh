@@ -31,8 +31,8 @@ while true; do
   fi
 done
 
-# 3. 后台启动 gateway
-python -m everlingo gateway --channel_web &
+# 3. 后台启动 gateway（无参 = config-driven 多 channel，见 gateway.md 启动模式语义）
+python -m everlingo gateway &
 gw_pid=$!
 
 # 4. 任一子进程退出则全退（exit code 透传）
