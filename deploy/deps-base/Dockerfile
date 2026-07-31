@@ -7,7 +7,7 @@
 # 下游 Dockerfile（ws-container/ws-master/ws-router）通过 `FROM` 此镜像，
 # 源码改动只需 push src 层（KB 级），不再重下 ≈100M 的 .venv 层。
 
-FROM python:3.12.13-bookworm AS deps
+FROM python:3.12-trixie AS deps
 
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
@@ -22,7 +22,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # 归零 mtime，确保同一 uv.lock 产出 byte-identical .venv → layer digest 稳定
 RUN find /app/.venv -exec touch -h -d @0 {} +
 
-FROM python:3.12.13-bookworm AS runtime
+FROM python:3.12-trixie AS runtime
 
 ARG HTTP_PROXY
 ARG HTTPS_PROXY

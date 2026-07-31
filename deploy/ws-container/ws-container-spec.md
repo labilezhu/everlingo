@@ -2,7 +2,7 @@
 
 ## base image
 
-runtime base image: `python:3.12.13-bookworm`
+runtime base image: `python:3.12-trixie`
 
 Dockerfile: deploy/ws-container/Dockerfile
 
@@ -17,13 +17,13 @@ Dockerfile: deploy/ws-container/Dockerfile
 - 产物: `/web/dist`（Web Chatbot + Vault Editor SPA）
 
 ### Stage 2: `deps`
-- base: `python:3.12.13-bookworm`
+- base: `python:3.12-trixie`
 - 安装 `uv`（`pip install uv`）
 - `COPY pyproject.toml uv.lock` → `uv sync --frozen --no-dev --no-install-project` 生成 `/app/.venv`（跳过本地包安装，只装外部依赖）
 - 产物: `/app/.venv`（含全部 Python 依赖 + unidic-lite 词典数据）
 
 ### Stage 3: `runtime`
-- base: `python:3.12.13-bookworm`
+- base: `python:3.12-trixie`
 - 创建 everlingo 用户（见下「Linux 主用户」节）
 - `COPY --chown=everlingo:everlingo --from=deps /app/.venv .venv/`
 - `COPY --chown=everlingo:everlingo src/ src/`

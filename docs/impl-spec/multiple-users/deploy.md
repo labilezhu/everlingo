@@ -137,7 +137,7 @@ WS-Master 镜像内不预装 docker CLI；用 `docker` Python SDK 通过 `unix:/
 
 ```dockerfile
 # Stage: deps（与现有 Dockerfile 的 deps stage 一致）
-FROM python:3.12.13-bookworm AS deps
+FROM python:3.12-trixie AS deps
 
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
@@ -150,7 +150,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 # Stage: runtime
-FROM python:3.12.13-bookworm AS runtime
+FROM python:3.12-trixie AS runtime
 RUN useradd -m -u 1000 everlingo
 COPY --chown=everlingo:everlingo --from=deps /app/.venv .venv/
 COPY --chown=everlingo:everlingo src/ src/
@@ -180,7 +180,7 @@ docker pull ghcr.io/<owner>/everlingo-ws-router:0.1.0
 
 ```dockerfile
 # Stage: deps（同上）
-FROM python:3.12.13-bookworm AS deps
+FROM python:3.12-trixie AS deps
 
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
@@ -193,7 +193,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 # Stage: runtime
-FROM python:3.12.13-bookworm AS runtime
+FROM python:3.12-trixie AS runtime
 RUN useradd -m -u 1000 everlingo
 COPY --chown=everlingo:everlingo --from=deps /app/.venv .venv/
 COPY --chown=everlingo:everlingo src/ src/
