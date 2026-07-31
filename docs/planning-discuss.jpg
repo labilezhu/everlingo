@@ -1,4 +1,66 @@
 
+
+
+docs/impl-spec/workspace-console/README.md 
+docs/impl-spec/workspace-console/architecture.md 
+docs/impl-spec/workspace-console/phased-impl.md
+
+已经完成到 `P1 — wechat gateway 进程内 admin server` 但经过考虑。我认为不同类型的 channel/session acceptor 分不同的进程的维护成本大过收益。现在计划让 Workspace Console 去在同一进程内管理多个 Gateway 实例。 
+
+你看看这个设计的合理性、可行性。包括产品设计、架构设计、实现设计多个方面。
+
+分几个阶段实施：
+1. 
+
+---
+
+## 多 everlingo gateway 启动入口
+
+现在要考虑 workspace container / `python -m everlingo gateway`进程 重启后。如何自动拉起用户期望的，特别是的 wechat gateway 。
+
+之前， workspace container 的入口 deploy/ws-container/root/app/entrypoint.sh 是
+```bash
+python -m everlingo gateway --channel_web
+```
+
+现计划修改成：
+
+```bash
+python -m everlingo gateway_master
+```
+
+即引入一个新的 gateway_master 的
+
+现在，修改为，读取 `$workspaces/everlingo.yaml` 。
+
+如：
+```yaml
+plugins:
+  channels:
+    channel_web: # Web Session Acceptor 配置
+      listener: # 监听地址
+        port: 8000 # 默认 8000
+        interface: 0.0.0.0  # 默认 localhost
+      public_address: # 浏览器访问地址。如外网或 https 反向代理访问时配置
+        base_url: http://192.168.16.130:8000 # 默认 用上面的 listener 的生效配置生成： http://$interface:$port
+    channel_wechat:
+        enable: true
+```
+
+则启动两个子进程： 
+```
+python -m everlingo gateway --channel_web
+python -m everlingo gateway --channel_wechat
+```
+
+其中 `enable: true` 是默认的。
+
+Web Gateway 的 workspace-console 模块 应该在 Wechat Gateway 状态变为 logined 后，永久记录下用户已经成功 login ，
+
+
+
+---
+
 看看这个设计的合理性、可行性。包括产品设计、架构设计、实现设计上
 
 ## 需求
