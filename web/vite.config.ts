@@ -19,6 +19,8 @@ export default defineConfig({
       input: {
         main: path.resolve(__dirname, 'index.html'),
         editor: path.resolve(__dirname, 'editor.html'),
+        me: path.resolve(__dirname, 'me.html'),
+        'web-console': path.resolve(__dirname, 'web-console.html'),
       },
     },
   },

@@ -1,6 +1,8 @@
 
 # Agent Instructions
 
+除非我强调指定你表达的语言，否则默认用中文说话。
+
 ## Test / lint
 
 - Tests: `uv run pytest tests/<file>::<name> -v` (单文件 / 单用例) 或 `uv run pytest tests/` (全量)。

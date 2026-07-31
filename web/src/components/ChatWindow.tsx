@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { NotebookPen } from 'lucide-react';
+import { NotebookPen, User } from 'lucide-react';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
 import TaskSelector from './TaskSelector';
@@ -109,10 +109,16 @@ export default function ChatWindow({ embedded, linkListener, resourceContextProv
           <h1 className="text-lg font-semibold text-foreground">小记</h1>
         </div>
         {!embedded && (
-          <Button variant="ghost" size="sm" onClick={() => { window.location.href = '/editor'; }}>
-            <NotebookPen />
-            <span className="hidden md:inline">笔记</span>
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" onClick={() => { window.location.href = '/editor'; }}>
+              <NotebookPen />
+              <span className="hidden md:inline">笔记</span>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => { window.location.href = '/me'; }}>
+              <User />
+              <span className="hidden md:inline">Me</span>
+            </Button>
+          </div>
         )}
       </header>
 

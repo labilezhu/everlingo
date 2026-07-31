@@ -1,14 +1,14 @@
 # Workspace Console — 分阶段实施计划
 
-按依赖顺序分阶段，每阶段可独立交付、独立验证。**P1 已完成（2026-07-31）**，后因设计变更（wechat 由子进程改为 in-process 托管，见 [architecture.md §1.1](./architecture.md)），P2 重新规划。
+按依赖顺序分阶段，每阶段可独立交付、独立验证。**P1 已完成（2026-07-31）**，后因设计变更（wechat 由子进程改为 in-process 托管，见 [architecture.md §1.1](./architecture.md)），P2 重新规划并已完成；**P2、P3 均已完成（2026-07-31）**。
 
 ## 阶段总览
 
 | 阶段 | 主题 | 主要交付 | 验证 |
 |---|---|---|---|
 | ~~P1~~ | ~~wechat gateway 进程内 admin server~~ | ~~admin socket + 状态机 + lock/pid~~ | ~~已完成；其 server.py/pid 在 P2 移除~~ |
-| P2 | gateway config-driven 多 channel + WechatRuntime in-process | `ChannelWechat` 模型 + gateway 多 channel 调度 + WechatRuntime + 精简 wechat_admin + workspace_console router + 持久化 enable | 单测 + 手动 curl |
-| P3 | 前端三页 + header | Me / console / wechat admin 页 + ChatWindow header Me 按钮 | 浏览器端到端走查 |
+| ~~P2~~ | ~~gateway config-driven 多 channel + WechatRuntime in-process~~ | ~~ChannelWechat 模型 + gateway 多 channel 调度 + WechatRuntime + 精简 wechat_admin + workspace_console router + 持久化 enable~~ | ~~已完成；单测 + 手动 curl 通过~~ |
+| ~~P3~~ | ~~前端三页 + header~~ | ~~Me / console / wechat admin 页 + ChatWindow header Me 按钮~~ | ~~已完成；build + 端到端走查通过~~ |
 | P4 | 文档收尾 + 单测补全 | 同步现有文档、补全测试 | `uv run pytest` 相关用例 |
 
 每阶段结束更新 [TASKS.md](/TASKS.md)。
@@ -25,7 +25,9 @@ P1 产物中：
 
 ---
 
-## P2 — gateway config-driven 多 channel + WechatRuntime in-process
+## P2 — gateway config-driven 多 channel + WechatRuntime in-process（已完成）
+
+状态：**已完成（2026-07-31）**。交付物与验证见 [TASKS.md 2026-07-31 记录](/TASKS.md)。
 
 目标：gateway 支持 config-driven 多 channel in-process 启动；wechat 由 `WechatRuntime` 托管；web console router 可控制启停并持久化 enable。
 
@@ -93,9 +95,9 @@ uv run python -m everlingo.gateway --channel_wechat &
 
 ---
 
-## P3 — 前端三页 + header
+## P3 — 前端三页 + header（已完成）
 
-目标：浏览器端到端可用：从 chatbot header 进 Me → console → wechat channel admin，完成扫码登录（首登）或确认自动恢复（重启后）。
+状态：**已完成（2026-07-31）**。交付物与验证见 [TASKS.md 2026-07-31 记录](/TASKS.md)。
 
 ### 交付物
 
