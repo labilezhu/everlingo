@@ -120,6 +120,23 @@ class TestWechatChannelInit:
         kwargs = mock_wechatbot_class.call_args.kwargs
         assert kwargs["cred_path"] == str(expected_cred_path)
 
+    def test_init_is_idempotent(self, isolated_workspace):
+        """init() 幂等：重复调用不再创建 bot / 轮询线程。
+
+        ref: 回归 — WechatRuntime.start_wechat() 与 Session.run() 各调一次
+        channel.init()，重复 init 会创建第二个 WeChatBot + 长轮询线程，
+        同一消息被两个 bot 各自入队，导致 Chat Agent 收到两次。
+        """
+        mock_wechatbot_class, mock_thread_class, _ = self._patched_init()
+        with patch("everlingo.gateway.channels.wechat_channel.WeChatBot", mock_wechatbot_class), \
+             patch("threading.Thread", mock_thread_class):
+            channel = WechatChannel()
+            asyncio.run(channel.init())
+            asyncio.run(channel.init())
+
+        mock_wechatbot_class.assert_called_once()
+        mock_thread_class.assert_called_once()
+
 
 class TestWechatChannelRecv:
     """ref: channel-wechat-ilink.md — recv 从队列读取消息"""

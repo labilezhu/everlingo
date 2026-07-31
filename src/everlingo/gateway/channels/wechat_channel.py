@@ -56,6 +56,10 @@ class WechatChannel(Channel):
         # bot 线程的 asyncio loop 与主协程 task（供跨线程取消）
         self._run_loop: Optional[asyncio.AbstractEventLoop] = None
         self._run_main_task: Optional[asyncio.Task] = None
+        # init 幂等守卫：WechatRuntime.start_wechat() 与 Session.run() 都会调 init()，
+        # 重复调用会重复创建 WeChatBot + 轮询线程，导致同一消息被多 bot 各自入队（收到两次）。
+        # ref: docs/impl-spec/gateway.md — Session.run 对 channel.init 的职责
+        self._initialized = False
 
     def _credentials_path(self) -> Path:
         """返回 SDK 保存用户 credentials 的文件路径。
@@ -78,7 +82,14 @@ class WechatChannel(Channel):
         ref: docs/impl-spec/workspace-console/architecture.md — 登录路径改造
         创建 WeChatBot 单例（注入 admin 回调），注册消息回调，
         在独立线程运行 _run_thread()（首登 + 长轮询）。
+
+        幂等：重复调用直接返回，避免重复创建 bot 实例 / 轮询线程
+        （WechatRuntime.start_wechat 与 Session.run 各调一次，见类注释）。
         """
+        if self._initialized:
+            return
+        self._initialized = True
+
         # ref: channel-wechat-ilink.md — 指定 sdk 保存用户 credentials 的文件
         # 目录不存在时自动创建；调用 WeChatBot 前完成
         cred_path = self._credentials_path()
