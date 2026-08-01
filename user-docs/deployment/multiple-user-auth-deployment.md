@@ -35,7 +35,7 @@
 ```bash
 ######## base conf ########
 
-export EVERLINGO_VER=0.1.0-rc.27
+export EVERLINGO_VER=0.1.0-rc.29
 
 export OPENAI_API_KEY=<your_api_key>
 export OPENAI_BASE_URL=https://openrouter.ai/api/v1
