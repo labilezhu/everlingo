@@ -85,7 +85,7 @@ Web 前端给用户一个可视化选择**默认目标学习语言**并初始化
 
 - status 五态：未设置 / 合法已初始化 / 合法未初始化 / 非法语言 / indexer 不可达（`null` 降级）。
 - list：5 种全列、`is_default` 单选、`vault_initialized` 三态、indexer 不可达全禁用。
-- default：合法已建（不调 `create_vault`）、合法未建（`list_vaults → create_vault → save_profile` 调用顺序）、非法 lang 400、indexer 不可达 503 且 profile 不变。
+- default：合法已建（不调 `create_vault`）、合法未建（`list_vaults → create_vault → save_profile` 调用顺序）、**合法已为默认但未建（仍走 `list_vaults → create_vault → save_profile`）**、非法 lang 400、indexer 不可达 503 且 profile 不变。
 - yaml 写回：真实 `everlingo.yaml` 文件断言 `target_language` 更新。
 
 ## 前端设计
@@ -123,7 +123,8 @@ Web 前端给用户一个可视化选择**默认目标学习语言**并初始化
 - **笔记库状态**：`已初始化` / `未初始化` / `未知（indexer 不可达）`。
 - **禁用行**：`vault_initialized=null`（未知）的行 `disabled`，不允许选中（避免在 indexer 离线时静默 `create_vault` 失败）。
 - **「保存」按钮**：
-  - 禁用条件：未选中 / 未变化（`selected === current_default`）/ 选中语言 `vault_initialized=null` / 保存中。
+  - 禁用条件：未选中 / 选中语言 `vault_initialized=null` / 保存中。
+  - **永远 Enable 语义**：不要求 `selected !== current_default`——即使选中的就是当前默认语言，只要其 vault 未初始化，也可点击以触发补初始化。
   - 点击 → `POST /api/target-language/default`，无确认弹窗（未初始化时由后端静默初始化）。
   - 成功后显示「已切换，对话已重置」，约 800ms 后 `window.location.href = '/'` 回到聊天首页（chat session 是内存态，整页跳转即重置对话上下文）。
 
@@ -132,7 +133,7 @@ Web 前端给用户一个可视化选择**默认目标学习语言**并初始化
 页面加载后若 `status.needs_setup=true`（§「有效的默认目标学习语言配置」不满足），进入**引导模式**：
 
 - 顶部固定提示条：「请选定一个有效的目标学习语言并初始化笔记库」。
-- 保存按钮在选中语言且（已初始化或可静默初始化）前禁用。
+- 保存按钮在未选中 / 选中语言 `vault_initialized=null` / 保存中时禁用；选中语言已初始化或未初始化但可静默初始化时均可点击（含「当前默认但未建」场景，点击即触发 `create_vault` 补初始化）。
 - **不提供**「返回聊天」的捷径（底部「返回聊天」按钮隐藏），避免用户绕过配置。
 
 ### 页面加载状态

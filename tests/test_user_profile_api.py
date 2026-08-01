@@ -306,6 +306,31 @@ class TestSetDefaultLanguage:
             pp1.stop()
             pp2.stop()
 
+    def test_default_lang_uninitialized_still_creates_vault(self, client: TestClient):
+        current, pp1, pp2 = _patch_profile("ja")
+        session = AsyncMock()
+        # 第 1 次 list_vaults → 空（lang 已为 default 但 vault 未建）；
+        # 第 2 次 create_vault → ok；
+        # target_language_list() 内第 3 次 list_vaults → 含 ja
+        session.call_tool = AsyncMock(side_effect=[
+            _fake_result({"vaults": [], "count": 0}),
+            _fake_result({"ok": True, "lang": "ja", "files_written": 5}),
+            _fake_result({"vaults": ["ja"], "count": 1}),
+        ])
+        p = _patch_workspace(session)
+        try:
+            resp = client.post("/api/target-language/default", json={"lang": "ja"})
+            assert resp.status_code == 200
+            assert current["target_language"] == "ja"
+            calls = [c[0] for c in session.call_tool.await_args_list]
+            assert calls[0][0] == "list_vaults"
+            assert calls[1][0] == "create_vault"
+            assert calls[2][0] == "list_vaults"
+        finally:
+            p.stop()
+            pp1.stop()
+            pp2.stop()
+
     def test_indexer_unreachable_returns_503_and_keeps_profile(self, client: TestClient):
         current, pp1, pp2 = _patch_profile("")
         p = _patch_workspace_503()

@@ -58,7 +58,7 @@ export default function TargetLanguagePage() {
   }, []);
 
   const saveEnabled =
-    selected !== '' && selected !== list?.current_default &&
+    selected !== '' &&
     !(list?.languages.find(l => l.code === selected)?.vault_initialized === null) &&
     !saving;
 
