@@ -103,7 +103,7 @@ https://www.wechatbot.dev/zh/python -->
 
 ## in-process 托管与自动启动（2026-07 设计变更）
 
-Wechat channel 不再作为独立子进程运行，改由 web 进程内的 `WechatRuntime`（`src/everlingo/gateway/wechat_admin/runtime.py`）in-process 托管。详见 [workspace-console/architecture.md](/docs/impl-spec/workspace-console/architecture.md)。
+Wechat channel 不再作为独立子进程运行，改由 web 进程内的 `WechatRuntime`（`src/everlingo/gateway/wechat_admin/runtime.py`）in-process 托管。详见 [workspace-console/ws-console-arch.md](/docs/impl-spec/workspace-console/ws-console-arch.md)。
 
 ### 托管方式
 

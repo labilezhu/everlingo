@@ -1,8 +1,8 @@
 
 
 
-docs/impl-spec/workspace-console/README.md 
-docs/impl-spec/workspace-console/architecture.md 
+docs/impl-spec/workspace-console/ws-console.md 
+docs/impl-spec/workspace-console/ws-console-arch.md 
 docs/impl-spec/workspace-console/phased-impl.md
 
 已经完成到 `P1 — wechat gateway 进程内 admin server` 但经过考虑。我认为不同类型的 channel/session acceptor 分不同的进程的维护成本大过收益。现在计划让 Workspace Console 去在同一进程内管理多个 Gateway 实例。 

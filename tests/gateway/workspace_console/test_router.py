@@ -2,7 +2,7 @@
 Workspace Console router 单测：/api/wechat-channel/{status,start,stop}。
 
 ref: TEST_STYLE.md
-ref: docs/impl-spec/workspace-console/architecture.md §5.2 API 端点
+ref: docs/impl-spec/workspace-console/ws-console-arch.md §5.2 API 端点
 """
 from unittest.mock import AsyncMock, MagicMock, patch
 

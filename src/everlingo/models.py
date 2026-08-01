@@ -155,7 +155,7 @@ class ChannelWeb(BaseModel):
 
 class ChannelWechat(BaseModel):
     # 是否启用 wechat channel（重启后自动启动）。节点不存在 = 未启用。
-    # ref: workspace-console/architecture.md §7 自动启动与 enable 持久化
+    # ref: workspace-console/ws-console-arch.md §7 自动启动与 enable 持久化
     enable: bool = Field(
         default=False,
         description="是否启用 wechat channel（重启后自动启动）",

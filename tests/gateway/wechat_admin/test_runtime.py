@@ -2,7 +2,7 @@
 WechatRuntime 单测：in-process 托管生命周期。
 
 ref: TEST_STYLE.md
-ref: docs/impl-spec/workspace-console/architecture.md — WechatRuntime 与生命周期管理
+ref: docs/impl-spec/workspace-console/ws-console-arch.md — WechatRuntime 与生命周期管理
 """
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch

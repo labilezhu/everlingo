@@ -99,7 +99,7 @@ app.add_middleware(
 `web_acceptor.py` 的根 FastAPI app 除 chatbot 本身外，还挂载：
 
 - `vault_editor_router`（既有）—— vault 编辑器 API。
-- `workspace_console_router`（2026-07 新增）—— Workspace Console 管理控制台 API（`/api/wechat-channel/*`），in-process 控制 wechat channel 启停与状态。详见 [workspace-console/architecture.md](/docs/impl-spec/workspace-console/architecture.md)。
+- `workspace_console_router`（2026-07 新增）—— Workspace Console 管理控制台 API（`/api/wechat-channel/*`），in-process 控制 wechat channel 启停与状态。详见 [workspace-console/ws-console-arch.md](/docs/impl-spec/workspace-console/ws-console-arch.md)。
 
 静态页 fallback（早于 catch-all `/{path:path}` 注册）：
 - `/editor`、`/editor/{path}` → `web/dist/editor.html`（既有）

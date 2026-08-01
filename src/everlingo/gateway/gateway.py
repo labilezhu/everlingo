@@ -166,7 +166,7 @@ class Gateway:
     def _build_acceptors(self, channel_type: str | None) -> list[SessionAcceptor]:
         """按启动模式组装 acceptor 列表。
 
-        ref: gateway.md 启动模式语义 / workspace-console/architecture.md §4.2
+        ref: gateway.md 启动模式语义 / workspace-console/ws-console-arch.md §4.2
         - explicit flag → 单 channel（--channel_web 额外带 idle WechatRuntime）
         - 无参（None）→ config-driven 多 channel
         """

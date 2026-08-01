@@ -2,7 +2,7 @@
 WechatAdmin lifecycle 单测：单例锁。
 
 ref: TEST_STYLE.md
-ref: docs/impl-spec/workspace-console/architecture.md — 单例与生命周期
+ref: docs/impl-spec/workspace-console/ws-console-arch.md — 单例与生命周期
 """
 import os
 

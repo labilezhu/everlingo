@@ -1,4 +1,4 @@
-# ref: docs/impl-spec/workspace-console/architecture.md — router 与 API 端点
+# ref: docs/impl-spec/workspace-console/ws-console-arch.md — router 与 API 端点
 # Workspace Console router：/api/wechat-channel/* 直调 gateway.wechat_runtime
 # （in-process 内存调用，不经 IPC）。
 

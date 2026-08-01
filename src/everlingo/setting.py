@@ -127,7 +127,7 @@ def channel_enabled(channel_name: str) -> bool:
     节点不存在，或节点内 `enable` 显式为 false → 不启用。空节点（如
     `channel_wechat:`）默认启用。
 
-    ref: docs/impl-spec/workspace-console/architecture.md §4.2 acceptor 选择规则
+    ref: docs/impl-spec/workspace-console/ws-console-arch.md §4.2 acceptor 选择规则
     """
     data = _load_raw()
     node = data.get("plugins", {}).get("channels", {}).get(channel_name)

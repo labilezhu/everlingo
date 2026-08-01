@@ -53,7 +53,7 @@ class TestWechatChannelInit:
     def test_init_starts_login_in_daemon_thread(self, isolated_workspace):
         """init() 在独立 daemon 线程中运行 _run_thread()（首登 + 长轮询）。
 
-        ref: docs/impl-spec/workspace-console/architecture.md — 登录路径改造
+        ref: docs/impl-spec/workspace-console/ws-console-arch.md — 登录路径改造
         """
         mock_wechatbot_class, mock_thread_class, _ = self._patched_init()
         with patch("everlingo.gateway.channels.wechat_channel.WeChatBot", mock_wechatbot_class), \
@@ -247,7 +247,7 @@ class TestWechatChannelMessageCallback:
 
 
 class TestWechatChannelAdminState:
-    """ref: docs/impl-spec/workspace-console/architecture.md — 状态机与回调注入"""
+    """ref: docs/impl-spec/workspace-console/ws-console-arch.md — 状态机与回调注入"""
 
     def test_init_injects_admin_callbacks(self, isolated_workspace):
         """init() 把 SDK 回调注入 WechatAdminState。"""
@@ -316,7 +316,7 @@ class TestWechatChannelAdminState:
 
 
 class TestWechatChannelStop:
-    """ref: docs/impl-spec/workspace-console/architecture.md — 停止语义"""
+    """ref: docs/impl-spec/workspace-console/ws-console-arch.md — 停止语义"""
 
     def test_request_stop_calls_bot_stop(self, isolated_workspace):
         """request_stop() 调用 bot.stop()。"""
@@ -356,7 +356,7 @@ class TestWechatChannelStop:
 
 
 class TestWechatChannelLoginRetry:
-    """ref: docs/impl-spec/workspace-console/architecture.md — 登录重试循环
+    """ref: docs/impl-spec/workspace-console/ws-console-arch.md — 登录重试循环
 
     SDK 单次 login 在 QR 连续过期 3 次后抛 AuthError abort；初始登录由
     _run() 重试，进程驻留 waiting_scan 直到扫码成功。

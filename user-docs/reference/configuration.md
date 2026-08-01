@@ -116,4 +116,4 @@ plugins:
 |------|--------|------|
 | `enable` | `false` | 是否启用 wechat channel。`true` 时 gateway 无参启动会自动 in-process 启动 wechat；`false` 或节点不存在则不启动。用户首次经 web console 登录成功后自动写 `true`，用户主动停止后写 `false` |
 
-代码中 class 名称叫 `ChannelWechat`。详见 [workspace-console/architecture.md](/docs/impl-spec/workspace-console/architecture.md)。
+代码中 class 名称叫 `ChannelWechat`。详见 [workspace-console/ws-console-arch.md](/docs/impl-spec/workspace-console/ws-console-arch.md)。

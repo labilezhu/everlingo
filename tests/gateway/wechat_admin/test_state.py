@@ -2,7 +2,7 @@
 WechatAdminState 状态机单测。
 
 ref: TEST_STYLE.md — 只测核心流程和状态转移
-ref: docs/impl-spec/workspace-console/architecture.md — 状态机
+ref: docs/impl-spec/workspace-console/ws-console-arch.md — 状态机
 """
 import logging
 

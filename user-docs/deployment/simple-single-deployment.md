@@ -68,4 +68,4 @@ tail -f ${HOST_WS_DIR}/logs/*
 
 用户在 console 点「停止」会写 `enable: false`，下次重启不再自动启。再次「启动」并登录成功后恢复 `enable: true`。
 
-详见 [workspace-console/architecture.md](/docs/impl-spec/workspace-console/architecture.md)。
+详见 [workspace-console/ws-console-arch.md](/docs/impl-spec/workspace-console/ws-console-arch.md)。

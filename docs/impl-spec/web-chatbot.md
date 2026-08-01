@@ -21,7 +21,7 @@ Web 前端给用户，一个 Chatbot 的聊天界面。支持 markdown 格式消
 
 ### Header
 
-全窗口模式（非 embedded）下，header 右侧显示「笔记编辑器」按钮，点击同窗跳转至 `/editor`（[Vault Editor](vault-editor.md) 入口）。「笔记编辑器」按钮右侧另有一个 `Me` 按钮（`User` 图标，文字 `<span className="hidden md:inline">Me</span>`），点击 `window.location.href = '/console/me'` 跳转至 Workspace Console 入口页。embedded 模式（editor 右侧侧栏）下这两个按钮均不显示。详见 [workspace-console/README.md](workspace-console/README.md)。
+全窗口模式（非 embedded）下，header 右侧显示「笔记编辑器」按钮，点击同窗跳转至 `/editor`（[Vault Editor](vault-editor.md) 入口）。「笔记编辑器」按钮右侧另有一个 `Me` 按钮（`User` 图标，文字 `<span className="hidden md:inline">Me</span>`），点击 `window.location.href = '/console/me'` 跳转至 Workspace Console 入口页。embedded 模式（editor 右侧侧栏）下这两个按钮均不显示。详见 [workspace-console/ws-console.md](workspace-console/ws-console.md)。
 
 小记🐹正在思考的提示：
 - 在用户发送消息后，“发送” 按钮变为一个轻微的脉冲动画以提示"正在思考中"。在收到回复消息后还原。不要使用现有的前端的 thinking 机制。

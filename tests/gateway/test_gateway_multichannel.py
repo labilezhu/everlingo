@@ -3,7 +3,7 @@ Gateway 启动模式单测：explicit flag 单 channel / 无参 config-driven �
 
 ref: TEST_STYLE.md
 ref: docs/impl-spec/gateway.md — 启动模式语义
-ref: docs/impl-spec/workspace-console/architecture.md §4.2 acceptor 选择规则
+ref: docs/impl-spec/workspace-console/ws-console-arch.md §4.2 acceptor 选择规则
 """
 import pytest
 

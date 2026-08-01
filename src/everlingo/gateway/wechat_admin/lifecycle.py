@@ -1,4 +1,4 @@
-# ref: docs/impl-spec/workspace-console/architecture.md — 单例与生命周期管理
+# ref: docs/impl-spec/workspace-console/ws-console-arch.md — 单例与生命周期管理
 # flock 单例锁：防止 standalone --channel_wechat 与 web 内嵌 wechat 同时跑。
 # 锁 fd 由 WechatRuntime 全程持有，进程退出（含崩溃 / kill）时 flock 自动释放。
 

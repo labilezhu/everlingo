@@ -1,4 +1,4 @@
-# ref: docs/impl-spec/workspace-console/architecture.md — 状态机与 IPC 协议
+# ref: docs/impl-spec/workspace-console/ws-console-arch.md — 状态机与 IPC 协议
 # 线程安全状态机。WeChatBot SDK 回调来自 bot 线程（写入方），
 # admin server 读取来自 uvicorn 线程（读取方）。
 #

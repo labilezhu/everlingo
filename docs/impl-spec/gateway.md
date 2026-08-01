@@ -7,7 +7,7 @@
 - 维护和管理一个 `Session 列表`。Session 用 session id 标识
 - 接收和处理来自 `Session Acceptor` 的 `session 创建请求`。
 - 接收后台 Agent（Memory Writer 等）的系统通知并路由到对应 Session。
-- 支持运行时动态启停 channel 实例（如 web console 控制 wechat），见 [workspace-console/architecture.md](/docs/impl-spec/workspace-console/architecture.md)。
+- 支持运行时动态启停 channel 实例（如 web console 控制 wechat），见 [workspace-console/ws-console-arch.md](/docs/impl-spec/workspace-console/ws-console-arch.md)。
   
 ## `session 创建请求` 的处理
 为 Channel 实例，建立专用的 Agent 实例。并把这种 Channel 实例 与 Agent 实例的绑定，封装为一个 Session 对象。
@@ -76,7 +76,7 @@ gateway
 - **explicit flag**（`--channel_X`）：单 channel 模式，忽略 config 的多 channel 节点，只跑指定的 X。例外：`--channel_web` 额外带一个 idle `WechatRuntime(auto_start=False)`，仅为提供 web console 的 wechat 控制能力，不自动启 wechat。
 - **无参**：config-driven 多 channel。读 `plugins.channels`：`channel_web` 节点存在且 enable → `WebSessionAcceptor`；`channel_wechat` enable → `WechatRuntime(auto_start=True)` 自动启动 wechat；web 存在但 wechat 未 enable → 额外创建 idle `WechatRuntime` 供 console 手动控制。`asyncio.gather` 所有 acceptor supervisor task，全部结束才退进程。
 
-详见 [workspace-console/architecture.md §4.2 acceptor 选择规则](/docs/impl-spec/workspace-console/architecture.md)。
+详见 [workspace-console/ws-console-arch.md §4.2 acceptor 选择规则](/docs/impl-spec/workspace-console/ws-console-arch.md)。
 
 启动时，检查用户个性初始化的`必选设置`:
 - 界面语言

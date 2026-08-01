@@ -1,4 +1,4 @@
-# ref: docs/impl-spec/workspace-console/architecture.md — WechatRuntime 与生命周期管理
+# ref: docs/impl-spec/workspace-console/ws-console-arch.md — WechatRuntime 与生命周期管理
 # WechatRuntime：wechat channel 的 in-process 托管者。
 # - 实现 SessionAcceptor 协议（start -> supervisor task），由 Gateway 调度
 #   （无参 config-driven / --channel_wechat / --channel_web 均经此路径）。
@@ -26,7 +26,7 @@ STOP_TIMEOUT = 10.0
 def _save_enable(enable: bool) -> None:
     """写 everlingo.yaml 的 plugins.channels.channel_wechat.enable。
 
-    ref: workspace-console/architecture.md §7.3 enable 写入时机汇总
+    ref: workspace-console/ws-console-arch.md §7.3 enable 写入时机汇总
     """
     from everlingo import setting
 
@@ -144,7 +144,7 @@ class WechatRuntime(SessionAcceptor):
         """综合状态：SDK 四态（starting/waiting_scan/scanned/logined）
         + runtime 综合态（stopped / conflict）。
 
-        ref: workspace-console/architecture.md §3.1
+        ref: workspace-console/ws-console-arch.md §3.1
         """
         if self._conflict:
             return {

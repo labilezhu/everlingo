@@ -1,7 +1,7 @@
 # ref: channel-wechat-ilink.md — Wechat Channel 实现
 # 使用 wechatbot-sdk 接入微信，收发消息。
 # WeChatBot 是长生命单例；登录 + 长轮询在独立线程运行（替代 bot.run()，
-# 以注入 logined 状态，见 workspace-console/architecture.md）。
+# 以注入 logined 状态，见 workspace-console/ws-console-arch.md）。
 # recv() 从线程安全的同步 Queue 阻塞读取消息；send() 用保存的 user_id 主动发送。
 
 import asyncio
@@ -32,7 +32,7 @@ class WechatChannel(Channel):
 
     ref: /docs/impl-spec/channel-wechat-ilink.md
     ref: ADR 20260719 — 使用 recv_envelope 替代 recv
-    ref: docs/impl-spec/workspace-console/architecture.md — 登录路径改造
+    ref: docs/impl-spec/workspace-console/ws-console-arch.md — 登录路径改造
     - init: 创建 WeChatBot 单例，注册消息回调，在独立线程启动 _run_thread()
     - recv_envelope: 从线程安全的同步 Queue 读取消息并包装为 envelope；返回 None 表示 Channel 结束
     - send: 使用最近一次保存的 user_id 调用 bot.send() 主动发送消息
@@ -40,7 +40,7 @@ class WechatChannel(Channel):
 
     def __init__(self, on_logined: Optional[Callable[[], None]] = None) -> None:
         # 登录成功回调（注入：runtime 持久化 enable=true）。
-        # ref: workspace-console/architecture.md §3.2 on_logined 注入
+        # ref: workspace-console/ws-console-arch.md §3.2 on_logined 注入
         self._on_logined = on_logined
         # WeChatBot 单例，应用生命周期内只创建一次
         self._bot: Optional[WeChatBot] = None
@@ -79,7 +79,7 @@ class WechatChannel(Channel):
         """初始化 Wechat Channel。
 
         ref: /docs/impl-spec/channel-wechat-ilink.md
-        ref: docs/impl-spec/workspace-console/architecture.md — 登录路径改造
+        ref: docs/impl-spec/workspace-console/ws-console-arch.md — 登录路径改造
         创建 WeChatBot 单例（注入 admin 回调），注册消息回调，
         在独立线程运行 _run_thread()（首登 + 长轮询）。
 
@@ -165,7 +165,7 @@ class WechatChannel(Channel):
     async def _run(self) -> None:
         """首登 + 长轮询。等价于 SDK 的 _run_sync()，但注入 logined 状态。
 
-        ref: docs/impl-spec/workspace-console/architecture.md — logined 注入
+        ref: docs/impl-spec/workspace-console/ws-console-arch.md — logined 注入
         初始登录 QR 连续过期 3 次（AuthError）时重试获取新 QR，进程驻留
         waiting_scan 直到扫码成功；网络等其它登录错误仍传播（进程退出）。
         """
