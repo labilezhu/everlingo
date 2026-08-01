@@ -29,7 +29,7 @@ export default function ChatInput({ onSend, disabled, pending }: ChatInputProps)
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex items-end gap-2 border-t border-border px-3 py-2 md:px-4 md:py-3">
+    <form onSubmit={handleSubmit} className="flex items-end gap-2 border-t border-border px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] md:px-4 md:py-3">
       <Textarea
         name="message"
         placeholder="输入单词、句子或提问..."
