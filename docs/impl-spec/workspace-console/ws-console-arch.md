@@ -303,6 +303,26 @@ web/src/
 
 项目不用 react-router（`/editor` 走 `window.location.href` 全页跳转）。`/console/me`、`/console/web-console` 沿用同模式，各自独立 entry。`/console/web-console` 下子页（wechat channel admin）目前单一，无需客户端路由；将来多子项时用 hash 或 query 区分。
 
+### 6.6 Me 页 logout 按钮
+
+`web/src/me/MePage.tsx` 底部（`main` 之后）追加贴底 `footer`，内含全宽 `退出登录` 按钮（`lucide-react` 的 `LogOut` 图标，ghost variant）：
+
+```tsx
+<footer className="shrink-0 border-t border-border px-3 py-3 md:px-4">
+  <Button
+    variant="ghost"
+    className="w-full justify-start gap-2 text-muted-foreground"
+    onClick={() => { window.location.href = '/logout'; }}
+  >
+    <LogOut className="size-4" />
+    退出登录
+  </Button>
+</footer>
+```
+
+- **跨拓扑行为**：`GET /logout` 是 WS-Router 自有路由（[ws-router.md](../multiple-users/ws-router.md) §4.1），不在后端透传列表内，浏览器请求会先命中 WS-Router → 清 `everlingo_sess` cookie + 302 `/login`。因此仅**多用户部署**（经 WS-Router）下语义成立。
+- **单用户本地拓扑**（`python -m everlingo --channel_web`，无 WS-Router）：`web_acceptor.py` 无 `/logout` 路由，点击 404——属预期行为，该拓扑无认证，logout 无意义，不为此加 feature detection 或后端 no-op 路由。
+
 ## 7. 自动启动与 enable 持久化
 
 ### 7.1 配置模型
