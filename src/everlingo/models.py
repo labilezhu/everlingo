@@ -213,9 +213,9 @@ class TranslationRecord(BaseModel):
 
 
 LANGUAGES: dict[str, str] = {
-    "en": "英语",
+    "en": "English",
     "ja": "日本語",
     "zh-CN": "简体中文",
-    "fr": "法语",
-    "de": "德语",
+    "fr": "Français",
+    "de": "Deutsch",
 }
