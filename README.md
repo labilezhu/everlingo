@@ -34,19 +34,39 @@
 
 ![chrome-ext-menu.png](./README.assets/chrome-ext-menu.png)
 
-*图：浏览器摘录扩展*
+*图：浏览器扩展摘录笔记*
 
 
 
 ![image-20260723205840266](./README.assets/note-editor.png)
 
-*图：笔记编辑器*
+*图：笔记摘录场景*
+
+
+
+![image-20260801223219592](./README.assets/web-note-editor-context-to-agent.png)
+
+*图：AI 编辑笔记，人机交互氛围编辑笔记， vibe noting*
 
 
 
 ![chrome-ext-note-recall.png](./README.assets/chrome-ext-note-recall.png)
 
 *图：盘活笔记积累*
+
+
+
+![手机编辑](./README.assets/pwa-edit-by-chat.png)
+
+*图：手机 AI 笔记*
+
+
+
+![image-20260801230258830](./README.assets/wechat-dog.png)
+
+*图：微信接入，只要有电脑，无须公网端口*
+
+
 
 
 ---
