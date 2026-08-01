@@ -35,7 +35,7 @@
 ```bash
 ######## base conf ########
 
-export EVERLINGO_VER=0.1.0-rc.23
+export EVERLINGO_VER=0.1.0-rc.27
 
 export OPENAI_API_KEY=<your_api_key>
 export OPENAI_BASE_URL=https://openrouter.ai/api/v1
@@ -45,7 +45,7 @@ export OPENAI_EMBEDDING_MODEL=baai/bge-m3
 export EVERLINGO_PUBLIC_BASE_URL=https://your_domain
 # Nginx 连接 到 Router 时，使用的源 IP 地址
 export WS_ROUTER_TRUSTED_PROXY_IP=127.0.0.1
-export WS_ROUTER_LISTEN=127.0.0.1:8100
+export WS_ROUTER_HOST_LISTEN_ADDR=127.0.0.1:8100
 
 export HOST_WS_DIR=<your_workspaces_dir_at_host>
 

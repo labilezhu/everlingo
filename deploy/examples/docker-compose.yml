@@ -20,7 +20,7 @@ services:
       JWT_SECRET: ${JWT_SECRET} 
       WS_ROUTER_TRUSTED_PROXY_IP: ${WS_ROUTER_TRUSTED_PROXY_IP} 
     ports:
-      - ${WS_ROUTER_LISTEN}:8100        # 仅 nginx 可达
+      - ${WS_ROUTER_HOST_LISTEN_ADDR}:8100        # 仅 nginx 可达
     volumes:
       - "./ws_router.yaml:/etc/everlingo/ws_router.yaml:ro"
     expose:
