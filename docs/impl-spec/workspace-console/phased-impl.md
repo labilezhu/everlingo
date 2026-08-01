@@ -1,6 +1,6 @@
 # Workspace Console — 分阶段实施计划
 
-按依赖顺序分阶段，每阶段可独立交付、独立验证。**P1 已完成（2026-07-31）**，后因设计变更（wechat 由子进程改为 in-process 托管，见 [architecture.md §1.1](./architecture.md)），P2 重新规划并已完成；**P2、P3 均已完成（2026-07-31）**。
+按依赖顺序分阶段，每阶段可独立交付、独立验证。**P1 已完成（2026-07-31）**，后因设计变更（wechat 由子进程改为 in-process 托管，见 [architecture.md §1.1](./architecture.md)），P2 重新规划并已完成；**P2、P3 均已完成（2026-07-31）**，**P4 已完成（2026-08-01）**。
 
 ## 阶段总览
 
@@ -9,7 +9,7 @@
 | ~~P1~~ | ~~wechat gateway 进程内 admin server~~ | ~~admin socket + 状态机 + lock/pid~~ | ~~已完成；其 server.py/pid 在 P2 移除~~ |
 | ~~P2~~ | ~~gateway config-driven 多 channel + WechatRuntime in-process~~ | ~~ChannelWechat 模型 + gateway 多 channel 调度 + WechatRuntime + 精简 wechat_admin + workspace_console router + 持久化 enable~~ | ~~已完成；单测 + 手动 curl 通过~~ |
 | ~~P3~~ | ~~前端三页 + header~~ | ~~Me / console / wechat admin 页 + ChatWindow header Me 按钮~~ | ~~已完成；build + 端到端走查通过~~ |
-| P4 | 文档收尾 + 单测补全 | 同步现有文档、补全测试 | `uv run pytest` 相关用例 |
+| ~~P4~~ | ~~文档收尾 + 单测补全~~ | ~~同步现有文档、补全测试~~ | ~~已完成；单测已覆盖无需补全，文档校对通过~~ |
 
 每阶段结束更新 [TASKS.md](/TASKS.md)。
 
@@ -134,25 +134,23 @@ uv run python -m everlingo.gateway &
 
 ---
 
-## P4 — 文档收尾 + 单测补全
+## P4 — 文档收尾 + 单测补全（已完成）
+
+状态：**已完成（2026-08-01）**。
 
 目标：补齐测试覆盖与跨文档引用，更新任务跟踪。
 
-### 交付物
+### 实际交付
 
-1. 补全 P2 漏的单测（若 P2 已覆盖则跳过）
-2. 更新 [channel-wechat-ilink.md](../channel-wechat-ilink.md)：加「in-process 托管 + on_logined 持久化 + 自动启动」一节（P2 已部分完成，此处校对）
-3. 更新 [web-chatbot.md](../web-chatbot.md) §Header：记录 `Me` 按钮
-4. 更新 [web-session-acceptor.md](../web-session-acceptor.md)：记录 workspace console router 挂载与静态页 fallback
-5. 更新 [gateway.md](../gateway.md)：记录 config-driven 多 channel 与 explicit flag 语义
-6. 更新 [configuration.md](../configuration.md) 与 [user-docs/reference/configuration.md](/user-docs/reference/configuration.md)：记录 `channel_wechat.enable` 字段
-7. 更新 [TASKS.md](/TASKS.md)：记录全部已完成项
-8. 更新 [STATE.md](/STATE.md)（如需要）
+1. 单测核查：P2 单测已全部覆盖（`test_runtime` / `test_lifecycle` / `test_state` / `test_router` / `test_gateway_multichannel`，42 通过），`test_server.py` 已删、lifecycle pid 用例已删，**无需补全**。
+2. 文档校对：`channel-wechat-ilink.md`（in-process 托管 + on_logined 持久化 + 自动启动）、`web-session-acceptor.md`（router 挂载 + 静态页 fallback）、`gateway.md`（config-driven + explicit flag 语义）、`user-docs/reference/configuration.md`（`channel_wechat.enable`）均已在 P2/P3 期间同步，无缺口。
+3. 补全唯一缺口：`web-chatbot.md` §Header 与「按钮文字标签自适应隐藏」表记录 `Me` 按钮。
+4. 更新 [TASKS.md](/TASKS.md)：记录本阶段完成项。
 
 ### 验证
 
 ```bash
-uv run pytest tests/gateway/wechat_admin tests/gateway/workspace_console tests/gateway/test_gateway_multichannel -v
+uv run pytest tests/gateway/wechat_admin tests/gateway/workspace_console tests/gateway/test_gateway_multichannel.py -v
 cd web && npm run build   # tsc 通过
 ```
 
