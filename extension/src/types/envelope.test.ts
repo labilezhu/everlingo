@@ -5,6 +5,8 @@ describe('buildEnvelope', () => {
   const snapshot = {
     text: 'bank',
     paragraph_text: 'I sat on the bank of the river.',
+    url: 'https://example.com/article',
+    title: 'Example Article',
     deviceId: 'test-device-id',
   };
 
@@ -22,8 +24,17 @@ describe('buildEnvelope', () => {
     }
     expect(env.source.kind).toBe('chrome_ext');
     expect(env.source).toHaveProperty('surface', 'sidecar');
+    expect(env.source).toHaveProperty('url', 'https://example.com/article');
+    expect(env.source).toHaveProperty('title', 'Example Article');
     expect(env.device?.platform).toBe('chrome_ext');
     expect(env.device?.device_id).toBe('test-device-id');
+  });
+
+  it('falls back to empty url/title when snapshot has none', () => {
+    const env = buildEnvelope('translate', '', { text: 'bank', paragraph_text: '' });
+    expect(env.source.kind).toBe('chrome_ext');
+    expect(env.source).toHaveProperty('url', '');
+    expect(env.source).toHaveProperty('title', '');
   });
 
   it('builds a look_up envelope', () => {

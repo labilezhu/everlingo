@@ -63,6 +63,8 @@ export function buildEnvelope(
   snapshot: {
     text: string;
     paragraph_text: string;
+    url?: string;
+    title?: string;
     deviceId?: string;
   },
 ): UserInputEnvelope {
@@ -81,8 +83,8 @@ export function buildEnvelope(
     chat_context: { resource_contexts },
     source: {
       kind: 'chrome_ext',
-      url: '',
-      title: '',
+      url: snapshot.url ?? '',
+      title: snapshot.title ?? '',
       surface: 'sidecar',
     },
     device: {

@@ -1,4 +1,20 @@
 
+[Web Chatbot](docs/impl-spec/web-chatbot.md) 的输入栏，现在放太接近底部。在手机中操作不方便，应该留一定底部空白。
+
+---
+
+[Chrome Extension](docs/impl-spec/chrome-extension-spec.md) 用户在浏览器中选词。然后以 [Envelope 结构化用户输入格式](src/everlingo/mem/vault/templates/default/spec/envelope_spec.md) 发到后端:
+
+
+```log
+2026-08-01 13:18:06.530 [DEBUG] [548502742208] [MainThread] [session] [everlingo.gateway.session] : [ChatAgent] IN session=487a3564-f06e-48a4-9da3-c542f9ee4563 channel=WebChannel envelope={"schema_version":1,"task":"translate","chat":{"message":""},"chat_context":{"resource_contexts":[{"kind":"selected_text","text":"Eating Your Own Dog Food","start_line":null,"start_column":null,"paragraph_text":"说法一：在 1970 年代，演员 Lorne Greene 代言了 Alpo 狗粮。在电视广告中指出他
+曾将 Alpo 狗粮喂给自家的狗。之后人们就习惯将使用自己产品的行为称作：Eating Your Own Dog Food"}]},"source":{"kind":"chrome_ext","url":"","title":"","surface":"sidecar"},"device":{"platform":"chrome_ext","locale":"en-US","timezone":"Asia/Hong_Kong"}}
+```
+
+其中，url  和 title 字段，不应该为空的。
+
+---
+
 在 docs/impl-spec/workspace-console/target-lang-setting.md 页面中。如果一个语言是当前的默认语言，但未初始化。这时 「保存」按钮 是 Disable 的，所以，这个页面不能初始化当前的默认语言。这不合理。应该是，「保存」按钮永远 Enable 。 按下后，如果未初始化。要做初始化。
 
 ---

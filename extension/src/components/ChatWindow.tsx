@@ -15,6 +15,8 @@ import { getApiConfig } from '@/config';
 interface PageSnapshot {
   text: string;
   paragraph_text: string;
+  url?: string;
+  title?: string;
 }
 
 export default function ChatWindow() {
@@ -31,7 +33,7 @@ export default function ChatWindow() {
   const endRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const snapshotRef = useRef<PageSnapshot>({
-    text: '', paragraph_text: '',
+    text: '', paragraph_text: '', url: '', title: '',
   });
   const sessionIdRef = useRef<string | null>(null);
   const tabIdRef = useRef<number>(0);
@@ -78,6 +80,8 @@ export default function ChatWindow() {
       const env = buildEnvelope('translate', '', {
         text: snapshot.text,
         paragraph_text: snapshot.paragraph_text,
+        url: snapshot.url,
+        title: snapshot.title,
         deviceId: deviceIdRef.current,
       });
       await sendEnvelope(base, sid, env, auth);
@@ -209,6 +213,8 @@ export default function ChatWindow() {
             const env = buildEnvelope(task, '', {
               text: snapshot.text,
               paragraph_text: snapshot.paragraph_text,
+              url: snapshot.url,
+              title: snapshot.title,
               deviceId: deviceIdRef.current,
             });
             await sendEnvelope(baseUrlRef.current, sid, env, authHeaderRef.current);
@@ -278,6 +284,8 @@ export default function ChatWindow() {
         const env = buildEnvelope(task, text, {
           text: snap.text,
           paragraph_text: snap.paragraph_text,
+          url: snap.url,
+          title: snap.title,
           deviceId: deviceIdRef.current,
         });
         await sendEnvelope(base, sid, env, auth);
@@ -391,7 +399,8 @@ const SNAPSHOT_FN = () => {
 };
 
 async function captureSnapshot(tabId?: number): Promise<PageSnapshot> {
-  const tid = tabId || (await getActiveTabId());
+  const activeTab = await getActiveTab(tabId);
+  const tid = activeTab?.id ?? 0;
   const ownText = window.getSelection()?.toString();
   if (ownText) {
     let paragraph_text = '';
@@ -406,20 +415,28 @@ async function captureSnapshot(tabId?: number): Promise<PageSnapshot> {
         paragraph_text = (el.textContent || '').slice(0, 500);
       }
     }
-    return { text: ownText, paragraph_text };
+    return { text: ownText, paragraph_text, url: activeTab?.url, title: activeTab?.title };
   }
   try {
     const [result] = await chrome.scripting.executeScript({
       target: { tabId: tid },
       func: SNAPSHOT_FN,
     });
-    return result.result as PageSnapshot;
+    return {
+      text: (result.result as PageSnapshot).text,
+      paragraph_text: (result.result as PageSnapshot).paragraph_text,
+      url: activeTab?.url,
+      title: activeTab?.title,
+    };
   } catch {
-    return { text: '', paragraph_text: '' };
+    return { text: '', paragraph_text: '', url: activeTab?.url, title: activeTab?.title };
   }
 }
 
-async function getActiveTabId(): Promise<number> {
-  const tab = (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
-  return tab?.id ?? 0;
+async function getActiveTab(tabId?: number): Promise<chrome.tabs.Tab | undefined> {
+  if (tabId) {
+    const tab = await chrome.tabs.get(tabId).catch(() => undefined);
+    if (tab) return tab;
+  }
+  return (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
 }
