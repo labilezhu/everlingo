@@ -1,6 +1,9 @@
 # EverLingo WS-Router 镜像
 # 构建命令（在 repo root 执行）：
-#   docker buildx build -f deploy/ws-router/Dockerfile -t everlingo-ws-router:0.1 .
+#   docker buildx build . -f deploy/ws-router/Dockerfile -t everlingo-ws-router:0.1 \
+#     --build-arg DEPS_IMAGE=everlingo-deps:local
+
+ARG DEPS_IMAGE=ghcr.io/labilezhu/everlingo-deps:latest
 
 # ── Stage 1: frontend-builder ────────────────────────────────────────────────
 # 构建 web/ 前端（含登录页 SPA 与公开静态资源）。产物 web/dist 供 WS-Router
@@ -20,7 +23,6 @@ COPY web/ ./
 RUN npm run build
 
 # ── Stage 2: runtime ─────────────────────────────────────────────────────────
-ARG DEPS_IMAGE=ghcr.io/labilezhu/everlingo-deps:latest
 FROM ${DEPS_IMAGE} AS runtime
 WORKDIR /app
 COPY --chown=everlingo:everlingo src/ src/

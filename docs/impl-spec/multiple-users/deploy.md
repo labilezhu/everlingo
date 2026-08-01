@@ -137,6 +137,9 @@ WS-Master 镜像内不预装 docker CLI；用 `docker` Python SDK 通过 `unix:/
 
 ```dockerfile
 # Stage: frontend-builder（与 ws-container Dockerfile Stage 1 一致）
+# ARG DEPS_IMAGE 须在第一个 FROM 之前声明，供后续 FROM 引用
+ARG DEPS_IMAGE=ghcr.io/labilezhu/everlingo-deps:latest
+
 FROM node:20-bookworm-slim AS frontend-builder
 
 ARG HTTP_PROXY
@@ -150,34 +153,17 @@ RUN npm ci
 COPY web/ ./
 RUN npm run build
 
-# Stage: deps（与现有 Dockerfile 的 deps stage 一致）
-FROM python:3.12-trixie AS deps
-
-ARG HTTP_PROXY
-ARG HTTPS_PROXY
-ENV HTTP_PROXY=$HTTP_PROXY
-ENV HTTPS_PROXY=$HTTPS_PROXY
-
-RUN pip install uv
+# Stage: runtime（基于 deps-base 镜像，与 ws-container / ws-master 一致）
+FROM ${DEPS_IMAGE} AS runtime
 WORKDIR /app
-COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
-
-# Stage: runtime
-FROM python:3.12-trixie AS runtime
-RUN useradd -m -u 1000 everlingo
-COPY --chown=everlingo:everlingo --from=deps /app/.venv .venv/
 COPY --chown=everlingo:everlingo src/ src/
 COPY --chown=everlingo:everlingo pyproject.toml ./
 COPY --chown=everlingo:everlingo --from=frontend-builder /web/dist web/dist/
-WORKDIR /app
-ENV PATH="/app/.venv/bin:$PATH"
-ENV PYTHONPATH="/app/src"
 USER everlingo
 ENTRYPOINT ["python", "-m", "everlingo"]
 ```
 
-> `HTTP_PROXY` / `HTTPS_PROXY` build-arg 与现有 ws-container Dockerfile 的 deps stage 对齐，代理环境传值可加速 `uv sync` / `npm ci` 拉包；无代理环境传空值不影响构建。WS-Router 携带 `web/dist` 仅为登录页与公开静态资源（§4.3），不反代主 SPA HTML；主 SPA 仍由 ws-container 提供。
+> `HTTP_PROXY` / `HTTPS_PROXY` build-arg 与现有 ws-container Dockerfile 的 deps stage 对齐，代理环境传值可加速 `npm ci` / `uv sync` 拉包；无代理环境传空值不影响构建。`DEPS_IMAGE` 指向 deps-base 镜像（本地先构建 `everlingo-deps:local` 或以 `--build-arg DEPS_IMAGE=...` 覆盖，见 §5.1）。WS-Router 携带 `web/dist` 仅为登录页与公开静态资源（§4.3），不反代主 SPA HTML；主 SPA 仍由 ws-container 提供。
 
 ```bash
 DOCKER_BUILDKIT=1 docker buildx build . -f deploy/ws-router/Dockerfile  -t everlingo-ws-router:0.1
