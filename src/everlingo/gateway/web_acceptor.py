@@ -17,11 +17,13 @@ from pydantic import BaseModel
 from everlingo.gateway.channels.envelope import UserInputEnvelope, wrap_plain_text
 from everlingo.gateway.channels.web_channel import WebChannel
 from everlingo.gateway.session_acceptor import SessionAcceptor
+from everlingo.gateway.user_profile_api import router as user_profile_router
 from everlingo.gateway.vault_editor_api import router as vault_editor_router
 from everlingo.gateway.workspace_console.router import router as workspace_console_router
 from everlingo.workspace import indexer_mcp_url_path
 
 app = FastAPI()
+app.include_router(user_profile_router)
 app.include_router(vault_editor_router)
 app.include_router(workspace_console_router)
 
@@ -144,6 +146,17 @@ async def serve_editor(path: str = ""):
 async def serve_me():
     """Me 页（Workspace Console 入口）。"""
     index = os.path.join(_static_dir(), "me.html")
+
+    if not os.path.exists(index):
+        return {"message": "Frontend not built. Run `npm run build` in the web/ directory."}
+
+    return FileResponse(index)
+
+
+@app.get("/console/me/target-language")
+async def serve_target_language():
+    """目标学习语言设置页（Me 页子页）。"""
+    index = os.path.join(_static_dir(), "target-language.html")
 
     if not os.path.exists(index):
         return {"message": "Frontend not built. Run `npm run build` in the web/ directory."}

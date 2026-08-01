@@ -1,7 +1,13 @@
-import { ArrowLeft, Settings2, UserRound } from 'lucide-react';
+import { ArrowLeft, Languages, Settings2, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const entries = [
+  {
+    title: '目标学习语言',
+    description: '选择默认学习语言并初始化笔记库',
+    href: '/console/me/target-language',
+    icon: Languages,
+  },
   {
     title: 'Workspace Console',
     description: '频道与网关管理',

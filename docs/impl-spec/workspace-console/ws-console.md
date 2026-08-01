@@ -27,15 +27,18 @@ Workspace Console
 入口挂在 [Standalone Web Chatbot](../web-chatbot.md) header 上：
 
 ```
-Standalone Web Chatbot  ──[Me]──►  /console/me  ──[Workspace Console]──►  /console/web-console
-                                                                              │
-                                                  channels admin ◄──────────┘
-                                                                              │
-                                                  wechat channel admin ◄─────┘
+Standalone Web Chatbot  ──[Me]──►  /console/me  ──[目标学习语言]──►  /console/me/target-language
+                                                                  │
+                                                      ──[Workspace Console]──►  /console/web-console
+                                                                                      │
+                                                          channels admin ◄──────────┘
+                                                                                      │
+                                                          wechat channel admin ◄─────┘
 ```
 
 - `Me` 按钮：在 chatbot header「笔记编辑器」按钮右侧（[web-chatbot.md §Header](../web-chatbot.md)），点击 `window.location.href = '/console/me'`。
-- `/console/me` 页：本期仅一个「Workspace Console」入口按钮（预留扩展位）。
+- `/console/me` 页：入口列表包含「目标学习语言」（→ `/console/me/target-language`）与「Workspace Console」（→ `/console/web-console`）。
+- `/console/me/target-language`：目标学习语言设置页（选择默认语言 + 初始化笔记库；首次使用时 chatbot 首页强制跳转至此）。见 [ADR 20260801](../ADR/20260801-user-onboarding.md)、[target-lang-setting.md](./target-lang-setting.md)。
 - `/console/web-console`：console 首页，列出 channels admin 下各子项。
 - `/console/web-console/plugins/channels/wechat_channel/admin`：wechat channel admin 页。
 
@@ -44,6 +47,7 @@ Standalone Web Chatbot  ──[Me]──►  /console/me  ──[Workspace Conso
 | 文档 | 内容 |
 |---|---|
 | [ws-console-arch.md](./ws-console-arch.md) | 架构设计：进程拓扑、状态机、IPC 协议、生命周期管理、前端结构 |
+| [target-lang-setting.md](./target-lang-setting.md) | 目标学习语言设置页：前后端设计与逻辑（API、页面、引导模式、首页跳转） |
 | [phased-impl.md](./phased-impl.md) | 分阶段实施计划：阶段划分、每阶段交付物、验证方式 |
 
 ## 设计依据

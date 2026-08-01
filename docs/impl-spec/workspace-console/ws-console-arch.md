@@ -227,11 +227,25 @@ workspace console router 暴露（前缀 `/api/wechat-channel`），直调 `gate
 | POST | `/api/wechat-channel/start` | 调 `runtime.start_wechat()`（幂等：已 running 返回当前状态；conflict 返回提示） |
 | POST | `/api/wechat-channel/stop` | 调 `runtime.stop_wechat()`（写 enable=false） |
 
+#### 目标学习语言与 user profile API
+
+`src/everlingo/gateway/user_profile_api.py`（router 经 `web_acceptor.py` 挂载，`tags=["user-profile"]`）。复用 `vault_editor_mcp_client.mcp_session_workspace()` 调 `list_vaults` / `create_vault`（均 workspace 级工具，不依赖 session.configure）；`IndexerOfflineError → 503`。三端点均不依赖认证。
+
+| 方法 | 路径 | 行为 |
+|---|---|---|
+| GET | `/api/user-profile/status` | `{target_language, is_valid, vault_initialized: bool\|null, needs_setup}`。`is_valid` = 非空 + ∈ LANGUAGES + vault 已初始化三条件全满足；indexer 不可达时 `vault_initialized=null`、`is_valid=false`、`needs_setup=true` |
+| GET | `/api/target-language/list` | `{languages: [{code, name, is_default, vault_initialized: bool\|null, disabled, disabled_reason}], current_default}`。`disabled` 仅 `vault_initialized=null` 时为 true |
+| POST | `/api/target-language/default` | body `{lang}`。lang ∉ 5 种 → 400；`list_vaults` 未建则静默 `create_vault(lang)`；写 `user_profile.language.target_language` 到 everlingo.yaml；成功返回新 list（同 GET `/api/target-language/list` 结构）。list_vaults/create_vault 不可达 → 503 不写 yaml |
+
+> ref: [ADR 20260801](../ADR/20260801-user-onboarding.md) — 目标学习语言设置页与首次使用引导
+> 前后端完整设计与逻辑见 [target-lang-setting.md](./target-lang-setting.md)。
+
 ### 5.3 静态页 fallback
 
 仿 `/editor`（`web_acceptor.py`）新增 SPA fallback（早于 catch-all `/{path:path}` 注册）：
 
 - `GET /console/me` → `web/dist/me.html`
+- `GET /console/me/target-language` → `web/dist/target-language.html`
 - `GET /console/web-console`、`GET /console/web-console/{path}` → `web/dist/web-console.html`
 
 ## 6. 前端结构
@@ -245,6 +259,7 @@ input: {
   main: 'index.html',
   editor: 'editor.html',
   me: 'me.html',
+  'target-language': 'target-language.html',
   'web-console': 'web-console.html',
   login: 'login.html',
   'self-service': 'self-service.html',
@@ -252,7 +267,7 @@ input: {
 }
 ```
 
-新增 `web/me.html`、`web/web-console.html`（结构同 `web/editor.html`，引用各自 `src/*/main.tsx`）。
+新增 `web/me.html`、`web/target-language.html`、`web/web-console.html`（结构同 `web/editor.html`，引用各自 `src/*/main.tsx`）。
 
 > `login` / `self-service` / `pat` entry 供 WS-Router 使用（登录页与认证自服务页），构建产物 `web/dist` 由 ws-router 与 ws-container 两个镜像共享（见 [ws-router.md](../multiple-users/ws-router.md) §6）。
 
@@ -263,6 +278,9 @@ web/src/
   me/
     main.tsx          # Me 页入口
     MePage.tsx
+  target-language/
+    main.tsx          # 目标学习语言设置页入口
+    TargetLanguagePage.tsx
   web-console/
     main.tsx          # Console 首页入口
     ConsolePage.tsx

@@ -15,6 +15,10 @@
     指本产品支持作为学习目标的语言。`可用目标学习语言` 包括： en/ja/zh-CN/fr/de
 - `默认目标学习语言` 
   - 用户通过配置，指定的默认目标学习语言
+- `笔记库已初始化`
+  - 指某目标学习语言的笔记库（vault）已存在于 workspace 并注册到 indexer：`$workspace/memory/languages/$lang/` 存在且出现在 Vault MCP `list_vaults` 返回结果中
+- `有效的默认目标学习语言配置`
+  - 同时满足：`target_language` 非空、取值属于可用目标学习语言（en/ja/zh-CN/fr/de）、该语言的笔记库已初始化
 - `界面语言(interface_language)`
     指本产品支持作为主要界面文字和语音的语言。`可用界面语言` 包括： en/ja/zh-CN/fr/de
 

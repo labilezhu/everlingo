@@ -20,6 +20,7 @@ export default defineConfig({
         main: path.resolve(__dirname, 'index.html'),
         editor: path.resolve(__dirname, 'editor.html'),
         me: path.resolve(__dirname, 'me.html'),
+        'target-language': path.resolve(__dirname, 'target-language.html'),
         'web-console': path.resolve(__dirname, 'web-console.html'),
         login: path.resolve(__dirname, 'login.html'),
         'self-service': path.resolve(__dirname, 'self-service.html'),
