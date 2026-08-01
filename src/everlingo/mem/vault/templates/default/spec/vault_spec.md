@@ -2,7 +2,7 @@
 
 由 markdown 文件、结构化目录组成的 memory vault。 用于记录用户的语言学习事件，语言知识点。
 
-`单语言 Memory Vault` ，也可叫作 `语言笔记库` 或 `笔记库` 。
+`单语言 Memory Vault` ，也可叫作 `语言笔记库` 或 `笔记库` 或 `记忆库` 。
 
 单语言 vault 目录结构示例：
 ```bash

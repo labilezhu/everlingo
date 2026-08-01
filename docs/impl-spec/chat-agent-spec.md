@@ -25,7 +25,7 @@ envelope 的 `task` 字段表达用户偏好的任务（`translate` / `look_up` 
 2. 翻译
 3. 语言学习问题智能问答
 4. 管理 USER.md
-5. 管理基本配置
+5. 查询配置（只读；禁止修改 `everlingo.yaml`）
 6. 未识别输入
 7. 笔记读取和浏览
 8. 抽取对话内容到笔记
@@ -59,7 +59,7 @@ system prompt 在 `## 用户意图分类` 之前新增 `## 结构化用户输入
 由于 system prompt 使用了 User Profile 与 用户自由偏好笔记 (USER.md) 。而用户/Agent 可能动态修改它们。所以 system prompt 也要刷新。
 
 实现思路：
-- `setting.py` 维护模块级 `_prompt_version` 计数器；`conf_manager.set_config` 与 `user_doc.user_doc_set` 每次成功写入后调用 `bump_prompt_version()` 递增。
+- `setting.py` 维护模块级 `_prompt_version` 计数器；`user_doc.user_doc_set`（配置变更经 `save_setting` / `save_profile` 路径）成功后调用 `bump_prompt_version()` 递增。`conf_manager.set_config` 不再注册给 Chat Agent（禁止修改 `everlingo.yaml`），但其实现仍会递增版本号。
 - `MainAgent.__init__()` 记录当时的版本号与 `prompt_input_mtime()`（`everlingo.yaml` 与 `USER.md` 的最新 mtime）；每次 `invoke()` 前调用 `_refresh_agent_if_needed()`，发现**版本号变化**或**任一依赖文件 mtime 变化**时，用 `load_profile()` + `load_user_doc()` 重新构建 system prompt 并 `create_agent()`，同步后不再重建。
 - mtime 检测使外部编辑器修改 `everlingo.yaml` / `USER.md` 也能即时生效。
 

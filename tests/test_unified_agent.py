@@ -560,20 +560,13 @@ def test_agent_no_rebuild_without_config_change(zh_en_profile, mock_agent_with_r
 
 
 def test_agent_rebuilds_once_after_config_change(zh_en_profile, mock_agent_with_response):
-    """set_config 被调用后，下次 ainvoke() 应重建 agent 一次。"""
-    from everlingo.models import EverLingoSetting, LoggingSetting, SysSetting
-    from everlingo.tools.conf_manager import set_config
+    """配置变更（prompt 版本号递增）后，下次 ainvoke() 应重建 agent 一次。"""
+    from everlingo.setting import bump_prompt_version
 
     agent = _make_main_agent(zh_en_profile)
 
-    # 模拟 set_config 工具调用（递增版本号）
-    setting = EverLingoSetting(
-        sys_setting=SysSetting(logging_setting=LoggingSetting()),
-        user_profile=zh_en_profile,
-    )
-    with patch("everlingo.tools.conf_manager.load_setting", return_value=setting), \
-         patch("everlingo.tools.conf_manager.save_setting"):
-        set_config.invoke({"config_to_be_merged": "user_profile:\n  language:\n    target_language: fr"})
+    # 模拟配置变更（递增 prompt 版本号，触发重建）
+    bump_prompt_version()
 
     with patch("everlingo.agents.agent.create_agent", return_value=mock_agent_with_response) as mock_create, \
          patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
@@ -588,16 +581,10 @@ def test_agent_rebuilds_once_after_config_change(zh_en_profile, mock_agent_with_
 
 
 def test_agent_rebuilds_on_each_config_change(zh_en_profile, mock_agent_with_response):
-    """每次 set_config 后的首次 ainvoke() 都应触发一次重建。"""
-    from everlingo.models import EverLingoSetting, LoggingSetting, SysSetting
-    from everlingo.tools.conf_manager import set_config
+    """每次配置变更后的首次 ainvoke() 都应触发一次重建。"""
+    from everlingo.setting import bump_prompt_version
 
     agent = _make_main_agent(zh_en_profile)
-
-    setting = EverLingoSetting(
-        sys_setting=SysSetting(logging_setting=LoggingSetting()),
-        user_profile=zh_en_profile,
-    )
 
     rebuilt_agents = []
 
@@ -606,20 +593,18 @@ def test_agent_rebuilds_on_each_config_change(zh_en_profile, mock_agent_with_res
         rebuilt_agents.append(m)
         return m
 
-    with patch("everlingo.tools.conf_manager.load_setting", return_value=setting), \
-         patch("everlingo.tools.conf_manager.save_setting"), \
-         patch("everlingo.agents.agent.create_agent", side_effect=fake_create_agent), \
+    with patch("everlingo.agents.agent.create_agent", side_effect=fake_create_agent), \
          patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
          patch("everlingo.agents.agent.load_user_doc", return_value=""), \
          patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
          patch.object(agent, '_ensure_mcp_stream', AsyncMock()):
 
         # 第一次配置变更 → ainvoke 触发重建
-        set_config.invoke({"config_to_be_merged": "user_profile:\n  language:\n    target_language: fr"})
+        bump_prompt_version()
         asyncio.run(agent.ainvoke(MessageEvent(text="first")))
 
         # 第二次配置变更 → ainvoke 再次触发重建
-        set_config.invoke({"config_to_be_merged": "user_profile:\n  language:\n    target_language: de"})
+        bump_prompt_version()
         asyncio.run(agent.ainvoke(MessageEvent(text="second")))
 
 

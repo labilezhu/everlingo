@@ -16,6 +16,31 @@ from . import log_tool_call
 # 兼容旧引用：conf_manager._config_version / get_config_version
 # 实际状态保存在 setting._prompt_version。ref: chat-agent-spec.md — system prompt 维护
 
+# 敏感配置字段：get_config 返回给 Chat Agent 前必须脱敏，防止明文泄露给 LLM。
+# ref: configuration.md SysSetting / TracingSetting
+REDACTED_FIELDS = (
+    ("sys_setting", "openai_api_key"),
+    ("sys_setting", "tracing_setting", "langfuse_secret_key"),
+    ("sys_setting", "tracing_setting", "langfuse_public_key"),
+)
+
+
+def _redact(data: dict) -> dict:
+    """深拷贝配置 dict 并对敏感字段做掩码脱敏。"""
+    import copy
+
+    redacted = copy.deepcopy(data)
+    for path in REDACTED_FIELDS:
+        node = redacted
+        for key in path[:-1]:
+            if not isinstance(node.get(key), dict):
+                break
+            node = node[key]
+        else:
+            if isinstance(node.get(path[-1]), str) and node[path[-1]]:
+                node[path[-1]] = "<redacted>"
+    return redacted
+
 
 def get_config_version() -> int:
     """返回当前 prompt 版本号（转发到 setting 层）。"""
@@ -35,16 +60,21 @@ def get_schema() -> str:
 @tool("conf_manager_get_config")
 @log_tool_call("conf_manager_get_config")
 def get_config() -> str:
-    """查询当前生效的配置文件内容，返回 YAML 格式"""
+    """查询当前生效的配置文件内容，返回 YAML 格式（敏感字段已脱敏为 <redacted>）"""
     setting = load_setting()
     return yaml.dump(
-        setting_to_dict(setting), allow_unicode=True, indent=2, sort_keys=False
+        _redact(setting_to_dict(setting)), allow_unicode=True, indent=2, sort_keys=False
     )
 
 
 @tool("conf_manager_set_config")
 @log_tool_call("conf_manager_set_config")
 def set_config(config_to_be_merged: str) -> str:
+    """修改多个配置项目。参数 configToBeMerged 是 YAML 格式的配置片段，merged 到当前配置后返回完整配置。
+
+    注意：本工具已不再注册给 Chat Agent（Chat Agent 禁止修改 everlingo.yaml）。
+    函数保留供内部调用与单元测试使用。
+    """
     """修改多个配置项目。参数 configToBeMerged 是 YAML 格式的配置片段，merged 到当前配置后返回完整配置。"""
     current = setting_to_dict(load_setting())
     try:

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-from everlingo.models import EverLingoSetting, LoggingSetting, SysSetting, UserProfile
+from everlingo.models import EverLingoSetting, LoggingSetting, SysSetting, TracingSetting, UserProfile
 from everlingo.setting import get_prompt_version, save_setting
 from everlingo.tools.clock import get_datetime
 from everlingo.tools.conf_manager import get_config, get_schema, set_config, get_config_version
@@ -136,7 +136,7 @@ def test_memory_writer_action_logs_submit_debug(caplog):
 
 def test_get_all_tools_returns_tool_objects():
     tools = get_all_tools()
-    assert len(tools) == 6
+    assert len(tools) == 5
     for t in tools:
         assert hasattr(t, "invoke")
         assert hasattr(t, "name")
@@ -144,6 +144,42 @@ def test_get_all_tools_returns_tool_objects():
     assert "clock_get_datetime" in names
     assert "conf_manager_get_schema" in names
     assert "conf_manager_get_config" in names
-    assert "conf_manager_set_config" in names
     assert "user_doc_get" in names
     assert "user_doc_set" in names
+    assert "conf_manager_set_config" not in names
+
+
+def test_get_all_tools_excludes_set_config():
+    """Chat Agent 禁止修改 everlingo.yaml：set_config 不应注册到 agent 工具集。"""
+    from everlingo.tools.conf_manager import set_config
+
+    names = [t.name for t in get_all_tools()]
+    assert "conf_manager_set_config" not in names
+    assert set_config.name == "conf_manager_set_config"
+
+
+def test_get_config_redacts_secrets(monkeypatch):
+    """get_config 返回给 LLM 前，敏感字段应脱敏为 <redacted>，不得泄露明文。"""
+    from everlingo.tools.conf_manager import get_config
+
+    setting = EverLingoSetting(
+        sys_setting=SysSetting(
+            openai_api_key="sk-secret-key-123",
+            logging_setting=LoggingSetting(),
+            tracing_setting=TracingSetting(
+                langfuse_secret_key="sk-lf-secret-456",
+                langfuse_public_key="pk-lf-pub-789",
+            ),
+        ),
+        user_profile=UserProfile(),
+    )
+    monkeypatch.setattr("everlingo.tools.conf_manager.load_setting", lambda: setting)
+    result = get_config.invoke({})
+
+    assert "sk-secret-key-123" not in result
+    assert "sk-lf-secret-456" not in result
+    assert "pk-lf-pub-789" not in result
+    parsed = yaml.safe_load(result)
+    assert parsed["sys_setting"]["openai_api_key"] == "<redacted>"
+    assert parsed["sys_setting"]["tracing_setting"]["langfuse_secret_key"] == "<redacted>"
+    assert parsed["sys_setting"]["tracing_setting"]["langfuse_public_key"] == "<redacted>"

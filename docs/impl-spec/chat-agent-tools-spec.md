@@ -36,10 +36,14 @@ tool_name: xyz , parameters: argName1=argValue1,... , return: xyz
 
 以下包括多个 toolset(工具集)。 
 
-## 管理配置 - conf_manager
+## 管理配置 - conf_manager（只读）
 
 toolset name: conf_manager
-toolset description: 管理配置
+toolset description: 查询配置（只读）
+
+> **只读约束**：Chat Agent 禁止修改 `everlingo.yaml`，因此本工具集**不再提供 `set_config`**。
+> 用户请求修改配置（语言、模型、API Key 等）时，引导其到 Workspace Console 或直接编辑 `everlingo.yaml`。
+> `set_config` 函数定义仍保留在 `src/everlingo/tools/conf_manager.py` 中（供内部调用与单测），但**不注册**给 Chat Agent。
 
 ### functions
 
@@ -51,35 +55,7 @@ returns: yaml 格式的配置示例。直接返回 [/everlingo.example.yaml](/ev
 #### get_config
 function name: get_config
 function description: 查询配置
-returns: 返回当前生效的 yaml 格式的配置文件内容
-
-#### set_config
-function name: set_config
-function description: 修改多个配置项目。
-parameters:
-    configToBeMerged: string
-returns: 
-    config: string 。 成功 merged 后的 yaml 格式的配置文件内容。
-    error: string。 如果失败，返回原因。
-
-可以管理的配置和相关描述与约束，见 [configuration.md](/docs/impl-spec/configuration.md)。 一定要对用户的输入进行配置约束检查。            
-
-调用例子：
-configToBeMerged :
-```yaml
-sys_setting:
-    openai_model: deepseek
-user_profile:
-    language:
-        interface_language: zh-CN
-        target_language: en
-    background:
-        hobbies: 历史与文艺
-    dictionary_definition_style: |
-        - 词意
-        - 词源解释和历史
-        - 词性（动词，名词……）如果是动词提供过去式，过去分词    
-```
+returns: 返回当前生效的 yaml 格式的配置文件内容。敏感字段（`sys_setting.openai_api_key`、`tracing_setting.langfuse_secret_key` / `langfuse_public_key`）已脱敏为 `<redacted>`，不向 LLM 泄露明文。
 
 ## 系统时间 - clock
 
