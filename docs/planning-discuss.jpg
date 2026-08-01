@@ -1,4 +1,30 @@
 
+把 [ws-router](docs/impl-spec/multiple-users/ws-router.md) 的前端架构技术stack，调整为与 docs/impl-spec/web-chatbot.md 的 “前端技术选型” 一致。而不是现在的直接 python 中写 html 的方法。
+即调整为：
+
+
+使用组件库:
+- Vite
+- React
+- TailwindCSS
+- shadcn/ui
+
+同时调整 Dockerfile，如果需要的话。
+
+
+---
+
+
+现在 [Web Chatbot](docs/impl-spec/web-chatbot.md) 已经实现了 PWA 和 favicon 。 但在手机端，好像两个都有问题。
+我认为是 docs/impl-spec/multiple-users/ws-router.md 的认证和重定向的影响。
+你可以参考 docs/impl-spec/web-chatbot.md 中 “## PWA（可安装到主屏）” 一节 和 一个 nginx 的  PWA 公开静态资源（免认证，供 Chrome 检测 manifest / icon） 配置： mark-specific/local-deploy/68_deploy/basic_auth/68-everlingo-nginx.md:170
+去修改 ws-router 的 免认证 规则。
+
+
+要不，把 PWA 的文件，favicon 的文件，在源码 repo 上 copy 到 ws-router 。运行期，直接为 ws-router 提供这些文件，不路由到其它 container。
+
+
+---
 
 
 docs/impl-spec/workspace-console/ws-console.md 

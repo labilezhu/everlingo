@@ -19,6 +19,7 @@ from .master_client import MasterClient, UserInfo
 logger = logging.getLogger(__name__)
 
 WHITELIST_PATHS = {"/login", "/logout", "/healthz"}
+STATIC_WHITELIST_PREFIXES = ("/login", "/static", "/assets", "/favicon.png", "/manifest.webmanifest", "/icon-")
 
 
 async def trusted_proxy_middleware(request: Request, call_next: Callable) -> Response:
@@ -36,7 +37,7 @@ def make_auth_middleware(
     session_ttl: int,
 ) -> Callable:
     async def auth_middleware(request: Request, call_next: Callable) -> Response:
-        if request.url.path in WHITELIST_PATHS or request.url.path.startswith(("/login", "/static")):
+        if request.url.path in WHITELIST_PATHS or request.url.path.startswith(STATIC_WHITELIST_PREFIXES):
             return await call_next(request)
 
         user_id = None

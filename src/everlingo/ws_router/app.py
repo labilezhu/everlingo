@@ -6,18 +6,17 @@ ref: ws-router.md §4
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from datetime import datetime, timezone
 
 import httpx
 import uvicorn
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
 from .auth import (
-    LOGIN_HTML,
-    LOGIN_HTML_ERROR,
     AuthProvider,
     PasswordAuthProvider,
     create_session_token,
@@ -30,6 +29,18 @@ from .middleware import make_auth_middleware, trusted_proxy_middleware
 from .proxy import proxy_request
 
 logger = logging.getLogger(__name__)
+
+STATIC_MEDIA_TYPES = {
+    "/manifest.webmanifest": "application/manifest+json",
+    "/favicon.png": "image/png",
+    "/icon-192.png": "image/png",
+    "/icon-512.png": "image/png",
+    "/icon-512-maskable.png": "image/png",
+}
+
+
+def _static_dir() -> str:
+    return os.path.join(os.path.dirname(__file__), "..", "..", "..", "web", "dist")
 
 
 class AppState:
@@ -62,6 +73,16 @@ def create_app(config: RouterConfig) -> FastAPI:
     app = FastAPI(title="WS-Router", version="0.1.0")
     app.state.state = state
 
+    @app.get("/assets/{path:path}", include_in_schema=False)
+    async def serve_asset(path: str):
+        file = os.path.join(_static_dir(), "assets", path)
+        if not os.path.isfile(file):
+            return JSONResponse(
+                content={"message": "Frontend not built. Run `npm run build` in the web/ directory."},
+                status_code=404,
+            )
+        return FileResponse(file)
+
     app.middleware("http")(trusted_proxy_middleware)
 
     app.middleware("http")(
@@ -85,47 +106,39 @@ def create_app(config: RouterConfig) -> FastAPI:
 
     @app.get("/login")
     async def get_login(request: Request):
-        return HTMLResponse(content=LOGIN_HTML)
+        index = os.path.join(_static_dir(), "login.html")
+        if not os.path.exists(index):
+            return JSONResponse(
+                content={"message": "Frontend not built. Run `npm run build` in the web/ directory."},
+                status_code=503,
+            )
+        return FileResponse(index)
 
     @app.post("/login")
     async def post_login(request: Request):
-        ct = request.headers.get("content-type", "")
-        if "application/json" in ct:
-            body = await request.json()
-            username = body.get("username", "")
-            password = body.get("password", "")
-        else:
-            form = await request.form()
-            username = form.get("username", "")
-            password = form.get("password", "")
+        body = await request.json()
+        username = body.get("username", "")
+        password = body.get("password", "")
 
         user = await state.auth_provider.login(username, password)
         if user is None:
             logger.warning("Login failed: username=%r remote=%s", username, request.client.host if request.client else "?")
-            accept = request.headers.get("Accept", "")
-            if "application/json" in accept:
-                return JSONResponse(
-                    content={"error": {"code": "invalid_credentials", "message": "Invalid username or password"}},
-                    status_code=401,
-                )
-            return HTMLResponse(content=LOGIN_HTML_ERROR, status_code=401)
+            return JSONResponse(
+                content={"error": {"code": "invalid_credentials", "message": "Invalid username or password"}},
+                status_code=401,
+            )
 
         token = create_session_token(user.user_id, user.user_name, config.jwt_secret, config.session_ttl)
         expires = datetime.now(timezone.utc).isoformat()
 
-        accept = request.headers.get("Accept", "")
-        if "application/json" in accept:
-            resp = JSONResponse(
-                content={
-                    "user_id": user.user_id,
-                    "access_token": token,
-                    "token_type": "bearer",
-                    "expires_at": expires,
-                },
-            )
-        else:
-            resp = RedirectResponse(url="/", status_code=302)
-
+        resp = JSONResponse(
+            content={
+                "user_id": user.user_id,
+                "access_token": token,
+                "token_type": "bearer",
+                "expires_at": expires,
+            },
+        )
         resp.set_cookie(
             key="everlingo_sess",
             value=token,
@@ -134,6 +147,18 @@ def create_app(config: RouterConfig) -> FastAPI:
             samesite="lax",
         )
         return resp
+
+    for static_path, media_type in STATIC_MEDIA_TYPES.items():
+
+        @app.get(static_path, include_in_schema=False)
+        async def serve_static(path: str = static_path, media_type: str = media_type):
+            file = os.path.join(_static_dir(), path.lstrip("/"))
+            if not os.path.exists(file):
+                return JSONResponse(
+                    content={"message": "Frontend not built. Run `npm run build` in the web/ directory."},
+                    status_code=503,
+                )
+            return FileResponse(file, media_type=media_type)
 
     @app.get("/logout")
     async def get_logout(request: Request):

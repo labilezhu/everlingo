@@ -110,8 +110,7 @@ class AuthProvider(Protocol):
 **多 SSO provider 并存**：`user_identities` 表按 `(provider, subject)` 唯一约束，一个 user 可绑多个 provider（既 Google 又 GitHub）。绑定额外 provider：已登录用户发起另一 provider 的 OAuth，回调时若该 identity 未被其他 user 绑定，则挂到当前 user_id。WS-Router 按 `provider` 字段路由到对应 `AuthProvider` 子类，各 provider 独立配置 client_id/secret/redirect_uri。
 
 **为什么方案 A 不阻碍 SSO**：
-- 登录页是 WS-Router 服务端渲染，加按钮和 OAuth redirect 很简单，不需要前端构建
-- 登录页 HTML 极简（一个 form + 少量 CSS），加按钮无负担
+- 登录页是 WS-Router 提供的 React SPA（见 §4.3），加「Sign in with Google」按钮 + `GET /login/google` 跳转很简单，不需要改 OAuth 流程
 - `AuthProvider` Protocol 抽象让 password 与各 SSO provider 可并存
 
 **Phase 2 待决策（不阻塞 Phase 1）**：
@@ -126,25 +125,58 @@ Phase 1 只需保证 `AuthProvider` 抽象与 `user_identities` 表 schema 存�
 
 | Method | Path | 说明 |
 |---|---|---|
-| GET / POST | `/login` | 登录页（HTML 表单）/ 提交凭证 |
+| GET / POST | `/login` | 登录页（React SPA）/ 提交凭证（JSON） |
 | GET | `/logout` | 清 cookie，302 `/login` |
 | GET | `/me` | 返回 `{user_id, user_name, display_name}` |
 | GET | `/login/google` | （预留）重定向到 Google OAuth |
 | GET | `/login/google/callback` | （预留）OAuth 回调 |
+| GET | `/assets/{path:path}` | 前端静态资源（登录页 + 公开 chunk） |
+| GET | `/favicon.png` `/manifest.webmanifest` `/icon-*.png` | 前端公开静态文件（pre-auth 可达） |
 
 ### 4.2 反代路由（透传到后端容器）
 
 `/`、`/editor`、`/api/session/...`、`/api/session/{id}/events`（SSE）、`/manifest.webmanifest` 等全部透传。后端 ws-container 内的 `web_acceptor.py` 逻辑不变（见 [web-session-acceptor.md](../web-session-acceptor.md)）。
 
-### 4.3 登录页（HTML）
+### 4.3 登录页（React SPA）
 
-WS-Router 镜像是精简构建（**无 `web/dist`**，见 [deploy.md](./deploy.md) §5.2），不能复用现有前端 SPA。主 SPA 由后端 ws-container 提供（`/` 反代过去）。因此登录页必须由 WS-Router 自己提供，采用**服务端渲染最小 HTML**（无前端构建依赖）。
+登录页是 WS-Router 自己提供的 **React SPA**，由 `web/` Vite 项目构建（复用主 SPA 同一套前端技术栈，见 [web-chatbot.md](../web-chatbot.md) §前端技术选型：Vite + React + TailwindCSS + shadcn/ui）。
 
-- `GET /login` → 返回 HTML 登录表单（含 username/password 输入框、提交按钮）。HTML 模板可硬编码在 WS-Router 代码或 `src/everlingo/ws_router/templates/login.html`，极简 CSS。
-- `POST /login` → 校验凭证：
-  - 成功 → Set-Cookie + 302 `/`（浏览器跳到主 SPA）
-  - 失败 → 返回表单 + 错误提示
-- `GET /logout` → 清 cookie + 302 `/login`
+- 前端代码：`web/login.html`（Vite 入口）+ `web/src/login/`（`main.tsx`、`LoginPage.tsx`），`LoginPage.tsx` 使用 shadcn/ui 的 `Button` / `Input` 组件。
+- `GET /login` → WS-Router 返回 `web/dist/login.html`（本地 `FileResponse`）；未构建时返回 503 JSON 提示。
+- 登录表单提交走 `fetch('/login', ...)`（JSON + `Accept: application/json`），成功 200 → `window.location.href = '/'`，失败 401 → 行内显示错误。
+- 登录页 `<head>` 带完整 PWA meta（manifest / apple-touch-icon / theme-color，与主 SPA 入口一致）。
+
+#### 前端技术选型（登录页）
+
+与 [web-chatbot.md](../web-chatbot.md) §前端技术选型 一致，复用 `web/` 项目：
+
+| 层 | 选型 | 用途 |
+|---|---|---|
+| 构建 | Vite | `web/` 多入口构建（含 `login` 入口），产出 `web/dist` |
+| UI 框架 | React | 登录表单状态、提交逻辑、错误展示 |
+| 样式 | TailwindCSS | 布局 / 卡片 / 间距 / 响应式 |
+| 组件库 | shadcn/ui | `Button`、`Input` |
+
+不直接以 Python 字符串生成 HTML；登录页与主 SPA 共用同一 `web/` 工程与 `web/dist` 构建产物。
+
+#### WS-Router 本地服务的公开静态资源
+
+登录页在 **pre-auth** 阶段加载，其静态资源不能反代到 ws-container（pre-auth 无 `user_id`，无法 `backend_resolve`）。因此 WS-Router 本地服务以下公开静态资源（`auth_middleware` 白名单放行，均为公开静态代码/文件，无安全风险）：
+
+| 路径 | 来源 | 说明 |
+|---|---|---|
+| `/assets/{path:path}` | `web/dist/assets/` | 登录页 JS/CSS chunk（Vite 共享 vendor chunk 无法按入口拆分，整目录服务；主 SPA 的同名 chunk 也由此服务） |
+| `/favicon.png` | `web/dist/favicon.png` | 登录页 favicon |
+| `/manifest.webmanifest` | `web/dist/manifest.webmanifest` | PWA manifest（登录页引用，pre-auth 可达） |
+| `/icon-192.png` `/icon-512.png` `/icon-512-maskable.png` | `web/dist/...` | PWA 图标 |
+
+主 SPA 的 HTML 入口（`/`、`/editor`、`/console/*`）仍由 ws-container 反代提供（post-auth），其静态资源请求会落到 WS-Router 本地 `/assets/*`——因两镜像共用同一 `web/dist`（CI 同步构建），asset hash 一致，行为正确。
+
+**ws-container 职责不变**：单用户独立部署（无 WS-Router）时，ws-container 的 `web_acceptor.py` 依旧独自提供全部前端文件（含 PWA manifest / icons / favicon），见 [web-session-acceptor.md](../web-session-acceptor.md)。
+
+**为什么 WS-Router 也提供 manifest / icons**：手机浏览器在加载**任何**带 `<link rel="manifest">` 的页面时都会读取 manifest（与登录状态无关）。iOS Safari「添加到主屏幕」是用户在任意页面手动触发的。若登录页不提供 manifest / apple-touch-icon，用户在登录页触发安装时图标会降级为截图或默认图标，体验差。因此登录页 `login.html` 引用与主 SPA 相同的 manifest / icons，WS-Router pre-auth 本地服务之。
+
+**`POST /login` 仅支持 JSON 提交**（随服务端渲染 HTML 的移除，form 提交一并废弃）。程序化客户端（curl / Chrome Extension）与浏览器 React SPA 均走 JSON（见 §4.4）。
 
 **未认证访问的分流**（`auth_middleware`）：
 
@@ -157,16 +189,14 @@ WS-Router 镜像是精简构建（**无 `web/dist`**，见 [deploy.md](./deploy.
 
 ### 4.4 登录 API 响应
 
-`POST /login` 同时支持表单提交（浏览器）与 JSON 提交（程序化客户端）：
+`POST /login` 仅支持 JSON 提交（登录页为 React SPA，浏览器经 `fetch` 提交；Chrome Extension / curl 亦为 JSON）：
 
 ```
 POST /login
-  表单：Content-Type: application/x-www-form-urlencoded
-       username=...&password=...
-  或 JSON：Content-Type: application/json
-          {"username": "...", "password": "..."}
+  Content-Type: application/json
+  {"username": "...", "password": "..."}
 
-成功（程序化 / Accept: application/json）→ 200 {
+成功 → 200 {
     "user_id": "...",
     "access_token": "<jwt>",
     "token_type": "bearer",
@@ -174,10 +204,9 @@ POST /login
   }
   Set-Cookie: everlingo_sess=<jwt>; HttpOnly; Secure; SameSite=Lax
 
-成功（浏览器 / Accept: text/html）→ 302  /
-  Set-Cookie: everlingo_sess=<jwt>; HttpOnly; Secure; SameSite=Lax
-
-失败 → 401（程序化）或 表单 + 错误提示（浏览器）
+失败 → 401 {
+    "error": { "code": "invalid_credentials", "message": "Invalid username or password" }
+  }
 ```
 
 - 浏览器：依赖 cookie，body 中 access_token 可忽略。
@@ -233,7 +262,7 @@ ws_router:
 
 ## 6. 镜像
 
-`deploy/ws-router/Dockerfile`，单独精简构建（跳过 frontend-builder stage，无 `web/dist`）。详见 [deploy.md](./deploy.md) §镜像构建。
+`deploy/ws-router/Dockerfile`，含 frontend-builder stage（构建 `web/` 前端 → `web/dist`），runtime 携带 `web/dist` 用于本地服务登录页与公开静态资源（见 §4.3）。其余依赖与 WS-Master 相同（`src/`、`pyproject.toml`）。详见 [deploy.md](./deploy.md) §5.2。
 
 ## 7. 关键不变量
 

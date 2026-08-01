@@ -133,9 +133,23 @@ WS-Master 镜像内不预装 docker CLI；用 `docker` Python SDK 通过 `unix:/
 
 ### 5.2 WS-Router 镜像
 
-`deploy/ws-router/Dockerfile`，单独精简构建，跳过 frontend-builder stage（无 `web/dist`）。`ENTRYPOINT` 仅固定基础调用 `python -m everlingo`，子命令与 `--config` 由 compose `command:` 提供（见 §2）：
+`deploy/ws-router/Dockerfile`，含 frontend-builder stage（构建 `web/` 前端），runtime 携带 `web/dist` 用于本地服务登录页与公开静态资源（见 [ws-router.md](./ws-router.md) §4.3）。`ENTRYPOINT` 仅固定基础调用 `python -m everlingo`，子命令与 `--config` 由 compose `command:` 提供（见 §2）：
 
 ```dockerfile
+# Stage: frontend-builder（与 ws-container Dockerfile Stage 1 一致）
+FROM node:20-bookworm-slim AS frontend-builder
+
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ENV HTTP_PROXY=$HTTP_PROXY
+ENV HTTPS_PROXY=$HTTPS_PROXY
+
+WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web/ ./
+RUN npm run build
+
 # Stage: deps（与现有 Dockerfile 的 deps stage 一致）
 FROM python:3.12-trixie AS deps
 
@@ -155,6 +169,7 @@ RUN useradd -m -u 1000 everlingo
 COPY --chown=everlingo:everlingo --from=deps /app/.venv .venv/
 COPY --chown=everlingo:everlingo src/ src/
 COPY --chown=everlingo:everlingo pyproject.toml ./
+COPY --chown=everlingo:everlingo --from=frontend-builder /web/dist web/dist/
 WORKDIR /app
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/src"
@@ -162,7 +177,7 @@ USER everlingo
 ENTRYPOINT ["python", "-m", "everlingo"]
 ```
 
-> `HTTP_PROXY` / `HTTPS_PROXY` build-arg 与现有 ws-container Dockerfile 的 deps stage 对齐，代理环境传值可加速 `uv sync` 拉包；无代理环境传空值不影响构建。
+> `HTTP_PROXY` / `HTTPS_PROXY` build-arg 与现有 ws-container Dockerfile 的 deps stage 对齐，代理环境传值可加速 `uv sync` / `npm ci` 拉包；无代理环境传空值不影响构建。WS-Router 携带 `web/dist` 仅为登录页与公开静态资源（§4.3），不反代主 SPA HTML；主 SPA 仍由 ws-container 提供。
 
 ```bash
 DOCKER_BUILDKIT=1 docker buildx build . -f deploy/ws-router/Dockerfile  -t everlingo-ws-router:0.1
@@ -252,43 +267,11 @@ node_modules/
 README.assets/
 ```
 
-> ws-router/ws-master 精简构建仅 `COPY pyproject.toml uv.lock`（deps stage）与 `COPY src/ src/`（runtime stage），上述目录均不参与构建。ws-container 需要 `web/` 但不需要 `web/node_modules/`（Stage1 自会 `npm ci` 重建）与 `web/dist/`（Stage1 自会 `npm run build` 现场生成），故排除二者而非整个 `web/`。三 Dockerfile 均以 `docker buildx build -f deploy/xxx/Dockerfile .` 从 repo root 构建，共用同一个 `.dockerignore`。
+> ws-container 与 ws-router 均含 frontend-builder stage（需要 `web/` 源码），ws-master 为精简构建（仅 `COPY pyproject.toml uv.lock` 与 `COPY src/ src/`）。`web/` 构建现场进行 `npm ci` / `npm run build`，故排除 `web/node_modules/`（Stage1 自会重建）与 `web/dist/`（Stage1 自会现场生成），保留 `web/` 源码供两镜像 frontend-builder 使用。三 Dockerfile 均以 `docker buildx build -f deploy/xxx/Dockerfile .` 从 repo root 构建，共用同一个 `.dockerignore`。
 
 ## 6. 部署步骤（运维参考）
 
-```bash
-# 1. 环境准备
-export DOCKER_GID=$(getent group docker | cut -d: -f3)
-export HOST_WS_DIR=$HOME/everlingo/workspaces
-mkdir -p $HOST_WS_DIR
-
-# 2. 构建 WS-Router / WS-Master 镜像
-#    也可跳过本地构建，直接拉取 GHCR：docker pull ghcr.io/<owner>/everlingo-ws-router:0.1.0
-#    代理环境下本地构建加 --build-arg HTTP_PROXY=... --build-arg HTTPS_PROXY=...
-docker buildx build -f deploy/ws-router/Dockerfile \
-  -t everlingo-ws-router:0.1 .
-docker buildx build -f deploy/ws-master/Dockerfile \
-  -t everlingo-ws-master:0.1 .
-
-# 3. 生成 secret
-openssl rand -hex 32 > /tmp/jwt_secret
-openssl rand -hex 32 > /tmp/master_secret
-
-# 4. 复制示例配置并填入 secret（示例见 deploy/examples/）
-#    cp deploy/examples/ws_router.yaml ./deploy/examples/ws_router.yaml  # 就地编辑或复制到 compose 目录
-#    在 ws_router.yaml 填入 jwt_secret / master_secret（步骤 3 生成的）
-#    在 ws_master.yaml 填入 shared_secret（= master_secret）、openai_api_key 等
-#    schema 参考 ws-router.md §5 / ws-master.md §5.1
-
-# 5. 启动 compose
-docker compose up -d
-
-# 6. 创建用户与 PAT（同时创建 default ws-container，status=absent）
-docker compose exec ws_master everlingo ws_master user add --name mark --display-name "Mark"
-docker compose exec ws_master everlingo ws_master pat add --user mark --label "curl-laptop"
-
-# 7. 配置 nginx（见 external-nginx.md），nginx -s reload
-```
+参考： [multiple-user-auth-deployment.md](/user-docs/deployment/multiple-user-auth-deployment.md)
 
 ## 7. 单用户独立部署（对照）
 

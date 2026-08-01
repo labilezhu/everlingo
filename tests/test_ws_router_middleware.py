@@ -15,6 +15,8 @@ from everlingo.ws_router.auth import create_session_token
 from everlingo.ws_router.config import RouterConfig
 from everlingo.ws_router.master_client import UserInfo
 
+import everlingo.ws_router.app as app_module
+
 
 @pytest.fixture
 def config() -> RouterConfig:
@@ -94,9 +96,24 @@ class TestAuthMiddleware:
         resp = client.get("/healthz")
         assert resp.status_code == 200
 
-    def test_login_path_no_auth(self, client):
+    def test_login_path_no_auth(self, client, tmp_path, monkeypatch):
+        dist = tmp_path / "dist"
+        dist.mkdir()
+        (dist / "login.html").write_text("<!doctype html><title>Login</title>")
+        monkeypatch.setattr(app_module, "_static_dir", lambda: str(dist))
         resp = client.get("/login")
         assert resp.status_code == 200
+
+    def test_static_assets_whitelisted_no_auth(self, client, tmp_path, monkeypatch):
+        dist = tmp_path / "dist"
+        (dist / "assets").mkdir(parents=True)
+        (dist / "assets" / "app.js").write_text("console.log('x')")
+        (dist / "favicon.png").write_bytes(b"png")
+        (dist / "manifest.webmanifest").write_text('{"name": "app"}')
+        monkeypatch.setattr(app_module, "_static_dir", lambda: str(dist))
+        for path in ("/assets/app.js", "/favicon.png", "/manifest.webmanifest"):
+            resp = client.get(path)
+            assert resp.status_code == 200
 
 
 # ---------------------------------------------------------------------------
