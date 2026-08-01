@@ -231,6 +231,7 @@ WS-Master 监听 `everlingo-net` 内 `ws_master:8101`，所有请求校验头 `X
 | POST | `/internal/ws/{ws_container_id}/ensure_started` | 强制拉起（即使 status=started 也探活） |
 | POST | `/internal/pat/verify` | 入参 `{token}` → `{user_id}` 或 401；成功时回写 `last_used_at` |
 | POST | `/internal/pat` | 入参 `{user_id, label, expires_at?}` → `{token, id}`（明文仅返回一次） |
+| GET | `/internal/users/{user_id}/pat` | 列出该 user 的 PAT：`[{id, label, created_at, last_used_at, expires_at}]`（不含 token_hash） |
 | GET | `/internal/healthz` | 自检 |
 
 > API 按多 ws 形状设计（`/ws`、`/ws/{id}/backend`），Phase 1 WS-Router 实际调用便捷端点 `default-ws/backend`。未来放开多 ws 时，WS-Router 可改为先列 ws 让用户选择，再调 `/internal/ws/{id}/backend`，无需 breaking change。原 `GET /internal/users/{user_id}/backend` 删除（语义含糊，被 default-ws/backend 取代）。

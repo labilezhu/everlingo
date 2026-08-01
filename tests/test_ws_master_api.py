@@ -240,6 +240,46 @@ class TestPatCreate:
 
 
 # ---------------------------------------------------------------------------
+# PAT list
+# ---------------------------------------------------------------------------
+
+
+class TestPatList:
+    def test_list_pat(self, client, config, setup_data):
+        """列出用户 PAT → 200，不含 token_hash"""
+        resp = client.get(
+            f"/internal/users/{setup_data['user'].user_id}/pat",
+            headers=_headers(config),
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["label"] == "test-token"
+        assert data[0]["id"] == setup_data["pat"].id
+        assert "token_hash" not in data[0]
+
+    def test_list_pat_empty(self, client, config, setup_data):
+        """无 PAT → 200 空列表"""
+        from everlingo.ws_master.db import get_conn
+        conn = get_conn(config.db)
+        conn.execute("DELETE FROM pat_tokens")
+        conn.commit()
+        conn.close()
+        resp = client.get(
+            f"/internal/users/{setup_data['user'].user_id}/pat",
+            headers=_headers(config),
+        )
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    def test_list_pat_user_not_found(self, client, config):
+        """不存在用户 → 404"""
+        resp = client.get("/internal/users/nonexistent/pat", headers=_headers(config))
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "user_not_found"
+
+
+# ---------------------------------------------------------------------------
 # Get user
 # ---------------------------------------------------------------------------
 

@@ -311,6 +311,7 @@ Phase 1 严格收敛到（设计文档已明确）：
 | D9 | PAT 明文格式 `elpat_<base62>` | 2026-07-29 |
 | D10 | `users/{id}/ws` 响应含 `container_name` 字段 | 2026-07-29 |
 | D11 | `/internal/healthz` 成功响应 `{"status":"ok"}` | 2026-07-29 |
+| D12 | WS-Router 提供认证自服务页（`/self-service`、`/self-service/pat`），PAT list 经新增 `GET /internal/users/{uid}/pat`，create 复用 `POST /internal/pat`（D5 作废） | 2026-08-01 |
 
 ---
 

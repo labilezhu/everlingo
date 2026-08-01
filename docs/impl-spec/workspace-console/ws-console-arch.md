@@ -246,10 +246,15 @@ input: {
   editor: 'editor.html',
   me: 'me.html',
   'web-console': 'web-console.html',
+  login: 'login.html',
+  'self-service': 'self-service.html',
+  pat: 'pat.html',
 }
 ```
 
 新增 `web/me.html`、`web/web-console.html`（结构同 `web/editor.html`，引用各自 `src/*/main.tsx`）。
+
+> `login` / `self-service` / `pat` entry 供 WS-Router 使用（登录页与认证自服务页），构建产物 `web/dist` 由 ws-router 与 ws-container 两个镜像共享（见 [ws-router.md](../multiple-users/ws-router.md) §6）。
 
 ### 6.2 目录
 
@@ -303,25 +308,27 @@ web/src/
 
 项目不用 react-router（`/editor` 走 `window.location.href` 全页跳转）。`/console/me`、`/console/web-console` 沿用同模式，各自独立 entry。`/console/web-console` 下子页（wechat channel admin）目前单一，无需客户端路由；将来多子项时用 hash 或 query 区分。
 
-### 6.6 Me 页 logout 按钮
+### 6.6 Me 页底部「账号」入口
 
-`web/src/me/MePage.tsx` 底部（`main` 之后）追加贴底 `footer`，内含全宽 `退出登录` 按钮（`lucide-react` 的 `LogOut` 图标，ghost variant）：
+`web/src/me/MePage.tsx` 底部（`main` 之后）贴底 `footer`，内含全宽 `账号` 入口按钮（`lucide-react` 的 `UserRound` 图标，ghost variant），点击跳转 WS-Router 的「用户认证自服务」页：
 
 ```tsx
 <footer className="shrink-0 border-t border-border px-3 py-3 md:px-4">
   <Button
     variant="ghost"
     className="w-full justify-start gap-2 text-muted-foreground"
-    onClick={() => { window.location.href = '/logout'; }}
+    onClick={() => { window.location.href = '/self-service'; }}
   >
-    <LogOut className="size-4" />
-    退出登录
+    <UserRound className="size-4" />
+    账号
   </Button>
 </footer>
 ```
 
-- **跨拓扑行为**：`GET /logout` 是 WS-Router 自有路由（[ws-router.md](../multiple-users/ws-router.md) §4.1），不在后端透传列表内，浏览器请求会先命中 WS-Router → 清 `everlingo_sess` cookie + 302 `/login`。因此仅**多用户部署**（经 WS-Router）下语义成立。
-- **单用户本地拓扑**（`python -m everlingo --channel_web`，无 WS-Router）：`web_acceptor.py` 无 `/logout` 路由，点击 404——属预期行为，该拓扑无认证，logout 无意义，不为此加 feature detection 或后端 no-op 路由。
+「退出登录」按钮不再在 Me 页直接提供，改为集中在 WS-Router 自服务页（[ws-router.md](../multiple-users/ws-router.md) §4.6：`/self-service` 底部即退出登录、`/self-service/pat` 管理永久 Token）。
+
+- **跨拓扑行为**：`/self-service` 是 WS-Router 自有路由（[ws-router.md](../multiple-users/ws-router.md) §4.1），不在后端透传列表内。仅**多用户部署**（经 WS-Router）下语义成立：浏览器请求 `GET /self-service` 命中 WS-Router → 认证通过返回自服务页，未认证 302 `/login`。
+- **单用户本地拓扑**（`python -m everlingo --channel_web`，无 WS-Router）：`web_acceptor.py` 无 `/self-service` 路由，点击会落入 catch-all `serve_frontend` → 返回 `index.html`（chatbot SPA）。属预期行为，该拓扑无认证，账号自服务无意义，不为此加 feature detection 或后端 no-op 路由。
 
 ## 7. 自动启动与 enable 持久化
 

@@ -1,4 +1,4 @@
-import { ArrowLeft, LogOut, Settings2 } from 'lucide-react';
+import { ArrowLeft, Settings2, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const entries = [
@@ -45,10 +45,10 @@ export default function MePage() {
         <Button
           variant="ghost"
           className="w-full justify-start gap-2 text-muted-foreground"
-          onClick={() => { window.location.href = '/logout'; }}
+          onClick={() => { window.location.href = '/self-service'; }}
         >
-          <LogOut className="size-4" />
-          退出登录
+          <UserRound className="size-4" />
+          账号
         </Button>
       </footer>
     </div>

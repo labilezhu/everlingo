@@ -124,8 +124,10 @@
 
 生成 PAT。明文 token 仅本次响应返回，WS-Master 以 sha256 哈希存储。
 
-> **Phase 1**：实现本端点，但 WS-Router 不调用（PAT 经 WS-Master CLI 生成，见
-> [ws-master.md](./ws-master.md) §8）。保留此端点供未来「Web UI 生成 PAT」使用。
+> **Phase 1**：实现本端点，WS-Router 不调用（PAT 经 WS-Master CLI 生成，见
+> [ws-master.md](./ws-master.md) §8）。
+> **2026-08-01 起**：WS-Router 认证自服务页（`/self-service/pat`）经
+> `MasterClient.pat_create` 调用本端点生成永久 Token（见 [ws-router.md](./ws-router.md) §4.6）。
 
 **请求**
 ```json
@@ -159,7 +161,33 @@
 
 ---
 
-### 2.4 `GET /internal/users/{user_id}`
+### 2.4 `GET /internal/users/{user_id}/pat`
+
+列出该 user 的所有 PAT。供 WS-Router 自服务页「永久 Token」列表使用。**不返回 `token_hash`**（无意义且有泄露风险）。
+
+**成功** `200`
+```json
+[
+  {
+    "id": "660e8400-...",
+    "label": "chrome_ext",
+    "created_at": "2026-07-29T12:00:00Z",
+    "last_used_at": "2026-08-01T08:00:00Z",
+    "expires_at": null
+  }
+]
+```
+- `last_used_at` / `expires_at` 可为 `null`。
+
+**错误**
+
+| HTTP | code | 含义 |
+|---|---|---|
+| 404 | `user_not_found` | |
+
+---
+
+### 2.5 `GET /internal/users/{user_id}`
 
 查用户基本信息。WS-Router `/me` 端点用此获取（可改的）`display_name`。
 
@@ -181,7 +209,7 @@
 
 ---
 
-### 2.5 `GET /internal/users/{user_id}/ws`
+### 2.6 `GET /internal/users/{user_id}/ws`
 
 列出该 user 的所有 ws-container。未来放开多 ws 时 WS-Router 用于让用户选择 ws。
 
@@ -208,7 +236,7 @@
 
 ---
 
-### 2.6 `GET /internal/users/{user_id}/default-ws/backend`
+### 2.7 `GET /internal/users/{user_id}/default-ws/backend`
 
 解析 default ws-container 并 lazy start。**Phase 1 WS-Router 实际使用的便捷端点。**
 
@@ -243,7 +271,7 @@
 
 ---
 
-### 2.7 `GET /internal/ws/{ws_container_id}/backend`
+### 2.8 `GET /internal/ws/{ws_container_id}/backend`
 
 按 ws_container_id 解析（lazy start）。未来多 ws 时 WS-Router 选定 ws 后调用。语义与 §2.6 相同，
 仅查询维度不同（按 ws_container_id 而非 user_id+default）。
@@ -259,7 +287,7 @@
 
 ---
 
-### 2.8 `POST /internal/ws/{ws_container_id}/ensure_started`
+### 2.9 `POST /internal/ws/{ws_container_id}/ensure_started`
 
 强制拉起（即使 status=started 也重新探活）。用于 WS-Router 检测到后端异常时主动触发恢复。
 
@@ -280,7 +308,7 @@
 
 ---
 
-### 2.9 `GET /internal/healthz`
+### 2.10 `GET /internal/healthz`
 
 WS-Master 自检（进程存活 + sqlite 可读）。
 

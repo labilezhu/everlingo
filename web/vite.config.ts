@@ -22,6 +22,8 @@ export default defineConfig({
         me: path.resolve(__dirname, 'me.html'),
         'web-console': path.resolve(__dirname, 'web-console.html'),
         login: path.resolve(__dirname, 'login.html'),
+        'self-service': path.resolve(__dirname, 'self-service.html'),
+        pat: path.resolve(__dirname, 'pat.html'),
       },
     },
   },

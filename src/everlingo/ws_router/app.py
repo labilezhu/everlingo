@@ -194,6 +194,80 @@ def create_app(config: RouterConfig) -> FastAPI:
     async def healthz(request: Request):
         return JSONResponse(content={"status": "ok"})
 
+    @app.get("/self-service")
+    async def get_self_service(request: Request):
+        index = os.path.join(_static_dir(), "self-service.html")
+        if not os.path.exists(index):
+            return JSONResponse(
+                content={"message": "Frontend not built. Run `npm run build` in the web/ directory."},
+                status_code=503,
+            )
+        return FileResponse(index)
+
+    @app.get("/self-service/pat")
+    async def get_self_service_pat(request: Request):
+        index = os.path.join(_static_dir(), "pat.html")
+        if not os.path.exists(index):
+            return JSONResponse(
+                content={"message": "Frontend not built. Run `npm run build` in the web/ directory."},
+                status_code=503,
+            )
+        return FileResponse(index)
+
+    @app.get("/self-service/api/pats")
+    async def list_self_service_pats(request: Request):
+        state: AppState = request.app.state.state
+        user_id = request.state.user_id
+
+        pats = await state.master.pat_list(user_id)
+        if pats is None:
+            return JSONResponse(
+                content={"error": {"code": "pat_list_failed", "message": "Failed to list tokens"}},
+                status_code=502,
+            )
+        return JSONResponse(
+            content=[
+                {
+                    "id": p.id,
+                    "label": p.label,
+                    "created_at": p.created_at,
+                    "last_used_at": p.last_used_at,
+                    "expires_at": p.expires_at,
+                }
+                for p in pats
+            ]
+        )
+
+    @app.post("/self-service/api/pats")
+    async def create_self_service_pat(request: Request):
+        state: AppState = request.app.state.state
+        user_id = request.state.user_id
+
+        body = await request.json()
+        label = body.get("label", "").strip()
+        if not label:
+            return JSONResponse(
+                content={"error": {"code": "invalid_request", "message": "label is required"}},
+                status_code=400,
+            )
+
+        result = await state.master.pat_create(user_id, label)
+        if result is None:
+            return JSONResponse(
+                content={"error": {"code": "pat_create_failed", "message": "Failed to create token"}},
+                status_code=502,
+            )
+        return JSONResponse(
+            content={
+                "id": result.id,
+                "token": result.token,
+                "label": result.label,
+                "created_at": result.created_at,
+                "expires_at": result.expires_at,
+            },
+            status_code=201,
+        )
+
     @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])
     async def catch_all(request: Request, path: str):
         state: AppState = request.app.state.state

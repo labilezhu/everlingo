@@ -27,6 +27,24 @@ class BackendInfo:
     status: str
 
 
+@dataclass
+class PatInfo:
+    id: str
+    label: str
+    created_at: str
+    last_used_at: str | None = None
+    expires_at: str | None = None
+
+
+@dataclass
+class PatCreateResult:
+    id: str
+    token: str
+    label: str
+    created_at: str
+    expires_at: str | None = None
+
+
 class MasterClient:
     def __init__(self, base_url: str, secret: str, timeout: int = 90):
         self._base_url = base_url.rstrip("/")
@@ -72,6 +90,48 @@ class MasterClient:
             return None
         except httpx.RequestError as e:
             logger.warning("MasterClient.pat_verify failed: %s", e)
+            return None
+
+    async def pat_list(self, user_id: str) -> list[PatInfo] | None:
+        try:
+            resp = await self._client.get(f"/internal/users/{user_id}/pat")
+            if resp.status_code == 200:
+                data = resp.json()
+                return [
+                    PatInfo(
+                        id=item["id"],
+                        label=item["label"],
+                        created_at=item["created_at"],
+                        last_used_at=item.get("last_used_at"),
+                        expires_at=item.get("expires_at"),
+                    )
+                    for item in data
+                ]
+            logger.warning("MasterClient.pat_list: master returned status=%d", resp.status_code)
+            return None
+        except httpx.RequestError as e:
+            logger.warning("MasterClient.pat_list failed: %s", e)
+            return None
+
+    async def pat_create(self, user_id: str, label: str, expires_at: str | None = None) -> PatCreateResult | None:
+        try:
+            resp = await self._client.post(
+                "/internal/pat",
+                json={"user_id": user_id, "label": label, "expires_at": expires_at},
+            )
+            if resp.status_code == 201:
+                data = resp.json()
+                return PatCreateResult(
+                    id=data["id"],
+                    token=data["token"],
+                    label=data["label"],
+                    created_at=data["created_at"],
+                    expires_at=data.get("expires_at"),
+                )
+            logger.warning("MasterClient.pat_create: master returned status=%d", resp.status_code)
+            return None
+        except httpx.RequestError as e:
+            logger.warning("MasterClient.pat_create failed: %s", e)
             return None
 
     async def get_user(self, user_id: str) -> UserInfo | None:

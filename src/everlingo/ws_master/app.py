@@ -216,6 +216,25 @@ def create_app(config: MasterConfig) -> FastAPI:
             for ws in containers
         ])
 
+    @app.get("/internal/users/{user_id}/pat")
+    async def list_user_pat(request: Request, user_id: str):
+        state: AppState = request.app.state.state
+        user = state.user_repo.get_by_id(user_id)
+        if user is None:
+            raise _error("user_not_found", f"User {user_id} not found", status=404)
+
+        pats = state.pat_repo.list_by_user(user_id)
+        return _ok([
+            {
+                "id": pat.id,
+                "label": pat.label,
+                "created_at": pat.created_at,
+                "last_used_at": pat.last_used_at,
+                "expires_at": pat.expires_at,
+            }
+            for pat in pats
+        ])
+
     @app.get("/internal/users/{user_id}/default-ws/backend")
     async def get_default_backend(request: Request, user_id: str):
         state: AppState = request.app.state.state

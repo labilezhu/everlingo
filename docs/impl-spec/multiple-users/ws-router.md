@@ -128,6 +128,10 @@ Phase 1 只需保证 `AuthProvider` 抽象与 `user_identities` 表 schema 存�
 | GET / POST | `/login` | 登录页（React SPA）/ 提交凭证（JSON） |
 | GET | `/logout` | 清 cookie，302 `/login` |
 | GET | `/me` | 返回 `{user_id, user_name, display_name}` |
+| GET | `/self-service` | 用户认证自服务页（React SPA，需登录） |
+| GET | `/self-service/pat` | 永久 Token（浏览器扩展用）页（React SPA，需登录） |
+| GET | `/self-service/api/pats` | 列出当前用户 PAT（JSON，需登录） |
+| POST | `/self-service/api/pats` | 生成新 PAT，入参 `{label}` → `{id, token(明文仅一次), label, created_at, expires_at}`（需登录） |
 | GET | `/login/google` | （预留）重定向到 Google OAuth |
 | GET | `/login/google/callback` | （预留）OAuth 回调 |
 | GET | `/assets/{path:path}` | 前端静态资源（登录页 + 公开 chunk） |
@@ -227,6 +231,17 @@ CORSMiddleware(
 
 因程序化客户端用 `Authorization` 头而非 cookie，`allow_credentials=False` 即可。CORSMiddleware 自动处理 OPTIONS 预检。
 
+### 4.6 用户认证自服务页（self-service）
+
+WS-Router 提供两个认证自服务 SPA 页面（React SPA，与登录页同属 `web/` Vite 项目，独立 entry），**post-auth** 访问（不在 auth_middleware 白名单，未认证浏览器 302 `/login`，程序化客户端 401）：
+
+- `GET /self-service` → `web/dist/self-service.html`：header 后退按钮 + 「永久 Token」入口卡片 + 底部「退出登录」按钮（`GET /logout`）。
+- `GET /self-service/pat` → `web/dist/pat.html`：header 后退按钮 + 生成表单（仅 `label`）+ 明文 token 展示（仅一次 + 复制按钮）+ 当前用户 PAT 列表。
+
+PAT 数据经 WS-Router 后端调 WS-Master internal API（`MasterClient.pat_list` / `pat_create`），不透传 ws-container；`request.state.user_id` 来自 auth_middleware 验签结果。明文 token 仅创建响应返回一次。
+
+路由注册在 catch-all（反代）之前，避免被透传到后端 ws-container。前端后退按钮用 `history.back()`，无历史时回退 `/` 或 `/self-service`。
+
 ## 5. 配置
 
 `ws_router.yaml` 所有字符串字段默认支持 `os.path.expandvars` 环境变量展开（`${VAR}` / `$VAR` 嵌入式均可），
@@ -262,7 +277,7 @@ ws_router:
 
 ## 6. 镜像
 
-`deploy/ws-router/Dockerfile`，含 frontend-builder stage（构建 `web/` 前端 → `web/dist`），runtime 携带 `web/dist` 用于本地服务登录页与公开静态资源（见 §4.3）。其余依赖与 WS-Master 相同（`src/`、`pyproject.toml`）。详见 [deploy.md](./deploy.md) §5.2。
+`deploy/ws-router/Dockerfile`，含 frontend-builder stage（构建 `web/` 前端 → `web/dist`），runtime 携带 `web/dist` 用于本地服务登录页、认证自服务页（`/self-service`、`/self-service/pat`）与公开静态资源（见 §4.3 / §4.6）。其余依赖与 WS-Master 相同（`src/`、`pyproject.toml`）。详见 [deploy.md](./deploy.md) §5.2。
 
 ## 7. 关键不变量
 
