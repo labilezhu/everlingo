@@ -35,7 +35,7 @@
 ```bash
 ######## base conf ########
 
-export EVERLINGO_VER=0.1.0-rc.19
+export EVERLINGO_VER=0.1.0-rc.23
 
 export OPENAI_API_KEY=<your_api_key>
 export OPENAI_BASE_URL=https://openrouter.ai/api/v1
@@ -47,14 +47,12 @@ export EVERLINGO_PUBLIC_BASE_URL=https://your_domain
 export WS_ROUTER_TRUSTED_PROXY_IP=127.0.0.1
 export WS_ROUTER_LISTEN=127.0.0.1:8100
 
-# 3. 生成 secret
-export MASTER_SECRET=$(openssl rand -hex 32)
-export JWT_SECRET=$(openssl rand -hex 32)
-
 export HOST_WS_DIR=<your_workspaces_dir_at_host>
 
 export INIT_USER_NAME=<your_login_user_name>
 export INIT_USER_PASSWORD=<your_login_user_password>
+
+######## internal vars ########
 
 export DEPLOY_WORK_HOME=~/deploy_home
 export SRC_REPO_HOME=$DEPLOY_WORK_HOME/everlingo
@@ -85,6 +83,8 @@ docker pull $WS_ROUTER_IMAGE
 docker pull $WS_MASTER_IMAGE
 docker pull $WORKSPLACE_IMAGE #speed up the first boot
 export DOCKER_GID=$(getent group docker | cut -d: -f3)
+export MASTER_SECRET=$(openssl rand -hex 32)
+export JWT_SECRET=$(openssl rand -hex 32)
 docker compose -p everctl up
 
 
@@ -93,6 +93,11 @@ docker compose -p everctl up
 docker exec -it everctl-ws_master-1  python -m everlingo ws_master --config /etc/everlingo/ws_master.yaml user add --name $INIT_USER_NAME --display-name "$INIT_USER_NAME" --password $INIT_USER_PASSWORD
 
 docker exec -it everctl-ws_master-1  python -m everlingo ws_master --config /etc/everlingo/ws_master.yaml ws start --user $INIT_USER_NAME
+
+##### 生成 浏览器扩展用的 PAT token #### 
+
+docker exec -it everctl-ws_master-1  python -m everlingo ws_master --config /etc/everlingo/ws_master.yaml pat add --user $INIT_USER_NAME --label chrome_ext
+
 
 ```
 

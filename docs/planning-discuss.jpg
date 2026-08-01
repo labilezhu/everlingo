@@ -1,4 +1,50 @@
 
+看看这个方案的可行性，合理性：
+
+## PR1: ws-router 新增两个页面
+
+[ws-router](docs/impl-spec/multiple-users/ws-router.md) 中新增两个页面：
+
+- `用户认证自服务` 
+- `永久 token (浏览器扩展用)`
+
+
+### `用户认证自服务` 页面
+ url path : `ws-router/self-service`
+
+页面的主功能： 
+- 退出登录。 退出登录按钮在页面最底部。
+- 有一个按钮，可跳转到 -> `生成永久 token (浏览器扩展用)`
+
+页面 header 最左边需要有后退按钮。
+
+### `永久 token (浏览器扩展用)` 页面
+ url path : `ws-router/self-service/pat`
+
+页面 header 最左边需要有后退按钮。
+
+支持两个功能：
+- 列出当前用户的 PAT
+- 生成新 PAT
+
+生成新 PAT 功能类似：
+```
+docker exec -it everctl-ws_master-1  python -m everlingo ws_master --config /etc/everlingo/ws_master.yaml pat add --user $INIT_USER_NAME --label chrome_ext
+```
+用户只需要输入 label 。
+
+## PR2: Workspace Console 的 Me 页 
+
+[Workspace Console](docs/impl-spec/workspace-console/ws-console-arch.md) 的 `Me 页`(url path: /console/me) 。
+
+- 删除原“退出登录”按钮
+- 在原“退出登录”按钮位置（页面最底部），加入 ws-router 的 `用户认证自服务` 页面的入口。位置是页面最底部
+
+
+
+
+---
+
 把 [ws-router](docs/impl-spec/multiple-users/ws-router.md) 的前端架构技术stack，调整为与 docs/impl-spec/web-chatbot.md 的 “前端技术选型” 一致。而不是现在的直接 python 中写 html 的方法。
 即调整为：
 
