@@ -27,17 +27,17 @@ Workspace Console
 入口挂在 [Standalone Web Chatbot](../web-chatbot.md) header 上：
 
 ```
-Standalone Web Chatbot  ──[Me]──►  /me  ──[Workspace Console]──►  /web-console
+Standalone Web Chatbot  ──[Me]──►  /console/me  ──[Workspace Console]──►  /console/web-console
                                                                               │
                                                   channels admin ◄──────────┘
                                                                               │
                                                   wechat channel admin ◄─────┘
 ```
 
-- `Me` 按钮：在 chatbot header「笔记编辑器」按钮右侧（[web-chatbot.md §Header](../web-chatbot.md)），点击 `window.location.href = '/me'`。
-- `/me` 页：本期仅一个「Workspace Console」入口按钮（预留扩展位）。
-- `/web-console`：console 首页，列出 channels admin 下各子项。
-- `/web-console/plugins/channels/wechat_channel/admin`：wechat channel admin 页。
+- `Me` 按钮：在 chatbot header「笔记编辑器」按钮右侧（[web-chatbot.md §Header](../web-chatbot.md)），点击 `window.location.href = '/console/me'`。
+- `/console/me` 页：本期仅一个「Workspace Console」入口按钮（预留扩展位）。
+- `/console/web-console`：console 首页，列出 channels admin 下各子项。
+- `/console/web-console/plugins/channels/wechat_channel/admin`：wechat channel admin 页。
 
 ## 文档索引
 

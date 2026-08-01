@@ -5,7 +5,7 @@ const entries = [
   {
     title: 'Workspace Console',
     description: '频道与网关管理',
-    href: '/web-console',
+    href: '/console/web-console',
     icon: Settings2,
   },
 ];

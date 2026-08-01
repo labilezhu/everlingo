@@ -140,7 +140,7 @@ async def serve_editor(path: str = ""):
     return FileResponse(editor_index)
 
 
-@app.get("/me")
+@app.get("/console/me")
 async def serve_me():
     """Me 页（Workspace Console 入口）。"""
     index = os.path.join(_static_dir(), "me.html")
@@ -151,8 +151,8 @@ async def serve_me():
     return FileResponse(index)
 
 
-@app.get("/web-console")
-@app.get("/web-console/{path:path}")
+@app.get("/console/web-console")
+@app.get("/console/web-console/{path:path}")
 async def serve_web_console(path: str = ""):
     """Workspace Console SPA（dist/web-console.html fallback）。"""
     index = os.path.join(_static_dir(), "web-console.html")

@@ -49,7 +49,7 @@ in-process 后 router 与 `WechatAdminState` 同进程，直接读 `state.snapsh
 | 模块 | 文件 | 职责 |
 |---|---|---|
 | gateway 主入口 | `src/everlingo/gateway/gateway.py` | explicit flag → 单 acceptor；无参 → 读 config 多 channel + gather。提供 `start_channel`/`stop_channel` 运行时注册（供 console 动态启停 wechat） |
-| web acceptor | `src/everlingo/gateway/web_acceptor.py`（既有，改） | 挂 `workspace_console_router`；新增 `/me`、`/web-console` 静态页 fallback |
+| web acceptor | `src/everlingo/gateway/web_acceptor.py`（既有，改） | 挂 `workspace_console_router`；新增 `/console/me`、`/console/web-console` 静态页 fallback |
 | wechat runtime | `src/everlingo/gateway/wechat_admin/runtime.py`（新） | `WechatRuntime`：实现 `SessionAcceptor`；托管 wechat channel 生命周期；on_logined 持久化；console 启停接口 |
 | workspace console router | `src/everlingo/gateway/workspace_console/router.py`（新） | `/api/wechat-channel/{status,start,stop}` 直调 `WechatRuntime` |
 | admin state | `src/everlingo/gateway/wechat_admin/state.py`（P1，保留） | 线程安全状态机，router 直接读 `snapshot()` |
@@ -231,8 +231,8 @@ workspace console router 暴露（前缀 `/api/wechat-channel`），直调 `gate
 
 仿 `/editor`（`web_acceptor.py`）新增 SPA fallback（早于 catch-all `/{path:path}` 注册）：
 
-- `GET /me` → `web/dist/me.html`
-- `GET /web-console`、`GET /web-console/{path}` → `web/dist/web-console.html`
+- `GET /console/me` → `web/dist/me.html`
+- `GET /console/web-console`、`GET /console/web-console/{path}` → `web/dist/web-console.html`
 
 ## 6. 前端结构
 
@@ -275,7 +275,7 @@ web/src/
     <Button variant="ghost" size="sm" onClick={() => { window.location.href = '/editor'; }}>
       <NotebookPen /><span className="hidden md:inline">笔记</span>
     </Button>
-    <Button variant="ghost" size="sm" onClick={() => { window.location.href = '/me'; }}>
+    <Button variant="ghost" size="sm" onClick={() => { window.location.href = '/console/me'; }}>
       <User /><span className="hidden md:inline">Me</span>
     </Button>
   </div>
@@ -301,7 +301,7 @@ web/src/
 
 ### 6.5 无客户端路由
 
-项目不用 react-router（`/editor` 走 `window.location.href` 全页跳转）。`/me`、`/web-console` 沿用同模式，各自独立 entry。`/web-console` 下子页（wechat channel admin）目前单一，无需客户端路由；将来多子项时用 hash 或 query 区分。
+项目不用 react-router（`/editor` 走 `window.location.href` 全页跳转）。`/console/me`、`/console/web-console` 沿用同模式，各自独立 entry。`/console/web-console` 下子页（wechat channel admin）目前单一，无需客户端路由；将来多子项时用 hash 或 query 区分。
 
 ## 7. 自动启动与 enable 持久化
 

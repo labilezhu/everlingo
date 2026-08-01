@@ -2,7 +2,7 @@ import { MessageSquare, Settings2 } from 'lucide-react';
 import WechatChannelAdmin from './WechatChannelAdmin';
 import { Button } from '@/components/ui/button';
 
-const WECHAT_ADMIN_PATH = '/web-console/plugins/channels/wechat_channel/admin';
+const WECHAT_ADMIN_PATH = '/console/web-console/plugins/channels/wechat_channel/admin';
 
 function ChannelsHome() {
   return (
@@ -32,7 +32,7 @@ export default function ConsolePage() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => { window.location.href = inWechatAdmin ? '/web-console' : '/me'; }}
+          onClick={() => { window.location.href = inWechatAdmin ? '/console/web-console' : '/console/me'; }}
         >
           <Settings2 className="rotate-180" />
         </Button>

@@ -56,14 +56,19 @@ export HOST_WS_DIR=<your_workspaces_dir_at_host>
 export INIT_USER_NAME=<your_login_user_name>
 export INIT_USER_PASSWORD=<your_login_user_password>
 
+export DEPLOY_WORK_HOME=~/deploy_home
+export SRC_REPO_HOME=$DEPLOY_WORK_HOME/everlingo
+
+export WORKSPLACE_IMAGE=ghcr.io/labilezhu/everlingo:${EVERLINGO_VER}
+export WS_MASTER_IMAGE=ghcr.io/labilezhu/everlingo-ws-master:${EVERLINGO_VER}
+export WS_ROUTER_IMAGE=ghcr.io/labilezhu/everlingo-ws-router:${EVERLINGO_VER}
+
 ####### build deploy home ########
 
-mkdir ~/deploy_home
-cd ~/deploy_home
-export DEPLOY_WORK_HOME=$(pwd)
+mkdir $DEPLOY_WORK_HOME
+cd $DEPLOY_WORK_HOME
 
 git clone --branch v${EVERLINGO_VER} --depth 1 https://github.com/labilezhu/everlingo.git
-export SRC_REPO_HOME=$(pwd)/everlingo
 
 cp $SRC_REPO_HOME/deploy/examples/* ./
 
@@ -75,11 +80,6 @@ mkdir -p $HOST_WS_DIR
 
 
 cd $DEPLOY_WORK_HOME
-
-export WORKSPLACE_IMAGE=ghcr.io/labilezhu/everlingo:${EVERLINGO_VER}
-export WS_MASTER_IMAGE=ghcr.io/labilezhu/everlingo-ws-master:${EVERLINGO_VER}
-export WS_ROUTER_IMAGE=ghcr.io/labilezhu/everlingo-ws-router:${EVERLINGO_VER}
-
 
 docker pull $WS_ROUTER_IMAGE
 docker pull $WS_MASTER_IMAGE
@@ -144,6 +144,7 @@ sudo nginx -t && sudo systemctl reload nginx
 ## Clean up
 
 ```bash
+cd $DEPLOY_WORK_HOME
 docker compose -p everctl down
 
 docker ps -aq --filter label=app=everlingo | xargs -r docker rm -f

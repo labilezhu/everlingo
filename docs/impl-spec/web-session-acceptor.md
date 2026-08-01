@@ -103,8 +103,8 @@ app.add_middleware(
 
 静态页 fallback（早于 catch-all `/{path:path}` 注册）：
 - `/editor`、`/editor/{path}` → `web/dist/editor.html`（既有）
-- `/me` → `web/dist/me.html`（2026-07 新增）
-- `/web-console`、`/web-console/{path}` → `web/dist/web-console.html`（2026-07 新增）
+- `/console/me` → `web/dist/me.html`（2026-07 新增）
+- `/console/web-console`、`/console/web-console/{path}` → `web/dist/web-console.html`（2026-07 新增）
 
 
 ## Session 超时回收

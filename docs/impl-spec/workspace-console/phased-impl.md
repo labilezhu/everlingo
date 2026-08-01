@@ -64,7 +64,7 @@ P1 产物中：
    - 见 architecture §5.2
 9. `src/everlingo/gateway/web_acceptor.py` 改造
    - `app.include_router(workspace_console_router)`
-   - 静态页 fallback：`/me`、`/web-console`、`/web-console/{path}`（早于 catch-all）
+   - 静态页 fallback：`/console/me`、`/console/web-console`、`/console/web-console/{path}`（早于 catch-all）
    - 见 architecture §5.1、§5.3
 10. `deploy/ws-container/root/app/entrypoint.sh:35` — `python -m everlingo gateway --channel_web` → `python -m everlingo gateway`（config-driven）
 
@@ -103,7 +103,7 @@ uv run python -m everlingo.gateway --channel_wechat &
 
 1. `web/vite.config.ts`：`rollupOptions.input` 增 `me`、`web-console` entry
 2. `web/me.html`、`web/web-console.html`（仿 `web/editor.html`）
-3. `web/src/me/main.tsx`、`web/src/me/MePage.tsx`：一个「Workspace Console」按钮 → `/web-console`
+3. `web/src/me/main.tsx`、`web/src/me/MePage.tsx`：一个「Workspace Console」按钮 → `/console/web-console`
 4. `web/src/web-console/main.tsx`、`web/src/web-console/ConsolePage.tsx`：列出 channels admin 下入口（本期仅 wechat）
 5. `web/src/web-console/WechatChannelAdmin.tsx`、`web/src/web-console/useWechatChannelStatus.ts`
    - hook：2s 轮询 `GET /api/wechat-channel/status`
@@ -118,8 +118,8 @@ uv run python -m everlingo.gateway --channel_wechat &
 cd web && npm run build
 uv run python -m everlingo.gateway &
 # 浏览器打开 http://localhost:8000/
-# 点 header [Me] → /me → [Workspace Console] → /web-console
-# 点 wechat channel admin → /web-console/plugins/channels/wechat_channel/admin
+# 点 header [Me] → /console/me → [Workspace Console] → /console/web-console
+# 点 wechat channel admin → /console/web-console/plugins/channels/wechat_channel/admin
 # 点 [启动] → 等 status running=true, state=waiting_scan
 # 点 [打开扫码页] → 新 Tab 打开 QR 网页 → 手机扫码
 # 状态流转 waiting_scan → scanned → logined

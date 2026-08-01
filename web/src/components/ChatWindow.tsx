@@ -114,7 +114,7 @@ export default function ChatWindow({ embedded, linkListener, resourceContextProv
               <NotebookPen />
               <span className="hidden md:inline">笔记</span>
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => { window.location.href = '/me'; }}>
+            <Button variant="ghost" size="sm" onClick={() => { window.location.href = '/console/me'; }}>
               <User />
               <span className="hidden md:inline">Me</span>
             </Button>
