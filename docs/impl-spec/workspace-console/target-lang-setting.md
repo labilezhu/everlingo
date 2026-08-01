@@ -116,7 +116,7 @@ Web 前端给用户一个可视化选择**默认目标学习语言**并初始化
 | English | Yes | 已初始化 |
 | 日本語 | No | 未初始化 |
 | Français | No | 未初始化 |
-| 简体中文 | No | 未初始化 |
+| 简体中文 | No | 已初始化 |
 | Deutsch | No | 未初始化 |
 
 - **选中态**：行首圆点单选标识（选中 `border-primary bg-primary`）。

@@ -1,4 +1,8 @@
 
+在 docs/impl-spec/workspace-console/target-lang-setting.md 页面中。如果一个语言是当前的默认语言，但未初始化。这时 「保存」按钮 是 Disable 的，所以，这个页面不能初始化当前的默认语言。这不合理。应该是，「保存」按钮永远 Enable 。 按下后，如果未初始化。要做初始化。
+
+---
+
 看看以下设计的合理性，可行性。从产品设计和架构方面。
 
 ## 为 workspace-console 加入 `目标学习语言设置页`
