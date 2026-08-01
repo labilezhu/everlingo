@@ -46,13 +46,13 @@ def test_complete_profile():
     assert profile.validate() == []
 
 
-def test_same_languages_not_allowed():
+def test_same_languages_allowed():
+    """interface_language 与 target_language 可以相同"""
     profile = UserProfile(
         language=UserLanguage(interface_language="zh-CN", target_language="zh-CN")
     )
-    errors = profile.validate()
-    assert len(errors) == 1
-    assert "不能相同" in errors[0]
+    assert profile.is_complete()
+    assert profile.validate() == []
 
 
 def test_japanese_zh_profile():

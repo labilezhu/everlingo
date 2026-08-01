@@ -236,7 +236,7 @@ def _build_system_prompt(
 - `single_word` : 如果 {target_lang} 是 `英语` 时为1个单词，是 `简体中文` 时为一个中文词语，其它语言也如此类推。
 - `user_message_lang`： 你从用户最近的一条消息去识别出消息主要使用的语言
 - `src_lang`： 要查词或翻译的原语言，一般同 `user_message_lang`
-- `dest_lang`： 要查词或翻译输出的目标语言。一般默认是 {interface_lang}。 但如果 {interface_lang} 与 `src_lang` 相同时，应为  {target_lang}。 无论如何，`dest_lang` 不能与 `src_lang` 相同。
+- `dest_lang`： 要查词或翻译输出的目标语言。一般默认是 {interface_lang}。 但如果 {interface_lang} 与 `src_lang` 相同时，应为  {target_lang}。 如果 {target_lang} 也与 `src_lang` 相同，请自行选择另一种用户最可能理解的语言作为 `dest_lang`。 
 
 ## 基本配置
 当前生效配置包括：

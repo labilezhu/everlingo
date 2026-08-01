@@ -95,7 +95,7 @@ class UserLanguage(BaseModel):
     # 目标学习语言，可选值: zh-CN, en, ja, fr, de
     target_language: str = Field(
         default="",
-        description="目标学习语言，可选值: zh-CN, en, ja, fr, de，不能与 interface_language 相同",
+        description="目标学习语言，可选值: zh-CN, en, ja, fr, de",
         examples=["en"],
     )
 
@@ -116,12 +116,6 @@ class UserProfile(BaseModel):
             errors.append("界面语言未设置")
         if not self.language.target_language:
             errors.append("目标学习语言未设置")
-        if (
-            self.language.interface_language
-            and self.language.target_language
-            and self.language.interface_language == self.language.target_language
-        ):
-            errors.append("界面语言和目标学习语言不能相同")
         return errors
 
 

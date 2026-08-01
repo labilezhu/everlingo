@@ -35,7 +35,7 @@ user_profile:
   language:
     # 界面语言。可选值: "zh-CN", "en", "ja", "fr", "de"
     interface_language: zh-CN
-    # 目标学习语言。可选值: "zh-CN", "en", "ja", "fr", "de" 。不能与 interface_language 相同
+    # 目标学习语言。可选值: "zh-CN", "en", "ja", "fr", "de"
     target_language: en
 
 # 用户自由偏好笔记 (USER.md)

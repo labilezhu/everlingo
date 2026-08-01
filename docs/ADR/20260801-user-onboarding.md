@@ -181,7 +181,7 @@ POST /api/target-language/default
 
 ## 10. 实施顺序
 
-1. 前置变更（§2 清单）：解除 interface/target 互斥约束，改测试与文档。
+1. 前置变更（§2 清单）：解除 interface/target 互斥约束，改测试与文档。 （已完成）
 2. 后端：新增 `GET /api/user-profile/status`、`GET /api/target-language/list`、`POST /api/target-language/default` 三个端点（复用 MCP client）。
 3. 后端单测：端点行为 + indexer 不可达降级 + create_vault 静默调用。
 4. 前端：vite 入口 + `/console/me/target-language` 页面 + Me 页导航链接。

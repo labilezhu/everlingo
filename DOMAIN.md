@@ -36,8 +36,8 @@ language:
 
 | 字段 | 类型 | 可选值 | 说明 | 约束 |
 |------|------|--------|------|------|
-| `interface_language` | string | `"zh-CN"`, `"en"`, `"ja"`, `"fr"`, `"de"` | 界面语言 | 必选。不能与 `target_language` 相同 |
-| `target_language` | string | `"zh-CN"`, `"en"`, `"ja"`, `"fr"`, `"de"` | 目标学习语言 | 必选。不能与 `interface_language` 相同 |
+| `interface_language` | string | `"zh-CN"`, `"en"`, `"ja"`, `"fr"`, `"de"` | 界面语言 | 必选 |
+| `target_language` | string | `"zh-CN"`, `"en"`, `"ja"`, `"fr"`, `"de"` | 目标学习语言 | 必选 |
 
 
 ##### 示例
@@ -50,7 +50,6 @@ language:
 ##### 约束规则
 
 - `interface_language` 和 `target_language` 均必须设置
-- 两者不能相同
 
 ### 用户自由偏好笔记 - USER.md
 
