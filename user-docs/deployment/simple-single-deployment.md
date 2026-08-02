@@ -1,5 +1,9 @@
 # Simple Single Instance Deployment
 
+当前支持 amd64(Linux/Windows WSL PC) 与 arm64( M系列的 MacOS 下的 Linux 容器 / Raspberry Pi )
+
+其中，我已经实测的是 amd64 Linux / arm64 Raspberry Pi 。
+
 ##  Deployment mode 1 - Single Instance for Local Access
 
 Notice: Plain Text HTTP for local network access

@@ -1,5 +1,9 @@
 # 用户认证与多用户部署
 
+当前支持 amd64(Linux/Windows WSL PC) 与 arm64( M系列的 MacOS 下的 Linux 容器 / Raspberry Pi )
+
+其中，我已经实测的是 amd64 Linux / arm64 Raspberry Pi 。
+
 ## 拓扑
 
 全容器化（nginx 除外，假设 nginx 为宿主现有服务）：
