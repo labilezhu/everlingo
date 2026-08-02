@@ -46,7 +46,7 @@
 
 ![image-20260801223219592](./README.assets/web-note-editor-context-to-agent.png)
 
-*图：AI 编辑笔记，人机交互氛围编辑笔记， vibe noting*
+*图：AI 编辑笔记，人机交互氛围记笔记， vibe noting*
 
 
 
@@ -75,7 +75,23 @@
 
 ### 你所查的，整理成 wiki 笔记
 
-外语学习特别是专有领域的知识学习，需要记录和整理，但人总是懒的。记了么在你查询时顺手帮你把结果和你的补充整理成笔记。可查可改可浏览。AI 负责根据用户的想法，维护知识库。用户在自然沟通中轻松记录，避免了繁琐且容易出错的人工笔记维护。
+外语学习，特别是专有领域的用语学习，需要记录和整理，但人总是懒的。记了么在你查询时顺手帮你把结果和你的补充整理成笔记。可查可改可浏览。AI 负责根据用户的想法，维护知识库。用户在自然沟通中轻松记录，避免了繁琐且容易出错的人工笔记维护。
+
+![d](./README.assets/web-chat-save-word.png)
+
+![3](./README.assets/web-chat-preview-note.png)
+
+
+
+#### 浏览器插件：查询即记录
+
+划词、查词、翻译、网页阅读一体化。浏览英文网页时，看到不懂的词直接划一下，小记自动记录这个查询的上下文——你在看哪篇文章、哪个段落、前后文是什么。
+
+**让阅读过程本身变成学习素材。**
+
+![chrome-ext-menu.png](./README.assets/chrome-ext-menu.png)
+
+
 
 ### 像聊天一样学外语
 
@@ -101,7 +117,17 @@
 
 ![image-20260622180857462](./README.assets/wechat-wo-shi-ma-long.png)
 
-### 手机微信直接用
+
+
+### 多种接入方法
+
+- 微信
+- 手机网页应用 (PWA) 。可放手机主屏直接启动。
+- 电脑网页 / 手机网页
+- 电脑浏览器扩展摘录网页
+- 电脑文本终端
+
+#### 微信
 
 **不需要装 App，微信随时使用**。
 
@@ -109,7 +135,9 @@
 
 ![image-20260624103141166](./README.assets/wechat-read-ja.png)
 
-### 网页和终端也能用
+![a](./README.assets/a-1785641636193-6.png)
+
+#### 网站、终端
 
 如果你更喜欢在电脑前学习，记了么提供了 Web 网页界面和终端 TUI 两种接入方式。
 
@@ -121,14 +149,6 @@
 ![image-20260624120149513](./README.assets/web-ja-welcome.png)
 
   
-
-### 浏览器插件：查询即记录
-
-划词、查词、翻译、网页阅读一体化。浏览英文网页时，看到不懂的词直接划一下，小记自动记录这个查询的上下文——你在看哪篇文章、哪个段落、前后文是什么。
-
-**让阅读过程本身变成学习素材。**
-
-![chrome-ext-menu.png](./README.assets/chrome-ext-menu.png)
 
 
 
@@ -143,6 +163,8 @@
 2. 为所有 AI 应用提供了标准 MCP 接口笔记访问接口。让任何 AI Agent 无代码快速接入笔记库。
 
 
+
+计划实现笔记导出下载与同步到 github 功能。
 
 ### 多语言支持
 
@@ -196,7 +218,7 @@
 
 
 
-最后的最后，我想说说为什么有这个项目：
+最后，我想说说为什么有这个项目：
 
 - 我本人是一个无论前职场中，还是技术学习中均要使用外语的🐮🐴。深知记忆场景化和知识整理的重要性
 - 我认为我家的初中的娃需要，最少，是一个错题集和对错误的分类。然后可以复盘加强练习。而这些都是 AI 胜任的。
@@ -204,105 +226,67 @@
 
 
 
-最后的最后的最后，如果你觉得这开源项目 https://github.com/labilezhu/everlingo 将来有点用，记得给它打个小星星⭐。谢谢大家🤗！
+最后的最后，如果你觉得这开源项目 https://github.com/labilezhu/everlingo 将来有点用，记得给它打个小星星⭐。谢谢大家🤗！
 
 
 
 ## Quick Start
 
-### 源码运行
-
-Everlingo 是个分体式应用，包括两个进程：
-
-- Vault MCP Server(Indexer) : 知识库维护 MCP 服务，同时还是内容索引和搜索服务
-- Gateway : Everlingo 的用户接入端。提供各种 Channel 让用户接入。
-
-
-
-以后会有一个统一的管理进程去启动和管理他们。现在先麻烦大家手工启动了 ：） 
-
-#### Vault MCP Server(Indexer)
+### 简单快速 docker 运行
 
 ```bash
-export OPENAI_API_KEY=sk-xxxxf98300
-export OPENAI_BASE_URL=https://openrouter.ai/api/v1 
-export OPENAI_MODEL=deepseek/deepseek-v4-flash
-# Embedding 模型
-OPENAI_EMBEDDING_MODEL=qwen/qwen3-embedding-8b
+export HOST_WS_DIR=<your path to save workspace>
 
-uv run python -m everlingo mem indexer start
+export OPENAI_API_KEY=<your key>
+export OPENAI_BASE_URL=https://openrouter.ai/api/v1 # 兼容 OpenAI API 的 base URL
+export OPENAI_MODEL=deepseek/deepseek-v4-flash # LLM
+export OPENAI_EMBEDDING_MODEL=baai/bge-m3 # 语义搜索用的模型
+
+export EVERLINGO_PUBLIC_BASE_URL=http://your_host_ip:8000 # 能连接到将运行的 EverLingo 的地址。用于聊天消息中的笔记超链。
+export target_language=en # 目标学习语言： en/ja/zh-CN/fr/de
+
+export EVERLINGO_VER=0.1.0-rc.30
+
+mkdir -p ${HOST_WS_DIR}
+cd $HOST_WS_DIR
+
+cat >${HOST_WS_DIR}/everlingo.yaml << EOF
+sys_setting:
+  openai_api_key: "$OPENAI_API_KEY"
+  openai_base_url: $OPENAI_BASE_URL
+  openai_model: $OPENAI_MODEL
+  openai_embedding_model: $OPENAI_EMBEDDING_MODEL
+  logging_setting:
+    log_file: ''
+    log_level: debug
+user_profile:
+  language:
+    interface_language: zh-CN #默认界面语言是中文
+    target_language: ${target_language} #默认目标学习语言是英文
+
+plugins:
+  channels:
+    channel_web: # Web Session Acceptor 配置
+      listener: # 监听地址
+        port: 8000 # 默认 8000
+        interface: 0.0.0.0  # 默认 localhost
+      public_address: # 浏览器访问地址。如外网或 https 反向代理访问时配置
+        base_url: $EVERLINGO_PUBLIC_BASE_URL
+EOF
+
+WORKSPLACE_IMAGE=ghcr.io/labilezhu/everlingo:${EVERLINGO_VER}
+docker run --rm -d \
+  -p 8000:8000 \
+  -v ${HOST_WS_DIR}:/home/everlingo/.everlingo/workspaces/default \
+  --name everlingo -h everlingo \
+  ${WORKSPLACE_IMAGE}
 ```
 
 
 
-#### Gateway
+### 多用户与认证 部署
 
-
-TUI:
-```bash
-export OPENAI_API_KEY=sk-xxxxf98300
-export OPENAI_BASE_URL=https://openrouter.ai/api/v1 
-export OPENAI_MODEL=deepseek/deepseek-v4-flash
-# Embedding 模型
-OPENAI_EMBEDDING_MODEL=baai/bge-m3
-
-uv run python -m everlingo.main
-# or
-uv run python -m everlingo.gateway.gateway --channel_stdio
-```
-
-微信:
-```bash
-uv run python -m everlingo.gateway.gateway --channel_wechat
-```
-
-```log
-当前配置 — 界面语言: 简体中文, 目标学习语言: 日本語
-[wechatbot] Scan this URL in WeChat: https://liteapp.weixin.qq.com/q/7Giu1?qrcode=b0e7e2xxx&bot_type=3
-[wechatbot] Login confirmed
-[wechatbot] Logged in as o9cq80y@im.wechat
-[wechatbot] Long-poll started
-```
-
-#### 运行 Web 服务
-
-两个终端：
-终端 1 — 后端（FastAPI + uvicorn）
-
-```bash
-.venv/bin/python -m everlingo.gateway.gateway --channel_web
-```
-启动后监听 http://localhost:8000，提供 API 和静态文件。
-
-终端 2 — 前端开发（Vite 热更新）
-```bash
-cd web && npm run dev
-```
-启动后监听 http://localhost:5173，/api/* 自动代理到后端 8000 端口。
-
-如使用 http://localhost:8000 访问，如前端代码有变更，还需在启动 gateway 前:
-```bash
-pushd web
-rm -rf dist
-npm install          # 若 node_modules 缺失/版本变化
-npm run build        # tsc && vite build → 重新生成 dist/
-popd
-```
-构建一次，FastAPI 自动从 web/dist/ 提供前端文件。后端进程启动后，直接访问 http://localhost:8000 即可。
-
-
-
-#### Chrome 扩展
-
-```bash
-# 构建 extension
-cd extension
-npm run build # 产物在 extension/dist/
-
-# 加载扩展:
-# Chrome → chrome://extensions → 开启"开发者模式" → "加载已解压的扩展程序"
-# 选择 extension/dist 目录
-```
+见： [用户认证与多用户部署](user-docs/deployment/multiple-user-auth-deployment.md)
 
 
 
@@ -331,6 +315,110 @@ Web 前端：React + Vite + TailwindCSS + shadcn/ui
 
 
 开发使用了 Opencode 生成代码，但我永远要用 design spec 控制架构和对修改做 code review。完善的 design spec 文档可以让你的 coding agent 快速参与到这个项目。
+
+
+
+### 源码运行
+
+Everlingo 是个分体式应用，包括两个进程：
+
+- Vault MCP Server(Indexer) : 知识库维护 MCP 服务，同时还是内容索引和搜索服务
+- Gateway : Everlingo 的用户接入端。提供各种 Channel 让用户接入。
+
+
+
+以后会有一个统一的管理进程去启动和管理他们。现在先麻烦大家手工启动了 ：） 
+
+#### Vault MCP Server(Indexer)
+
+```bash
+export OPENAI_API_KEY=sk-xxxxf98300
+export OPENAI_BASE_URL=https://openrouter.ai/api/v1 
+export OPENAI_MODEL=deepseek/deepseek-v4-flash
+# Embedding 模型
+OPENAI_EMBEDDING_MODEL=baai/bge-m3
+
+uv run python -m everlingo mem indexer start
+```
+
+
+
+#### Gateway
+
+##### TUI
+
+```bash
+export OPENAI_API_KEY=sk-xxxxf98300
+export OPENAI_BASE_URL=https://openrouter.ai/api/v1 
+export OPENAI_MODEL=deepseek/deepseek-v4-flash
+# Embedding 模型
+OPENAI_EMBEDDING_MODEL=baai/bge-m3
+
+uv run python -m everlingo.main
+# or
+uv run python -m everlingo.gateway.gateway --channel_stdio
+```
+
+##### 微信
+
+```bash
+uv run python -m everlingo.gateway.gateway --channel_wechat
+```
+
+```log
+当前配置 — 界面语言: 简体中文, 目标学习语言: 日本語
+[wechatbot] Scan this URL in WeChat: https://liteapp.weixin.qq.com/q/7Giu1?qrcode=b0e7e2xxx&bot_type=3
+[wechatbot] Login confirmed
+[wechatbot] Logged in as o9cq80y@im.wechat
+[wechatbot] Long-poll started
+```
+
+##### Web
+
+两个终端：
+终端 1 — 后端（FastAPI + uvicorn）
+
+```bash
+.venv/bin/python -m everlingo.gateway.gateway --channel_web
+```
+
+启动后监听 http://localhost:8000，提供 API 和静态文件。
+
+终端 2 — 前端开发（Vite 热更新）
+
+```bash
+cd web && npm run dev
+```
+
+启动后监听 http://localhost:5173，/api/* 自动代理到后端 8000 端口。
+
+如使用 http://localhost:8000 访问，如前端代码有变更，还需在启动 gateway 前:
+
+```bash
+pushd web
+rm -rf dist
+npm install          # 若 node_modules 缺失/版本变化
+npm run build        # tsc && vite build → 重新生成 dist/
+popd
+```
+
+构建一次，FastAPI 自动从 web/dist/ 提供前端文件。后端进程启动后，直接访问 http://localhost:8000 即可。
+
+##### Chrome 扩展
+
+```bash
+# 构建 extension
+cd extension
+npm run build # 产物在 extension/dist/
+
+# 加载扩展:
+# Chrome → chrome://extensions → 开启"开发者模式" → "加载已解压的扩展程序"
+# 选择 extension/dist 目录
+```
+
+
+
+
 
 
 

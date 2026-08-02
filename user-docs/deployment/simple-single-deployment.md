@@ -6,20 +6,17 @@ Notice: Plain Text HTTP for local network access
 
 ```bash
 export HOST_WS_DIR=<your path to save workspace>
+
 export OPENAI_API_KEY=<your key>
-export base_url_for_browser=http://your_host_ip:8000
-export OPENAI_BASE_URL=https://openrouter.ai/api/v1
-export OPENAI_MODEL=deepseek/deepseek-v4-flash
-export OPENAI_EMBEDDING_MODEL=baai/bge-m3
-export target_language=en
+export OPENAI_BASE_URL=https://openrouter.ai/api/v1 # 兼容 OpenAI API 的 base URL
+export OPENAI_MODEL=deepseek/deepseek-v4-flash # LLM
+export OPENAI_EMBEDDING_MODEL=baai/bge-m3 # 语义搜索用的模型
 
-export EVERLINGO_VER=0.1.0-rc.19
+export EVERLINGO_PUBLIC_BASE_URL=http://your_host_ip:8000 # 能连接到将运行的 EverLingo 的地址。用于聊天消息中的笔记超链。
+export target_language=en # 目标学习语言： en/ja/zh-CN/fr/de
 
-# 宿主侧多用户隔离的目录命名（与容器内 os_user 无关）
+export EVERLINGO_VER=0.1.0-rc.30
 
-
-# 整目录挂载覆盖 default workspace
-# rm -rf ${HOST_WS_DIR}
 mkdir -p ${HOST_WS_DIR}
 cd $HOST_WS_DIR
 
@@ -44,28 +41,16 @@ plugins:
         port: 8000 # 默认 8000
         interface: 0.0.0.0  # 默认 localhost
       public_address: # 浏览器访问地址。如外网或 https 反向代理访问时配置
-        base_url: $base_url_for_browser
+        base_url: $EVERLINGO_PUBLIC_BASE_URL
 EOF
 
-image=ghcr.io/labilezhu/everlingo:${EVERLINGO_VER}
+WORKSPLACE_IMAGE=ghcr.io/labilezhu/everlingo:${EVERLINGO_VER}
 docker run --rm -d \
   -p 8000:8000 \
   -v ${HOST_WS_DIR}:/home/everlingo/.everlingo/workspaces/default \
   --name everlingo -h everlingo \
-  ${image}
-
-
-tail -f ${HOST_WS_DIR}/logs/*
+  ${WORKSPLACE_IMAGE}
 ```
 
-## Wechat Channel 自动恢复（可选）
-
-首次部署的 `everlingo.yaml` 仅配置 `channel_web`，不含 `channel_wechat`。要启用微信通道：
-
-1. 浏览器打开 web console（header `Me` → Workspace Console → wechat channel admin），点「启动」，扫码登录微信。
-2. 登录成功后，系统自动向 `everlingo.yaml` 写入 `plugins.channels.channel_wechat.enable: true`，并保存微信 credentials 到 `$workspace/plugins/channels/wechat_channel/credentials/credentials.json`。
-3. 此后每次容器/进程重启，gateway 无参启动会读 `channel_wechat.enable` 自动恢复 wechat，因 credentials 已存，`login(force=False)` 免扫码直接登录，无需手动干预。
-
-用户在 console 点「停止」会写 `enable: false`，下次重启不再自动启。再次「启动」并登录成功后恢复 `enable: true`。
-
-详见 [workspace-console/ws-console-arch.md](/docs/impl-spec/workspace-console/ws-console-arch.md)。
+成功后，访问网址：
+http://your_host_ip:8000

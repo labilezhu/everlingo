@@ -43,8 +43,9 @@ export OPENAI_MODEL=deepseek/deepseek-v4-flash
 export OPENAI_EMBEDDING_MODEL=baai/bge-m3
 
 export EVERLINGO_PUBLIC_BASE_URL=https://your_domain
-# Nginx 连接 到 Router 时，使用的源 IP 地址
+# Nginx 连接 到 Router 时，使用的源 IP 地址 。 用于安全
 export WS_ROUTER_TRUSTED_PROXY_IP=127.0.0.1
+# EverLingo 服务对外（一般是反向代理）的监听地址
 export WS_ROUTER_HOST_LISTEN_ADDR=127.0.0.1:8100
 
 export HOST_WS_DIR=<your_workspaces_dir_at_host>
@@ -101,9 +102,13 @@ docker exec -it everctl-ws_master-1  python -m everlingo ws_master --config /etc
 
 ```
 
+成功后，访问网址：
+http://$WS_ROUTER_HOST_LISTEN_ADDR
+测试
+
 ## 反向代理
 
-以下是一个示例配置：
+以下是一个 Nginx 示例配置：
 
 ```bash
 sudo tee /etc/nginx/sites-available/home-everlingo <<"EOF"
@@ -144,6 +149,7 @@ EOF
 sudo ln -s /etc/nginx/sites-available/home-everlingo /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
+
 
 
 ## Clean up
