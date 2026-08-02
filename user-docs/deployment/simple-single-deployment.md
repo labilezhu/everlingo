@@ -15,7 +15,7 @@ export OPENAI_EMBEDDING_MODEL=baai/bge-m3 # 语义搜索用的模型
 export EVERLINGO_PUBLIC_BASE_URL=http://your_host_ip:8000 # 能连接到将运行的 EverLingo 的地址。用于聊天消息中的笔记超链。
 export target_language=en # 目标学习语言： en/ja/zh-CN/fr/de
 
-export EVERLINGO_VER=0.1.0-rc.30
+export EVERLINGO_VER=0.1.0
 
 mkdir -p ${HOST_WS_DIR}
 cd $HOST_WS_DIR
