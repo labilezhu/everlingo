@@ -8,10 +8,10 @@ mark-specific/local-deploy/130_deploy/router-master@container/router-master@cont
 部署的 [Web Chatbot](docs/impl-spec/web-chatbot.md) 用户聊天中要求找笔记，笔记是找对了，但消息中的 markdown url link 变成了：
 
 ```
-https://home130-everlingo.mygraphql.com:6457/home130-everlingo.mygraphql.com:6457/editor?lang=en&path=items%2Fvocab%2Fdocker.md
+https://mydomain.com:6457/mydomain.com:6457/editor?lang=en&path=items%2Fvocab%2Fdocker.md
 ```
 
-重复了前缀 home130-everlingo.mygraphql.com:6457
+重复了前缀 mydomain.com:6457
 
 
 ---

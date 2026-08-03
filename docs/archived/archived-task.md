@@ -35,7 +35,7 @@
   - 设计文档同步：deploy.md（§2 compose command/ENTRYPOINT 拆分、§5.2/§5.3 Dockerfile 更新、新增 §5.4 示例配置布局、§5.5 .dockerignore）、external-nginx.md（§3 加落地路径注记）、phases.md（PR3 范围补全）。
 - 2026-07-29 | WS-Router / WS-Master Dockerfile 落盘到独立目录：新建 `deploy/ws-router/Dockerfile` 与 `deploy/ws-master/Dockerfile`（内容取自 deploy.md §5.2/§5.3 精简构建 sketch：deps + runtime 两 stage，跳过 frontend-builder，无 `web/dist`，仅加头部构建命令注释）。原设计文档路径 `deploy/ws-container/Dockerfile.ws_router` / `Dockerfile.ws_master` 从未落盘，本次为首次创建。路径引用同步更新：deploy.md（§5.2 标题 / §5.3 标题 / §6 两条 buildx 命令）、ws-master.md §9、ws-router.md §6、phases.md PR3 范围两条。archived-task.md 为历史快照未改。遗留待定：compose `command:` 与镜像 `ENTRYPOINT` 重复参数矛盾（PR3 落地时统一）；是否补 `HTTP_PROXY` build-arg（与现有 ws-container Dockerfile 对齐）待确认。
 - 2026-07-29 | 部署目录重组：`docs/impl-spec/deploy` → 顶层 `deploy/`，`docs/impl-spec/deploy/image` → `deploy/ws-container/`。全局引用更新：ARCHITECTURE.md、CI spec、multiple-users 下所有文档、web_acceptor.py 与 test_web_acceptor.py 的 ref 注释、TASKS.md。docs/archived/archived-task.md 为历史快照未改。
-- 2026-07-29 | 执行 `mark-specific/local-deploy/130_deploy/130-everlingo-nginx.md` 部署计划：§3.1 签发 TLS 证书（acme.sh dns_ali 成功签发 `home130-everlingo.mygraphql.com`）；§3.3+§3.4 新建 site 配置并启用；§4 验证通过（TLSv1.3 握手成功，nginx 正确透传到上游）。
+- 2026-07-29 | 执行 `mark-specific/local-deploy/130_deploy/130-everlingo-nginx.md` 部署计划：§3.1 签发 TLS 证书（acme.sh dns_ali 成功签发 `mydomain.com`）；§3.3+§3.4 新建 site 配置并启用；§4 验证通过（TLSv1.3 握手成功，nginx 正确透传到上游）。
 - 2026-07-29 | 完善 130-everlingo-nginx.md（公网 nginx TLS 反代到 `.130:8100` ws-router 的本地测试计划）：§2.2 改写 TLS terminate + 明文 HTTP proxy_pass 跨机透传；§2.3 SSE 长连接指令表；§2.4 trusted_proxy 跨机注意事项；§3.3 补全完整 server block 配置；同步更新 external-nginx.md §5。
 - 2026-07-29 当前 | **PR2 — WS-Router 模块**：完整实现前台反代 + 认证服务。配置加载、缓存工具、Master 客户端、认证模块（PasswordAuthProvider + JWT HS256）、auth_middleware（四路径认证）、反向代理（SSE 流式透传）、FastAPI 应用（含 CORS）。入口更新（main.py ws_router 子命令）。30 个新测试用例，全量 726 测试通过无回归。
 - 2026-07-29 当前 | **PR1 — WS-Master 模块**：完整实现三层架构。数据层（config/db/repo/pat_utils）、CLI 层（user/pat/ws/identity 子命令）、Internal API + 容器生命周期（FastAPI 9 端点 + docker SDK 状态机 + 并发控制 + idle timeout + 启动对账）。入口更新。75 个新测试用例，全量 696 测试通过无回归。
@@ -70,7 +70,7 @@
   - 设计文档同步：deploy.md（§2 compose command/ENTRYPOINT 拆分、§5.2/§5.3 Dockerfile 更新、新增 §5.4 示例配置布局、§5.5 .dockerignore）、external-nginx.md（§3 加落地路径注记）、phases.md（PR3 范围补全）。
 - 2026-07-29 | WS-Router / WS-Master Dockerfile 落盘到独立目录：新建 `deploy/ws-router/Dockerfile` 与 `deploy/ws-master/Dockerfile`（内容取自 deploy.md §5.2/§5.3 精简构建 sketch：deps + runtime 两 stage，跳过 frontend-builder，无 `web/dist`，仅加头部构建命令注释）。原设计文档路径 `deploy/ws-container/Dockerfile.ws_router` / `Dockerfile.ws_master` 从未落盘，本次为首次创建。路径引用同步更新：deploy.md（§5.2 标题 / §5.3 标题 / §6 两条 buildx 命令）、ws-master.md §9、ws-router.md §6、phases.md PR3 范围两条。archived-task.md 为历史快照未改。遗留待定：compose `command:` 与镜像 `ENTRYPOINT` 重复参数矛盾（PR3 落地时统一）；是否补 `HTTP_PROXY` build-arg（与现有 ws-container Dockerfile 对齐）待确认。
 - 2026-07-29 | 部署目录重组：`docs/impl-spec/deploy` → 顶层 `deploy/`，`docs/impl-spec/deploy/image` → `deploy/ws-container/`。全局引用更新：ARCHITECTURE.md、CI spec、multiple-users 下所有文档、web_acceptor.py 与 test_web_acceptor.py 的 ref 注释、TASKS.md。docs/archived/archived-task.md 为历史快照未改。
-- 2026-07-29 | 执行 `mark-specific/local-deploy/130_deploy/130-everlingo-nginx.md` 部署计划：§3.1 签发 TLS 证书（acme.sh dns_ali 成功签发 `home130-everlingo.mygraphql.com`）；§3.3+§3.4 新建 site 配置并启用；§4 验证通过（TLSv1.3 握手成功，nginx 正确透传到上游）。
+- 2026-07-29 | 执行 `mark-specific/local-deploy/130_deploy/130-everlingo-nginx.md` 部署计划：§3.1 签发 TLS 证书（acme.sh dns_ali 成功签发 `mydomain.com`）；§3.3+§3.4 新建 site 配置并启用；§4 验证通过（TLSv1.3 握手成功，nginx 正确透传到上游）。
 - 2026-07-29 | 完善 130-everlingo-nginx.md（公网 nginx TLS 反代到 `.130:8100` ws-router 的本地测试计划）：§2.2 改写 TLS terminate + 明文 HTTP proxy_pass 跨机透传；§2.3 SSE 长连接指令表；§2.4 trusted_proxy 跨机注意事项；§3.3 补全完整 server block 配置；同步更新 external-nginx.md §5。
 - 2026-07-29 当前 | **PR2 — WS-Router 模块**：完整实现前台反代 + 认证服务。配置加载、缓存工具、Master 客户端、认证模块（PasswordAuthProvider + JWT HS256）、auth_middleware（四路径认证）、反向代理（SSE 流式透传）、FastAPI 应用（含 CORS）。入口更新（main.py ws_router 子命令）。30 个新测试用例，全量 726 测试通过无回归。
 - 2026-07-29 当前 | **PR1 — WS-Master 模块**：完整实现三层架构。数据层（config/db/repo/pat_utils）、CLI 层（user/pat/ws/identity 子命令）、Internal API + 容器生命周期（FastAPI 9 端点 + docker SDK 状态机 + 并发控制 + idle timeout + 启动对账）。入口更新。75 个新测试用例，全量 696 测试通过无回归。
@@ -91,9 +91,9 @@
 - 2026-07-29 | 部署目录重组：`docs/impl-spec/deploy` → 顶层 `deploy/`，`docs/impl-spec/deploy/image` → `deploy/ws-container/`。全局引用更新：ARCHITECTURE.md、CI spec、multiple-users 下所有文档、web_acceptor.py 与 test_web_acceptor.py 的 ref 注释、TASKS.md。docs/archived/archived-task.md 为历史快照未改。
 
 - 2026-07-29 | 执行 `mark-specific/local-deploy/130_deploy/130-everlingo-nginx.md` 部署计划：
-  - §3.1 签发 TLS 证书：acme.sh dns_ali 成功签发 `home130-everlingo.mygraphql.com`，`--installcert` 到 `/etc/nginx/cert.d/`，`--reloadcmd` 触发 `nginx -s reload`。
+  - §3.1 签发 TLS 证书：acme.sh dns_ali 成功签发 `mydomain.com`，`--installcert` 到 `/etc/nginx/cert.d/`，`--reloadcmd` 触发 `nginx -s reload`。
   - §3.3+§3.4 新建 site 配置并启用：`/etc/nginx/sites-available/home130-everlingo` 写入完整 server block（6457 ssl IPv4+IPv6、SSE 配置、proxy_pass http://192.168.16.130:8100），`ln -s` 启用，`nginx -t` 通过，`systemctl reload nginx` 成功。
-  - §4 验证：在 `.130:8100` mock HTTP server，curl `https://home130-everlingo.mygraphql.com:6457/` 返回 `200 Hello from ws-router mock`。TLSv1.3 握手成功，证书验证通过，nginx 正确透传到上游。
+  - §4 验证：在 `.130:8100` mock HTTP server，curl `https://mydomain.com:6457/` 返回 `200 Hello from ws-router mock`。TLSv1.3 握手成功，证书验证通过，nginx 正确透传到上游。
 - 2026-07-29 | 完善 `mark-specific/local-deploy/130_deploy/130-everlingo-nginx.md`（公网 nginx TLS 反代到 `.130:8100` ws-router 的本地测试计划）：
   - §2.2 改写为「TLS terminate + 明文 HTTP `proxy_pass` 跨机透传，nginx 不做 HTTP 层业务逻辑（无认证/无分流/无缓冲）」，消除原「不处理 HTTP 协议」与「转发明文 HTTP」的自相矛盾，并点明与 `external-nginx.md` 同宿主假设的差异（`proxy_pass http://192.168.16.130:8100`）。
   - 新增 §2.3「SSE 长连接 / 无 buffer」指令表（`proxy_buffering off` / `proxy_cache off` / `proxy_read/send_timeout 3600s` / `proxy_http_version 1.1` + `Connection ""`），与 `external-nginx.md` §4 对齐；标注当前仅 SSE、不设 WebSocket `Upgrade` 头。

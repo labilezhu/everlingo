@@ -177,7 +177,7 @@
     },
     "source": {
         "kind": "web",
-        "url": "https://home-everlingo.mygraphql.com:6457/editor?lang=en&path=items%2Fvocab%2Fembedding.md",
+        "url": "https://mydomain.com:6457/editor?lang=en&path=items%2Fvocab%2Fembedding.md",
         "title": "🐹 小记笔记编辑器",
         "surface": "fullscreen"
     },

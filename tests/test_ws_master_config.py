@@ -41,7 +41,7 @@ def test_public_base_url_invalid_scheme_raises(tmp_path: Path):
     yaml_path = tmp_path / "ws_master.yaml"
     yaml_path.write_text(
         "master:\n"
-        "  public_base_url: home130-everlingo.mygraphql.com:6457\n",
+        "  public_base_url: mydomain.com:6457\n",
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="must start with http:// or https://"):

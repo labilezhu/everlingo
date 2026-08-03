@@ -680,7 +680,7 @@ def test_get_web_public_base_url_validates_yaml_scheme(monkeypatch, tmp_path):
     ws = tmp_path
     cfg = ws / "everlingo.yaml"
     cfg.write_text(
-        "plugins:\n  channels:\n    channel_web:\n      public_address:\n        base_url: home130-everlingo.mygraphql.com:6457\n",
+        "plugins:\n  channels:\n    channel_web:\n      public_address:\n        base_url: mydomain.com:6457\n",
         encoding="utf-8",
     )
     workspace.init_workspace(str(ws))
@@ -699,7 +699,7 @@ def test_get_web_public_base_url_validates_env_scheme(monkeypatch, tmp_path):
         encoding="utf-8",
     )
     workspace.init_workspace(str(ws))
-    monkeypatch.setenv("EVERLINGO_PUBLIC_BASE_URL", "home130-everlingo.mygraphql.com:6457")
+    monkeypatch.setenv("EVERLINGO_PUBLIC_BASE_URL", "mydomain.com:6457")
     with pytest.raises(ValueError, match="must start with http:// or https://"):
         get_web_public_base_url()
 
