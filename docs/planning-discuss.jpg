@@ -1,5 +1,22 @@
 
-[Web Chatbot](docs/impl-spec/web-chatbot.md) 的输入栏，现在放太接近底部。在手机中操作不方便，应该留一定底部空白。
+以下问题，怎么解决：
+1. 用户在 [Web Chatbot](docs/impl-spec/web-chatbot.md) 中开始聊天。
+2. 点击 header 的 “笔记” 链接，转到 `笔记编辑器`
+3. 点击 `笔记编辑器` 的 header 的 “转到小记” 链接
+4. 用户发现之前的聊天内容清空。
+
+同样，其它页面回到 `笔记编辑器` 后， `笔记编辑器` 内嵌的 Web Chatbot 也会清空。 
+
+最好可以在 浏览器 Tab 范围内，保持一个 session 。但不要跨 Tab 保持，以让用户在浏览器中，有多 session 的可能。
+
+---
+
+/console/me 页面底部的 “账号” 链接，现在放太接近底部。在手机中操作不方便，应该留一定底部空白。
+/self-service 的 “退出登录” 链接，也一样
+
+---
+
+[Web Chatbot](docs/impl-spec/web-chatbot.md) 的输入栏，现在放太接近底部，有时还要 scroll 才能看到。在手机中操作不方便。应该是放靠底部，但不要最底，留一定底部空白。
 
 ---
 

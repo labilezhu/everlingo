@@ -33,7 +33,7 @@ export default function SelfServicePage() {
         </button>
       </main>
 
-      <footer className="shrink-0 border-t border-border px-3 py-3 md:px-4">
+      <footer className="shrink-0 border-t border-border px-3 pt-3 pb-[calc(1.5rem+env(safe-area-inset-bottom))] md:px-4 md:py-3">
         <Button
           variant="ghost"
           className="w-full justify-start gap-2 text-muted-foreground"

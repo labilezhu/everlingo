@@ -265,6 +265,7 @@ Radix UI
 - `ChatWindow` 根 `px-0 md:px-6 border-x-0 md:border-x`：移动端全屏贴边，桌面保留装饰边框 + 24px 留白。
 - Header / messages / ChatInput form 的 `px-4 py-3` → `px-3 py-2 md:px-4 md:py-3`。
 - `ChatInput` form 移动端底部预留系统安全区：`pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]`（顶部 8px + 底部 8px + 系统 safe-area，避免 iPhone home indicator / Android 手势条遮挡输入栏），`md:` 端恢复 `md:py-3` 不变。
+- `MePage` / `SelfServicePage` 底部 footer（「账号」/「退出登录」按钮）同思路预留安全区：`px-3 pt-3 pb-[calc(1.5rem+env(safe-area-inset-bottom))] md:px-4 md:py-3`（按钮比输入栏更需避让手势条，底部基准留 24px；普通 Safari 非全屏时 `env(safe-area-inset-bottom)` 恒为 0，故基准值需足够大），`md:` 端恢复 `md:py-3` 不变。
 - 所有 web 入口 HTML 的 viewport meta 需含 `viewport-fit=cover`，否则 iOS 下 `env(safe-area-inset-bottom)` 恒为 0。
 
 ### 不在本范围（移动端适配）
