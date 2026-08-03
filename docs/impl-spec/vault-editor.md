@@ -127,7 +127,7 @@ editor app 启动时读 `location.search`：
 
 **URL 同步**：editor 在选中/切换文件时通过 `history.replaceState` 把当前 `lang`、`path` 同步到地址栏，格式为 `/editor?lang=en&path=items/vocab/god.md`。`q`/`tag` 等搜索参数不留在 URL 中。用户可复制地址栏 URL 作为该文件的直接入口。刷新页面后按 URL 参数恢复 lang 与打开的文件。
 
-反向链接（editor → chatbot）不在本 spec 范围：chatbot 使用 session id，跨页跳转会建新 session，需独立设计。
+反向链接（editor → chatbot）：chatbot 的 session id 与消息历史持久化在 `sessionStorage`（见 [web-chatbot.md](web-chatbot.md)「会话状态持久化」）。同一浏览器 Tab 内 editor ↔ chatbot 相互跳转会复用同一 session，Agent 上下文与消息历史连续；新开 Tab 则新建 session（`sessionStorage` 按 Tab 隔离）。
 
 ### 编辑器上下文注入
 

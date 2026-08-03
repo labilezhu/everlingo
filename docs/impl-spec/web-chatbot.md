@@ -84,6 +84,22 @@ Web Chatbot 切换到结构化 `{envelope}` 格式发送消息（不再使用 `{
 
 当 chatbot 被嵌入 Vault Editor 时（`embedded`），`resource_contexts` 由 `ChatWindow` 的 `resourceContextProvider` 回调注入，包含当前打开的笔记文件路径和编辑器选区文本。
 
+### 会话状态持久化（sessionStorage）
+
+chatbot 的 session id 与消息历史持久化在浏览器 `sessionStorage`（key：`chatbot:state`），由 `web/src/services/chatStorage.ts` 读写。实现：Web Chatbot 与 Vault Editor 是两个独立 Vite 入口（`/` 与 `/editor`），页面间跳转是整页刷新（React 树完全卸载）；若 session 只存于 React state，刷新后即丢失。持久化到 `sessionStorage` 后：
+
+- **同一浏览器 Tab 内跨页刷新/跳转**（chatbot ↔ editor ↔ 其它页面）会复用同一 session id 与消息历史，Agent 上下文连续，消息列表原样恢复。
+- **不跨 Tab**：`sessionStorage` 按 Tab 隔离。新开 Tab（或从主屏图标再次启动）得到全新会话，用户可在浏览器中同时保留多个互不干扰的 session。
+- **不跨浏览器进程/关闭 Tab**：关闭 Tab 后 `sessionStorage` 清空，下次进入是新会话。
+
+行为约定：
+
+- **初始化**：`ChatWindow` 挂载时从 `sessionStorage` 读取 `{sessionId, messages}`。有则直接复用该 session 连 SSE、用历史消息渲染（欢迎语被覆盖）；无则 `POST /api/session` 新建 session 并写入。
+- **写入时机**：`sessionId` 或 `messages` 变化时同步写回（`useEffect` 监听）。恢复时丢弃 `audioUrl`（语音是 blob URL，刷新后失效，不可重听；详见「SSE 自动重连」语音行为）。
+- **存储溢出**：对话过长导致 `sessionStorage` 写入失败时，降级为只保留最近 100 条消息；仍失败则仅保留 session id。
+- **session 过期**：后端 session 有生命周期（见 [web-session-acceptor.md](web-session-acceptor.md)，DISCONNECT_GRACE 20 分钟 / ABSOLUTE_IDLE_TIMEOUT 60 分钟）。复用 sid 连 SSE 返回 404 时走现有「会话已过期」UI：历史消息保留可见，点击「重新开始」新建 session 并更新 `sessionStorage` 中的 sid（Agent 上下文重置，消息列表连续追加）。
+- **standalone 与 embedded 共享**：独立 chatbot 与 Vault Editor 内嵌 chatbot 读写同一 key，同一 Tab 内保持同一 session；差异仅在发送消息时的 `resource_contexts` 注入。
+
 ### 示例
 
 用户打开聊天页面，选择「翻译」，输入 "bank is a financial institution"：

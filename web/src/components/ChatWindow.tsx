@@ -5,9 +5,12 @@ import ChatInput from './ChatInput';
 import TaskSelector from './TaskSelector';
 import { Button } from '@/components/ui/button';
 import { createSession, sendMessage, connectSSE, buildEnvelope, type ConnStatus } from '@/services/sseClient';
+import { loadChatState, saveChatState } from '@/services/chatStorage';
 import type { TaskKind, SSEEvent, ResourceContext } from '@/types/chat';
 import { Message, uid } from '@/types/chat';
 import { LinkListenerContext } from './MarkdownRenderer';
+
+const WELCOME_TEXT = '你好！我是小记🐹，你的 AI 外语老师。有什么可以帮你的吗？';
 
 function decodeBase64Audio(b64: string): string {
   const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
@@ -19,10 +22,13 @@ export default function ChatWindow({ embedded, linkListener, resourceContextProv
   linkListener?: (url: string) => boolean;
   resourceContextProvider?: () => ResourceContext[];
 }) {
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([
-    { id: uid(), text: '你好！我是小记🐹，你的 AI 外语老师。有什么可以帮你的吗？', from: 'bot' },
-  ]);
+  const [initialState] = useState(() => loadChatState());
+  const [sessionId, setSessionId] = useState<string | null>(initialState?.sessionId ?? null);
+  const [messages, setMessages] = useState<Message[]>(
+    initialState && initialState.messages.length > 0
+      ? initialState.messages
+      : [{ id: uid(), text: WELCOME_TEXT, from: 'bot' }],
+  );
   const [task, setTask] = useState<TaskKind>('none');
   const [thinking, setThinking] = useState(false);
   const [pending, setPending] = useState(false);
@@ -48,16 +54,26 @@ export default function ChatWindow({ embedded, linkListener, resourceContextProv
 
   function handleRebuild() {
     setConnStatus(null);
+    setSessionId(null);
     setReconnectNonce(n => n + 1);
     setMessages(prev => [...prev, { id: uid(), text: '（小记刚才断片了，对话忘记了，笔记还在）', from: 'system' }]);
   }
 
   useEffect(() => {
+    if (sessionId) {
+      saveChatState({ sessionId, messages });
+    }
+  }, [sessionId, messages]);
+
+  useEffect(() => {
     let cleanup: (() => void) | undefined;
     (async () => {
       try {
-        const sid = await createSession();
-        setSessionId(sid);
+        let sid = sessionId;
+        if (!sid) {
+          sid = await createSession();
+          setSessionId(sid);
+        }
         const conn = connectSSE(
           sid,
           (e: SSEEvent) => {
