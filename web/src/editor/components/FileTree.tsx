@@ -10,6 +10,8 @@ import {
 import { Input } from '@/components/ui/input';
 import type { Entry } from '@/editor/types/vault';
 
+const DEFAULT_COLLAPSED_ROOTS = new Set(['spec', 'events']);
+
 type InlineAction =
   | { kind: 'new-file'; parent: Entry | null }
   | { kind: 'new-dir'; parent: Entry | null }
@@ -77,7 +79,7 @@ interface FileTreeNodeProps {
 }
 
 function FileTreeNode({ entry, depth, selectedPath, onSelect, onLazyLoad, onCreateFile, onMkdir, onRename, onDelete }: FileTreeNodeProps) {
-  const [expanded, setExpanded] = useState(depth === 0);
+  const [expanded, setExpanded] = useState(depth === 0 && !DEFAULT_COLLAPSED_ROOTS.has(entry.name));
   const [loading, setLoading] = useState(false);
   const [inlineAction, setInlineAction] = useState<InlineAction | null>(null);
 

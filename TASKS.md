@@ -13,4 +13,5 @@
 - 2026-08-04 | Web PWA 白屏修复：统一 fetch 401 兜底跳 /login（apiFetch.ts）+ React ErrorBoundary + 复活认证复检（useAuthRecheck）+ HTML 缓存头 no-store / assets immutable（web_acceptor.py、ws_router/app.py）；ADR 20260804-web-cache-control.md
  - 2026-08-04 | 修复 gateway 重启后 SSE session_expired 死循环：session_expired 时自动清空 sessionStorage 持久化会话并重建新 session，不再依赖「重新加载」按钮
  - 2026-08-04 | 修复跨页跳转（chatbot ↔ Me 等按钮）后回来每次都新建 chat session：session_expired 自动清空 sessionStorage 的设计在页面卸载/导航期间 EventSource 误触发 onerror 时会把存储同步清掉，导致跨页回来无法复用 sid。回退为 spec 规定的「手动重启」UI（显示「会话已过期 [重新开始]」提示条，用户点击才 clearChatState + 重建），同步更新 ADR 20260804 第 4 项
+- 2026-08-04 | 笔记编辑器文件树中根层 spec/ 与 events/ 目录默认收起，减少视觉干扰
 

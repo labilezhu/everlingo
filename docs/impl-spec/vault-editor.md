@@ -50,6 +50,7 @@ Web 前端给用户一个可视化编辑 [Memory Vault](/src/everlingo/mem/vault
   - 文件：取 entry 的 `title`（来自 frontmatter）。`title` 缺省/空 → 回退文件名。例外：`index.md` 永远显示 `index.md`（但其 frontmatter `title` 用作所在目录的显示名）。
   - 目录：取该目录下 `index.md` 的 frontmatter `title`。无 `index.md` 或 `title` 缺省/空 → 回退目录名。
 - 子目录懒加载：首次展开 children 为空的目录时，按需调用 `tree(path=<dir>, depth=2)` 拉取该目录的子项并合并到树状态。已加载的目录再次折叠/展开不重复请求。
+- 根目录中 `spec/` 与 `events/` 默认收起，其余根目录默认展开；用户手动展开后行为与其它目录一致。
 - 右键菜单 / 顶部按钮组：
   - 新建文件（输入 path，自动 `.md` 后缀）
   - 新建目录
