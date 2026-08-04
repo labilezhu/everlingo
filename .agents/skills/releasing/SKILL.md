@@ -29,6 +29,10 @@ Let's name the user specified release version as `<version>` for the following s
      - /README.md
    2. Replace `everlingo_version` variable :
       1. src/everlingo/mem/vault/templates/default/spec/vault_spec.md
+   3. Replace version literals in source code (non-doc) — skip missing files and report to user:
+      1. web/src/me/MePage.tsx — replace the line `EverLingo 版本： ...` with `EverLingo 版本： <version>`
+      2. src/everlingo/ws_master/app.py — replace `version="..."` with `version="<version>"`
+      3. src/everlingo/ws_router/app.py — replace `version="..."` with `version="<version>"`
 4. Check file `mark-specific/local-deploy/130_deploy/130-release.sh` exists. If not, the system will abort the release operation and tell the reason to the user. 
 5. Ask for a confirm and run:
   ```bash

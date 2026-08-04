@@ -331,7 +331,7 @@ web/src/
 `web/src/me/MePage.tsx` 底部（`main` 之后）贴底 `footer`，内含全宽 `账号` 入口按钮（`lucide-react` 的 `UserRound` 图标，ghost variant），点击跳转 WS-Router 的「用户认证自服务」页：
 
 ```tsx
-<footer className="shrink-0 border-t border-border px-3 py-3 md:px-4">
+<footer className="shrink-0 border-t border-border px-3 pt-3 pb-[calc(1.5rem+env(safe-area-inset-bottom))] md:px-4 md:py-3">
   <Button
     variant="ghost"
     className="w-full justify-start gap-2 text-muted-foreground"
@@ -340,10 +340,15 @@ web/src/
     <UserRound className="size-4" />
     账号
   </Button>
+  <div className="mt-2 px-3 text-xs text-muted-foreground/60">
+    EverLingo 版本： 0.1.1-rc.2
+  </div>
 </footer>
 ```
 
 「退出登录」按钮不再在 Me 页直接提供，改为集中在 WS-Router 自服务页（[ws-router.md](../multiple-users/ws-router.md) §4.6：`/self-service` 底部即退出登录、`/self-service/pat` 管理永久 Token）。
+
+版本信息行中的版本号字面量（`EverLingo 版本： ...`）由 release 流程自动同步，见 [releasing SKILL](/.agents/skills/releasing/SKILL.md) 步骤 3.3。
 
 - **跨拓扑行为**：`/self-service` 是 WS-Router 自有路由（[ws-router.md](../multiple-users/ws-router.md) §4.1），不在后端透传列表内。仅**多用户部署**（经 WS-Router）下语义成立：浏览器请求 `GET /self-service` 命中 WS-Router → 认证通过返回自服务页，未认证 302 `/login`。
 - **单用户本地拓扑**（`python -m everlingo --channel_web`，无 WS-Router）：`web_acceptor.py` 无 `/self-service` 路由，点击会落入 catch-all `serve_frontend` → 返回 `index.html`（chatbot SPA）。属预期行为，该拓扑无认证，账号自服务无意义，不为此加 feature detection 或后端 no-op 路由。

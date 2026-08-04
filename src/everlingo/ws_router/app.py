@@ -70,7 +70,7 @@ class AppState:
 
 def create_app(config: RouterConfig) -> FastAPI:
     state = AppState(config)
-    app = FastAPI(title="WS-Router", version="0.1.0")
+    app = FastAPI(title="WS-Router", version="0.1.1-rc.2")
     app.state.state = state
 
     @app.get("/assets/{path:path}", include_in_schema=False)

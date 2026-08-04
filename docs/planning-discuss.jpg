@@ -1,3 +1,13 @@
+
+在 [Me 页](docs/impl-spec/workspace-console/ws-console-arch.md) 最底部，「账号」入口 之下，加上版本信息：
+```
+EverLingo 版本： 0.1.1-rc.2
+```
+
+同时更新  .agents/skills/releasing/SKILL.md 以在发布时，自动更新相关源码（非文档）中的版本号。
+
+---
+
 ws-router 的 /login 网页，现在是用户按下“登录” 的，全面刷新。用户体验差。
 能不能异步后台重试，在页面显示 Loading 和动画 就好。
 

@@ -56,6 +56,9 @@ export default function MePage() {
           <UserRound className="size-4" />
           账号
         </Button>
+        <div className="mt-2 px-3 text-xs text-muted-foreground/60">
+          EverLingo 版本： 0.1.1-rc.2
+        </div>
       </footer>
     </div>
   );
