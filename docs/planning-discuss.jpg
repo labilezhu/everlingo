@@ -1,5 +1,31 @@
 
+## 需求
+docs/impl-spec/workspace-console/target-lang-setting.md 网页，在“保存”按钮左边，加一个 “重新初始化”。功能是更新 $workspace/memory/languages/$lang/vault/spec 。 用户点击后，需要提示用户： 
+```
+"知识库规范" 下的文件，可能被替换，若你有修改过 "知识库规范"，文件可能丢失。
+```
+
+## 实现设计
+
+1. docs/impl-spec/vault-mcp/vault-mcp-spec.md 增加一个 reset_vault 的工具。基实现逻辑与 create_vault 工具类似，区别是 reset_vault 可以覆盖 $workspace/memory/languages/$lang/vault/spec 中已有的文件:
+
+      Reinitialize an existed target-learning-language vault directory at
+      $workspace/memory/languages/$lang/vault/ and seed it with spec/*.md
+      (copied from templates/default/spec/*.md with includes expanded via
+      everlingo.utils.md_prompt_compiler.compile_prompt + PackageSource,
+      matching the same approach as mem_writer_agent.py:67 but without
+      shift_headings — each spec file is a standalone top-level document).
+      Idempotent: if a spec file already
+      exists under spec/, it **can be overwritten**; re-registration is a no-op
+      (open_lang is itself idempotent under AppState._lock).
+      Workspace-level tool: does **require** session.configure.
+
+
+
+---
+
 在 [Me 页](docs/impl-spec/workspace-console/ws-console-arch.md) 最底部，「账号」入口 之下，加上版本信息：
+
 ```
 EverLingo 版本： 0.1.1-rc.2
 ```

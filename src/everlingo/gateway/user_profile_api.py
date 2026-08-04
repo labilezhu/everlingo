@@ -140,3 +140,19 @@ async def set_default_language(body: SetDefaultBody) -> dict:
 
     # 返回新 list（同 GET /api/target-language/list 结构）
     return await target_language_list()
+
+
+@router.post("/api/target-language/reset-vault")
+async def reset_vault(body: SetDefaultBody) -> dict:
+    """重新 seed 已初始化 lang 的 spec/ 目录（覆盖写入），保护用户笔记数据。"""
+    lang = body.lang
+    if lang not in LANGUAGES:
+        raise HTTPException(400, detail=f"unsupported target language: {lang!r}")
+
+    async with _workspace() as session:
+        result = await session.call_tool("reset_vault", {"lang": lang})
+        if result.isError:
+            text = result.content[0].text if result.content else "unknown error"
+            raise HTTPException(500, detail=text)
+
+    return await target_language_list()

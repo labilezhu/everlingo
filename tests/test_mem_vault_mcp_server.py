@@ -1,5 +1,6 @@
 # ref: docs/impl-spec/vault-mcp/vault-mcp-spec.md — MCP Server
-# 用 FastMCP in-memory Client 驱动 15 个工具（session.configure + 10 fs + search + vault 管理 2 个 + Utility）。
+# 用 FastMCP in-memory Client 驱动 18 个工具（session.configure + 10 fs + search + list_tags +
+# compile_prompt + vault 管理 3 个 + Utility）。
 # 覆盖：未 configure 报错 / invalid lang / configure+fs / 路径逃逸 / hybrid search /
 # lang 参数覆盖会话 / 重调切换 / text==structuredContent。
 #
@@ -550,7 +551,7 @@ def test_initialize_exposes_instructions(open_state: AppState):
         assert "hybrid" in text
         assert "vault" in text.lower()
         assert "watcher" in text  # 副作用说明关键词
-        # vault 管理工具分组 & Utility（15 个工具）
+        # vault 管理工具分组 & Utility（18 个工具）
         assert "list_vaults" in text
         assert "create_vault" in text
         assert "gen_id" in text
@@ -748,7 +749,147 @@ def test_create_vault_then_configure_and_search(fresh_workspace):
         pass
 
 
-# ── 13. gen_id（workspace 级 Utility，豁免 configure）────────────────
+# ── 12. reset_vault（workspace 级，豁免 configure）─────────────────
+
+
+def test_reset_vault_overwrites_spec(fresh_workspace):
+    """reset_vault 覆盖 spec/*.md 但保留 items/ 等用户文件。"""
+    factory, state, tmp_path = fresh_workspace
+    target_lang = "fr"
+    expected_vault = tmp_path / "memory" / "languages" / "fr" / "vault"
+    expected_spec_dir = expected_vault / "spec"
+
+    async def body(c: Client) -> None:
+        # 先 create_vault
+        r = await c.call_tool("create_vault", {"lang": target_lang})
+        assert r.is_error is False
+        assert r.data["created"] is True
+        assert r.data["files_written"] > 0
+        # 篡改 spec/ 文件与 items/ 文件
+        vault_spec = expected_spec_dir / "vault_spec.md"
+        vault_spec.write_text("TAMPERED SPEC\n", encoding="utf-8")
+        items_vocab_idx = expected_vault / "items" / "vocab" / "index.md"
+        items_vocab_idx.write_text("TAMPERED ITEMS\n", encoding="utf-8")
+        # 调用 reset_vault
+        r = await c.call_tool("reset_vault", {"lang": target_lang})
+        assert r.is_error is False
+        assert r.data["ok"] is True
+        assert r.data["lang"] == target_lang
+        assert r.data["files_reset"] > 0
+        assert r.data["registered"] is True
+        # spec/vault_spec.md 被恢复
+        spec_content = vault_spec.read_text(encoding="utf-8")
+        assert "TAMPERED SPEC" not in spec_content
+        assert "# 单语言 Memory Vault Spec" in spec_content
+        # items/vocab/index.md 未被动
+        assert items_vocab_idx.read_text(encoding="utf-8") == "TAMPERED ITEMS\n"
+        # 所有 spec 文件均被覆盖（非幂等）
+        for name in ("events_spec.md", "kb_items_spec_vocab.md",
+                      "kb_items_spec_phrase.md", "mem_entry_spec.md",
+                      "envelope_spec.md"):
+            p = expected_spec_dir / name
+            assert p.is_file(), f"spec/{name} missing"
+            assert "TAMPERED" not in p.read_text(encoding="utf-8")
+
+    with factory(body):
+        pass
+
+    # AppState 注册状态不变
+    assert target_lang in state._lang_states
+
+
+def test_reset_vault_idempotent_call(fresh_workspace):
+    """连续调 reset_vault 不报错，两次均覆盖写入。"""
+    factory, state, tmp_path = fresh_workspace
+    target_lang = "de"
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("create_vault", {"lang": target_lang})
+        assert r.is_error is False
+        r1 = await c.call_tool("reset_vault", {"lang": target_lang})
+        assert r1.is_error is False
+        assert r1.data["files_reset"] > 0
+        r2 = await c.call_tool("reset_vault", {"lang": target_lang})
+        assert r2.is_error is False
+        assert r2.data["files_reset"] > 0
+        # 两次写入相同内容，不崩溃
+        assert r2.data["files_reset"] == r1.data["files_reset"]
+
+    with factory(body):
+        pass
+
+
+def test_reset_vault_rejects_invalid_lang(empty_mcp_client):
+    """非法 lang 名 → isError=true。"""
+    invalid = ["", "a/b", "a\\b", ".", "..", "a\0b"]
+
+    async def body(c: Client) -> None:
+        for bad in invalid:
+            r = await c.call_tool(
+                "reset_vault", {"lang": bad}, raise_on_error=False
+            )
+            assert r.is_error is True, f"expected isError for lang={bad!r}"
+            assert "invalid lang" in r.content[0].text
+
+    with empty_mcp_client(body):
+        pass
+
+
+def test_reset_vault_errors_on_uninitialized(fresh_workspace):
+    """vault 未初始化 → isError=true 'call create_vault first'。"""
+    factory, state, tmp_path = fresh_workspace
+    target_lang = "xx"
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool(
+            "reset_vault", {"lang": target_lang}, raise_on_error=False
+        )
+        assert r.is_error is True
+        assert "call create_vault first" in r.content[0].text
+
+    with factory(body):
+        pass
+
+
+def test_reset_vault_no_configure_required(fresh_workspace):
+    """未调 session.configure 也能直接调 reset_vault。"""
+    factory, state, tmp_path = fresh_workspace
+    target_lang = "ja"
+
+    async def body(c: Client) -> None:
+        # create_vault 后直接调 reset_vault（无 session.configure）
+        r = await c.call_tool("create_vault", {"lang": target_lang})
+        assert r.is_error is False
+        r = await c.call_tool(
+            "reset_vault", {"lang": target_lang}, raise_on_error=False
+        )
+        assert r.is_error is False
+        assert r.data["ok"] is True
+
+    with factory(body):
+        pass
+
+
+def test_reset_vault_content_matches_structured_content(fresh_workspace):
+    """spec 强制：content[0].text == json.dumps(structured_content)。"""
+    factory, state, tmp_path = fresh_workspace
+    target_lang = "pt"
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("create_vault", {"lang": target_lang})
+        assert r.is_error is False
+        r = await c.call_tool("reset_vault", {"lang": target_lang})
+        assert r.is_error is False
+        text = r.content[0].text
+        structured = r.data
+        import json
+        assert json.loads(text) == structured
+        # 出参含 required 字段
+        for key in ("ok", "lang", "vault_path", "files_reset", "registered"):
+            assert key in structured
+
+    with factory(body):
+        pass
 
 
 def test_gen_id_returns_ulid(fresh_workspace):

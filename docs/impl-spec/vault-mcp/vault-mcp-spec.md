@@ -33,11 +33,11 @@ MCP Server 不在启动时绑定单一 lang；而是通过 `session.configure` �
 
 ### vault 管理工具豁免
 
-`list_vaults` 与 `create_vault` 是 workspace 级工具，不绑特定 lang：
+`list_vaults`、`create_vault` 与 `reset_vault` 是 workspace 级工具，不绑特定 lang：
 
 - 不需要也不接受 `session.configure`（workspace 还没有任何 lang 时也得能创建第一个）。
 - 不修改会话状态；返回里不含任何 session 级字段。
-- 用于「发现现有 langs」与「创建新 lang vault + 同步注册到 indexer」。创建后 agent 再 `session.configure(lang=$lang)` 即可使用 fs / search 工具。
+- `list_vaults` 用于「发现现有 langs」；`create_vault` 用于「创建新 lang vault + 同步注册到 indexer」；`reset_vault` 用于「重新 seed 已存在 vault 的 spec/ 目录（覆盖写入）」。创建/重置后 agent 再 `session.configure(lang=$lang)` 即可使用 fs / search 工具。
 
 ### Utility 工具豁免
 
@@ -223,12 +223,12 @@ MCP server 在 `initialize` 响应里通过 `instructions` 字段（[MCP 2025-11
 **契约**：实现方维护的实际文本可调整措辞与排版，但**必须覆盖**以下最小内容清单（缺一即视为违反 spec）：
 
 1. **服务器定位**——说明这是 Everlingo memory vault 的 MCP 接口、vault 是按学习语言分目录的 markdown 知识库。
-2. **工具分组**——点明 `session.configure` / fs 工具集（10 个）/ `search` / prompt 编译（1 个：`compile_prompt`）/ vault 管理（2 个：`list_vaults`、`create_vault`）/ Utility（1 个：`gen_id`）六个分组；总工具数 16。
+2. **工具分组**——点明 `session.configure` / fs 工具集（10 个）/ `search` + `list_tags` / prompt 编译（1 个：`compile_prompt`）/ vault 管理（3 个：`list_vaults`、`create_vault`、`reset_vault`）/ Utility（1 个：`gen_id`）七个分组；总工具数 18。
 3. **强约束工作流**——
    - 调用任何 fs / `search` 工具前**必须**先调 `session.configure(lang=...)`；否则返回固定错误文案 `session not configured: call session.configure first`。
    - `lang` 必须是 workspace 已存在的语言目录（`$workspace/memory/languages/*/`）。
    - 会话内可重调 `session.configure` 切换 lang，无需重连。
-    - 例外：`list_vaults` / `create_vault` / `gen_id` 是 workspace 级或 Utility 工具，**不**受上述 configure 约束。
+    - 例外：`list_vaults` / `create_vault` / `reset_vault` / `gen_id` 是 workspace 级或 Utility 工具，**不**受上述 configure 约束。
 4. **路径语义**——fs 工具的 `path` 参数相对会话 lang vault 根 `$workspace/memory/languages/$lang/vault/` 解析；`../` 越界被拒绝。以 `/` 或 `\` 开头的 path 视为相对 vault 根的路径，前导分隔符会被忽略（如 `ls /` 等价于 `ls ""`）。
 5. **search 要点**——默认 `mode=hybrid`（推荐）；`lang` 参数可省略或显式覆盖以跨 lang 检索；`tags` 配合 `tags_op`（"and"/"or"）按 tag 精确过滤；命中 `file_path` 可直接喂给 fs 工具。
 6. **副作用说明**——文件变更由 indexer watcher 自动重新索引，agent **不需要**也**无法**手动触发 index。
@@ -242,7 +242,7 @@ MCP server 在 `initialize` 响应里通过 `instructions` 字段（[MCP 2025-11
 
 每次 MCP Server 工具调用均记录 debug 日志。契约如下：
 
-- **适用范围**：全部 17 个工具（`list_vaults`、`create_vault`、`gen_id`、`session.configure`、10 个 fs 工具 `ls`/`read`/`write`/`append`/`grep`/`find`/`stat`/`mkdir`/`delete`/`tree`、`compile_prompt`、`search`、`list_tags`）的每次调用。
+- **适用范围**：全部 18 个工具（`list_vaults`、`create_vault`、`reset_vault`、`gen_id`、`session.configure`、10 个 fs 工具 `ls`/`read`/`write`/`append`/`grep`/`find`/`stat`/`mkdir`/`delete`/`tree`、`compile_prompt`、`search`、`list_tags`）的每次调用。
 - **level**：`logging.DEBUG`。
 - **logger**：`everlingo.mem.vault.mcp_server`（`logging.getLogger("everlingo.mem.vault.mcp_server")`），在 indexer 进程的 uvicorn log_config（`_run_indexer`）中独立挂 `file` handler + 强制 `level=DEBUG` + `propagate=False`，不随 `--log-level`（默认 `info`）浮动，保证工具调用 debug 日志稳定写入 `$workspace/logs/indexer.log`（见 [observability.md](/docs/impl-spec/observability.md)「进程与日志文件边界」）。
 - **字段**：工具名（tool name）、输入参数（input）、输出结果（output / error）。
@@ -284,4 +284,5 @@ MCP server 在 `initialize` 响应里通过 `instructions` 字段（[MCP 2025-11
 
 - **`list_vaults`** 直接调 `workspace.lang_dirs()`，无需 AppState / session。返回 `{"vaults": [...], "count": N}`。
 - **`create_vault`** 顺序：校验 lang 名（禁 `/`、`\`、`.`、`..`、空、NUL）→ `mkdir vault_root(parents=True, exist_ok=True)` → 递归遍历 `everlingo.mem.vault.templates.default` 包内全部文件（`_walk_package` helper），按路径分派：`spec/*.md` 调 `compile_prompt(rel_path, PackageSource(package="everlingo.mem.vault.templates.default"))` 合成后写入（展开 include + 剥 frontmatter），其余文件 raw copy（保留 frontmatter）；均已存在则跳过（幂等，**不** `shift_headings`，因为这是独立顶级文档）→ 同步调 `state._open_lang(lang)` 注册到 indexer（与 `LangDiscoveryWatcher` 同一入口，加锁幂等，失败不阻断）。返回 `{"ok": true, "lang", "vault_path": "memory/languages/$lang/vault", "created", "files_written", "registered"}`。`vault_path` 取相对当前 workspace 根的路径。
+- **`reset_vault`** 顺序：校验 lang 名（同 `create_vault`）→ 校验 `vault_root.is_dir()`（未初始化则返回 isError）→ 仅遍历 `templates/default/spec/*.md`，对每个文件**覆盖写入**到 `vault/spec/`（有 frontmatter 的原样 copy、无 frontmatter 的走 `compile_prompt + PackageSource`，与 `create_vault` 同逻辑）；**不碰** `items/`、`events/` 等非 spec 文件（保护用户笔记数据）→ 同步调 `state._open_lang(lang)` 注册到 indexer（幂等 no-op）。返回 `{"ok": true, "lang", "vault_path": "memory/languages/$lang/vault", "files_reset", "registered"}`。`vault_path` 取相对当前 workspace 根的路径。
 - **spec/ 目录不入索引**：由 indexer 端的 `is_excluded_vault_file(abs_path, memory_root)` helper（`src/everlingo/mem/vault/search/indexer.py`）统一排除 `spec/` 子目录、`tmp/` 子目录，以及 `VAULT_SPEC.md`（老 vault 根级文件，按 basename 向后兼容排除），调用方为 `walk_vault` / `sync.reconcile` / `watcher._dispatch`，避免在三个点各自重复排除规则。OS 隐藏文件/目录（相对 memory_root 的路径任一段以 `.` 开头，如 `.git`/`.obsidian`/`.DS_Store`）一并排除。

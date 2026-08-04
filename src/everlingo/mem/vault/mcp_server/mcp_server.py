@@ -2,11 +2,13 @@
 # ref: docs/impl-spec/vault-mcp/vault-mcp-spec-tools.yaml — 工具定义
 # 嵌入式 FastMCP Streamable HTTP server，挂在 indexer 进程内子线程。
 # 工具：
-#   - list_vaults / create_vault：workspace 级 vault 管理，豁免 session.configure
+#   - list_vaults / create_vault / reset_vault：workspace 级 vault 管理，豁免 session.configure
 #   - session.configure：设定会话默认 lang + interface_language（stream 级）
 #   - 10 个 fs 工具（ls/read/write/append/grep/find/stat/mkdir/delete/tree）；
 #     write 工具在落盘前调 normalize_frontmatter_text 归一化 frontmatter。
-#   - search：进程内直调 search.search(conn, ...)
+#   - search + list_tags：vault 搜索与 tag 发现
+#   - compile_prompt：prompt 编译（展开 include 指令）
+#   - gen_id：ULID 生成 Utility
 # 所有 fs/search 工具在未 configure 时返回 isError=true + 固定文案；
 # state 按 MCP stream/session id 索引，stream 关闭即丢弃（不落盘）。
 
@@ -71,17 +73,18 @@ Everlingo Memory Vault MCP Server
 这是 Everlingo 个人语言学习笔记库（按学习语言分目录的 markdown 知识库）的 MCP 接口。
 Vault 按学习语言分目录：$workspace/memory/languages/$lang/vault/（lang = en / ja / ...）。
 
-工具分组（共 16 个）：
+工具分组（共 18 个）：
 - `session.configure` —— 设置会话级默认 lang（必须先调用）。
 - fs 工具（10 个）—— `ls` / `read` / `write` / `append` / `grep` / `find` / `stat` / `mkdir` / `delete` / `tree`，操作 vault 下的 markdown 文件。
 - `search` —— 全文 / 语义 / 混合搜索 vault 文档（默认 mode=hybrid）。
+- `list_tags` —— 发现 vault 中可用的 tag 列表及计数。
 - prompt 编译（1 个）—— `compile_prompt`，编译 prompt 文件，展开 `{{ include }}` 指令。需要先调 session.configure。
-- vault 管理（2 个）—— `list_vaults` / `create_vault`，workspace 级工具，**不需要**先调 session.configure。
+- vault 管理（3 个）—— `list_vaults` / `create_vault` / `reset_vault`，workspace 级工具，**不需要**先调 session.configure。
 - Utility（1 个）—— `gen_id`，生成 26 字符 ULID 随机 id。workspace 级，**不需要**先调 session configure。
 
 工作流：
 1. 大部分工具（fs 10 个 + `search` + `compile_prompt`）必须先调 `session.configure(lang="<lang>")` 设会话 lang；否则返回错误 `session not configured: call session.configure first`。
-2. 例外：`list_vaults`、`create_vault`、`gen_id` 是 workspace 级 / Utility 工具，不绑特定 lang，不需要也不接受 session.configure。
+2. 例外：`list_vaults`、`create_vault`、`reset_vault`、`gen_id` 是 workspace 级 / Utility 工具，不绑特定 lang，不需要也不接受 session.configure。
  3. `lang` 若 workspace 不存在该 lang vault，`session.configure` 会自动调 `create_vault` 创建（写 $lang/vault/spec/vault_spec.md 并同步注册到 indexer）；非法 lang 名（含路径分隔符 `/`、`\\`、点号 `.`、`..`、空、NUL 字符）仍返回错误。
  4. 会话内可重调 `session.configure` 切换 lang，无需重连 MCP stream。
  5. fs 工具的 `path` 参数相对会话 lang vault 根解析；禁止 `../` 逃逸，越界会被拒绝。
@@ -274,7 +277,7 @@ def _gen_ulid() -> str:
 
 
 def create_mcp_app(state: AppState) -> FastMCP:
-    """注册 16 个工具，挂载到共享的 AppState。
+    """注册 18 个工具，挂载到共享的 AppState。
 
     工具实现约定：
     - 成功：返回 dict（FastMCP 自动包成 content+structuredContent）
@@ -375,6 +378,84 @@ def create_mcp_app(state: AppState) -> FastMCP:
             "vault_path": vault_path_rel,
             "created": not already_existed,
             "files_written": files_written,
+            "registered": registered,
+        }
+
+    @mcp.tool(
+        name="reset_vault",
+        title="Reset vault spec",
+        description=(
+            "Reinitialize an existing target-learning-language vault's spec "
+            "directory at $workspace/memory/languages/$lang/vault/spec/ by "
+            "re-seeding spec/*.md from templates/default/spec/*.md "
+            "(with includes expanded via compile_prompt + PackageSource, "
+            "same approach as create_vault but overwriting existing files). "
+            "Does NOT touch items/, events/, or other non-spec files — "
+            "only spec/*.md is refreshed. "
+            "After reset, synchronously re-registers the lang with the indexer's "
+            "LangState via state._open_lang(lang) (idempotent no-op). "
+            "The vault must already exist (call create_vault first). "
+            "Workspace-level tool: does NOT require session.configure."
+        ),
+    )
+    @_log_mcp_tool("reset_vault")
+    async def reset_vault_tool(lang: str) -> dict[str, Any]:
+        if (
+            not lang
+            or not isinstance(lang, str)
+            or "/" in lang
+            or "\\" in lang
+            or lang in (".", "..")
+            or "\x00" in lang
+        ):
+            raise RuntimeError(
+                f"invalid lang name: {lang!r} (must be non-empty, no path separators or dots)"
+            )
+        vault_root = workspace.lang_vault_dir(lang)
+        if not vault_root.is_dir():
+            raise RuntimeError(
+                f"vault not initialized for lang {lang!r}: call create_vault first"
+            )
+        spec_dir = vault_root / "spec"
+        spec_dir.mkdir(parents=True, exist_ok=True)
+        # 仅遍历 templates/default/spec/，覆盖写入
+        files_reset = 0
+        source = PackageSource(package=_VAULT_TEMPLATES_PACKAGE)
+        root_traversable = importlib.resources.files(_VAULT_TEMPLATES_PACKAGE)
+        spec_root = root_traversable / "spec"
+        if not spec_root.is_dir():
+            raise RuntimeError("templates/default/spec/ not found in package")
+        for rel_path, entry in _walk_package(spec_root):
+            target = spec_dir / rel_path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if rel_path.endswith(".md"):
+                raw = entry.read_text(encoding="utf-8")
+                fm, _body = split_frontmatter(raw)
+                if fm is not None:
+                    content = raw
+                else:
+                    content = compile_prompt(f"spec/{rel_path}", source)
+            else:
+                content = entry.read_text(encoding="utf-8")
+            target.write_text(content, encoding="utf-8")
+            files_reset += 1
+        registered = True
+        try:
+            state._open_lang(lang)
+        except Exception as e:
+            logger.warning("reset_vault: lang re-register failed for %s: %s", lang, e)
+            registered = False
+        try:
+            vault_path_rel = vault_root.resolve().relative_to(
+                workspace.current_workspace().resolve()
+            ).as_posix()
+        except ValueError:
+            vault_path_rel = str(vault_root)
+        return {
+            "ok": True,
+            "lang": lang,
+            "vault_path": vault_path_rel,
+            "files_reset": files_reset,
             "registered": registered,
         }
 

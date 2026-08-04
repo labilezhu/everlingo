@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Languages, Loader2 } from 'lucide-react';
+import { ArrowLeft, Languages, Loader2, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 // ref: docs/ADR/20260801-user-onboarding.md — 目标学习语言设置页与首次使用引导
@@ -34,6 +34,7 @@ export default function TargetLanguagePage() {
   const [needsSetup, setNeedsSetup] = useState(false);
   const [selected, setSelected] = useState('');
   const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
 
   useEffect(() => {
@@ -60,7 +61,12 @@ export default function TargetLanguagePage() {
   const saveEnabled =
     selected !== '' &&
     !(list?.languages.find(l => l.code === selected)?.vault_initialized === null) &&
-    !saving;
+    !saving && !resetting;
+
+  const resetEnabled =
+    selected !== '' &&
+    list?.languages.find(l => l.code === selected)?.vault_initialized === true &&
+    !resetting && !saving;
 
   async function handleSave() {
     if (!selected) return;
@@ -85,6 +91,32 @@ export default function TargetLanguagePage() {
       setSaveMessage('无法连接服务器');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleReset() {
+    if (!selected) return;
+    if (!window.confirm('"知识库规范" 下的文件，可能被替换，若你有修改过 "知识库规范"，文件可能丢失。')) return;
+    setResetting(true);
+    setSaveMessage('');
+    try {
+      const resp = await fetch('/api/target-language/reset-vault', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lang: selected }),
+      });
+      if (!resp.ok) {
+        const detail = await resp.json().catch(() => null);
+        setSaveMessage(detail?.detail || '重新初始化失败');
+        return;
+      }
+      const newList: LanguageList = await resp.json();
+      setList(newList);
+      setSaveMessage('已重新初始化知识库规范');
+    } catch {
+      setSaveMessage('无法连接服务器');
+    } finally {
+      setResetting(false);
     }
   }
 
@@ -157,14 +189,26 @@ export default function TargetLanguagePage() {
               <div className="text-sm text-center py-2 text-primary">{saveMessage}</div>
             )}
 
-            <Button
-              className="w-full mt-2"
-              disabled={!saveEnabled}
-              onClick={handleSave}
-            >
-              {saving && <Loader2 className="size-4 animate-spin" />}
-              保存
-            </Button>
+            <div className="flex gap-2 mt-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                disabled={!resetEnabled}
+                onClick={handleReset}
+              >
+                {resetting && <Loader2 className="size-4 animate-spin" />}
+                <RotateCcw className="size-4" />
+                重新初始化
+              </Button>
+              <Button
+                className="flex-1"
+                disabled={!saveEnabled}
+                onClick={handleSave}
+              >
+                {saving && <Loader2 className="size-4 animate-spin" />}
+                保存
+              </Button>
+            </div>
           </div>
         )}
       </main>

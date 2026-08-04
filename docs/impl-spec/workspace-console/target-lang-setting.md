@@ -79,6 +79,17 @@ Web 前端给用户一个可视化选择**默认目标学习语言**并初始化
 
 写回 yaml 走 `src/everlingo/setting.py` 既有 `load_profile()` + `model_copy(update=...)` + `save_profile()` 范式。
 
+### POST /api/target-language/reset-vault
+
+把已初始化 lang 的 `spec/` 目录从模板重新 seed（覆盖写入）。服务端：
+
+1. 校验 `lang ∈` 5 种支持语言，否则 **400**。
+2. `_workspace()` session → `call_tool("reset_vault", {"lang": lang})`：
+   - `result.isError` → **500**（如 vault 未初始化）。
+   - indexer 不可达 → **503**。
+3. 不写 yaml（仅重置 spec，不改偏好）。
+4. 返回 200 + 新 list（同 GET `/api/target-language/list` 结构）。
+
 ### 单测
 
 `tests/test_user_profile_api.py`（12 用例），复用 `test_vault_editor_api.py` 的 mock 范式（`_MockCtx` / `_fake_result` / `_error_result` / patch `_workspace`）+ `test_setting.py` 的 `monkeypatch + tmp_path` workspace 隔离：
@@ -86,6 +97,7 @@ Web 前端给用户一个可视化选择**默认目标学习语言**并初始化
 - status 五态：未设置 / 合法已初始化 / 合法未初始化 / 非法语言 / indexer 不可达（`null` 降级）。
 - list：5 种全列、`is_default` 单选、`vault_initialized` 三态、indexer 不可达全禁用。
 - default：合法已建（不调 `create_vault`）、合法未建（`list_vaults → create_vault → save_profile` 调用顺序）、**合法已为默认但未建（仍走 `list_vaults → create_vault → save_profile`）**、非法 lang 400、indexer 不可达 503 且 profile 不变。
+- reset-vault：合法已初始化（调 `reset_vault` 返回新 list）、非法 lang 400、indexer 不可达 503、未初始化 lang（reset_vault 返 isError → 500）。
 - yaml 写回：真实 `everlingo.yaml` 文件断言 `target_language` 更新。
 
 ## 前端设计
@@ -127,6 +139,11 @@ Web 前端给用户一个可视化选择**默认目标学习语言**并初始化
   - **永远 Enable 语义**：不要求 `selected !== current_default`——即使选中的就是当前默认语言，只要其 vault 未初始化，也可点击以触发补初始化。
   - 点击 → `POST /api/target-language/default`，无确认弹窗（未初始化时由后端静默初始化）。
   - 成功后显示「已切换，对话已重置」，约 800ms 后 `window.location.href = '/'` 回到聊天首页（chat session 是内存态，整页跳转即重置对话上下文）。
+- **「重新初始化」按钮**（位于「保存」按钮左侧）：
+  - 禁用条件：未选中 / 选中语言 `vault_initialized !== true` / 重置中。
+  - 仅在该 lang 笔记库已初始化时可用（未初始化时先用「保存」触发 `create_vault`）。
+  - 点击 → `window.confirm('"知识库规范" 下的文件，可能被替换，若你有修改过 "知识库规范"，文件可能丢失。')` → 确认后 `POST /api/target-language/reset-vault` → 成功显示「已重新初始化知识库规范」并刷新列表。
+  - 后端只重置 `spec/*.md`（从模板覆盖写入），**不碰** `items/` 等用户笔记。
 
 ### 引导模式（首次使用）
 

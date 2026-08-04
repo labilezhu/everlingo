@@ -344,6 +344,73 @@ class TestSetDefaultLanguage:
             pp2.stop()
 
 
+# ── POST /api/target-language/reset-vault ────────────────────────
+
+
+class TestResetVault:
+    def test_initialized_lang_calls_reset_vault(self, client: TestClient):
+        _, pp1, pp2 = _patch_profile("")
+        session = AsyncMock()
+        # reset_vault 成功后 target_language_list() 再开 session 做 list_vaults
+        session.call_tool = AsyncMock(side_effect=[
+            _fake_result({"ok": True, "lang": "en", "vault_path": "memory/languages/en/vault",
+                          "files_reset": 11, "registered": True}),
+            _fake_result({"vaults": ["en"], "count": 1}),
+        ])
+        p = _patch_workspace(session)
+        try:
+            resp = client.post("/api/target-language/reset-vault", json={"lang": "en"})
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["current_default"] == ""
+            calls = [c[0] for c in session.call_tool.await_args_list]
+            assert calls[0][0] == "reset_vault"
+            assert calls[1][0] == "list_vaults"
+        finally:
+            p.stop()
+            pp1.stop()
+            pp2.stop()
+
+    def test_invalid_lang_returns_400(self, client: TestClient):
+        _, pp1, pp2 = _patch_profile("")
+        session = AsyncMock()
+        p = _patch_workspace(session)
+        try:
+            resp = client.post("/api/target-language/reset-vault", json={"lang": "xx"})
+            assert resp.status_code == 400
+            session.call_tool.assert_not_awaited()
+        finally:
+            p.stop()
+            pp1.stop()
+            pp2.stop()
+
+    def test_indexer_unreachable_returns_503(self, client: TestClient):
+        _, pp1, pp2 = _patch_profile("")
+        p = _patch_workspace_503()
+        try:
+            resp = client.post("/api/target-language/reset-vault", json={"lang": "en"})
+            assert resp.status_code == 503
+        finally:
+            p.stop()
+            pp1.stop()
+            pp2.stop()
+
+    def test_reset_vault_fails_is_error_returns_500(self, client: TestClient):
+        _, pp1, pp2 = _patch_profile("")
+        session = AsyncMock()
+        session.call_tool = AsyncMock(
+            return_value=_error_result("vault not initialized, call create_vault first")
+        )
+        p = _patch_workspace(session)
+        try:
+            resp = client.post("/api/target-language/reset-vault", json={"lang": "en"})
+            assert resp.status_code == 500
+        finally:
+            p.stop()
+            pp1.stop()
+            pp2.stop()
+
+
 # ── save_profile 写回 yaml（真实文件） ────────────────────────────
 
 

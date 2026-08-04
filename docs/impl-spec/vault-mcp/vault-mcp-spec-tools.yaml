@@ -93,6 +93,62 @@ tools:
         - files_written
         - registered
 
+  - name: reset_vault
+    title: Reset vault spec
+    description: |
+      Reinitialize an existing target-learning-language vault's spec directory
+      at $workspace/memory/languages/$lang/vault/spec/ by re-seeding
+      spec/*.md from templates/default/spec/*.md (with includes expanded
+      via everlingo.utils.md_prompt_compiler.compile_prompt + PackageSource,
+      same approach as create_vault but overwriting existing spec files).
+      Does NOT touch items/, events/, or other non-spec files — only
+      spec/*.md is refreshed. After reset, synchronously re-registers the
+      lang with the indexer's LangState via state._open_lang(lang)
+      (idempotent no-op). The vault must already exist (call create_vault
+      first). Workspace-level tool: does NOT require session.configure.
+    inputSchema:
+      type: object
+      properties:
+        lang:
+          type: string
+          description: |
+            目标学习语言代码 (en / ja / zh-CN / ...)。
+            禁止包含路径分隔符 (/、\)、点号（.、..）、空字符串、NUL 字符，
+            否则返回 isError=true。vault 必须先通过 create_vault 初始化。
+      required:
+        - lang
+    outputSchema:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          description: 固定 true；执行错误返回 isError=true。
+        lang:
+          type: string
+          description: 回显的 lang 参数。
+        vault_path:
+          type: string
+          description: |
+            相对当前 workspace 根的 vault 目录路径（形如
+            "memory/languages/$lang/vault/"）。
+        files_reset:
+          type: integer
+          description: |
+            本次调用重置（覆盖写入）的 spec 文件数量。spec/*.md 走
+            compile_prompt（展开 include + 剥 frontmatter）。
+        registered:
+          type: boolean
+          description: |
+            true = 已通过 state._open_lang 同步注册到 indexer；
+            false = 注册失败（vault 目录/文件已落盘，后续 watcher
+            或显式 configure 仍可触发懒加载）。
+      required:
+        - ok
+        - lang
+        - vault_path
+        - files_reset
+        - registered
+
 ########### Utility ################
 # 纯计算工具，不绑特定 lang，豁免 session.configure。
 # 不需要权限校验（纯计算，无副作用，无文件访问）。
