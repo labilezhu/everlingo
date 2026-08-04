@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from everlingo.mem.agents.mem_writer_mcp_client import IndexerOfflineError
 from everlingo.mem.vault.frontmatter import parse_frontmatter
+from everlingo.setting import load_profile
 from everlingo.workspace import lang_vault_dir
 
 from .vault_editor_mcp_client import mcp_session_configured, mcp_session_workspace
@@ -158,7 +159,9 @@ async def list_langs():
         if result.isError:
             text = result.content[0].text if result.content else "unknown error"
             raise HTTPException(500, detail=text)
-        return _unwrap(result)
+        data = _unwrap(result)
+        data["default"] = load_profile().language.target_language
+        return data
 
 
 @router.get("/{lang}/tree")

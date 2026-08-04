@@ -28,7 +28,7 @@ Web 前端给用户一个可视化编辑 [Memory Vault](/src/everlingo/mem/vault
 
 ### Header
 
-- **lang selector**：单选下拉，候选项来自 `GET /api/vault/langs`（底层 MCP `list_vaults`）。切换 lang 重新拉取文件树。
+- **lang selector**：单选下拉，候选项来自 `GET /api/vault/langs`（底层 MCP `list_vaults`）。切换 lang 重新拉取文件树。未传 `?lang=` 时默认选中 `everlingo.yaml` 中 `user_profile.language.target_language` 配置的默认目标学习语言（若该 lang 不在 vaults 列表中则回退到列表第一项）；`default` 字段随 `GET /api/vault/langs` 响应返回。
 - **模式切换**：源码 / 直观 两态 toggle，组件内持久化。
 - **呼叫小记**：toggle 按钮。首次按下时在右侧挂载 chatbot 侧栏（`ChatWindow` 组件，建 session + 连 SSE）；再次按下只 CSS 隐藏侧栏，**不卸载组件**（session 与 SSE 保持，下次打开延续会话）。选中态高亮 `bg-primary text-primary-foreground`。
 - **转到小记**：`window.location.href = '/'`，同窗跳转到 [Standalone Web Chatbot](web-chatbot.md) 独立入口。

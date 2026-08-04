@@ -28,6 +28,18 @@ class _MockCtx:
         pass
 
 
+class _MockProfile:
+    """Minimal stand-in for UserProfile with a `language.target_language`."""
+
+    def __init__(self, target_language: str = "") -> None:
+        self.language = _MockLanguage(target_language)
+
+
+class _MockLanguage:
+    def __init__(self, target_language: str) -> None:
+        self.target_language = target_language
+
+
 def _fake_result(data: dict) -> AsyncMock:
     """Return a mock `call_tool` result with `content[0].text = json.dumps(data)`."""
     r = AsyncMock()
@@ -86,14 +98,41 @@ class TestListLangs:
         session = AsyncMock()
         session.call_tool = AsyncMock(return_value=_fake_result({"vaults": ["en", "ja"], "count": 2}))
         p1, p2 = _patch_ctx(session)
+        p_profile = patch(
+            "everlingo.gateway.vault_editor_api.load_profile",
+            return_value=_MockProfile(target_language=""),
+        )
+        p_profile.start()
         try:
             resp = client.get("/api/vault/langs")
             assert resp.status_code == 200
             data = resp.json()
             assert data["vaults"] == ["en", "ja"]
+            assert data["default"] == ""
         finally:
             p1.stop()
             p2.stop()
+            p_profile.stop()
+
+    def test_default_injected_from_profile(self, client: TestClient):
+        session = AsyncMock()
+        session.call_tool = AsyncMock(return_value=_fake_result({"vaults": ["en", "ja"], "count": 2}))
+        p1, p2 = _patch_ctx(session)
+        p_profile = patch(
+            "everlingo.gateway.vault_editor_api.load_profile",
+            return_value=_MockProfile(target_language="ja"),
+        )
+        p_profile.start()
+        try:
+            resp = client.get("/api/vault/langs")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["vaults"] == ["en", "ja"]
+            assert data["default"] == "ja"
+        finally:
+            p1.stop()
+            p2.stop()
+            p_profile.stop()
 
     def test_503_when_indexer_offline(self, client: TestClient):
         with patch(

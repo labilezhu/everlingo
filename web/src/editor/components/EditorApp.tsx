@@ -97,7 +97,8 @@ export default function EditorApp() {
       .then(resp => {
         const v = resp.vaults;
         setLangs(v);
-        const pre = initLang && v.includes(initLang) ? initLang : (v[0] || '');
+        const fallback = resp.default && v.includes(resp.default) ? resp.default : (v[0] || '');
+        const pre = initLang && v.includes(initLang) ? initLang : fallback;
         setSelectedLang(pre);
         return pre;
       })

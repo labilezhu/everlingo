@@ -1,6 +1,8 @@
 export interface LangsResp {
   vaults: string[];
   count: number;
+  /** everlingo.yaml 配置的默认目标学习语言；未配置为空串 */
+  default?: string;
 }
 
 export interface Entry {

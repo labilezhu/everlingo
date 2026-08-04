@@ -1,3 +1,10 @@
+[Vault Editor](docs/impl-spec/vault-editor.md) 的 File Explorer 树，如果 /spec 或 /events 目录存在，能不能把他们默认为收起状态？ 不要展开。
+
+---
+
+按 user-docs/deployment/multiple-user-auth-deployment.md 部署的 EverLingo 。作为 iphone PWA 应用时，在登录使用一段时间后。不知识是认证过期，还是服务端更新重启。 会有打开应用白屏的情况。只能删除 PWA 应用图标，再次加上后解决。
+
+是不是 PWA 的网页缓存没更新（好像没有方法更新），一些网页后台请求失败，又没有重定向到 login 页面造成的？
 
 ## 需求
 docs/impl-spec/workspace-console/target-lang-setting.md 网页，在“保存”按钮左边，加一个 “重新初始化”。功能是更新 $workspace/memory/languages/$lang/vault/spec 。 用户点击后，需要提示用户： 

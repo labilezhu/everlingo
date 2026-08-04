@@ -6,15 +6,28 @@ metadata: []
 
 # Release 的操作规范
 
+版本号格式规范：
+The <version> format must be in the form of `X.Y.Z` or `X.Y.Z-rc.NN`, where X, Y, Z and NN are integers. 
+版本号语义： `MAJOR.MINOR.PATCH[-PRERELEASE]`
+
+## Parameters
+
+### <version>
+
 The release version must be provided in the user request. If the version is not provided, the system will ask the user to provide it:
 - Ask the user for:
    - release version
 
 Let's name the user specified release version as `<version>` for the following steps. 
 
+### <next_version>
+用户可以指定下一个版本号。以下以 `<next_version>` 作为标识。如果未指定，默认按以下规则生成 `<next_version>`：
+- 如果 `<version>` 没有 rc 后缀，那么 `<next_version>` 为 `<version>` 的 PATCH+1 即： `MAJOR.MINOR.PATCH+1-rc.1]` 。 如 0.1.0 -> 0.1.1-rc.1
+- 如果 `<version>` 有 rc 后缀，那么 `<next_version>` 为 `<version>` 的 PRERELEASE+1 即： `MAJOR.MINOR.PATCH-rc.PRERELEASE+1]`。 如 0.1.1-rc.1 -> 0.1.1-rc.2
+
 ## Workflow
 
-1. Verify the <version> format is correct. The <version> format must be in the form of `X.Y.Z` or `X.Y.Z-rc.NN`, where X, Y, Z and NN are integers. If the <version> format is incorrect, the system will ask the user to provide a valid version.
+1. Verify the <version> format is correct. If the <version> format is incorrect, the system will ask the user to provide a valid version.
 2. Find the <version> in the `/VERSION_HISTORY.yaml` file. And ensure version exists:
   ```yaml
   - version: <version>
@@ -44,4 +57,10 @@ Let's name the user specified release version as `<version>` for the following s
   - version: <version>
   - state: released
   ```  
+
+7. 在 `/VERSION_HISTORY.yaml` 是最开头，插入下一版本号： 
+   ```yaml
+   - version: <next_version>
+   - state: in-progress
+   ```
    
