@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { apiFetch } from '@/services/apiFetch';
 
 export type WechatChannelState =
   | 'stopped'
@@ -23,7 +24,8 @@ const STOPPED: WechatChannelStatus = {
 };
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
+  // 401 由 apiFetch 统一兜底跳 /login
+  const res = await apiFetch(url, init);
   if (!res.ok) {
     let detail = `HTTP ${res.status}`;
     try {

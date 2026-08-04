@@ -34,7 +34,6 @@ export default function ChatWindow({ embedded, linkListener, resourceContextProv
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connStatus, setConnStatus] = useState<ConnStatus | null>(null);
-  const [reconnectNonce, setReconnectNonce] = useState(0);
   const retryNowRef = useRef<(() => void) | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -51,13 +50,6 @@ export default function ChatWindow({ embedded, linkListener, resourceContextProv
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, thinking]);
-
-  function handleRebuild() {
-    setConnStatus(null);
-    setSessionId(null);
-    setReconnectNonce(n => n + 1);
-    setMessages(prev => [...prev, { id: uid(), text: '（小记刚才断片了，对话忘记了，笔记还在）', from: 'system' }]);
-  }
 
   useEffect(() => {
     if (sessionId) {
@@ -100,7 +92,7 @@ export default function ChatWindow({ embedded, linkListener, resourceContextProv
       cleanup?.();
       audioRef.current?.pause();
     };
-  }, [reconnectNonce]);
+  }, []);
 
   const handleSend = useCallback(async (text: string) => {
     if (!sessionId) return;
@@ -160,12 +152,12 @@ export default function ChatWindow({ embedded, linkListener, resourceContextProv
 
       {connStatus?.state === 'session_expired' && (
         <div className="px-4 py-2 bg-amber-50 text-amber-700 text-sm border-b border-amber-200 flex items-center justify-between gap-2">
-          <span>会话已过期</span>
+          <span>连接已失效，请重新加载</span>
           <button
-            onClick={handleRebuild}
+            onClick={() => window.location.reload()}
             className="underline whitespace-nowrap font-medium shrink-0"
           >
-            重新开始
+            重新加载
           </button>
         </div>
       )}

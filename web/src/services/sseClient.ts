@@ -1,4 +1,5 @@
 import type { TaskKind, UserInputEnvelope, SSEEvent, ResourceContext } from '@/types/chat';
+import { apiFetchJson } from './apiFetch';
 
 export type ConnStatus =
   | { state: 'connected' }
@@ -31,19 +32,16 @@ export function buildEnvelope(task: TaskKind, message: string, resourceContexts:
 }
 
 export async function createSession(): Promise<string> {
-  const res = await fetch('/api/session', { method: 'POST' });
-  if (!res.ok) throw new Error('Failed to create session');
-  const data = await res.json();
-  return data.session_id as string;
+  const data = await apiFetchJson<{ session_id: string }>('/api/session', { method: 'POST' });
+  return data.session_id;
 }
 
 export async function sendMessage(sessionId: string, envelope: UserInputEnvelope): Promise<void> {
-  const res = await fetch(`/api/session/${sessionId}/message`, {
+  await apiFetchJson(`/api/session/${sessionId}/message`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ envelope }),
   });
-  if (!res.ok) throw new Error('Failed to send message');
 }
 
 const MAX_BACKOFF_MS = 30_000;

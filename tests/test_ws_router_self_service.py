@@ -85,12 +85,19 @@ class TestSelfServicePage:
         assert resp.status_code == 200
         assert resp.headers["content-type"].startswith("text/html")
         assert "Self Service" in resp.text
+        assert resp.headers["cache-control"] == "no-store, must-revalidate"
 
     def test_get_self_service_pat_authenticated(self, client, static_dist):
         resp = client.get("/self-service/pat", headers=_auth_headers())
         assert resp.status_code == 200
         assert resp.headers["content-type"].startswith("text/html")
         assert "PAT" in resp.text
+        assert resp.headers["cache-control"] == "no-store, must-revalidate"
+
+    def test_assets_immutable_cache(self, client, static_dist):
+        resp = client.get("/assets/self-service.js", headers=_auth_headers())
+        assert resp.status_code == 200
+        assert resp.headers["cache-control"] == "public, max-age=31536000, immutable"
 
     def test_get_self_service_requires_auth(self, client, static_dist):
         resp = client.get("/self-service", follow_redirects=False)

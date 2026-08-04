@@ -122,12 +122,25 @@ def _static_dir() -> str:
     return os.path.join(os.path.dirname(__file__), "..", "..", "..", "web", "dist")
 
 
+# ref: docs/ADR/20260804-web-cache-control.md
+# HTML 外壳走 no-store，避免 iOS PWA/Safari 用旧 HTML 引导出失效 JS 导致白屏；
+# 带内容 hash 的静态资源走 immutable 长缓存；manifest 走 no-cache（允许更新检测）。
+HTML_CACHE_CONTROL = "no-store, must-revalidate"
+ASSET_CACHE_CONTROL = "public, max-age=31536000, immutable"
+MANIFEST_CACHE_CONTROL = "no-cache"
+
+
+def _static_response(path: str, media_type: str | None = None, cache: str = HTML_CACHE_CONTROL) -> FileResponse:
+    headers = {"Cache-Control": cache}
+    return FileResponse(path, media_type=media_type, headers=headers)
+
+
 @app.get("/manifest.webmanifest")
 async def serve_manifest():
     path = os.path.join(_static_dir(), "manifest.webmanifest")
     if not os.path.exists(path):
         return {"message": "manifest not found. Run `npm run build` in the web/ directory."}
-    return FileResponse(path, media_type="application/manifest+json")
+    return _static_response(path, media_type="application/manifest+json", cache=MANIFEST_CACHE_CONTROL)
 
 
 @app.get("/editor")
@@ -139,7 +152,7 @@ async def serve_editor(path: str = ""):
     if not os.path.exists(editor_index):
         return {"message": "Frontend not built. Run `npm run build` in the web/ directory."}
 
-    return FileResponse(editor_index)
+    return _static_response(editor_index)
 
 
 @app.get("/console/me")
@@ -150,7 +163,7 @@ async def serve_me():
     if not os.path.exists(index):
         return {"message": "Frontend not built. Run `npm run build` in the web/ directory."}
 
-    return FileResponse(index)
+    return _static_response(index)
 
 
 @app.get("/console/me/target-language")
@@ -161,7 +174,7 @@ async def serve_target_language():
     if not os.path.exists(index):
         return {"message": "Frontend not built. Run `npm run build` in the web/ directory."}
 
-    return FileResponse(index)
+    return _static_response(index)
 
 
 @app.get("/console/web-console")
@@ -173,7 +186,7 @@ async def serve_web_console(path: str = ""):
     if not os.path.exists(index):
         return {"message": "Frontend not built. Run `npm run build` in the web/ directory."}
 
-    return FileResponse(index)
+    return _static_response(index)
 
 
 @app.get("/healthz")
@@ -217,8 +230,13 @@ async def serve_frontend(path: str = ""):
 
     file_path = os.path.join(static_dir, path) if path else index_path
     if os.path.isfile(file_path):
-        return FileResponse(file_path)
-    return FileResponse(index_path)
+        # 带内容 hash 的构建资源（/assets/**）走 immutable 长缓存；
+        # 其余（HTML 外壳、图标等）保持 no-store。
+        if path.startswith("assets/"):
+            return _static_response(file_path, cache=ASSET_CACHE_CONTROL)
+        return _static_response(file_path)
+    # SPA fallback（history 路由命中到 HTML 外壳）
+    return _static_response(index_path)
 
 
 class WebSessionAcceptor(SessionAcceptor):

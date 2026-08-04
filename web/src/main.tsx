@@ -1,6 +1,9 @@
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import ChatWindow from './components/ChatWindow';
+import ErrorBoundary from './components/ErrorBoundary';
+import { apiFetchJson } from './services/apiFetch';
+import { useAuthRecheck } from './services/useAuthRecheck';
 import './index.css';
 
 // ref: docs/ADR/20260801-user-onboarding.md §5 — 首次使用强制跳转
@@ -18,25 +21,26 @@ type BootstrapState = 'checking' | 'ready';
 function Root() {
   const [state, setState] = useState<BootstrapState>('checking');
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const resp = await fetch('/api/user-profile/status');
-        const status: ProfileStatus = await resp.json();
-        if (cancelled) return;
-        if (status.needs_setup) {
-          window.location.href = '/console/me/target-language';
-          return;
-        }
-        setState('ready');
-      } catch {
-        if (cancelled) return;
-        setState('ready');
+  const check = async () => {
+    try {
+      // apiFetchJson 在 401 时自动跳 /login，不会走到这里
+      const status: ProfileStatus = await apiFetchJson('/api/user-profile/status');
+      if (status.needs_setup) {
+        window.location.href = '/console/me/target-language';
+        return;
       }
-    })();
-    return () => { cancelled = true; };
+      setState('ready');
+    } catch {
+      // 401 已由 apiFetchJson 跳转；其余失败保持可用的聊天页
+      setState('ready');
+    }
+  };
+
+  useEffect(() => {
+    void check();
   }, []);
+
+  useAuthRecheck();
 
   if (state === 'checking') {
     return (
@@ -51,6 +55,8 @@ function Root() {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <Root />
+    <ErrorBoundary>
+      <Root />
+    </ErrorBoundary>
   </StrictMode>,
 );

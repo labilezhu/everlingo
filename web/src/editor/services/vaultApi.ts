@@ -1,4 +1,5 @@
 import type { LangsResp, TreeResp, ReadResp, SearchReq, SearchResp, TagsResp, MkdirResp, DeleteResp, RenameResp } from '@/editor/types/vault';
+import { apiFetch } from '@/services/apiFetch';
 
 const BASE = '/api/vault';
 
@@ -6,7 +7,8 @@ async function api<T>(
   url: string,
   init?: RequestInit,
 ): Promise<T> {
-  const res = await fetch(url, init);
+  // 401 由 apiFetch 统一兜底跳 /login
+  const res = await apiFetch(url, init);
   if (!res.ok) {
     let detail = `HTTP ${res.status}`;
     try {

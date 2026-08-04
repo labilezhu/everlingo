@@ -43,6 +43,16 @@ def _static_dir() -> str:
     return os.path.join(os.path.dirname(__file__), "..", "..", "..", "web", "dist")
 
 
+# ref: docs/ADR/20260804-web-cache-control.md
+HTML_CACHE_CONTROL = "no-store, must-revalidate"
+ASSET_CACHE_CONTROL = "public, max-age=31536000, immutable"
+MANIFEST_CACHE_CONTROL = "no-cache"
+
+
+def _static_response(path: str, media_type: str | None = None, cache: str = HTML_CACHE_CONTROL) -> FileResponse:
+    return FileResponse(path, media_type=media_type, headers={"Cache-Control": cache})
+
+
 class AppState:
     def __init__(self, config: RouterConfig) -> None:
         self.config = config
@@ -81,7 +91,7 @@ def create_app(config: RouterConfig) -> FastAPI:
                 content={"message": "Frontend not built. Run `npm run build` in the web/ directory."},
                 status_code=404,
             )
-        return FileResponse(file)
+        return _static_response(file, cache=ASSET_CACHE_CONTROL)
 
     app.middleware("http")(trusted_proxy_middleware)
 
@@ -112,7 +122,7 @@ def create_app(config: RouterConfig) -> FastAPI:
                 content={"message": "Frontend not built. Run `npm run build` in the web/ directory."},
                 status_code=503,
             )
-        return FileResponse(index)
+        return _static_response(index)
 
     @app.post("/login")
     async def post_login(request: Request):
@@ -158,7 +168,9 @@ def create_app(config: RouterConfig) -> FastAPI:
                     content={"message": "Frontend not built. Run `npm run build` in the web/ directory."},
                     status_code=503,
                 )
-            return FileResponse(file, media_type=media_type)
+            if static_path == "/manifest.webmanifest":
+                return _static_response(file, media_type=media_type, cache=MANIFEST_CACHE_CONTROL)
+            return _static_response(file, media_type=media_type, cache=ASSET_CACHE_CONTROL)
 
     @app.get("/logout")
     async def get_logout(request: Request):
@@ -202,7 +214,7 @@ def create_app(config: RouterConfig) -> FastAPI:
                 content={"message": "Frontend not built. Run `npm run build` in the web/ directory."},
                 status_code=503,
             )
-        return FileResponse(index)
+        return _static_response(index)
 
     @app.get("/self-service/pat")
     async def get_self_service_pat(request: Request):
@@ -212,7 +224,7 @@ def create_app(config: RouterConfig) -> FastAPI:
                 content={"message": "Frontend not built. Run `npm run build` in the web/ directory."},
                 status_code=503,
             )
-        return FileResponse(index)
+        return _static_response(index)
 
     @app.get("/self-service/api/pats")
     async def list_self_service_pats(request: Request):

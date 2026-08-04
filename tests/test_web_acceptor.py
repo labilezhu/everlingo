@@ -209,6 +209,7 @@ class TestServeEditor:
             assert "not built" in data.get("message", "").lower()
         else:
             assert "小记笔记编辑器" in resp.text
+            assert resp.headers["cache-control"] == "no-store, must-revalidate"
 
     def test_editor_subpath_returns_200(self):
         client = TestClient(app)
@@ -219,6 +220,20 @@ class TestServeEditor:
             assert "not built" in data.get("message", "").lower()
         else:
             assert "小记笔记编辑器" in resp.text
+
+    def test_frontend_asset_immutable_cache(self):
+        import os
+        import everlingo.gateway.web_acceptor as wa
+        assets_dir = os.path.join(wa._static_dir(), "assets")
+        if not os.path.isdir(assets_dir):
+            pytest.skip("frontend dist not built")
+        files = [f for f in os.listdir(assets_dir) if f.endswith(".js")]
+        if not files:
+            pytest.skip("no js asset present")
+        client = TestClient(app)
+        resp = client.get(f"/assets/{files[0]}")
+        assert resp.status_code == 200
+        assert resp.headers["cache-control"] == "public, max-age=31536000, immutable"
 
     def test_editor_routes_registered_before_catch_all(self):
         """/editor 路由应排在 /{path:path} 之前。"""

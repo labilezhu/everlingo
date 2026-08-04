@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Languages, Loader2, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { apiFetch, apiFetchJson } from '@/services/apiFetch';
+import { useAuthRecheck } from '@/services/useAuthRecheck';
 
 // ref: docs/ADR/20260801-user-onboarding.md — 目标学习语言设置页与首次使用引导
+// ref: docs/ADR/20260804-web-cache-control.md — 401 由 apiFetchJson 统一兜底跳 /login
 
 interface LanguageEntry {
   code: string;
@@ -40,10 +43,10 @@ export default function TargetLanguagePage() {
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      fetch('/api/user-profile/status').then(r => r.json()),
-      fetch('/api/target-language/list').then(r => r.json()),
+      apiFetchJson<ProfileStatus>('/api/user-profile/status'),
+      apiFetchJson<LanguageList>('/api/target-language/list'),
     ])
-      .then(([status, langs]: [ProfileStatus, LanguageList]) => {
+      .then(([status, langs]) => {
         if (cancelled) return;
         setList(langs);
         setNeedsSetup(status.needs_setup);
@@ -57,6 +60,8 @@ export default function TargetLanguagePage() {
       });
     return () => { cancelled = true; };
   }, []);
+
+  useAuthRecheck();
 
   const saveEnabled =
     selected !== '' &&
@@ -73,7 +78,7 @@ export default function TargetLanguagePage() {
     setSaving(true);
     setSaveMessage('');
     try {
-      const resp = await fetch('/api/target-language/default', {
+      const resp = await apiFetch('/api/target-language/default', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lang: selected }),
@@ -100,7 +105,7 @@ export default function TargetLanguagePage() {
     setResetting(true);
     setSaveMessage('');
     try {
-      const resp = await fetch('/api/target-language/reset-vault', {
+      const resp = await apiFetch('/api/target-language/reset-vault', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lang: selected }),

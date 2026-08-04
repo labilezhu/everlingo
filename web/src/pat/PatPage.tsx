@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowLeft, Copy, KeyRound, Plus, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { apiFetch } from '@/services/apiFetch';
 
 interface Pat {
   id: string;
@@ -20,12 +21,16 @@ export default function PatPage() {
   const [copied, setCopied] = useState(false);
 
   async function loadPats() {
-    const resp = await fetch('/self-service/api/pats', {
-      headers: { 'Accept': 'application/json' },
-    });
-    if (resp.ok) {
-      setPats(await resp.json());
-    } else {
+    try {
+      const resp = await apiFetch('/self-service/api/pats', {
+        headers: { 'Accept': 'application/json' },
+      });
+      if (resp.ok) {
+        setPats(await resp.json());
+      } else {
+        setError('加载 Token 列表失败');
+      }
+    } catch {
       setError('加载 Token 列表失败');
     }
   }
@@ -46,7 +51,7 @@ export default function PatPage() {
     setCopied(false);
     setCreating(true);
     try {
-      const resp = await fetch('/self-service/api/pats', {
+      const resp = await apiFetch('/self-service/api/pats', {
         method: 'POST',
         headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
         body: JSON.stringify({ label }),
