@@ -87,7 +87,14 @@ others/ # 其它
 ### 基础规则
 
 #### slug 基础规则
+
 用于将来生成 wiki 静态网站时作为人类友好的 url 部分。使用 url 安全的英文字符集(所以必要时需要翻译成英文)。但不能使用各操作系统或 url 要转义或不安全的文件名字符，如有，去掉之。空格变为"-"。
+
+#### `知识点条目` 之间的 markdown 超链接
+
+`知识点条目` markdown 文件之间的超链接地址，应该使用绝对路径。如：
+- 正确： [clue](/items/vocab/clue.md)
+- 错误： [clue](items/vocab/clue.md)
 
 ### Markdown Frontmatter 字段
 
@@ -102,6 +109,7 @@ description_in_target_lang: 'Pragmatically, answering "Yes" or "No" can easily l
 created_at: 2026-06-22T18:08:00+08:00
 timestamp: 2026-06-26T09:15:00+08:00
 schema_version: 1
+everlingo_version: 0.1.1-rc1
 first_seen: 2026-06-22T18:08:00+08:00
 last_seen: 2026-06-26T09:15:00+08:00
 seen_count: 4
@@ -120,6 +128,7 @@ first_source_title: "AI-Based Job Position Watching from Company Career Pages(Po
 - created_at: 创建时间，ISO 8601。
 - timestamp: update time，使用格式 ISO 8601。OKF `timestamp` 标准槽位。
 - schema_version: int。当前 frontmatter schema 版本。
+- everlingo_version: 创建或最后更新当前文件的 Everlingo 版本。
 - type: `知识类型`
 - tags: `知识点条目`的标签，支持多个标签。说明如下：
   - 格式：标签名允许包含空格，但一般不要有空格或其它空白字符。一般是一个单词或词语。
@@ -133,7 +142,6 @@ first_source_title: "AI-Based Job Position Watching from Company Career Pages(Po
 自动生成的笔记尽量多地填写以上字段。人工手写的笔记建议最少包括以下字段：
 - type
 - title
-
 
 
 ### 文件命名
@@ -181,7 +189,7 @@ te-form.md
 - 2026-06-26 18:42:48 ：阅读日语文章时再次遇到。
 ```
 
-**知识点出现的链接** : 
+**记录遇到知识点的链接** : 
 
 当当前 `知识点` 的 `触发知识点用户消息envelope` 中以下字段有值:
  - `source.url`

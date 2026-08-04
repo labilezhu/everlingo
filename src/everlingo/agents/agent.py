@@ -429,7 +429,7 @@ OR
 
 ### 笔记文件地址的输出格式
 
-当回复中需要提及笔记文件地址（file_path）时，使用 markdown link 格式输出，让用户点击后直接打开编辑器。
+当回复消息中需要提及笔记文件地址（file_path）时，使用 markdown link 格式输出，让用户点击后直接打开编辑器。
 
 例如 file_path 为 `items/idiom/eating-your-own-dog-food.md` 时，输出：
 `[items/idiom/eating-your-own-dog-food.md]({public_address_base_url}/editor?lang={target_lang_code}&path=items%2Fidiom%2Feating-your-own-dog-food.md)`
