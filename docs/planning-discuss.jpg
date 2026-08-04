@@ -1,3 +1,8 @@
+
+现在每次离开 [Standalone](docs/impl-spec/web-chatbot.md) 页（如点 Me 按钮） 后，再回来，都会开新的 chat session 。 不是希望的。
+
+---
+
 [Vault Editor](docs/impl-spec/vault-editor.md) 的 File Explorer 树，如果 /spec 或 /events 目录存在，能不能把他们默认为收起状态？ 不要展开。
 
 ---

@@ -34,7 +34,7 @@
 | 1 | 统一 fetch 包装 | 新增 `web/src/services/apiFetch.ts`：`apiFetch` / `apiFetchJson`，收到 401 且非登录页时 `window.location.replace('/login')` |
 | 2 | ErrorBoundary | 新增 `web/src/components/ErrorBoundary.tsx`，所有页面根包裹；兜底显示"重新加载 / 重新登录"，替代白屏 |
 | 3 | 复活时认证复检 | 新增 `web/src/services/useAuthRecheck.ts`，监听 `visibilitychange` 与 `pageshow(persisted)`，主动请求 `/api/user-profile/status` 复检 |
-| 4 | SSE session_expired | 显示"连接已失效，请重新加载"并 `window.location.reload()`，**不硬跳 `/login`**（简单部署无 `/login` 路由） |
+| 4 | SSE session_expired | 显示「会话已过期 [重新开始]」提示条，用户点按钮手动 `clearChatState` + 重建新 session，避免导航/卸载期间 EventSource 误触发 onerror 自动清空 sessionStorage 导致跨页跳转回来无法复用 session |
 | 5 | HTML 缓存头 | HTML 外壳（`/login`、`/`、`/editor`、`/console/*`、`/self-service*`）加 `Cache-Control: no-store, must-revalidate`；`/assets/**`（内容 hash）加 `public, max-age=31536000, immutable`；`manifest.webmanifest` 加 `no-cache` |
 | 6 | 简单部署兼容 | 401 兜底仅对真实 401 触发；简单单机部署无鉴权，恒 200，永不误跳 |
 

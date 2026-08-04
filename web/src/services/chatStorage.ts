@@ -44,3 +44,13 @@ export function saveChatState(state: ChatState): void {
   if (write({ sessionId: state.sessionId, messages: cleanMessages.slice(-MAX_STORED_MESSAGES) })) return;
   write({ sessionId: state.sessionId, messages: [] });
 }
+
+// ref: docs/ADR/20260804-web-cache-control.md — session 失效（服务端重启/会话过期）时清空持久化会话，
+// 避免重载后仍复用已被服务端删除的旧 sessionId（否则 SSE 持续 404 → 死循环）。
+export function clearChatState(): void {
+  try {
+    window.sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}

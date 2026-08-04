@@ -5,7 +5,7 @@ import ChatInput from './ChatInput';
 import TaskSelector from './TaskSelector';
 import { Button } from '@/components/ui/button';
 import { createSession, sendMessage, connectSSE, buildEnvelope, type ConnStatus } from '@/services/sseClient';
-import { loadChatState, saveChatState } from '@/services/chatStorage';
+import { loadChatState, saveChatState, clearChatState } from '@/services/chatStorage';
 import type { TaskKind, SSEEvent, ResourceContext } from '@/types/chat';
 import { Message, uid } from '@/types/chat';
 import { LinkListenerContext } from './MarkdownRenderer';
@@ -34,6 +34,7 @@ export default function ChatWindow({ embedded, linkListener, resourceContextProv
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connStatus, setConnStatus] = useState<ConnStatus | null>(null);
+  const [sessionEpoch, setSessionEpoch] = useState(0);
   const retryNowRef = useRef<(() => void) | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -57,6 +58,7 @@ export default function ChatWindow({ embedded, linkListener, resourceContextProv
     }
   }, [sessionId, messages]);
 
+  // 连接 effect — 依赖 sessionEpoch，可被手动或 session_expired 触发重建
   useEffect(() => {
     let cleanup: (() => void) | undefined;
     (async () => {
@@ -92,6 +94,18 @@ export default function ChatWindow({ embedded, linkListener, resourceContextProv
       cleanup?.();
       audioRef.current?.pause();
     };
+  }, [sessionEpoch]);
+
+  // ref: docs/impl-spec/web-chatbot.md §会话状态持久化 — session 过期（SSE 404）时
+  // 走「手动重启」：显示提示条，用户点「重新开始」才清 sessionStorage + 新建 session。
+  // 不自动清空，否则页面卸载/导航期间 EventSource 误触发 onerror 会把存储清掉，
+  // 导致跨页跳转回来后无法复用 session。
+  const handleRebuild = useCallback(() => {
+    clearChatState();
+    setConnStatus(null);
+    setSessionId(null);
+    setMessages(prev => [...prev, { id: uid(), text: '小记刚才断片了，对话忘记了，笔记还在', from: 'system' }]);
+    setSessionEpoch(prev => prev + 1);
   }, []);
 
   const handleSend = useCallback(async (text: string) => {
@@ -152,12 +166,12 @@ export default function ChatWindow({ embedded, linkListener, resourceContextProv
 
       {connStatus?.state === 'session_expired' && (
         <div className="px-4 py-2 bg-amber-50 text-amber-700 text-sm border-b border-amber-200 flex items-center justify-between gap-2">
-          <span>连接已失效，请重新加载</span>
+          <span>会话已过期</span>
           <button
-            onClick={() => window.location.reload()}
+            onClick={handleRebuild}
             className="underline whitespace-nowrap font-medium shrink-0"
           >
-            重新加载
+            重新开始
           </button>
         </div>
       )}
