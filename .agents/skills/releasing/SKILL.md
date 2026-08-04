@@ -14,9 +14,8 @@ The <version> format must be in the form of `X.Y.Z` or `X.Y.Z-rc.NN`, where X, Y
 
 ### <version>
 
-The release version must be provided in the user request. If the version is not provided, the system will ask the user to provide it:
-- Ask the user for:
-   - release version
+The release version can be provided in the user request. 
+If the version is not provided: 默认取 `/VERSION_HISTORY.yaml` 中的最新一个版本，但它的 `state` 需要是 `in-progress`
 
 Let's name the user specified release version as `<version>` for the following steps. 
 
@@ -36,7 +35,7 @@ Let's name the user specified release version as `<version>` for the following s
   - If not found, create it in the `/VERSION_HISTORY.yaml` file.
 3. Update version number in files(skip the missing files and report to user):
    1. Replace `EVERLINGO_VER` env variable :
-     - /mark-specific/local-deploy/68_deploy/router-master@container/68-multiple-user-auth-deployment.md
+     - /home/labile/diy-log/home-lab/pi4ub/everlingo/router-master@container/68-multiple-user-auth-deployment.md
      - /user-docs/deployment/simple-single-deployment.md
      - /user-docs/deployment/multiple-user-auth-deployment.md
      - /README.md
@@ -46,7 +45,7 @@ Let's name the user specified release version as `<version>` for the following s
       1. web/src/me/MePage.tsx — replace the line `EverLingo 版本： ...` with `EverLingo 版本： <version>`
       2. src/everlingo/ws_master/app.py — replace `version="..."` with `version="<version>"`
       3. src/everlingo/ws_router/app.py — replace `version="..."` with `version="<version>"`
-4. Check file `mark-specific/local-deploy/130_deploy/130-release.sh` exists. If not, the system will abort the release operation and tell the reason to the user. 
+4. Check file `/home/labile/diy-log/home-lab/hp/everlingo/130-release.sh` exists. If not, the system will abort the release operation and tell the reason to the user. 
 5. Ask for a confirm and run:
   ```bash
   EVERLINGO_VER=<version> mark-specific/local-deploy/130_deploy/130-release.sh

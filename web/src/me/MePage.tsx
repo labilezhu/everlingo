@@ -57,7 +57,7 @@ export default function MePage() {
           账号
         </Button>
         <div className="mt-2 px-3 text-xs text-muted-foreground/60">
-          EverLingo 版本： 0.1.1-rc.2
+          EverLingo 版本： 0.1.1-rc.3
         </div>
       </footer>
     </div>
