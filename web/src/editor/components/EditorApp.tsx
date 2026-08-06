@@ -28,8 +28,8 @@ export default function EditorApp() {
     () => ({ text: '', start_line: null, start_column: null, paragraph_text: null })
   );
   // ── state ──
-  const [langs, setLangs] = useState<string[]>([]);
   const [selectedLang, setSelectedLang] = useState<string>('');
+  const [langConfigError, setLangConfigError] = useState(false);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [currentPath, setCurrentPath] = useState<string>('');
   const [content, setContent] = useState('');
@@ -82,7 +82,6 @@ export default function EditorApp() {
 
   // ── parse URL params ──
   const params = useMemo(() => new URLSearchParams(location.search), []);
-  const initLang = params.get('lang') || '';
   const initPath = params.get('path') || '';
   const initQ = params.get('q') || '';
   const initTags = useMemo(() => {
@@ -90,17 +89,19 @@ export default function EditorApp() {
     return t.length > 0 ? t : undefined;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── init: fetch langs ──
+  // ── init: fetch default lang ──
   useEffect(() => {
     setLoading(true);
     listLangs()
       .then(resp => {
         const v = resp.vaults;
-        setLangs(v);
-        const fallback = resp.default && v.includes(resp.default) ? resp.default : (v[0] || '');
-        const pre = initLang && v.includes(initLang) ? initLang : fallback;
-        setSelectedLang(pre);
-        return pre;
+        const hasValidDefault = !!resp.default && v.includes(resp.default);
+        if (!hasValidDefault) {
+          setLangConfigError(true);
+          return null;
+        }
+        setSelectedLang(resp.default as string);
+        return resp.default as string;
       })
       .then(lang => {
         if (!lang) return;
@@ -114,25 +115,6 @@ export default function EditorApp() {
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── lang change ──
-  const handleLangChange = useCallback(async (newLang: string) => {
-    if (dirty && !confirm('有未保存的改动，切换语言将丢弃。确定继续？')) return;
-    setSelectedLang(newLang);
-    setCurrentPath('');
-    setContent('');
-    setOriginalContent('');
-    setError(null);
-    setLoading(true);
-    try {
-      const resp = await tree(newLang);
-      setEntries(resp.entries);
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [dirty]);
 
   // ── file select ──
   const handleFileSelect = useCallback(async (path: string) => {
@@ -226,14 +208,13 @@ export default function EditorApp() {
     }
     if (u.origin !== location.origin) return false;
     if (u.pathname !== '/editor') return false;
-    const lang = u.searchParams.get('lang');
+    // lang 参数被忽略：Editor 只编辑默认目标学习语言
     const path = u.searchParams.get('path');
-    if (!lang || !path) return false;
-    if (!langs.includes(lang)) return false;
+    if (!selectedLang || !path) return false;
     if (dirty && !confirm('有未保存的改动，打开链接将丢弃。确定继续？')) return true;
-    void loadFile(lang, path);
+    void loadFile(selectedLang, path);
     return true;
-  }, [langs, dirty, loadFile]);
+  }, [selectedLang, dirty, loadFile]);
 
   // ── editor WYSIWYG link click handler ──
   const handleEditorLinkClick = useCallback((href: string): boolean => {
@@ -242,11 +223,11 @@ export default function EditorApp() {
       try {
         const u = new URL(href);
         if (u.origin === location.origin && u.pathname === '/editor') {
-          const lang = u.searchParams.get('lang');
+          // lang 参数被忽略：Editor 只编辑默认目标学习语言
           const path = u.searchParams.get('path');
-          if (lang && path && langs.includes(lang)) {
+          if (selectedLang && path) {
             if (dirty && !confirm('有未保存的改动，打开链接将丢弃。确定继续？')) return true;
-            void loadFile(lang, path);
+            void loadFile(selectedLang, path);
             return true;
           }
         }
@@ -287,7 +268,7 @@ export default function EditorApp() {
 
     void loadFile(selectedLang, resolvedPath);
     return true;
-  }, [langs, dirty, loadFile, selectedLang, currentPath]);
+  }, [dirty, loadFile, selectedLang, currentPath]);
 
   // ── save ──
   const handleSave = useCallback(async () => {
@@ -441,15 +422,6 @@ export default function EditorApp() {
           >
             <Menu className="size-4" />
           </button>
-          {langs.length > 0 && (
-            <select
-              className="h-8 rounded-lg border border-border bg-background px-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-              value={selectedLang}
-              onChange={e => handleLangChange(e.target.value)}
-            >
-              {langs.map(l => <option key={l} value={l}>{l}</option>)}
-            </select>
-          )}
         </div>
 
         <div className="flex-1 text-center min-w-0">
@@ -482,6 +454,17 @@ export default function EditorApp() {
         </div>
       </header>
 
+      {/* Config error bar: 默认目标学习语言未配置 */}
+      {langConfigError && (
+        <div className="px-4 py-2 bg-red-50 text-red-600 text-sm border-b border-red-200 shrink-0 flex items-center gap-2">
+          <span className="flex-1">未配置默认目标学习语言，编辑器暂时不可用。</span>
+          <a
+            href="/console/me/target-language"
+            className="underline whitespace-nowrap"
+          >去设置</a>
+        </div>
+      )}
+
       {/* Error bar */}
       {error && (
         <div className="px-4 py-2 bg-red-50 text-red-600 text-sm border-b border-red-200 shrink-0">
@@ -492,6 +475,11 @@ export default function EditorApp() {
 
       {/* Body */}
       <div ref={bodyRef} className="flex flex-1 overflow-hidden">
+        {langConfigError ? (
+          <div className="flex items-center justify-center flex-1 text-sm text-muted-foreground">
+            请先在设置页配置默认目标学习语言
+          </div>
+        ) : (<>
         {/* Left pane: tab bar + content */}
         <aside
           className={
@@ -698,6 +686,7 @@ export default function EditorApp() {
             onClick={() => { setLeftOpen(false); setChatOpen(false); }}
           />
         )}
+        </>)}
       </div>
     </div>
   );

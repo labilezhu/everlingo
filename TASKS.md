@@ -14,4 +14,5 @@
  - 2026-08-04 | 修复 gateway 重启后 SSE session_expired 死循环：session_expired 时自动清空 sessionStorage 持久化会话并重建新 session，不再依赖「重新加载」按钮
  - 2026-08-04 | 修复跨页跳转（chatbot ↔ Me 等按钮）后回来每次都新建 chat session：session_expired 自动清空 sessionStorage 的设计在页面卸载/导航期间 EventSource 误触发 onerror 时会把存储同步清掉，导致跨页回来无法复用 sid。回退为 spec 规定的「手动重启」UI（显示「会话已过期 [重新开始]」提示条，用户点击才 clearChatState + 重建），同步更新 ADR 20260804 第 4 项
 - 2026-08-04 | 笔记编辑器文件树中根层 spec/ 与 events/ 目录默认收起，减少视觉干扰
+- 2026-08-06 | 笔记编辑器移除语言选择下拉框：统一使用 everlingo.yaml 的 target_language（user_profile.language.target_language）；未配置时阻断编辑并引导到 /console/me/target-language；后端与 agent prompt 保持不变
 

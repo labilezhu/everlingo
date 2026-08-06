@@ -15,7 +15,7 @@ Web 前端给用户一个可视化编辑 [Memory Vault](/src/everlingo/mem/vault
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│ Header：lang selector  |  🐹 小记笔记编辑器  |  模式切换  |  呼叫小记  |  转到小记  |  保存  │
+│ Header：🐹 小记笔记编辑器  |  模式切换  |  呼叫小记  |  转到小记  |  保存  │
 ├──────────┬──────────────────────────────────┬──────────────────────────────────┤
 │          │                                   │                                  │
 │  文件树  │           编辑区（Milkdown）       │    小记🐹 Chatbot 侧栏           │
@@ -28,7 +28,7 @@ Web 前端给用户一个可视化编辑 [Memory Vault](/src/everlingo/mem/vault
 
 ### Header
 
-- **lang selector**：单选下拉，候选项来自 `GET /api/vault/langs`（底层 MCP `list_vaults`）。切换 lang 重新拉取文件树。未传 `?lang=` 时默认选中 `everlingo.yaml` 中 `user_profile.language.target_language` 配置的默认目标学习语言（若该 lang 不在 vaults 列表中则回退到列表第一项）；`default` 字段随 `GET /api/vault/langs` 响应返回。
+- **编辑器语言固定为默认目标学习语言**：不再提供 lang 选择下拉框，只能编辑 `everlingo.yaml` 中 `user_profile.language.target_language` 配置的默认目标学习语言。`GET /api/vault/langs` 响应中的 `default` 字段用于确定该语言；若 `default` 为空或不在 vaults 列表中，编辑器**阻止编辑**：顶部显示提示条「未配置默认目标学习语言，编辑器暂时不可用。」并附「去设置」链接跳转 `/console/me/target-language`，左栏与编辑区不渲染。
 - **模式切换**：源码 / 直观 两态 toggle，组件内持久化。
 - **呼叫小记**：toggle 按钮。首次按下时在右侧挂载 chatbot 侧栏（`ChatWindow` 组件，建 session + 连 SSE）；再次按下只 CSS 隐藏侧栏，**不卸载组件**（session 与 SSE 保持，下次打开延续会话）。选中态高亮 `bg-primary text-primary-foreground`。
 - **转到小记**：`window.location.href = '/'`，同窗跳转到 [Standalone Web Chatbot](web-chatbot.md) 独立入口。
@@ -83,7 +83,7 @@ Web 前端给用户一个可视化编辑 [Memory Vault](/src/everlingo/mem/vault
 
 WYSIWYG 模式中，单击 markdown 渲染出的 `<a>` 链接时：
 
-1. **`/editor?lang=...&path=...` 同源内部链接** → 在当前编辑区加载（未保存改动先 confirm；lang 不同时自动切换语言 + 重拉树），不开新 tab。
+1. **`/editor?lang=...&path=...` 同源内部链接** → 在当前编辑区加载（未保存改动先 confirm）不开新 tab。`lang` 参数被**忽略**——编辑器固定编辑默认目标学习语言，统一用该语言加载，不再切语言重拉树。
 2. **vault 路径**（不以 `://` 开头，如 `items/vocab/god.md`、`./sibling.md`、`/items/root.md`）→ 解析为 vault 内的绝对路径：
    - 以 `/` 开头 → 从 vault 根算（去除前导 `/`）；
    - 否则相对当前文件所在目录解析（支持 `./`、`../`）；
@@ -112,21 +112,21 @@ Web Chatbot 不直接依赖 Vault Editor。`ChatWindow` 接受可选的 `linkLis
 
 editor 的 `handleChatLinkClick(url)` 逻辑：
 1. 解析 URL；若 `origin !== location.origin`、`pathname !== '/editor'`、或无 `path` 查询参数 → 返回 `false`（回退新 Tab）。
-2. 取 `lang` / `path` 参数；若 `lang` 不在已知 langs 列表 → 返回 `false`。
+2. `lang` 参数被**忽略**——编辑器固定编辑默认目标学习语言；仅取 `path` 参数。
 3. 若编辑器有未保存改动 → `confirm()`；用户取消 → 返回 `true`（消费事件，不导航）。
-4. 异步加载文件：若 `lang !== selectedLang` 先切 lang + 重拉 tree，再 `read(lang, path)` 加载到编辑区；返回 `true`。
+4. 异步加载文件：用默认目标学习语言调 `read(lang, path)` 加载到编辑区；返回 `true`。
 
 #### editor 启动参数
 
 editor app 启动时读 `location.search`：
-- `lang` → 预选 lang selector
+- `lang` → **向后兼容保留，被忽略**（编辑器固定使用 `everlingo.yaml` 的默认目标学习语言）
 - `path` → 自动打开文件
 - `q` → 进入 Search tab + 预填搜索框 + 自动跑一次 `search`
 - `tag` → 预填 tag 过滤（可多个 `&tag=vocab&tag=grammar`）
 
 `MarkdownRenderer` 组件统一给 `<a>` 加 `target="_blank" rel="noopener noreferrer"`，点击时若存在 `linkListener` 则先调用。
 
-**URL 同步**：editor 在选中/切换文件时通过 `history.replaceState` 把当前 `lang`、`path` 同步到地址栏，格式为 `/editor?lang=en&path=items/vocab/god.md`。`q`/`tag` 等搜索参数不留在 URL 中。用户可复制地址栏 URL 作为该文件的直接入口。刷新页面后按 URL 参数恢复 lang 与打开的文件。
+**URL 同步**：editor 在选中/切换文件时通过 `history.replaceState` 把当前 `lang`、`path` 同步到地址栏，格式为 `/editor?lang=en&path=items/vocab/god.md`（`lang` 恒等于默认目标学习语言）。`q`/`tag` 等搜索参数不留在 URL 中。用户可复制地址栏 URL 作为该文件的直接入口。刷新页面后按 URL 参数恢复打开的文件（`lang` 参数被忽略）。
 
 反向链接（editor → chatbot）：chatbot 的 session id 与消息历史持久化在 `sessionStorage`（见 [web-chatbot.md](web-chatbot.md)「会话状态持久化」）。同一浏览器 Tab 内 editor ↔ chatbot 相互跳转会复用同一 session，Agent 上下文与消息历史连续；新开 Tab 则新建 session（`sessionStorage` 按 Tab 隔离）。
 
