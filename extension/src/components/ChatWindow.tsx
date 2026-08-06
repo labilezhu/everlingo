@@ -11,6 +11,7 @@ import { buildEnvelope, type TaskKind } from '@/types/envelope';
 import type { Message, SSEEvent } from '@/types/chat';
 import { uid } from '@/types/chat';
 import { getApiConfig } from '@/config';
+import { extractContextText } from '@/content/extract';
 
 interface PageSnapshot {
   text: string;
@@ -378,20 +379,41 @@ const SNAPSHOT_FN = () => {
         'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
         'BLOCKQUOTE', 'PRE', 'TD',
       ];
-      let el: Element | null =
-        range.commonAncestorContainer.nodeType === 3
-          ? (range.commonAncestorContainer as Text).parentElement
-          : (range.commonAncestorContainer as Element);
-      while (el) {
-        if (BLOCK_TAGS.includes(el.tagName)) break;
-        el = el.parentElement;
+      const MAX_LEN = 500;
+      let block: Element | null = range.commonAncestorContainer as Element;
+      while (block && !(block.tagName && BLOCK_TAGS.includes(block.tagName.toUpperCase()))) {
+        block = block.parentElement;
       }
-      if (el) {
-        paragraph_text = (el.textContent || '').slice(0, 500);
+      const sourceText = block ? block.textContent || '' : document.body.textContent || '';
+      if (sourceText.length <= MAX_LEN) {
+        paragraph_text = sourceText;
       } else {
-        const full = document.body.innerText;
-        const start = Math.max(0, range.startOffset - 250);
-        paragraph_text = full.slice(start, start + 500);
+        // 与 extract.ts 的 textContentOffset 保持一致：用 TreeWalker 按文档序
+        // 累加 text 节点长度，计算选词在 sourceText 中的字符偏移
+        let pos = 0;
+        const root: Node = block ?? document.body;
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        let node: Node | null;
+        while ((node = walker.nextNode())) {
+          if (node === range.startContainer) {
+            pos += range.startOffset;
+            break;
+          }
+          pos += node.textContent ? node.textContent.length : 0;
+        }
+        const selText = sel.toString();
+        if (!selText) {
+          paragraph_text = sourceText.slice(0, MAX_LEN);
+        } else {
+          const selLen = Math.min(selText.length, MAX_LEN);
+          let start = Math.max(0, pos - Math.floor((MAX_LEN - selLen) / 2));
+          let end = start + MAX_LEN;
+          if (end > sourceText.length) {
+            end = sourceText.length;
+            start = Math.max(0, end - MAX_LEN);
+          }
+          paragraph_text = sourceText.slice(start, end);
+        }
       }
     }
   }
@@ -403,18 +425,8 @@ async function captureSnapshot(tabId?: number): Promise<PageSnapshot> {
   const tid = activeTab?.id ?? 0;
   const ownText = window.getSelection()?.toString();
   if (ownText) {
-    let paragraph_text = '';
     const sel = window.getSelection();
-    if (sel && sel.rangeCount) {
-      const range = sel.getRangeAt(0);
-      const el =
-        range.commonAncestorContainer.nodeType === 3
-          ? (range.commonAncestorContainer as Text).parentElement
-          : (range.commonAncestorContainer as Element);
-      if (el) {
-        paragraph_text = (el.textContent || '').slice(0, 500);
-      }
-    }
+    const paragraph_text = sel && sel.rangeCount ? extractContextText(sel) : '';
     return { text: ownText, paragraph_text, url: activeTab?.url, title: activeTab?.title };
   }
   try {

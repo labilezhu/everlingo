@@ -482,9 +482,24 @@ const BLOCK_TAGS = new Set([
   'BLOCKQUOTE', 'PRE', 'TD',
 ]);
 
-function isBlockElement(el: Element | null): el is Element {
+const MAX_CONTEXT_LEN = 500;
+
+function isBlockElement(el: Element | null): boolean {
   if (!el || !el.tagName) return false;
   return BLOCK_TAGS.has(el.tagName.toUpperCase());
+}
+
+// 计算 target 节点在 root 子树 textContent 中的字符偏移。用 TreeWalker 按文档序
+// 累加 text 节点长度，避免 selection.toString() 与 textContent 因空白折叠导致索引错位。
+function textContentOffset(root: Node, container: Node, offset: number): number {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let pos = 0;
+  let node: Node | null;
+  while ((node = walker.nextNode())) {
+    if (node === container) return pos + offset;
+    pos += node.textContent ? node.textContent.length : 0;
+  }
+  return pos;
 }
 
 export function extractContextText(selection: Selection): string {
@@ -494,14 +509,19 @@ export function extractContextText(selection: Selection): string {
   while (block && !isBlockElement(block)) {
     block = block.parentElement;
   }
-  if (block) {
-    const text = block.textContent || '';
-    return text.length > 500 ? text.slice(0, 500) : text;
+  const sourceText = block ? block.textContent || '' : document.body.textContent || '';
+  if (sourceText.length <= MAX_CONTEXT_LEN) return sourceText;
+  const selStart = textContentOffset(block ?? document.body, range.startContainer, range.startOffset);
+  const selectedText = selection.toString();
+  if (!selectedText) return sourceText.slice(0, MAX_CONTEXT_LEN);
+  const selLen = Math.min(selectedText.length, MAX_CONTEXT_LEN);
+  let start = Math.max(0, selStart - Math.floor((MAX_CONTEXT_LEN - selLen) / 2));
+  let end = start + MAX_CONTEXT_LEN;
+  if (end > sourceText.length) {
+    end = sourceText.length;
+    start = Math.max(0, end - MAX_CONTEXT_LEN);
   }
-  // 回退：选区前后各 250 字
-  const fullText = document.body.innerText;
-  const start = Math.max(0, range.startOffset - 250);
-  return fullText.slice(start, start + 500);
+  return sourceText.slice(start, end);
 }
 
 export function extractSelection(): string {

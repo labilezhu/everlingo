@@ -59,7 +59,22 @@ function WysiwygEditor({ content, onChange, onLinkClick, selectionRef }: {
         const text = view.state.doc.textBetween(from, to, '\n');
         const $from = view.state.selection.$from;
         const parent = $from.node();
-        const paragraph_text = parent.textContent.slice(0, 500);
+        // 段落超 500 字时以选词为中心截取，保证 paragraph_text 包含选词
+        const sourceText = parent.textContent;
+        let paragraph_text: string | null;
+        if (sourceText.length <= 500) {
+          paragraph_text = sourceText;
+        } else {
+          const selLen = Math.min(text.length, 500);
+          const selStart = $from.parentOffset;
+          let start = Math.max(0, selStart - Math.floor((500 - selLen) / 2));
+          let end = start + 500;
+          if (end > sourceText.length) {
+            end = sourceText.length;
+            start = Math.max(0, end - 500);
+          }
+          paragraph_text = sourceText.slice(start, end);
+        }
         return { text, start_line: null, start_column: null, paragraph_text };
       } catch {
         return { text: '', start_line: null, start_column: null, paragraph_text: null };

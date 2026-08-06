@@ -1,127 +1,204 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
+import { centerWindow, extractContextText } from './extract';
 
-// The extractParagraphText function depends on DOM (Selection, Element).
-// We test the core algorithm by directly manipulating the DOM with jsdom-like mocks.
-// For simpler unit testing, we re-implement the logic here mock-free.
+// --------------------------------------------------------------------------
+// 纯函数 centerWindow：以选词为中心截取窗口的回归测试（无需 DOM）
+// --------------------------------------------------------------------------
 
-function extractParagraphText(selection: {
-  rangeCount: number;
-  getRangeAt: (i: number) => {
-    commonAncestorContainer: { nodeType: number; textContent?: string; tagName?: string };
-    startOffset: number;
-  };
-  bodyText?: string;
-}): string {
-  if (!selection.rangeCount) return '';
-  const range = selection.getRangeAt(0);
-  let node = range.commonAncestorContainer as Record<string, unknown>;
+describe('centerWindow', () => {
+  it('returns sourceText unchanged when it fits within maxLen', () => {
+    const src = 'I sat on the bank of the river.';
+    expect(centerWindow(src, 'bank', 14)).toBe(src);
+  });
 
-  const BLOCK_TAGS = new Set([
-    'P', 'DIV', 'SECTION', 'ARTICLE', 'LI',
-    'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
-    'BLOCKQUOTE', 'PRE', 'TD',
-  ]);
+  it('returns empty string for empty sourceText', () => {
+    expect(centerWindow('', '', 0)).toBe('');
+  });
 
-  function isBlock(el: Record<string, unknown>): boolean {
-    if (!el || typeof el.tagName !== 'string') return false;
-    return BLOCK_TAGS.has(el.tagName.toUpperCase());
-  }
+  it('centers the window around the selection in the middle', () => {
+    const src = 'A'.repeat(300) + 'target' + 'B'.repeat(590); // length 600
+    const maxLen = 100;
+    const selStart = 300;
+    const result = centerWindow(src, 'target', selStart, maxLen);
+    expect(result.length).toBe(maxLen);
+    const selLen = 6;
+    const expectedStart = Math.max(0, selStart - Math.floor((maxLen - selLen) / 2));
+    expect(result).toBe(src.slice(expectedStart, expectedStart + maxLen));
+  });
 
-  while (node && !isBlock(node)) {
-    node = (node.parentElement ?? node.parentNode) as Record<string, unknown>;
-  }
+  it('starts window at 0 when selection is near the beginning', () => {
+    const src = 'X'.repeat(600);
+    const result = centerWindow(src, 'XX', 2, 100);
+    expect(result).toBe('X'.repeat(100));
+  });
 
-  if (node && isBlock(node)) {
-    const text = (node.textContent as string) || '';
-    return text.length > 500 ? text.slice(0, 500) : text;
-  }
+  it('right-aligns the window when selection is near the end', () => {
+    const src = 'A'.repeat(560) + 'target' + 'B'.repeat(34); // length 600, target at 560
+    const maxLen = 100;
+    const selStart = 560;
+    const result = centerWindow(src, 'target', selStart, maxLen);
+    expect(result.length).toBe(maxLen);
+    expect(result).toBe(src.slice(src.length - maxLen));
+  });
 
-  // 回退
-  const fullText = selection.bodyText || '';
-  const start = Math.max(0, range.startOffset - 250);
-  return fullText.slice(start, start + 500);
+  it('falls back to head truncation when selectedText is empty', () => {
+    const src = 'A'.repeat(600);
+    const result = centerWindow(src, '', 0, 100);
+    expect(result).toBe('A'.repeat(100));
+  });
+
+  it('caps selLen at maxLen without crashing', () => {
+    const src = 'A'.repeat(600);
+    const selectedText = 'B'.repeat(600);
+    const result = centerWindow(src, selectedText, 50, 100);
+    expect(result.length).toBe(100);
+  });
+});
+
+// --------------------------------------------------------------------------
+// extractContextText：极简 DOM mock，验证 textContentOffset 偏移计算。
+// 覆盖"选词落在长段落中段"、"跨嵌套内联元素偏移不错位"、"选词靠末尾右靠"。
+// --------------------------------------------------------------------------
+
+type MockNode = MockElement | MockTextNode;
+
+interface MockTextNode {
+  nodeType: 3;
+  data: string;
+  textContent: string;
+  parentElement: MockElement | null;
+  parentNode: MockElement | null;
 }
 
-describe('extractParagraphText', () => {
-  it('returns empty string when no selection', () => {
-    const result = extractParagraphText({ rangeCount: 0, getRangeAt: () => null! });
-    expect(result).toBe('');
-  });
+interface MockElement {
+  nodeType: 1;
+  tagName: string;
+  textContent: string;
+  childNodes: MockNode[];
+  parentElement: MockElement | null;
+  parentNode: MockElement | null;
+}
 
-  it('extracts text from block-level ancestor (P tag)', () => {
-    const result = extractParagraphText({
-      rangeCount: 1,
-      getRangeAt: () => ({
-        commonAncestorContainer: {
-          nodeType: 3,
-          parentElement: { tagName: 'P', textContent: 'I sat on the bank of the river.' },
-        },
-        startOffset: 10,
-      }),
-    });
-    expect(result).toBe('I sat on the bank of the river.');
-  });
+interface MockRange {
+  commonAncestorContainer: MockElement | MockTextNode;
+  startContainer: MockTextNode | MockElement;
+  startOffset: number;
+}
 
-  it('navigates up through nested elements to find block ancestor', () => {
-    const result = extractParagraphText({
-      rangeCount: 1,
-      getRangeAt: () => ({
-        commonAncestorContainer: {
-          nodeType: 3,
-          parentElement: {
-            tagName: 'SPAN',
-            parentElement: { tagName: 'DIV', textContent: 'The cat sat on the mat.' },
-          },
-        },
-        startOffset: 8,
-      }),
-    });
-    expect(result).toBe('The cat sat on the mat.');
-  });
+interface MockSelection {
+  rangeCount: number;
+  getRangeAt: () => MockRange;
+  toString: () => string;
+}
 
-  it('truncates text over 500 characters', () => {
-    const longText = 'A'.repeat(600);
-    const result = extractParagraphText({
-      rangeCount: 1,
-      getRangeAt: () => ({
-        commonAncestorContainer: {
-          nodeType: 3,
-          parentElement: { tagName: 'P', textContent: longText },
-        },
-        startOffset: 10,
-      }),
-    });
+const TEXT_NODE = 3;
+const ELEMENT_NODE = 1;
+
+function makeText(data: string): MockTextNode {
+  return { nodeType: TEXT_NODE, data, textContent: data, parentElement: null, parentNode: null };
+}
+
+function makeElement(tagName: string, children: MockNode[]): MockElement {
+  const textOf = (n: MockNode): string =>
+    n.nodeType === TEXT_NODE ? (n as MockTextNode).data : (n as MockElement).textContent;
+  const el: MockElement = {
+    nodeType: ELEMENT_NODE,
+    tagName,
+    textContent: children.map(textOf).join(''),
+    childNodes: children,
+    parentElement: null,
+    parentNode: null,
+  };
+  for (const c of children) {
+    (c as MockElement).parentElement = el;
+    (c as MockElement).parentNode = el;
+  }
+  return el;
+}
+
+function collectTexts(root: MockNode): MockTextNode[] {
+  const out: MockTextNode[] = [];
+  const walk = (n: MockNode) => {
+    if (n.nodeType === TEXT_NODE) {
+      out.push(n as MockTextNode);
+    } else {
+      for (const c of (n as MockElement).childNodes) walk(c);
+    }
+  };
+  walk(root);
+  return out;
+}
+
+function installDocument(root: MockElement) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (globalThis as any).document = {
+    body: { textContent: '' },
+    createTreeWalker: (r: MockElement) => {
+      const nodes = collectTexts(r);
+      let i = 0;
+      return { nextNode: () => (i < nodes.length ? nodes[i++]! : null) };
+    },
+  };
+}
+
+function cleanupDocument() {
+  delete (globalThis as { document?: unknown }).document;
+}
+
+// 返回替身 Selection，并 cast 成真实 Selection 供 extractContextText 消费。
+function makeSelection(
+  block: MockElement,
+  startContainer: MockTextNode | MockElement,
+  startOffset: number,
+  selectedText: string,
+): Selection {
+  const s: MockSelection = {
+    rangeCount: 1,
+    getRangeAt: () => ({ commonAncestorContainer: block, startContainer, startOffset }),
+    toString: () => selectedText,
+  };
+  return s as unknown as Selection;
+}
+
+describe('extractContextText', () => {
+  afterEach(cleanupDocument);
+
+  it('centers the window around a selection in the middle of a long paragraph', () => {
+    const p = makeElement('P', [makeText('A'.repeat(300) + 'ZZZZ' + 'B'.repeat(294))]); // length 598
+    installDocument(p);
+    const textNode = p.childNodes[0] as MockTextNode;
+    const result = extractContextText(makeSelection(p, textNode, 300, 'ZZZZ'));
+
     expect(result.length).toBe(500);
-    expect(result).toBe('A'.repeat(500));
+    expect(result).toContain('ZZZZ');
+    const text = textNode.data;
+    const expectedStart = 300 - Math.floor((500 - 4) / 2);
+    expect(result).toBe(text.slice(expectedStart, expectedStart + 500));
   });
 
-  it('falls back to body text around offset when no block ancestor found', () => {
-    const bodyText = 'X'.repeat(1000);
-    const result = extractParagraphText({
-      rangeCount: 1,
-      getRangeAt: () => ({
-        commonAncestorContainer: {
-          nodeType: 3,
-        },
-        startOffset: 500,
-      }),
-      bodyText,
-    });
+  it('counts offset correctly across a nested inline element', () => {
+    // <p>Hello <strong>AAAA…</strong>BBB…</p>
+    const strong = makeElement('STRONG', [makeText('A'.repeat(300))]);
+    const p = makeElement('P', [makeText('Hello '), strong, makeText('B'.repeat(200))]);
+    installDocument(p);
+    const selTextNode = strong.childNodes[0] as MockTextNode;
+    // 选中 strong 内前 5 个 "A"，其 offset=0，但在整段 textContent 中偏移为 6（"Hello " 长度）
+    const result = extractContextText(makeSelection(p, selTextNode, 0, 'AAAAA'));
+
     expect(result.length).toBe(500);
-    expect(result).toBe('X'.repeat(500));
+    expect(result.startsWith('Hello ')).toBe(true);
+    expect(result).toContain('AAAAA');
   });
 
-  it('handles BLOCKQUOTE as block element', () => {
-    const result = extractParagraphText({
-      rangeCount: 1,
-      getRangeAt: () => ({
-        commonAncestorContainer: {
-          nodeType: 3,
-          parentElement: { tagName: 'BLOCKQUOTE', textContent: 'To be or not to be.' },
-        },
-        startOffset: 5,
-      }),
-    });
-    expect(result).toBe('To be or not to be.');
+  it('right-aligns the window when selection sits near the end', () => {
+    const p = makeElement('P', [makeText('A'.repeat(540) + 'ZZZZ' + 'B'.repeat(96))]); // length 600
+    installDocument(p);
+    const textNode = p.childNodes[0] as MockTextNode;
+    const text = textNode.data;
+    const result = extractContextText(makeSelection(p, textNode, 540, 'ZZZZ'));
+
+    expect(result.length).toBe(500);
+    expect(result).toBe(text.slice(text.length - 500));
+    expect(result).toContain('ZZZZ');
   });
 });

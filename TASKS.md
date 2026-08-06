@@ -16,3 +16,5 @@
 - 2026-08-04 | 笔记编辑器文件树中根层 spec/ 与 events/ 目录默认收起，减少视觉干扰
 - 2026-08-06 | 笔记编辑器移除语言选择下拉框：统一使用 everlingo.yaml 的 target_language（user_profile.language.target_language）；未配置时阻断编辑并引导到 /console/me/target-language；后端与 agent prompt 保持不变
 
+ - 2026-08-06 | 修复选词翻译 `paragraph_text` 不带选词的问题：段落超 500 字时改为以选词为中心截取（envelope_spec.md 要求的语义）。Chrome 扩展 `content/extract.ts` 按 spec §6.3 重写为 `extractContextText`（TreeWalker 计算选区偏移避免空白折叠错位），`ChatWindow.tsx` 的 executeScript `SNAPSHOT_FN` 与 sidecar 自身选区分支同步改为中心截取；Web Chatbot `MilkdownEditor.tsx` selectionRef 用 ProseMirror `$from.parentOffset` 定位后中心截取。新增 `centerWindow` 纯函数 + `extractContextText` DOM mock 单测（extract.test.ts，10 用例）；同步修正 chrome-extension-impl-spec.md §8 伪代码（原为简单头部截断，与 spec 矛盾）
+
