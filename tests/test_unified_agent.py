@@ -550,7 +550,7 @@ def test_agent_no_rebuild_without_config_change(zh_en_profile, mock_agent_with_r
     with patch("everlingo.agents.agent.create_agent", return_value=mock_agent_with_response) as mock_create, \
          patch("everlingo.agents.agent.get_config_version", return_value=999), \
          patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
-         patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+         patch("everlingo.agents.agent.load_resolved_profile", return_value=zh_en_profile), \
          patch("everlingo.agents.agent.load_user_doc", return_value=""):
         asyncio.run(agent.ainvoke(MessageEvent(text="hello")))
         asyncio.run(agent.ainvoke(MessageEvent(text="world")))
@@ -569,7 +569,7 @@ def test_agent_rebuilds_once_after_config_change(zh_en_profile, mock_agent_with_
     bump_prompt_version()
 
     with patch("everlingo.agents.agent.create_agent", return_value=mock_agent_with_response) as mock_create, \
-         patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+         patch("everlingo.agents.agent.load_resolved_profile", return_value=zh_en_profile), \
          patch("everlingo.agents.agent.load_user_doc", return_value=""), \
          patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
          patch.object(agent, '_ensure_mcp_stream', AsyncMock()):
@@ -594,7 +594,7 @@ def test_agent_rebuilds_on_each_config_change(zh_en_profile, mock_agent_with_res
         return m
 
     with patch("everlingo.agents.agent.create_agent", side_effect=fake_create_agent), \
-         patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+         patch("everlingo.agents.agent.load_resolved_profile", return_value=zh_en_profile), \
          patch("everlingo.agents.agent.load_user_doc", return_value=""), \
          patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
          patch.object(agent, '_ensure_mcp_stream', AsyncMock()):
@@ -618,7 +618,7 @@ def test_agent_rebuilds_on_user_doc_set(zh_en_profile, mock_agent_with_response)
     agent = _make_main_agent(zh_en_profile)
 
     with patch("everlingo.agents.agent.create_agent", return_value=mock_agent_with_response) as mock_create, \
-         patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+         patch("everlingo.agents.agent.load_resolved_profile", return_value=zh_en_profile), \
          patch("everlingo.agents.agent.load_user_doc", return_value="新偏好"), \
          patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
          patch.object(agent, '_ensure_mcp_stream', AsyncMock()), \
@@ -643,7 +643,7 @@ def test_agent_rebuilds_on_external_mtime_change(zh_en_profile, mock_agent_with_
 
     # mtime 变化（模拟外部编辑），版本号不变
     with patch("everlingo.agents.agent.create_agent", return_value=mock_agent_with_response) as mock_create, \
-         patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+         patch("everlingo.agents.agent.load_resolved_profile", return_value=zh_en_profile), \
          patch("everlingo.agents.agent.load_user_doc", return_value=""), \
          patch("everlingo.agents.agent.prompt_input_mtime", return_value=99999.0), \
          patch.object(agent, '_ensure_mcp_stream', AsyncMock()):
@@ -665,7 +665,7 @@ def test_agent_no_rebuild_when_version_and_mtime_unchanged(zh_en_profile, mock_a
     with patch("everlingo.agents.agent.create_agent", return_value=mock_agent_with_response), \
          patch("everlingo.agents.agent.get_config_version", return_value=999), \
          patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
-         patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+         patch("everlingo.agents.agent.load_resolved_profile", return_value=zh_en_profile), \
          patch("everlingo.agents.agent.load_user_doc", return_value=""), \
          patch.object(agent, '_ensure_mcp_stream', AsyncMock()):
         asyncio.run(agent.ainvoke(MessageEvent(text="hello")))
@@ -712,7 +712,7 @@ def test_invoke_returns_one_message_per_nonempty_ai_message(
          patch.object(agent, '_ensure_mcp_stream', AsyncMock()), \
          patch("everlingo.agents.agent.get_config_version", return_value=999), \
          patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
-         patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+         patch("everlingo.agents.agent.load_resolved_profile", return_value=zh_en_profile), \
          patch("everlingo.agents.agent.load_user_doc", return_value=""):
         replies = asyncio.run(agent.ainvoke(MessageEvent(text="翻译并朗读 ufo")))
 
@@ -743,7 +743,7 @@ def test_invoke_returns_multiple_messages_when_multiple_ai_have_content(
          patch.object(agent, '_ensure_mcp_stream', AsyncMock()), \
          patch("everlingo.agents.agent.get_config_version", return_value=999), \
          patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
-         patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+         patch("everlingo.agents.agent.load_resolved_profile", return_value=zh_en_profile), \
          patch("everlingo.agents.agent.load_user_doc", return_value=""):
         replies = asyncio.run(agent.ainvoke(MessageEvent(text="介绍 UFO")))
 
@@ -777,7 +777,7 @@ def test_invoke_returns_empty_when_no_ai_content(zh_en_profile):
          patch.object(agent, '_ensure_mcp_stream', AsyncMock()), \
          patch("everlingo.agents.agent.get_config_version", return_value=999), \
          patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
-         patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+         patch("everlingo.agents.agent.load_resolved_profile", return_value=zh_en_profile), \
          patch("everlingo.agents.agent.load_user_doc", return_value=""):
         replies = asyncio.run(agent.ainvoke(MessageEvent(text="朗读 ufo")))
     assert replies == []
@@ -790,7 +790,7 @@ def test_invoke_persists_tool_messages_in_history(zh_en_profile, multi_ai_agent_
          patch.object(agent, '_ensure_mcp_stream', AsyncMock()), \
          patch("everlingo.agents.agent.get_config_version", return_value=999), \
          patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
-         patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+         patch("everlingo.agents.agent.load_resolved_profile", return_value=zh_en_profile), \
          patch("everlingo.agents.agent.load_user_doc", return_value=""):
         asyncio.run(agent.ainvoke(MessageEvent(text="翻译并朗读 ufo")))
 
@@ -809,7 +809,7 @@ def test_invoke_error_returns_single_element_list(zh_en_profile):
          patch.object(agent, '_ensure_mcp_stream', AsyncMock()), \
          patch("everlingo.agents.agent.get_config_version", return_value=999), \
          patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
-         patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+         patch("everlingo.agents.agent.load_resolved_profile", return_value=zh_en_profile), \
          patch("everlingo.agents.agent.load_user_doc", return_value=""):
         replies = asyncio.run(agent.ainvoke(MessageEvent(text="hello")))
     assert len(replies) == 1

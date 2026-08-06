@@ -264,7 +264,7 @@ sys_setting:
     log_level: debug
 user_profile:
   language:
-    interface_language: zh-CN #默认界面语言是中文
+    interface_language: '' # 界面语言（可选）：留空时按 OS locale 推断，兜底 en；后续 onboarding 会让用户显式选择
     target_language: en #默认目标学习语言是英文
 
 plugins:

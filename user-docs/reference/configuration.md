@@ -83,6 +83,9 @@ plugins:
 
 配置项参考 [DOMAIN.md](/DOMAIN.md) 中 `用户 Profile` 一节。
 
+- `interface_language`（界面语言）：**可选**。留空时运行时按 OS locale 推断、兜底 `en`；非空时必须在可用界面语言内（当前 `zh-CN` / `en`）。推断值不写回 yaml。
+- `target_language`（目标学习语言）：必选。
+
 在代码中， class 名称叫 `UserProfile`. 
 
 ### 用户自由偏好笔记 - USER.md

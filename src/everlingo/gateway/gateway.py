@@ -9,11 +9,11 @@ import logging
 import signal
 
 from ..log_utils import setup_logging
-from ..models import LANGUAGES, UserProfile
+from ..models import LANGUAGES, AVAILABLE_INTERFACE_LANGUAGES, UserProfile
 from ..setting import (
     channel_enabled,
     get_web_listener,
-    load_profile,
+    load_resolved_profile,
     save_profile,
 )
 from ._memory_writer import memory_writer
@@ -29,11 +29,13 @@ logger = logging.getLogger(__name__)
 
 # ── Profile 初始化向导（从 chat.py 迁入） ────────────────────────────────────
 
-def _prompt_language_selection(prompt: str, exclude: str = "") -> str:
+def _prompt_language_selection(
+    prompt: str, codes: tuple[str, ...] | list[str], exclude: str = ""
+) -> str:
     """命令行交互式语言选择。"""
     while True:
         print(f"\n{prompt}")
-        options = [code for code in LANGUAGES if code != exclude]
+        options = [code for code in codes if code != exclude]
         for i, code in enumerate(options, 1):
             print(f"  {i}. {LANGUAGES[code]}")
         choice = input("请输入编号 (1-{}): ".format(len(options))).strip()
@@ -45,9 +47,11 @@ def _prompt_language_selection(prompt: str, exclude: str = "") -> str:
 def _run_profile_setup() -> UserProfile:
     """首次使用时引导用户完成个性化初始化。"""
     print("\n=== 首次使用，请完成个性初始化 ===")
-    interface_lang = _prompt_language_selection("请选择界面语言：")
+    interface_lang = _prompt_language_selection(
+        "请选择界面语言：", AVAILABLE_INTERFACE_LANGUAGES
+    )
     target_lang = _prompt_language_selection(
-        "请选择目标学习语言：", exclude=interface_lang
+        "请选择目标学习语言：", tuple(LANGUAGES.keys()), exclude=interface_lang
     )
     profile = UserProfile(
         language={"interface_language": interface_lang, "target_language": target_lang},
@@ -61,8 +65,12 @@ def _run_profile_setup() -> UserProfile:
 
 
 def _ensure_profile() -> UserProfile:
-    """加载 Profile；若未完成配置则进入初始化向导。"""
-    profile = load_profile()
+    """加载 Profile；若未完成配置则进入初始化向导。
+
+    用 load_resolved_profile() 保证界面语言始终非空合法（缺省按 OS locale 推断）。
+    ref: docs/ADR/20260806-interface-language-optional.md §7
+    """
+    profile = load_resolved_profile()
     if profile.is_complete():
         errors = profile.validate()
         if not errors:

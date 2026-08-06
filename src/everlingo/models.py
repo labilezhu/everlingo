@@ -1,3 +1,4 @@
+import locale
 from datetime import datetime
 from typing import Literal
 
@@ -86,10 +87,11 @@ class SysSetting(BaseModel):
 
 
 class UserLanguage(BaseModel):
-    # 界面语言，可选值: zh-CN, en, ja, fr, de，ref: DOMAIN.md UserProfile
+    # 界面语言，可选；留空时按 OS locale 推断，兜底 en；非空时必须在可用界面语言内。
+    # ref: docs/ADR/20260806-interface-language-optional.md
     interface_language: str = Field(
         default="",
-        description="界面语言，可选值: zh-CN, en, ja, fr, de",
+        description="界面语言，可选；留空时按 OS locale 推断，兜底 en；非空时必须在可用界面语言内",
         examples=["zh-CN"],
     )
     # 目标学习语言，可选值: zh-CN, en, ja, fr, de
@@ -108,12 +110,14 @@ class UserProfile(BaseModel):
     )
 
     def is_complete(self) -> bool:
-        return bool(self.language.interface_language) and bool(self.language.target_language)
+        return bool(self.language.target_language)
 
     def validate(self) -> list[str]:
         errors: list[str] = []
-        if not self.language.interface_language:
-            errors.append("界面语言未设置")
+        if self.language.interface_language and (
+            self.language.interface_language not in AVAILABLE_INTERFACE_LANGUAGES
+        ):
+            errors.append("界面语言取值不被支持")
         if not self.language.target_language:
             errors.append("目标学习语言未设置")
         return errors
@@ -213,3 +217,38 @@ LANGUAGES: dict[str, str] = {
     "fr": "Français",
     "de": "Deutsch",
 }
+
+
+# 可用界面语言。当前：zh-CN / en（未来扩展）。
+# 显示名复用 LANGUAGES[code]（如 LANGUAGES["zh-CN"] = "简体中文"），不为界面语言另建映射。
+# 可用界面语言与可用目标学习语言（LANGUAGES keys）是两个独立集合，语义不同。
+# tuple 保序，便于 UI 直接 iterate 展示。
+# ref: docs/ADR/20260806-interface-language-optional.md
+AVAILABLE_INTERFACE_LANGUAGES: tuple[str, ...] = ("zh-CN", "en")
+
+
+def resolve_interface_language(value: str) -> str:
+    """解析运行时生效的界面语言。
+
+    顺序：
+    1. value 非空且 ∈ AVAILABLE_INTERFACE_LANGUAGES → 直接用
+    2. locale.getlocale() 取 OS 语言，归一化（lower、_→-、去编码后缀）后精确命中可用集 → 返回
+    3. 前缀兜底：zh* → zh-CN，en* → en
+    4. 兜底 "en"
+
+    推断值只用于运行时，不写回 yaml。
+    ref: docs/ADR/20260806-interface-language-optional.md §3
+    """
+    if value and value in AVAILABLE_INTERFACE_LANGUAGES:
+        return value
+
+    lang, _ = locale.getlocale()  # 可能 (None, None)，如容器环境
+    if lang:
+        normalized = lang.lower().split(".")[0].replace("_", "-")
+        if normalized in AVAILABLE_INTERFACE_LANGUAGES:
+            return normalized
+        if normalized.startswith("zh-") or normalized == "zh":
+            return "zh-CN"
+        if normalized.startswith("en-") or normalized == "en":
+            return "en"
+    return "en"

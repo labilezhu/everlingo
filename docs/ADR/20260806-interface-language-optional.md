@@ -59,7 +59,7 @@
 - **`interface_language` 推断（`resolve_interface_language`）**：按下述顺序解析出运行时生效值：
   1. yaml 值非空且 ∈ `AVAILABLE_INTERFACE_LANGUAGES` → 直接用；
   2. `locale.getlocale()` 取 OS 语言，归一化（`lower`、`_`→`-`、去编码后缀）后精确命中可用集 → 返回；
-  3. 前缀兜底：`zh-*` → `zh-CN`，`en-*` → `en`；
+  3. 前缀兜底：`zh*` → `zh-CN`，`en*` → `en`；
   4. 仍未命中 → `"en"`。
 
 ## 4. 双访问器（推断值不写回 yaml）

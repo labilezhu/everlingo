@@ -202,7 +202,7 @@ class TestMainAgentWiring:
         agent, mock_writer = _make_main_agent(zh_en_profile)
 
         with patch("everlingo.agents.agent.create_agent", return_value=mock_inner), \
-             patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+             patch("everlingo.agents.agent.load_resolved_profile", return_value=zh_en_profile), \
              patch("everlingo.agents.agent.load_user_doc", return_value=""), \
              patch("everlingo.agents.agent.get_config_version", return_value=999), \
              patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
@@ -221,7 +221,7 @@ class TestMainAgentWiring:
         agent, mock_writer = _make_main_agent(zh_en_profile)
 
         with patch("everlingo.agents.agent.create_agent", return_value=mock_inner), \
-             patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+             patch("everlingo.agents.agent.load_resolved_profile", return_value=zh_en_profile), \
              patch("everlingo.agents.agent.load_user_doc", return_value=""), \
              patch("everlingo.agents.agent.get_config_version", return_value=999), \
              patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
@@ -259,7 +259,7 @@ class TestMainAgentWiring:
         agent, mock_writer = _make_main_agent(zh_en_profile)
 
         with patch("everlingo.agents.agent.create_agent", return_value=mock_inner), \
-             patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+             patch("everlingo.agents.agent.load_resolved_profile", return_value=zh_en_profile), \
              patch("everlingo.agents.agent.load_user_doc", return_value=""), \
              patch("everlingo.agents.agent.get_config_version", return_value=999), \
              patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
@@ -287,7 +287,7 @@ class TestMainAgentWiring:
         agent, mock_writer = _make_main_agent(zh_en_profile)
 
         with patch("everlingo.agents.agent.create_agent", return_value=mock_inner), \
-             patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+             patch("everlingo.agents.agent.load_resolved_profile", return_value=zh_en_profile), \
              patch("everlingo.agents.agent.load_user_doc", return_value=""), \
              patch("everlingo.agents.agent.get_config_version", return_value=999), \
              patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
@@ -319,7 +319,7 @@ class TestMainAgentWiring:
         agent, mock_writer = _make_main_agent(zh_en_profile)
 
         with patch("everlingo.agents.agent.create_agent", return_value=mock_inner), \
-             patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+             patch("everlingo.agents.agent.load_resolved_profile", return_value=zh_en_profile), \
              patch("everlingo.agents.agent.load_user_doc", return_value=""), \
              patch("everlingo.agents.agent.get_config_version", return_value=999), \
              patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
@@ -347,7 +347,7 @@ class TestMainAgentWiring:
         agent, mock_writer = _make_main_agent(zh_en_profile)
 
         with patch("everlingo.agents.agent.create_agent", return_value=mock_inner), \
-             patch("everlingo.agents.agent.load_profile", return_value=zh_en_profile), \
+             patch("everlingo.agents.agent.load_resolved_profile", return_value=zh_en_profile), \
              patch("everlingo.agents.agent.load_user_doc", return_value=""), \
              patch("everlingo.agents.agent.get_config_version", return_value=999), \
              patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \

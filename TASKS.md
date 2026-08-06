@@ -7,6 +7,7 @@
 ## 完成的任务
 格式：完成日期与时间(GMT+8 timezone) | 任务描述 。 示例： " - 2026-06-20 19:28 | 生成主入口代码"
 
+ - 2026-08-06 | i18n Phase 1（配置层）：interface_language 由「必选」改「可选」。models.py 新增 `AVAILABLE_INTERFACE_LANGUAGES`（=zh-CN/en，显示名复用 LANGUAGES）与 `resolve_interface_language()`（精确命中 → OS locale 归一化命中 → 前缀 zh*/en* → 兜底 en）；`UserProfile.validate()` 删「界面语言未设置」+ 新增「非空但不支持」校验；`is_complete()` 仅看 target_language。setting.py 新增 `load_resolved_profile()`（双访问器，推断值不写回 yaml）；agent.py / gateway.py 运行时改用 resolved。gateway CLI 向导界面语言选择限到可用集。文档：docs/i18n/i18n.md（路线图）、ADR 20260806-interface-language-optional.md、DOMAIN.md、configuration.md、everlingo.example.yaml、6 处部署模板移除硬编码 zh-CN。tests/test_setting.py 新增 11 用例（含推断/容错/不污染 yaml/一致性断言）。
  - 2026-08-06 | Embedding 请求同样携带应用标识 headers：ai_embedding.py 的 AIEmbedding 构造 OpenAIEmbeddings 时加入与 llm.py 一致的 default_headers（User-Agent / HTTP-Referer / X-Title）
  - 2026-08-04 | Me 页底部加版本信息；release 流程纳入源码版本号同步（MePage.tsx / ws_master / ws_router）
 - 2026-08-04 | 【目标学习语言设置页】添加「重新初始化」按钮：MCP reset_vault 工具 + API 端点 + 前端按钮，重置 spec/ 目录（覆盖写入模板文件）

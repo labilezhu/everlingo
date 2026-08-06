@@ -35,7 +35,7 @@ def _make_main_agent(profile):
          patch("everlingo.agents.agent.build_tools", return_value=[]), \
          patch("everlingo.agents.agent.get_config_version", return_value=999), \
          patch("everlingo.agents.agent.prompt_input_mtime", return_value=0.0), \
-         patch("everlingo.agents.agent.load_profile", return_value=profile), \
+         patch("everlingo.agents.agent.load_resolved_profile", return_value=profile), \
          patch("everlingo.agents.agent.load_user_doc", return_value=""):
         agent = MainAgent(profile=profile, channel_metadata=mock_metadata, channel=mock_channel)
     return agent

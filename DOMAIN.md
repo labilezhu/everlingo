@@ -20,7 +20,9 @@
 - `有效的默认目标学习语言配置`
   - 同时满足：`target_language` 非空、取值属于可用目标学习语言（en/ja/zh-CN/fr/de）、该语言的笔记库已初始化
 - `界面语言(interface_language)`
-    指本产品支持作为主要界面文字和语音的语言。`可用界面语言` 包括： en/ja/zh-CN/fr/de
+    指本产品支持作为主要界面文字和语音的语言。`可用界面语言` 当前包括：`zh-CN` / `en`（未来扩展）。
+    注意：`可用界面语言` 与 `可用目标学习语言` 是**两个独立集合**。界面语言的「语言代码 → 显示名」映射复用 `src/everlingo/models.py` 的 `LANGUAGES` 字典（单一真源），定义见 `AVAILABLE_INTERFACE_LANGUAGES` 常量。
+    `interface_language` 为可选配置：留空时运行时按 OS locale 推断、兜底 `en`；非空时必须 ∈ `AVAILABLE_INTERFACE_LANGUAGES`。见 [ADR 20260806-interface-language-optional.md](ADR/20260806-interface-language-optional.md)。
 
 
 ## 用户模型
@@ -40,7 +42,7 @@ language:
 
 | 字段 | 类型 | 可选值 | 说明 | 约束 |
 |------|------|--------|------|------|
-| `interface_language` | string | `"zh-CN"`, `"en"`, `"ja"`, `"fr"`, `"de"` | 界面语言 | 必选 |
+| `interface_language` | string | `"zh-CN"`, `"en"` | 界面语言 | 可选；留空时运行时按 OS locale 推断、兜底 `en`；非空时必须在可用界面语言内 |
 | `target_language` | string | `"zh-CN"`, `"en"`, `"ja"`, `"fr"`, `"de"` | 目标学习语言 | 必选 |
 
 
@@ -53,7 +55,7 @@ language:
 
 ##### 约束规则
 
-- `interface_language` 和 `target_language` 均必须设置
+- `interface_language` 可选（留空时推断，兜底 `en`），`target_language` 必须设置
 
 ### 用户自由偏好笔记 - USER.md
 

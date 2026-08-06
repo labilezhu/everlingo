@@ -8,6 +8,7 @@ from .models import (
     EverLingoSetting,
     UserProfile,
     WebListener,
+    resolve_interface_language,
 )
 from .utils.yaml_env import expand_env_vars
 
@@ -70,6 +71,28 @@ def save_setting(setting: EverLingoSetting) -> None:
 
 def load_profile() -> UserProfile:
     return load_setting().user_profile
+
+
+def load_resolved_profile() -> UserProfile:
+    """返回运行时生效的 UserProfile：interface_language 经 resolve_interface_language 填充。
+
+    与 load_profile() 的差别：load_profile() 返回 raw（interface_language 可能为空或非法）；
+    本函数保证 interface_language 非空且合法，供运行时消费者（Agent / Gateway）使用。
+    推断值只写进返回的内存副本，不写回 yaml —— save 路径永远走 raw。
+
+    ref: docs/ADR/20260806-interface-language-optional.md §4 双访问器
+    """
+    p = load_profile()
+    resolved = resolve_interface_language(p.language.interface_language)
+    if resolved != p.language.interface_language:
+        p = p.model_copy(
+            update={
+                "language": p.language.model_copy(
+                    update={"interface_language": resolved}
+                )
+            }
+        )
+    return p
 
 
 def save_profile(profile: UserProfile) -> None:

@@ -13,7 +13,7 @@ sys_setting:
     langfuse_base_url: ''
 user_profile:
   language:
-    interface_language: zh-CN
+    interface_language: ''  # 界面语言（可选）：留空时按 OS locale 推断，兜底 en；后续 onboarding 会让用户显式选择
     target_language: en
 
 plugins:

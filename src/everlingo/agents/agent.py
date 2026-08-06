@@ -34,7 +34,7 @@ from ..mem.agents.mem_writer_mcp_client import (
     mcp_vault_connection,
 )
 from ..models import LANGUAGES, UserProfile
-from ..setting import load_profile, load_user_doc, prompt_input_mtime, get_web_public_base_url
+from ..setting import load_resolved_profile, load_user_doc, prompt_input_mtime, get_web_public_base_url
 from ..tools.conf_manager import get_config_version
 from ..tools.tools import build_tools
 from ..utils.md_prompt_compiler import shift_headings
@@ -698,7 +698,7 @@ class MainAgent:
         if self._agent is not None and current_version == self._config_version and current_mtime == self._prompt_mtime:
             return
 
-        profile = load_profile()
+        profile = load_resolved_profile()
 
         # target_lang 变化 → 关闭旧 MCP stream（新 lang 由 _ensure_mcp_stream 自动使用）
         if profile.language.target_language != self._target_lang:

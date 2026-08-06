@@ -2,6 +2,8 @@ import pytest
 from pydantic import ValidationError
 
 from everlingo.models import (
+    AVAILABLE_INTERFACE_LANGUAGES,
+    LANGUAGES,
     ChannelWeb,
     Channels,
     EverLingoSetting,
@@ -13,11 +15,14 @@ from everlingo.models import (
     UserProfile,
     WebListener,
     WebPublicAddress,
+    resolve_interface_language,
 )
 from everlingo.setting import (
     dict_to_setting,
     get_web_listener,
     get_web_public_base_url,
+    load_profile,
+    load_resolved_profile,
     load_setting,
     setting_to_dict,
 )
@@ -27,7 +32,9 @@ def test_empty_profile_is_incomplete():
     profile = UserProfile()
     assert not profile.is_complete()
     errors = profile.validate()
-    assert len(errors) == 2
+    # interface_language 可选，不报错；仅 target_language 未设置
+    assert len(errors) == 1
+    assert "目标学习语言" in errors[0]
 
 
 def test_partial_profile_is_incomplete():
@@ -55,13 +62,18 @@ def test_same_languages_allowed():
     assert profile.validate() == []
 
 
-def test_japanese_zh_profile():
-    """日本語界面，学习中文的用户配置"""
-    profile = UserProfile(
-        language=UserLanguage(interface_language="ja", target_language="zh-CN")
-    )
-    assert profile.is_complete()
-    assert profile.validate() == []
+def test_invalid_interface_language_rejected():
+    """非可用界面语言（ja/fr/de）不被接受：is_complete 只看 target，validate 报错。
+
+    ref: docs/ADR/20260806-interface-language-optional.md §5
+    """
+    for code in ("ja", "fr", "de"):
+        profile = UserProfile(
+            language=UserLanguage(interface_language=code, target_language="en")
+        )
+        assert profile.is_complete()  # target 已就绪
+        errors = profile.validate()
+        assert "界面语言取值不被支持" in errors
 
 
 def test_zh_japanese_profile():
@@ -73,15 +85,6 @@ def test_zh_japanese_profile():
     assert profile.validate() == []
 
 
-
-
-def test_french_zh_profile():
-    """法语界面，学习中文的用户配置"""
-    profile = UserProfile(
-        language=UserLanguage(interface_language="fr", target_language="zh-CN")
-    )
-    assert profile.is_complete()
-    assert profile.validate() == []
 
 
 def test_zh_german_profile():
@@ -103,21 +106,24 @@ def test_en_french_profile():
 
 
 def test_de_fr_profile():
-    """德语界面，学习法语的用户配置"""
+    """非可用界面语言（de/fr）不被接受：validate 报错，is_complete 仅看 target。
+
+    ref: docs/ADR/20260806-interface-language-optional.md §5
+    """
     profile = UserProfile(
         language=UserLanguage(interface_language="de", target_language="fr")
     )
     assert profile.is_complete()
-    assert profile.validate() == []
+    assert "界面语言取值不被支持" in profile.validate()
 
 
 def test_fr_de_profile():
-    """法语界面，学习德语(Deutsch)的用户配置"""
+    """法语界面不再可用：fr 作为界面语言被 validate 拒绝。"""
     profile = UserProfile(
         language=UserLanguage(interface_language="fr", target_language="de")
     )
     assert profile.is_complete()
-    assert profile.validate() == []
+    assert "界面语言取值不被支持" in profile.validate()
 
 def test_en_japanese_profile():
     """英文界面，学习日本語的用户配置"""
@@ -748,3 +754,106 @@ def test_env_expansion_in_everlingo_yaml(monkeypatch, tmp_path):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test-expanded")
     setting = load_setting()
     assert setting.sys_setting.openai_api_key == "sk-test-expanded"
+
+
+# ── interface_language 推断 ──────────────────────────────────────────
+# ref: docs/ADR/20260806-interface-language-optional.md — 可选 + OS locale 推断
+
+def test_available_interface_languages_subset_of_languages():
+    """可用界面语言必须是可用目标语言集合的子集（显示名复用 LANGUAGES）。"""
+    assert set(AVAILABLE_INTERFACE_LANGUAGES) <= set(LANGUAGES.keys())
+
+
+def test_resolve_interface_language_explicit_valid():
+    """yaml 显式配置合法值 → 直接用，不推断。"""
+    assert resolve_interface_language("zh-CN") == "zh-CN"
+    assert resolve_interface_language("en") == "en"
+
+
+def test_resolve_interface_language_empty_locale_zh(monkeypatch):
+    """yaml 空 + OS locale 命中 zh_CN → zh-CN。"""
+    monkeypatch.setattr("locale.getlocale", lambda: ("zh_CN", "UTF-8"))
+    assert resolve_interface_language("") == "zh-CN"
+
+
+def test_resolve_interface_language_empty_locale_en(monkeypatch):
+    """yaml 空 + OS locale 命中 en_US → en。"""
+    monkeypatch.setattr("locale.getlocale", lambda: ("en_US", "UTF-8"))
+    assert resolve_interface_language("") == "en"
+
+
+def test_resolve_interface_language_locale_none(monkeypatch):
+    """yaml 空 + OS locale 为 (None, None)（容器常见）→ 兜底 en。"""
+    monkeypatch.setattr("locale.getlocale", lambda: (None, None))
+    assert resolve_interface_language("") == "en"
+
+
+def test_resolve_interface_language_invalid_yaml_value(monkeypatch):
+    """yaml 值非法（fr 非可用界面语言）→ 走 OS locale 推断容错。"""
+    monkeypatch.setattr("locale.getlocale", lambda: ("en_US", "UTF-8"))
+    assert resolve_interface_language("fr") == "en"
+
+
+def test_load_resolved_profile_infers_from_locale(monkeypatch, tmp_path):
+    """yaml 未配置 interface_language 时，load_resolved_profile 按 locale 填充。"""
+    from everlingo import workspace
+    monkeypatch.setattr(workspace, "WORKSPACE_ROOT", tmp_path)
+    ws = tmp_path
+    cfg = ws / "everlingo.yaml"
+    cfg.write_text(
+        "user_profile:\n  language:\n    target_language: en\n", encoding="utf-8"
+    )
+    workspace.init_workspace(str(ws))
+    monkeypatch.setattr("locale.getlocale", lambda: ("zh_CN", "UTF-8"))
+    profile = load_resolved_profile()
+    assert profile.language.interface_language == "zh-CN"
+
+
+def test_load_resolved_profile_does_not_persist_inferred(monkeypatch, tmp_path):
+    """推断值不写回 yaml：save 路径走 raw（双访问器设计）。
+
+    ref: docs/ADR/20260806-interface-language-optional.md §4
+    """
+    from everlingo import workspace
+    monkeypatch.setattr(workspace, "WORKSPACE_ROOT", tmp_path)
+    ws = tmp_path
+    cfg = ws / "everlingo.yaml"
+    cfg.write_text(
+        "user_profile:\n  language:\n    target_language: en\n", encoding="utf-8"
+    )
+    workspace.init_workspace(str(ws))
+    monkeypatch.setattr("locale.getlocale", lambda: ("zh_CN", "UTF-8"))
+
+    profile = load_resolved_profile()
+    assert profile.language.interface_language == "zh-CN"
+
+    # raw 仍为空；load_profile 不受推断影响
+    assert load_profile().language.interface_language == ""
+    # 磁盘 yaml 未被写入 interface_language
+    assert "interface_language" not in cfg.read_text(encoding="utf-8")
+
+
+def test_load_resolved_profile_keeps_explicit_value(monkeypatch, tmp_path):
+    """yaml 显式配置合法 interface_language → resolved 保留原值。"""
+    from everlingo import workspace
+    monkeypatch.setattr(workspace, "WORKSPACE_ROOT", tmp_path)
+    ws = tmp_path
+    cfg = ws / "everlingo.yaml"
+    cfg.write_text(
+        "user_profile:\n  language:\n    interface_language: en\n    target_language: en\n",
+        encoding="utf-8",
+    )
+    workspace.init_workspace(str(ws))
+    monkeypatch.setattr("locale.getlocale", lambda: ("zh_CN", "UTF-8"))
+    profile = load_resolved_profile()
+    # 显式 en 优先于 OS locale zh_CN
+    assert profile.language.interface_language == "en"
+
+
+def test_interface_language_optional_is_complete():
+    """interface_language 空不影响 is_complete（仅 target_language 就绪）。"""
+    profile = UserProfile(
+        language=UserLanguage(interface_language="", target_language="en")
+    )
+    assert profile.is_complete()
+    assert profile.validate() == []
