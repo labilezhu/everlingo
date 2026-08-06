@@ -7,7 +7,7 @@
 ## 完成的任务
 格式：完成日期与时间(GMT+8 timezone) | 任务描述 。 示例： " - 2026-06-20 19:28 | 生成主入口代码"
 
- - 2026-08-06 | LLM 请求携带应用标识 headers（User-Agent=EverLingo/<ver>、HTTP-Referer、X-Title）：版本常量下沉到 src/everlingo/__init__.py 的 __version__；release 流程新增源码字面量替换（__init__.py）；新增 test_llm_default_headers.py 单测
+ - 2026-08-06 | Embedding 请求同样携带应用标识 headers：ai_embedding.py 的 AIEmbedding 构造 OpenAIEmbeddings 时加入与 llm.py 一致的 default_headers（User-Agent / HTTP-Referer / X-Title）
  - 2026-08-04 | Me 页底部加版本信息；release 流程纳入源码版本号同步（MePage.tsx / ws_master / ws_router）
 - 2026-08-04 | 【目标学习语言设置页】添加「重新初始化」按钮：MCP reset_vault 工具 + API 端点 + 前端按钮，重置 spec/ 目录（覆盖写入模板文件）
 - 2026-08-04 | 笔记编辑器语言下拉默认选中 everlingo.yaml 的 target_language（GET /api/vault/langs 新增 default 字段，前端据此预选）

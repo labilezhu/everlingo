@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from langchain_openai import OpenAIEmbeddings
 
+from everlingo import __version__
 from everlingo.config import get_llm_config
 
 
@@ -49,4 +50,9 @@ class AIEmbedding(OpenAIEmbeddings):
             openai_api_base=cfg["base_url"],
             tiktoken_enabled=False,
             check_embedding_ctx_length=False,
+            default_headers={
+                "User-Agent": f"EverLingo/{__version__}",
+                "HTTP-Referer": "https://github.com/labilezhu/everlingo",
+                "X-Title": "EverLingo",
+            },
         )
