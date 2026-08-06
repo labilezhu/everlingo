@@ -7,6 +7,7 @@ from langchain.agents import create_agent as _create_agent
 from langchain_core.tools import BaseTool
 from langchain_openai import ChatOpenAI
 
+from . import __version__
 from .config import get_llm_config
 from .log_utils import LLMLoggingHandler
 from .tracing import setup_tracing
@@ -61,6 +62,11 @@ def _build_llm(**kwargs: object) -> ChatOpenAI:
         base_url=cfg["base_url"],
         model=cfg["model"],
         callbacks=callbacks,
+        default_headers={
+            "User-Agent": f"EverLingo/{__version__}",
+            "HTTP-Referer": "https://github.com/labilezhu/everlingo",
+            "X-Title": "EverLingo",
+        },
         http_client=httpx.Client(event_hooks=_HOOKS),
         http_async_client=httpx.AsyncClient(event_hooks=_ASYNC_HOOKS),
         **kwargs,

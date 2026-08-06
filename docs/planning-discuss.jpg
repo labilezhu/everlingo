@@ -1,4 +1,29 @@
-在 src/everlingo/main.py 中
+
+看看以下设计的合理性和可行性：
+
+## 需求
+
+为 LLM 请求加上应用名称和版本号信息。
+
+## 实现
+
+1. 在 src/everlingo/main.py 中增加一个常量 ： EVERLINGO_VER : str  = "0.1.1-rc.4" 
+2. src/everlingo/llm.py 的 ChatOpenAI 构造中加入 `default_headers` ：
+  ```python
+  llm = ChatOpenAI(
+    model=...,
+    base_url=...,
+    api_key=...,
+    default_headers={
+        "User-Agent": "EverLingo/{EVERLINGO_VER}", # 版本号来自上面的 EVERLINGO_VER 常量
+        "HTTP-Referer": "https://github.com/labilezhu/everlingo",
+        "X-Title": "EverLingo",
+    },
+  )
+  ```
+
+3. 为 .agents/skills/releasing/SKILL.md 中 “Replace `EVERLINGO_VER` env variable” 加入一项，更新 src/everlingo/main.py。
+
 
 ---
 

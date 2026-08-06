@@ -41,10 +41,11 @@ Let's name the user specified release version as `<version>` for the following s
      - /README.md
    2. Replace `everlingo_version` variable :
       1. src/everlingo/mem/vault/templates/default/spec/vault_spec.md
-   3. Replace version literals in source code (non-doc) — skip missing files and report to user:
-      1. web/src/me/MePage.tsx — replace the line `EverLingo 版本： ...` with `EverLingo 版本： <version>`
-      2. src/everlingo/ws_master/app.py — replace `version="..."` with `version="<version>"`
-       3. src/everlingo/ws_router/app.py — replace `version="..."` with `version="<version>"`
+    3. Replace version literals in source code (non-doc) — skip missing files and report to user:
+      1. src/everlingo/__init__.py — replace `__version__ = "..."` with `__version__ = "<version>"`
+      2. web/src/me/MePage.tsx — replace the line `EverLingo 版本： ...` with `EverLingo 版本： <version>`
+      3. src/everlingo/ws_master/app.py — replace `version="..."` with `version="<version>"`
+       4. src/everlingo/ws_router/app.py — replace `version="..."` with `version="<version>"`
    4. Chrome Extension 更新 Chrome 扩展版本号（关键约束）：
       - Chrome 的 `manifest.json` 的 `version` 字段**仅支持 1~4 个用点分隔的整数**（如 `0.1.1`），**不支持** semver 的预发布后缀（如 `-rc.4`）。任何带连字符的版本号在 Web Store 上传和本地 `chrome://extensions` 加载解压包时都会报 "Invalid value for 'version'" 而拒绝加载。
       - 因此需对 `<version>` 做如下转换后再写入文件：
