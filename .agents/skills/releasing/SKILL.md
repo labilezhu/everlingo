@@ -44,20 +44,30 @@ Let's name the user specified release version as `<version>` for the following s
    3. Replace version literals in source code (non-doc) — skip missing files and report to user:
       1. web/src/me/MePage.tsx — replace the line `EverLingo 版本： ...` with `EverLingo 版本： <version>`
       2. src/everlingo/ws_master/app.py — replace `version="..."` with `version="<version>"`
-      3. src/everlingo/ws_router/app.py — replace `version="..."` with `version="<version>"`
-4. Check file `/home/labile/diy-log/home-lab/hp/everlingo/130-release.sh` exists. If not, the system will abort the release operation and tell the reason to the user. 
+       3. src/everlingo/ws_router/app.py — replace `version="..."` with `version="<version>"`
+   4. Chrome Extension 更新 Chrome 扩展版本号（关键约束）：
+      - Chrome 的 `manifest.json` 的 `version` 字段**仅支持 1~4 个用点分隔的整数**（如 `0.1.1`），**不支持** semver 的预发布后缀（如 `-rc.4`）。任何带连字符的版本号在 Web Store 上传和本地 `chrome://extensions` 加载解压包时都会报 "Invalid value for 'version'" 而拒绝加载。
+      - 因此需对 `<version>` 做如下转换后再写入文件：
+        - 若 `<version>` 为正式版 `X.Y.Z`：manifest 与 package.json 均写 `X.Y.Z`。
+        - 若 `<version>` 为预发布版 `X.Y.Z-rc.N`：
+          - extension/public/manifest.json（必改）— 把 rc 次数编码为第 4 段整数：`"version": "X.Y.Z.N"`（如 `0.1.1-rc.4` → `"0.1.1.4"`）。这是 Chrome 实际读取并决定加载/更新顺序的版本号。
+          - extension/package.json（建议同步）— 保留 semver 原值 `"version": "X.Y.Z-rc.N"`，npm 合法。
+      - extension/package-lock.json（自动）：运行 `npm install` 会自动同步 root 的 version，无需手改。
+      - 验证：用 `node -e "console.log(JSON.parse(require('fs').readFileSync('extension/public/manifest.json')).version)"` 确认 manifest 输出为整数形式（如 `0.1.1.4`），并把 build 产物作为解压包加载到 `chrome://extensions` 确认无 version 报错。
+
+ 4. Check file `/home/labile/diy-log/home-lab/hp/everlingo/130-release.sh` exists. If not, the system will abort the release operation and tell the reason to the user. 
 5. Ask for a confirm and run:
   ```bash
   EVERLINGO_VER=<version> mark-specific/local-deploy/130_deploy/130-release.sh
   ```
 
-6. Find the <version> in the `/VERSION_HISTORY.yaml` file. And update state:
+1. Find the <version> in the `/VERSION_HISTORY.yaml` file. And update state:
   ```yaml
   - version: <version>
   - state: released
   ```  
 
-7. 在 `/VERSION_HISTORY.yaml` 是最开头，插入下一版本号： 
+1. 在 `/VERSION_HISTORY.yaml` 是最开头，插入下一版本号： 
    ```yaml
    - version: <next_version>
    - state: in-progress

@@ -91,7 +91,7 @@ Channel (任何子类)
 见 `src/everlingo/gateway/channels/envelope.py` 的 `ResourceContext` discriminated union，三种 kind：
 - `vault_file`：Vault Editor 中当前打开的笔记文件
 - `web_page`：用户选词的 web 页面
-- `selected_text`：用户高亮选定的文本（含段落上下文）
+- `selected_text`：用户高亮选定的文本（含段落上下文）。`paragraph_text` 为段落上下文块，最多 500 字，超过时以 `selected_text` 为中心截取，保证包含选词
 
 ## 7. 向后兼容
 

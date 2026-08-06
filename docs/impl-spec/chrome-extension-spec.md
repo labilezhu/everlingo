@@ -252,7 +252,7 @@ Sidecar 在建立 SSE 连接（`GET /api/session/{id}/events`）后，按以下�
 
 ### 6.3 `context.text` 提取算法
 
-目标：取选词所在段落的文本，最多 500 字，用于消歧（如 `bank` 在河岸 vs 银行）。
+目标：取选词所在段落的文本，最多 500 字，用于消歧（如 `bank` 在河岸 vs 银行）。当段落超过 500 字时，截取窗口**以选词为中心**，保证 `selected_text` 始终落在 `paragraph_text` 内（而不是简单地从段落开头截取，否则选词在中后部时会被切掉）。
 
 ```
 function extractContextText(selection: Selection): string {
@@ -263,14 +263,22 @@ function extractContextText(selection: Selection): string {
   while (block && !isBlockElement(block)) {
     block = block.parentElement;
   }
-  if (block) {
-    const text = block.textContent || "";
-    return text.length > 500 ? text.slice(0, 500) : text;
+  const root: Node = block ?? document.body;
+  const sourceText = block ? block.textContent : document.body.textContent;
+  // 用 TreeWalker 累加 text 节点长度，计算选词在 sourceText 中的字符索引，
+  // 避免 range.toString() 与 textContent 因空白折叠导致索引错位
+  const selStart = textContentOffset(root, range.startContainer, range.startOffset);
+  const selectedText = selection.toString();
+  if (sourceText.length <= 500) return sourceText;
+  if (!selectedText) return sourceText.slice(0, 500);
+  const selLen = Math.min(selectedText.length, 500);
+  let start = Math.max(0, selStart - Math.floor((500 - selLen) / 2));
+  let end = start + 500;
+  if (end > sourceText.length) {
+    end = sourceText.length;
+    start = Math.max(0, end - 500);
   }
-  // 回退：选区前后各 250 字
-  const fullText = document.body.innerText;
-  const start = Math.max(0, range.startOffset - 250);
-  return fullText.slice(start, start + 500);
+  return sourceText.slice(start, end);
 }
 
 function isBlockElement(el: Element | null): boolean {

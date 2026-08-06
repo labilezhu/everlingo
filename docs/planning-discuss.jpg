@@ -1,4 +1,17 @@
 
+src/everlingo/mem/vault/templates/default/spec/envelope_spec.md
+docs/impl-spec/envelope-impl-spec.md
+
+[Chrome Extension](docs/impl-spec/chrome-extension-spec.md) 产生的上下文：
+
+```log
+2026-08-06 03:04:52.140 [DEBUG] [548349396160] [MainThread] [session] [everlingo.gateway.session] : [ChatAgent] IN session=dc5c73bb-3c68-4461-a457-ed3ce8092534 channel=WebChannel envelope={"schema_version":1,"task":"translate","chat":{"message":"朗读一下我选中的这句话。一句话就好，不要整段"},"chat_context":{"resource_contexts":[{"kind":"selected_text","text":"elaboration","start_line":null,"start_column":null,"paragraph_text":"You are opencode, an interactive CLI tool that helps users with software engineering tasks. Use the instructions below and the tools available to you to assist the user.\n\nIMPORTANT: You must NEVER generate or guess URLs for the user unless you are confident that the URLs are for helping the user with programming. You may use URLs provided by the user in their messages or local files.\n\nIf the user asks for help or wants to give feedback inform them of the following:\n- /help: Get help with using o"}]},"source":{"kind":"chrome_ext","url":"https://openrouter.ai/logs?transaction=gen-1785981026-cFWG2QuPvgvlj4qyEJ80&message=1","title":"Logs | OpenRouter","surface":"sidecar"},"device":{"platform":"chrome_ext","locale":"en-US","timezone":"Asia/Hong_Kong"}}
+```
+
+可见，`selected_text`的网页的文本 "elaboration" 并不在 `paragraph_text` 中存在。应该是网页中，段落太长，如：超过 4K ，作了截取了。但截取应该是包含 `selected_text` 的部分，不应该只是简单的段落开头开始截取
+
+---
+
 设计修改：[Vault Editor](docs/impl-spec/vault-editor.md) 笔记编辑器不再提供语言选择下拉框。只能编辑当前 `everlingo.yaml` 配置的默认目标学习语言（`user_profile.language.target_language`）
 
 ---

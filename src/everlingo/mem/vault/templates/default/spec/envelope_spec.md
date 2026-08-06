@@ -77,7 +77,7 @@
 | `text` | str | 是 | 选定的文本内容 |
 | `start_line` | int / null | 否 | 选定文本的开始行（辅助定位）。不可获取时为 null |
 | `start_column` | int / null | 否 | 选定文本的开始列（辅助定位）。不可获取时为 null |
-| `paragraph_text` | str / null | 否 | 选定文本所在的段落或上下文块（最多 500 字）。不可获取时为 null |
+| `paragraph_text` | str / null | 否 | 选定文本所在的段落或上下文块（最多 500 字，超过时以 selected_text 为中心截取，保证包含选词）。不可获取时为 null |
 
 ### `source`
 
