@@ -1,4 +1,9 @@
 
+设计修改：[Vault Editor](docs/impl-spec/vault-editor.md) 笔记编辑器不再提供语言选择下拉框。只能编辑当前 `everlingo.yaml` 配置的默认目标学习语言（`user_profile.language.target_language`）
+
+---
+
+
 现在每次离开 [Standalone](docs/impl-spec/web-chatbot.md) 页（如点 Me 按钮） 后，再回来，都会开新的 chat session 。 不是希望的。
 
 ---
