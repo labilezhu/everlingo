@@ -176,6 +176,7 @@ POST /api/target-language/default
 ## 9. 不在本范围
 
 - **`interface_language` 的可视化设置**：本 ADR 不引入界面语言设置入口。`interface_language` 仍由 yaml / 部署模板配置。未来如需，再另起 ADR。
+  > **已于 Phase 3 解除**：见 [ADR 20260806-phase3-web-i18n-onboarding.md](20260806-phase3-web-i18n-onboarding.md) —— 引入 onboarding step 1（`/console/me/interface-language`）与 Me 页切换 UI，新增 `POST /api/user-profile/interface-language` 写入端点。
 - **多用户共享 workspace 的 target_language 隔离**：`target_language` 是 workspace 级配置，多用户共享一 workspace 时互相可见且互相影响。这是既有限制，本 ADR 不解决。
 - **indexer 离线时的 vault 创建重试 UI**：仅显示「未知」并禁用选中，不做自动重试。
 
