@@ -1,32 +1,35 @@
 import { useState } from 'react';
 import { QrCode, RefreshCw, Square, Play } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { startWechat, stopWechat, useWechatChannelStatus } from './useWechatChannelStatus';
 
-function statusText(state: string, running: boolean): { text: string; dot: string } {
-  switch (state) {
-    case 'starting':
-      return { text: '启动中…', dot: 'bg-amber-500' };
-    case 'waiting_scan':
-      return { text: '等待扫码', dot: 'bg-blue-500' };
-    case 'scanned':
-      return { text: '已在手机确认，等待登录完成', dot: 'bg-amber-500' };
-    case 'logined':
-      return { text: '已登录 ✅', dot: 'bg-green-500' };
-    case 'conflict':
-      return { text: 'Wechat 已在 standalone 运行，请先停止该进程', dot: 'bg-red-500' };
-    default:
-      return { text: running ? state : 'Wechat channel 未运行', dot: 'bg-muted-foreground' };
-  }
-}
-
 export default function WechatChannelAdmin() {
+  const { t } = useTranslation('web-console');
   const { status, error } = useWechatChannelStatus();
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const { running, state, qr_url, last_error } = status;
-  const { text, dot } = statusText(state, running);
+
+  const statusText = (s: string): { text: string; dot: string } => {
+    switch (s) {
+      case 'starting':
+        return { text: t('status_starting'), dot: 'bg-amber-500' };
+      case 'waiting_scan':
+        return { text: t('status_waiting_scan'), dot: 'bg-blue-500' };
+      case 'scanned':
+        return { text: t('status_scanned'), dot: 'bg-amber-500' };
+      case 'logined':
+        return { text: t('status_logined'), dot: 'bg-green-500' };
+      case 'conflict':
+        return { text: t('status_conflict'), dot: 'bg-red-500' };
+      default:
+        return { text: running ? state : t('not_running'), dot: 'bg-muted-foreground' };
+    }
+  };
+
+  const { text, dot } = statusText(state);
   const conflict = state === 'conflict';
 
   async function handleStart() {
@@ -67,7 +70,7 @@ export default function WechatChannelAdmin() {
           <div className="min-w-0">
             <div className="text-sm font-medium text-foreground">{text}</div>
             <div className="text-xs text-muted-foreground mt-0.5">
-              {running ? '运行中' : state === 'conflict' ? '锁冲突' : '未运行'}
+              {running ? t('running') : state === 'conflict' ? t('lock_conflict') : t('not_running_short')}
             </div>
           </div>
         </div>
@@ -87,25 +90,25 @@ export default function WechatChannelAdmin() {
           {!running && !conflict && (
             <Button size="sm" onClick={handleStart} disabled={busy}>
               <Play />
-              启动
+              {t('start')}
             </Button>
           )}
           {conflict && (
             <Button size="sm" variant="outline" onClick={handleStart} disabled={busy}>
               <RefreshCw />
-              重试
+              {t('retry')}
             </Button>
           )}
           {state === 'waiting_scan' && qr_url && (
             <Button size="sm" variant="outline" onClick={openQr}>
               <QrCode />
-              打开扫码页
+              {t('open_scan_page')}
             </Button>
           )}
           {running && (
             <Button size="sm" variant="destructive" onClick={handleStop} disabled={busy}>
               <Square />
-              停止
+              {t('stop')}
             </Button>
           )}
         </div>
@@ -113,7 +116,7 @@ export default function WechatChannelAdmin() {
 
       {error && (
         <div className="px-3 py-2 bg-amber-50 text-amber-700 text-sm rounded-lg border border-amber-200">
-          状态轮询失败：{error}
+          {t('poll_failed', { error })}
         </div>
       )}
     </div>

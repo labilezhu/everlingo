@@ -1,3 +1,5 @@
+import { i18n } from '@/i18n/i18n';
+
 // ref: docs/ADR/20260804-web-cache-control.md — 统一 fetch 包装：
 // - 全局 401 兜底 → 跳 /login（多用户部署下 JWT/cookie 过期）
 // - 非 2xx 抛出结构化错误，供调用方展示
@@ -41,7 +43,7 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
 
   if (response.status === 401 && !isLoginPath(response.url)) {
     redirectToLogin();
-    throw new ApiError(401, '登录已过期，请重新登录');
+    throw new ApiError(401, i18n.t('login_expired', { ns: 'common' }));
   }
 
   return response;

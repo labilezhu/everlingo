@@ -1,6 +1,7 @@
 import { Component, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { redirectToLogin } from '@/services/apiFetch';
+import { i18n } from '@/i18n/i18n';
 
 // ref: docs/ADR/20260804-web-cache-control.md — 全局兜底：避免 React 渲染异常导致整棵树卸载白屏。
 interface Props {
@@ -24,17 +25,18 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      const t = (key: string) => i18n.t(key, { ns: 'common' });
       return (
         <div className="flex min-h-screen items-center justify-center bg-background px-4">
           <div className="w-full max-w-sm rounded-xl border border-border bg-background p-6 text-center shadow-sm">
-            <h1 className="text-lg font-semibold text-foreground mb-2">页面遇到了一点问题</h1>
+            <h1 className="text-lg font-semibold text-foreground mb-2">{t('page_error')}</h1>
             <p className="text-sm text-muted-foreground mb-4">
-              可能是网络波动或登录状态已失效。请重新加载，必要时重新登录。
+              {t('page_error_hint')}
             </p>
             <div className="flex flex-col gap-2">
-              <Button onClick={() => window.location.reload()}>重新加载</Button>
+              <Button onClick={() => window.location.reload()}>{t('reload')}</Button>
               <Button variant="outline" onClick={() => redirectToLogin()}>
-                重新登录
+                {t('re_login')}
               </Button>
             </div>
           </div>

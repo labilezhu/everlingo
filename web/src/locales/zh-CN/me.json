@@ -1,0 +1,12 @@
+{
+  "title": "Me",
+  "back_to_chat": "聊天",
+  "target_language": "目标学习语言",
+  "target_language_desc": "选择默认学习语言并初始化笔记库",
+  "interface_language": "界面语言",
+  "interface_language_desc": "切换聊天界面与设置页的显示语言",
+  "workspace_console": "Workspace Console",
+  "workspace_console_desc": "频道与网关管理",
+  "account": "账号",
+  "version": "EverLingo 版本： {{version}}"
+}

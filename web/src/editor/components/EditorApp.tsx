@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Code, Eye, Save, Search, FolderTree, Menu, MessageSquare, ExternalLink, RefreshCw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { listLangs, tree, read, write, mkdir, deleteEntry, rename } from '@/editor/services/vaultApi';
 import FileTree from './FileTree';
 import SearchBar from './SearchBar';
@@ -23,6 +24,7 @@ function mergeChildren(entries: Entry[], dirPath: string, newChildren: Entry[]):
 type LeftTab = 'files' | 'search';
 
 export default function EditorApp() {
+  const { t } = useTranslation('editor');
   // ref for editor selection provider
   const editorSelectionRef = useRef<() => { text: string; start_line: number | null; start_column: number | null; paragraph_text: string | null }>(
     () => ({ text: '', start_line: null, start_column: null, paragraph_text: null })
@@ -118,7 +120,7 @@ export default function EditorApp() {
 
   // ── file select ──
   const handleFileSelect = useCallback(async (path: string) => {
-    if (dirty && !confirm('有未保存的改动，切换文件将丢弃。确定继续？')) return;
+    if (dirty && !confirm(t('discard_changes_switch'))) return;
     if (!selectedLang) return;
     setLoading(true);
     setError(null);
@@ -133,7 +135,7 @@ export default function EditorApp() {
     } finally {
       setLoading(false);
     }
-  }, [dirty, selectedLang]);
+  }, [dirty, selectedLang, t]);
 
   // ── open file content (read + set states) ──
   const openFileContent = useCallback(async (lang: string, path: string) => {
@@ -164,7 +166,7 @@ export default function EditorApp() {
   // ── reload current file from server ──
   const reloadFile = useCallback(async () => {
     if (!selectedLang || !currentPath) return;
-    if (dirty && !confirm('有未保存的改动，刷新将丢弃。确定继续？')) return;
+    if (dirty && !confirm(t('discard_changes_reload'))) return;
     setLoading(true);
     setError(null);
     try {
@@ -177,7 +179,7 @@ export default function EditorApp() {
     } finally {
       setLoading(false);
     }
-  }, [selectedLang, currentPath, dirty]);
+  }, [selectedLang, currentPath, dirty, t]);
 
   // ── editor resource context provider ──
   const getEditorResourceContext = useCallback((): import('@/types/chat').ResourceContext[] => {
@@ -211,10 +213,10 @@ export default function EditorApp() {
     // lang 参数被忽略：Editor 只编辑默认目标学习语言
     const path = u.searchParams.get('path');
     if (!selectedLang || !path) return false;
-    if (dirty && !confirm('有未保存的改动，打开链接将丢弃。确定继续？')) return true;
+    if (dirty && !confirm(t('discard_changes_open'))) return true;
     void loadFile(selectedLang, path);
     return true;
-  }, [selectedLang, dirty, loadFile]);
+  }, [selectedLang, dirty, loadFile, t]);
 
   // ── editor WYSIWYG link click handler ──
   const handleEditorLinkClick = useCallback((href: string): boolean => {
@@ -226,7 +228,7 @@ export default function EditorApp() {
           // lang 参数被忽略：Editor 只编辑默认目标学习语言
           const path = u.searchParams.get('path');
           if (selectedLang && path) {
-            if (dirty && !confirm('有未保存的改动，打开链接将丢弃。确定继续？')) return true;
+            if (dirty && !confirm(t('discard_changes_open'))) return true;
             void loadFile(selectedLang, path);
             return true;
           }
@@ -264,11 +266,11 @@ export default function EditorApp() {
 
     if (!resolvedPath) return false;
 
-    if (dirty && !confirm('有未保存的改动，打开链接将丢弃。确定继续？')) return true;
+    if (dirty && !confirm(t('discard_changes_open'))) return true;
 
     void loadFile(selectedLang, resolvedPath);
     return true;
-  }, [dirty, loadFile, selectedLang, currentPath]);
+  }, [dirty, loadFile, selectedLang, currentPath, t]);
 
   // ── save ──
   const handleSave = useCallback(async () => {
@@ -427,7 +429,7 @@ export default function EditorApp() {
         <div className="flex-1 text-center min-w-0">
           <span className="text-sm font-semibold text-foreground">
             <span className="md:hidden">🐹</span>
-            <span className="hidden md:inline">🐹 小记笔记编辑器</span>
+            <span className="hidden md:inline">🐹 {t('app_name')}</span>
           </span>
         </div>
 
@@ -441,7 +443,7 @@ export default function EditorApp() {
             }}
           >
             <MessageSquare className="size-4" />
-            <span className="hidden md:inline">呼叫小记</span>
+            <span className="hidden md:inline">{t('call_xiaoji')}</span>
           </button>
 
           <button
@@ -449,7 +451,7 @@ export default function EditorApp() {
             onClick={() => { window.location.href = '/'; }}
           >
             <ExternalLink className="size-4" />
-            <span className="hidden md:inline">转到小记</span>
+            <span className="hidden md:inline">{t('go_to_xiaoji')}</span>
           </button>
         </div>
       </header>
@@ -457,11 +459,11 @@ export default function EditorApp() {
       {/* Config error bar: 默认目标学习语言未配置 */}
       {langConfigError && (
         <div className="px-4 py-2 bg-red-50 text-red-600 text-sm border-b border-red-200 shrink-0 flex items-center gap-2">
-          <span className="flex-1">未配置默认目标学习语言，编辑器暂时不可用。</span>
+          <span className="flex-1">{t('no_default_lang')}</span>
           <a
             href="/console/me/target-language"
             className="underline whitespace-nowrap"
-          >去设置</a>
+          >{t('go_setup')}</a>
         </div>
       )}
 
@@ -469,7 +471,7 @@ export default function EditorApp() {
       {error && (
         <div className="px-4 py-2 bg-red-50 text-red-600 text-sm border-b border-red-200 shrink-0">
           {error}
-          <button className="ml-2 underline" onClick={() => setError(null)}>关闭</button>
+          <button className="ml-2 underline" onClick={() => setError(null)}>{t('close')}</button>
         </div>
       )}
 
@@ -477,7 +479,7 @@ export default function EditorApp() {
       <div ref={bodyRef} className="flex flex-1 overflow-hidden">
         {langConfigError ? (
           <div className="flex items-center justify-center flex-1 text-sm text-muted-foreground">
-            请先在设置页配置默认目标学习语言
+            {t('configure_default_lang')}
           </div>
         ) : (<>
         {/* Left pane: tab bar + content */}
@@ -524,7 +526,7 @@ export default function EditorApp() {
           {/* FileTree tab */}
           <div className={leftTab === 'files' ? 'flex-1 flex flex-col overflow-hidden' : 'hidden'}>
             {loading && !currentPath ? (
-              <div className="p-4 text-sm text-muted-foreground">加载中…</div>
+              <div className="p-4 text-sm text-muted-foreground">{t('loading')}</div>
             ) : (
               <FileTree
                 entries={entries}
@@ -586,8 +588,8 @@ export default function EditorApp() {
                   className="inline-flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-40 disabled:pointer-events-none shrink-0"
                   disabled={!currentPath || loading}
                   onClick={reloadFile}
-                  title="刷新文件内容"
-                  aria-label="刷新文件内容"
+                  title={t('refresh_file')}
+                  aria-label={t('refresh_file')}
                 >
                   <RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} />
                 </button>
@@ -600,7 +602,7 @@ export default function EditorApp() {
                     }}
                   >
                     <Code className="size-3.5" />
-                    <span className="hidden md:inline">源码</span>
+                    <span className="hidden md:inline">{t('source')}</span>
                   </button>
                   <button
                     className={'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ' + (mode === 'wysiwyg' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}
@@ -610,7 +612,7 @@ export default function EditorApp() {
                     }}
                   >
                     <Eye className="size-3.5" />
-                    <span className="hidden md:inline">直观</span>
+                    <span className="hidden md:inline">{t('wysiwyg')}</span>
                   </button>
                 </div>
                 <button
@@ -622,7 +624,7 @@ export default function EditorApp() {
                   onClick={handleSave}
                 >
                   <Save className="size-3.5" />
-                  <span className="hidden md:inline">{saving ? '保存中…' : '保存'}</span>
+                  <span className="hidden md:inline">{saving ? t('saving') : t('save')}</span>
                 </button>
               </div>
               <div className="flex-1 overflow-auto">
@@ -638,7 +640,7 @@ export default function EditorApp() {
             </>
           ) : (
             <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-              {loading ? '加载中…' : '选择一个文件开始编辑'}
+              {loading ? t('loading') : t('select_file_to_edit')}
             </div>
           )}
         </main>

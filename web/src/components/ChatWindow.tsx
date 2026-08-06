@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { NotebookPen, User } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
 import TaskSelector from './TaskSelector';
@@ -9,8 +10,6 @@ import { loadChatState, saveChatState, clearChatState } from '@/services/chatSto
 import type { TaskKind, SSEEvent, ResourceContext } from '@/types/chat';
 import { Message, uid } from '@/types/chat';
 import { LinkListenerContext } from './MarkdownRenderer';
-
-const WELCOME_TEXT = '你好！我是小记🐹，你的 AI 外语老师。有什么可以帮你的吗？';
 
 function decodeBase64Audio(b64: string): string {
   const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
@@ -22,12 +21,13 @@ export default function ChatWindow({ embedded, linkListener, resourceContextProv
   linkListener?: (url: string) => boolean;
   resourceContextProvider?: () => ResourceContext[];
 }) {
+  const { t } = useTranslation('chatbot');
   const [initialState] = useState(() => loadChatState());
   const [sessionId, setSessionId] = useState<string | null>(initialState?.sessionId ?? null);
   const [messages, setMessages] = useState<Message[]>(
     initialState && initialState.messages.length > 0
       ? initialState.messages
-      : [{ id: uid(), text: WELCOME_TEXT, from: 'bot' }],
+      : [{ id: uid(), text: t('welcome_text'), from: 'bot' }],
   );
   const [task, setTask] = useState<TaskKind>('none');
   const [thinking, setThinking] = useState(false);
@@ -88,7 +88,7 @@ export default function ChatWindow({ embedded, linkListener, resourceContextProv
         );
         cleanup = conn.cleanup;
         retryNowRef.current = conn.retryNow;
-      } catch { setError('无法连接到服务器'); }
+      } catch { setError(t('connect_failed')); }
     })();
     return () => {
       cleanup?.();
@@ -104,9 +104,9 @@ export default function ChatWindow({ embedded, linkListener, resourceContextProv
     clearChatState();
     setConnStatus(null);
     setSessionId(null);
-    setMessages(prev => [...prev, { id: uid(), text: '小记刚才断片了，对话忘记了，笔记还在', from: 'system' }]);
+    setMessages(prev => [...prev, { id: uid(), text: t('session_reset_note'), from: 'system' }]);
     setSessionEpoch(prev => prev + 1);
-  }, []);
+  }, [t]);
 
   const handleSend = useCallback(async (text: string) => {
     if (!sessionId) return;
@@ -118,9 +118,9 @@ export default function ChatWindow({ embedded, linkListener, resourceContextProv
       await sendMessage(sessionId, envelope);
     } catch {
       setPending(false);
-      setError('发送消息失败');
+      setError(t('send_failed'));
     }
-  }, [sessionId, task, resourceContextProvider]);
+  }, [sessionId, task, resourceContextProvider, t]);
 
   return (
     <LinkListenerContext.Provider value={linkListener}>
@@ -128,17 +128,17 @@ export default function ChatWindow({ embedded, linkListener, resourceContextProv
       <header className="flex items-center justify-between gap-2 px-3 py-2 md:px-4 md:py-3 border-b border-border bg-background">
         <div className="flex items-center gap-2">
           <span className="text-xl">🐹</span>
-          <h1 className="text-lg font-semibold text-foreground">小记</h1>
+          <h1 className="text-lg font-semibold text-foreground">{t('app_name')}</h1>
         </div>
         {!embedded && (
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="sm" onClick={() => { window.location.href = '/editor'; }}>
               <NotebookPen />
-              <span className="hidden md:inline">笔记</span>
+              <span className="hidden md:inline">{t('notes')}</span>
             </Button>
             <Button variant="ghost" size="sm" onClick={() => { window.location.href = '/console/me'; }}>
               <User />
-              <span className="hidden md:inline">Me</span>
+              <span className="hidden md:inline">{t('me')}</span>
             </Button>
           </div>
         )}
@@ -154,24 +154,24 @@ export default function ChatWindow({ embedded, linkListener, resourceContextProv
 
       {connStatus?.state === 'reconnecting' && (
         <div className="px-4 py-2 bg-amber-50 text-amber-700 text-sm border-b border-amber-200 flex items-center justify-between gap-2">
-          <span>连接断开，{connStatus.countdown}s 后自动重试</span>
+          <span>{t('reconnecting', { count: connStatus.countdown })}</span>
           <button
             onClick={() => retryNowRef.current?.()}
             className="underline whitespace-nowrap font-medium shrink-0"
           >
-            立即重试
+            {t('retry_now')}
           </button>
         </div>
       )}
 
       {connStatus?.state === 'session_expired' && (
         <div className="px-4 py-2 bg-amber-50 text-amber-700 text-sm border-b border-amber-200 flex items-center justify-between gap-2">
-          <span>会话已过期</span>
+          <span>{t('session_expired')}</span>
           <button
             onClick={handleRebuild}
             className="underline whitespace-nowrap font-medium shrink-0"
           >
-            重新开始
+            {t('restart')}
           </button>
         </div>
       )}
@@ -184,7 +184,7 @@ export default function ChatWindow({ embedded, linkListener, resourceContextProv
         {thinking && (
           <div className="flex justify-start">
             <div className="bg-muted text-foreground rounded-2xl rounded-bl-md px-4 py-2 animate-pulse">
-              小记🐹正在思考……
+              {t('thinking')}
             </div>
           </div>
         )}

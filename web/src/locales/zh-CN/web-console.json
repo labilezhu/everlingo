@@ -1,0 +1,20 @@
+{
+  "channels": "Channels",
+  "wechat_channel": "Wechat channel",
+  "wechat_channel_desc": "登录 / 启停 / 扫码管理",
+  "workspace_console": "Workspace Console",
+  "status_starting": "启动中…",
+  "status_waiting_scan": "等待扫码",
+  "status_scanned": "已在手机确认，等待登录完成",
+  "status_logined": "已登录 ✅",
+  "status_conflict": "Wechat 已在 standalone 运行，请先停止该进程",
+  "not_running": "Wechat channel 未运行",
+  "running": "运行中",
+  "not_running_short": "未运行",
+  "lock_conflict": "锁冲突",
+  "start": "启动",
+  "retry": "重试",
+  "stop": "停止",
+  "open_scan_page": "打开扫码页",
+  "poll_failed": "状态轮询失败：{{error}}"
+}

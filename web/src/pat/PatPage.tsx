@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowLeft, Copy, KeyRound, Plus, Check } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { apiFetch } from '@/services/apiFetch';
@@ -13,6 +14,7 @@ interface Pat {
 }
 
 export default function PatPage() {
+  const { t } = useTranslation('pat');
   const [pats, setPats] = useState<Pat[]>([]);
   const [label, setLabel] = useState('');
   const [creating, setCreating] = useState(false);
@@ -28,10 +30,10 @@ export default function PatPage() {
       if (resp.ok) {
         setPats(await resp.json());
       } else {
-        setError('加载 Token 列表失败');
+        setError(t('load_failed'));
       }
     } catch {
-      setError('加载 Token 列表失败');
+      setError(t('load_failed'));
     }
   }
 
@@ -63,10 +65,10 @@ export default function PatPage() {
         await loadPats();
       } else {
         const data = await resp.json().catch(() => null);
-        setError(data?.error?.message ?? '生成 Token 失败');
+        setError(data?.error?.message ?? t('created_failed'));
       }
     } catch {
-      setError('网络错误，请重试');
+      setError(t('network_error'));
     } finally {
       setCreating(false);
     }
@@ -83,9 +85,9 @@ export default function PatPage() {
       <header className="flex items-center gap-2 px-3 py-2 md:px-4 md:py-3 border-b border-border bg-background shrink-0">
         <Button variant="ghost" size="sm" onClick={goBack}>
           <ArrowLeft />
-          <span className="hidden md:inline">返回</span>
+          <span className="hidden md:inline">{t('back')}</span>
         </Button>
-        <h1 className="text-lg font-semibold text-foreground">永久 Token</h1>
+        <h1 className="text-lg font-semibold text-foreground">{t('title')}</h1>
       </header>
 
       <main className="flex-1 overflow-y-auto px-3 py-4 md:px-4 space-y-4">
@@ -95,32 +97,32 @@ export default function PatPage() {
 
         {newToken && (
           <div className="rounded-xl border border-border bg-background p-4">
-            <p className="text-sm font-medium text-foreground">Token 生成成功</p>
-            <p className="mt-1 text-xs text-destructive">仅显示一次，请立即复制保存，关闭后将无法再次查看。</p>
+            <p className="text-sm font-medium text-foreground">{t('generated')}</p>
+            <p className="mt-1 text-xs text-destructive">{t('show_once')}</p>
             <div className="mt-3 flex items-center gap-2">
               <code className="min-w-0 flex-1 truncate rounded-lg border border-border bg-muted px-3 py-2 text-xs text-foreground">
                 {newToken}
               </code>
               <Button variant="outline" size="sm" onClick={copyToken}>
                 {copied ? <Check /> : <Copy />}
-                {copied ? '已复制' : '复制'}
+                {copied ? t('copied') : t('copy')}
               </Button>
             </div>
           </div>
         )}
 
         <form onSubmit={handleCreate} className="rounded-xl border border-border bg-background p-4">
-          <p className="text-sm font-medium text-foreground">生成新 Token</p>
+          <p className="text-sm font-medium text-foreground">{t('create_new')}</p>
           <div className="mt-3 flex items-center gap-2">
             <Input
               value={label}
               onChange={e => setLabel(e.target.value)}
-              placeholder="标签（如 chrome_ext）"
+              placeholder={t('label_placeholder')}
               required
             />
             <Button type="submit" size="sm" disabled={creating}>
               <Plus />
-              {creating ? '生成中…' : '生成'}
+              {creating ? t('generating') : t('generate')}
             </Button>
           </div>
         </form>
@@ -128,10 +130,10 @@ export default function PatPage() {
         <div>
           <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-foreground">
             <KeyRound className="size-4 text-muted-foreground" />
-            已有 Token
+            {t('existing')}
           </p>
           {pats.length === 0 ? (
-            <p className="text-sm text-muted-foreground">暂无 Token</p>
+            <p className="text-sm text-muted-foreground">{t('none')}</p>
           ) : (
             <ul className="space-y-2">
               {pats.map(p => (
@@ -142,12 +144,12 @@ export default function PatPage() {
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-foreground">{p.label}</p>
                     <p className="text-xs text-muted-foreground">
-                      创建于 {p.created_at}
-                      {p.last_used_at ? ` · 最近使用 ${p.last_used_at}` : ' · 从未使用'}
+                      {t('created_at', { date: p.created_at })}
+                      {p.last_used_at ? ` · ${t('last_used', { date: p.last_used_at })}` : ` · ${t('never_used')}`}
                     </p>
                   </div>
                   {p.expires_at && (
-                    <span className="shrink-0 text-xs text-muted-foreground">{p.expires_at} 过期</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{t('expires', { date: p.expires_at })}</span>
                   )}
                 </li>
               ))}

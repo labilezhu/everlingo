@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { LogIn } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 export default function LoginPage() {
+  const { t } = useTranslation('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -27,9 +29,9 @@ export default function LoginPage() {
         return;
       }
       const data = await resp.json().catch(() => null);
-      setError(data?.error?.message ?? '登录失败，请重试');
+      setError(data?.error?.message ?? t('login_failed'));
     } catch {
-      setError('网络错误，请重试');
+      setError(t('network_error'));
     } finally {
       setSubmitting(false);
     }
@@ -38,8 +40,8 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted px-4">
       <div className="w-full max-w-sm rounded-xl border border-border bg-background p-6 shadow-sm md:p-8">
-        <h1 className="text-xl font-semibold text-foreground">Welcome</h1>
-        <p className="mt-1 mb-6 text-sm text-muted-foreground">Sign in to 🐹记了么</p>
+        <h1 className="text-xl font-semibold text-foreground">{t('welcome')}</h1>
+        <p className="mt-1 mb-6 text-sm text-muted-foreground">{t('sign_in_to')}</p>
 
         {error && (
           <p className="mb-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -50,7 +52,7 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <label htmlFor="username" className="block text-sm font-medium text-foreground">
-              Username
+              {t('username')}
             </label>
             <Input
               id="username"
@@ -65,7 +67,7 @@ export default function LoginPage() {
           </div>
           <div className="space-y-1.5">
             <label htmlFor="password" className="block text-sm font-medium text-foreground">
-              Password
+              {t('password')}
             </label>
             <Input
               id="password"
@@ -79,7 +81,7 @@ export default function LoginPage() {
           </div>
           <Button type="submit" className="w-full" disabled={submitting}>
             <LogIn />
-            {submitting ? '登录中…' : '登录'}
+            {submitting ? t('logging_in') : t('login')}
           </Button>
         </form>
       </div>

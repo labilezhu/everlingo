@@ -16,8 +16,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from everlingo.mem.agents.mem_writer_mcp_client import IndexerOfflineError
-from everlingo.models import LANGUAGES
-from everlingo.setting import load_profile, save_profile
+from everlingo.models import AVAILABLE_INTERFACE_LANGUAGES, LANGUAGES, resolve_interface_language
+from everlingo.setting import bump_prompt_version, load_profile, save_profile
 
 from .vault_editor_mcp_client import mcp_session_workspace
 
@@ -82,14 +82,29 @@ def _build_languages(current_default: str, vaults: list[str] | None) -> list[dic
     return languages
 
 
+def _build_interface_languages() -> list[dict]:
+    """可用界面语言列表（含 display 名，复用 LANGUAGES[code]）。"""
+    return [
+        {"code": code, "name": LANGUAGES[code]} for code in AVAILABLE_INTERFACE_LANGUAGES
+    ]
+
+
 # ── Endpoints ────────────────────────────────────────────────────
 
 
 @router.get("/api/user-profile/status")
 async def user_profile_status() -> dict:
-    """默认目标学习语言配置状态（§3 三条件判定）。"""
+    """默认目标学习语言配置状态（§3 三条件判定）+ 界面语言状态。
+
+    interface_language：raw（可能为空）；interface_language_resolved：运行时推断值；
+    available_interface_languages：供前端直接渲染的可用界面语言列表。
+    needs_setup = (!is_valid) OR (interface_language 为空)。
+    ref: docs/ADR/20260806-phase3-web-i18n-onboarding.md §4.6
+    """
     profile = load_profile()
     target = profile.language.target_language
+    raw = profile.language.interface_language
+    resolved = resolve_interface_language(raw)
     vaults = await _try_list_vaults()
     vault_initialized = (target in vaults) if vaults is not None else None
     is_valid = target in LANGUAGES and vault_initialized is True
@@ -97,7 +112,40 @@ async def user_profile_status() -> dict:
         "target_language": target,
         "is_valid": is_valid,
         "vault_initialized": vault_initialized,
-        "needs_setup": not is_valid,
+        "needs_setup": (not is_valid) or not raw,
+        "interface_language": raw,
+        "interface_language_resolved": resolved,
+        "available_interface_languages": _build_interface_languages(),
+    }
+
+
+@router.post("/api/user-profile/interface-language")
+async def set_interface_language(body: SetDefaultBody) -> dict:
+    """写入界面语言到 yaml，并 bump prompt 版本触发 Agent 重建。
+
+    只接受 ∈ AVAILABLE_INTERFACE_LANGUAGES 的值。写 yaml 走 raw（load_profile +
+    save_profile，双访问器不变量），显式 bump_prompt_version()（interface_language
+    不在 prompt 文件 mtime 监控范围内，必须显式触发重建）。
+    ref: docs/ADR/20260806-phase3-web-i18n-onboarding.md §4.5
+    """
+    lang = body.lang
+    if lang not in AVAILABLE_INTERFACE_LANGUAGES:
+        raise HTTPException(400, detail=f"unsupported interface language: {lang!r}")
+
+    profile = load_profile()
+    profile = profile.model_copy(
+        update={
+            "language": profile.language.model_copy(
+                update={"interface_language": lang}
+            )
+        }
+    )
+    save_profile(profile)
+    bump_prompt_version()
+
+    return {
+        "interface_language": lang,
+        "available_interface_languages": _build_interface_languages(),
     }
 
 

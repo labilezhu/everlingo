@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Languages, Loader2, RotateCcw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { apiFetch, apiFetchJson } from '@/services/apiFetch';
 import { useAuthRecheck } from '@/services/useAuthRecheck';
+import type { ProfileStatus } from '@/types/profile';
 
 // ref: docs/ADR/20260801-user-onboarding.md — 目标学习语言设置页与首次使用引导
 // ref: docs/ADR/20260804-web-cache-control.md — 401 由 apiFetchJson 统一兜底跳 /login
@@ -21,16 +23,10 @@ interface LanguageList {
   current_default: string;
 }
 
-interface ProfileStatus {
-  target_language: string;
-  is_valid: boolean;
-  vault_initialized: boolean | null;
-  needs_setup: boolean;
-}
-
 type LoadState = 'loading' | 'ready' | 'error';
 
 export default function TargetLanguagePage() {
+  const { t } = useTranslation('onboarding');
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [loadError, setLoadError] = useState('');
   const [list, setList] = useState<LanguageList | null>(null);
@@ -55,11 +51,11 @@ export default function TargetLanguagePage() {
       })
       .catch(() => {
         if (cancelled) return;
-        setLoadError('无法加载语言列表');
+        setLoadError(t('load_error'));
         setLoadState('error');
       });
     return () => { cancelled = true; };
-  }, []);
+  }, [t]);
 
   useAuthRecheck();
 
@@ -85,15 +81,15 @@ export default function TargetLanguagePage() {
       });
       if (!resp.ok) {
         const detail = await resp.json().catch(() => null);
-        setSaveMessage(detail?.detail || '保存失败');
+        setSaveMessage(detail?.detail || t('save_failed'));
         return;
       }
       const newList: LanguageList = await resp.json();
       setList(newList);
-      setSaveMessage('已切换，对话已重置');
+      setSaveMessage(t('switched'));
       setTimeout(() => { window.location.href = '/'; }, 800);
     } catch {
-      setSaveMessage('无法连接服务器');
+      setSaveMessage(t('cant_connect'));
     } finally {
       setSaving(false);
     }
@@ -101,7 +97,7 @@ export default function TargetLanguagePage() {
 
   async function handleReset() {
     if (!selected) return;
-    if (!window.confirm('"知识库规范" 下的文件，可能被替换，若你有修改过 "知识库规范"，文件可能丢失。')) return;
+    if (!window.confirm(t('reset_confirm'))) return;
     setResetting(true);
     setSaveMessage('');
     try {
@@ -112,14 +108,14 @@ export default function TargetLanguagePage() {
       });
       if (!resp.ok) {
         const detail = await resp.json().catch(() => null);
-        setSaveMessage(detail?.detail || '重新初始化失败');
+        setSaveMessage(detail?.detail || t('reset_failed'));
         return;
       }
       const newList: LanguageList = await resp.json();
       setList(newList);
-      setSaveMessage('已重新初始化知识库规范');
+      setSaveMessage(t('reset_done'));
     } catch {
-      setSaveMessage('无法连接服务器');
+      setSaveMessage(t('cant_connect'));
     } finally {
       setResetting(false);
     }
@@ -134,14 +130,14 @@ export default function TargetLanguagePage() {
           onClick={() => { window.location.href = '/console/me'; }}
         >
           <ArrowLeft />
-          <span className="hidden md:inline">Me</span>
+          <span className="hidden md:inline">{t('me')}</span>
         </Button>
-        <h1 className="text-lg font-semibold text-foreground">目标学习语言</h1>
+        <h1 className="text-lg font-semibold text-foreground">{t('target_title')}</h1>
       </header>
 
       {needsSetup && loadState === 'ready' && (
         <div className="shrink-0 px-3 py-2 md:px-4 bg-primary/10 text-primary text-sm font-medium border-b border-border">
-          请选定一个有效的目标学习语言并初始化笔记库
+          {t('target_guidance')}
         </div>
       )}
 
@@ -179,13 +175,13 @@ export default function TargetLanguagePage() {
                       {lang.disabled
                         ? lang.disabled_reason
                         : lang.vault_initialized
-                          ? '笔记库已初始化'
-                          : '笔记库未初始化'}
+                          ? t('vault_initialized')
+                          : t('vault_not_initialized')}
                     </span>
                   </span>
                 </span>
                 {lang.is_default && (
-                  <span className="shrink-0 text-xs text-muted-foreground">默认</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{t('default')}</span>
                 )}
               </button>
             ))}
@@ -203,7 +199,7 @@ export default function TargetLanguagePage() {
               >
                 {resetting && <Loader2 className="size-4 animate-spin" />}
                 <RotateCcw className="size-4" />
-                重新初始化
+                {t('reinit')}
               </Button>
               <Button
                 className="flex-1"
@@ -211,7 +207,7 @@ export default function TargetLanguagePage() {
                 onClick={handleSave}
               >
                 {saving && <Loader2 className="size-4 animate-spin" />}
-                保存
+                {t('save')}
               </Button>
             </div>
           </div>
@@ -226,7 +222,7 @@ export default function TargetLanguagePage() {
             onClick={() => { window.location.href = '/'; }}
           >
             <Languages className="size-4" />
-            返回聊天
+            {t('back_to_chat')}
           </Button>
         </footer>
       )}

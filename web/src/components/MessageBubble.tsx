@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import MarkdownRenderer from './MarkdownRenderer';
 import type { Message } from '@/types/chat';
 
@@ -9,6 +10,7 @@ export default function MessageBubble({
   message: Message;
   onReplay?: (url: string) => void;
 }) {
+  const { t } = useTranslation('chatbot');
   const isUser = message.from === 'user';
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -45,10 +47,10 @@ export default function MessageBubble({
           type="button"
           onClick={toggle}
           className="bg-muted text-foreground rounded-2xl rounded-bl-md px-4 py-2 flex items-center gap-2 hover:bg-muted/80 transition-colors"
-          aria-label={playing ? '停止播放' : '播放语音'}
+          aria-label={playing ? t('stop_playing') : t('play_voice')}
         >
           <span className="text-lg leading-none">{playing ? '⏸' : '▶️'}</span>
-          <span className="text-sm">语音消息</span>
+          <span className="text-sm">{t('voice_message')}</span>
         </button>
       </div>
     );

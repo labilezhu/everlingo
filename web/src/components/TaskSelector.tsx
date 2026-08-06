@@ -1,11 +1,6 @@
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import type { TaskKind } from '@/types/chat';
-
-const TASKS: { value: TaskKind; label: string }[] = [
-  { value: 'translate', label: '翻译' },
-  { value: 'look_up', label: '查词' },
-  { value: 'none', label: '聊天' },
-];
 
 export default function TaskSelector({
   task,
@@ -14,6 +9,12 @@ export default function TaskSelector({
   task: TaskKind;
   onChange: (t: TaskKind) => void;
 }) {
+  const { t } = useTranslation('chatbot');
+  const TASKS: { value: TaskKind; label: string }[] = [
+    { value: 'translate', label: t('task_translate') },
+    { value: 'look_up', label: t('task_look_up') },
+    { value: 'none', label: t('task_chat') },
+  ];
   return (
     <div className="flex gap-1 px-3 py-2 border-b border-border">
       {TASKS.map((t) => (

@@ -1,0 +1,13 @@
+{
+  "loading": "Loading…",
+  "back": "Back",
+  "close": "Close",
+  "save": "Save",
+  "saving": "Saving…",
+  "cancel": "Cancel",
+  "page_error": "Something went wrong",
+  "page_error_hint": "It may be a network hiccup or an expired login. Please reload, and log in again if needed.",
+  "reload": "Reload",
+  "re_login": "Log in again",
+  "login_expired": "Your session has expired. Please log in again."
+}

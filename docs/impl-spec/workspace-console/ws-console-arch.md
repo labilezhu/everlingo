@@ -233,11 +233,13 @@ workspace console router 暴露（前缀 `/api/wechat-channel`），直调 `gate
 
 | 方法 | 路径 | 行为 |
 |---|---|---|
-| GET | `/api/user-profile/status` | `{target_language, is_valid, vault_initialized: bool\|null, needs_setup}`。`is_valid` = 非空 + ∈ LANGUAGES + vault 已初始化三条件全满足；indexer 不可达时 `vault_initialized=null`、`is_valid=false`、`needs_setup=true` |
+| GET | `/api/user-profile/status` | `{target_language, is_valid, vault_initialized: bool\|null, needs_setup, interface_language, interface_language_resolved, available_interface_languages: [{code, name}]}`。`is_valid` = 非空 + ∈ LANGUAGES + vault 已初始化三条件全满足；indexer 不可达时 `vault_initialized=null`、`is_valid=false`；`needs_setup = (!is_valid) OR (interface_language == "")` |
 | GET | `/api/target-language/list` | `{languages: [{code, name, is_default, vault_initialized: bool\|null, disabled, disabled_reason}], current_default}`。`disabled` 仅 `vault_initialized=null` 时为 true |
 | POST | `/api/target-language/default` | body `{lang}`。lang ∉ 5 种 → 400；`list_vaults` 未建则静默 `create_vault(lang)`；写 `user_profile.language.target_language` 到 everlingo.yaml；成功返回新 list（同 GET `/api/target-language/list` 结构）。list_vaults/create_vault 不可达 → 503 不写 yaml |
+| POST | `/api/user-profile/interface-language` | body `{lang}`。lang ∉ `AVAILABLE_INTERFACE_LANGUAGES`（当前 zh-CN/en）→ 400；写 `user_profile.language.interface_language` 到 everlingo.yaml；显式 `bump_prompt_version()` 触发 Agent 下次 invoke 重建；成功返回 `{interface_language, available_interface_languages}` |
 
 > ref: [ADR 20260801](../ADR/20260801-user-onboarding.md) — 目标学习语言设置页与首次使用引导
+> ref: [ADR 20260806-phase3-web-i18n-onboarding](../ADR/20260806-phase3-web-i18n-onboarding.md) — 前端 i18n 框架 + onboarding step 1 + Me 切换 UI
 > 前后端完整设计与逻辑见 [target-lang-setting.md](./target-lang-setting.md)。
 
 ### 5.3 静态页 fallback
@@ -246,6 +248,7 @@ workspace console router 暴露（前缀 `/api/wechat-channel`），直调 `gate
 
 - `GET /console/me` → `web/dist/me.html`
 - `GET /console/me/target-language` → `web/dist/target-language.html`
+- `GET /console/me/interface-language` → `web/dist/interface-language.html`
 - `GET /console/web-console`、`GET /console/web-console/{path}` → `web/dist/web-console.html`
 
 ## 6. 前端结构
@@ -260,6 +263,7 @@ input: {
   editor: 'editor.html',
   me: 'me.html',
   'target-language': 'target-language.html',
+  'interface-language': 'interface-language.html',
   'web-console': 'web-console.html',
   login: 'login.html',
   'self-service': 'self-service.html',
@@ -267,7 +271,7 @@ input: {
 }
 ```
 
-新增 `web/me.html`、`web/target-language.html`、`web/web-console.html`（结构同 `web/editor.html`，引用各自 `src/*/main.tsx`）。
+新增 `web/me.html`、`web/target-language.html`、`web/interface-language.html`、`web/web-console.html`（结构同 `web/editor.html`，引用各自 `src/*/main.tsx`）。
 
 > `login` / `self-service` / `pat` entry 供 WS-Router 使用（登录页与认证自服务页），构建产物 `web/dist` 由 ws-router 与 ws-container 两个镜像共享（见 [ws-router.md](../multiple-users/ws-router.md) §6）。
 
@@ -281,6 +285,9 @@ web/src/
   target-language/
     main.tsx          # 目标学习语言设置页入口
     TargetLanguagePage.tsx
+  interface-language/
+    main.tsx          # 界面语言设置页入口（onboarding step 1）
+    InterfaceLanguagePage.tsx
   web-console/
     main.tsx          # Console 首页入口
     ConsolePage.tsx

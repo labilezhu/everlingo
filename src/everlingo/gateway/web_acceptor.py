@@ -177,6 +177,17 @@ async def serve_target_language():
     return _static_response(index)
 
 
+@app.get("/console/me/interface-language")
+async def serve_interface_language():
+    """界面语言设置页（Me 页子页 / onboarding step 1）。"""
+    index = os.path.join(_static_dir(), "interface-language.html")
+
+    if not os.path.exists(index):
+        return {"message": "Frontend not built. Run `npm run build` in the web/ directory."}
+
+    return _static_response(index)
+
+
 @app.get("/console/web-console")
 @app.get("/console/web-console/{path:path}")
 async def serve_web_console(path: str = ""):

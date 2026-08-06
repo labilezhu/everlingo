@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from everlingo.gateway.user_profile_api import router
-from everlingo.models import LANGUAGES
+from everlingo.models import AVAILABLE_INTERFACE_LANGUAGES, LANGUAGES
 
 
 # ── Mock helpers ──────────────────────────────────────────────────
@@ -83,20 +83,26 @@ def client() -> TestClient:
     return TestClient(_app)
 
 
-def _patch_profile(target_language: str) -> tuple[dict, Any, Any]:
+def _patch_profile(target_language: str, interface_language: str = "") -> tuple[dict, Any, Any]:
     """Patch load_profile/save_profile to a stub backed by a mutable dict.
 
     返回 (current, p1, p2)，调用方需在 finally 中 stop 两个 patch。
     """
     from everlingo.models import UserProfile
 
-    current = {"target_language": target_language}
+    current = {"target_language": target_language, "interface_language": interface_language}
 
     def _load() -> UserProfile:
-        return UserProfile(language={"target_language": current["target_language"]})
+        return UserProfile(
+            language={
+                "target_language": current["target_language"],
+                "interface_language": current["interface_language"],
+            }
+        )
 
     def _save(profile: UserProfile) -> None:
         current["target_language"] = profile.language.target_language
+        current["interface_language"] = profile.language.interface_language
 
     p1 = patch("everlingo.gateway.user_profile_api.load_profile", side_effect=_load)
     p2 = patch("everlingo.gateway.user_profile_api.save_profile", side_effect=_save)
@@ -127,7 +133,7 @@ class TestUserProfileStatus:
             pp2.stop()
 
     def test_valid_and_initialized(self, client: TestClient):
-        _, pp1, pp2 = _patch_profile("en")
+        _, pp1, pp2 = _patch_profile("en", interface_language="zh-CN")
         session = AsyncMock()
         session.call_tool = AsyncMock(
             return_value=_fake_result({"vaults": ["en", "ja"], "count": 2})
@@ -189,6 +195,60 @@ class TestUserProfileStatus:
             assert data["vault_initialized"] is None
             assert data["is_valid"] is False
             assert data["needs_setup"] is True
+        finally:
+            p.stop()
+            pp1.stop()
+            pp2.stop()
+
+    # ── interface_language 字段（Phase 3） ─────────────────────
+
+    def test_interface_language_empty_sets_needs_setup(self, client: TestClient):
+        # target_language 有效且已初始化，但 interface_language 为空 → needs_setup True
+        _, pp1, pp2 = _patch_profile("en", interface_language="")
+        session = AsyncMock()
+        session.call_tool = AsyncMock(return_value=_fake_result({"vaults": ["en"], "count": 1}))
+        p = _patch_workspace(session)
+        try:
+            resp = client.get("/api/user-profile/status")
+            data = resp.json()
+            assert data["is_valid"] is True
+            assert data["interface_language"] == ""
+            assert data["interface_language_resolved"] != ""
+            assert data["needs_setup"] is True
+        finally:
+            p.stop()
+            pp1.stop()
+            pp2.stop()
+
+    def test_interface_language_set_clears_needs_setup(self, client: TestClient):
+        _, pp1, pp2 = _patch_profile("en", interface_language="zh-CN")
+        session = AsyncMock()
+        session.call_tool = AsyncMock(return_value=_fake_result({"vaults": ["en"], "count": 1}))
+        p = _patch_workspace(session)
+        try:
+            resp = client.get("/api/user-profile/status")
+            data = resp.json()
+            assert data["is_valid"] is True
+            assert data["interface_language"] == "zh-CN"
+            assert data["interface_language_resolved"] == "zh-CN"
+            assert data["needs_setup"] is False
+        finally:
+            p.stop()
+            pp1.stop()
+            pp2.stop()
+
+    def test_available_interface_languages(self, client: TestClient):
+        _, pp1, pp2 = _patch_profile("", interface_language="")
+        session = AsyncMock()
+        session.call_tool = AsyncMock(return_value=_fake_result({"vaults": [], "count": 0}))
+        p = _patch_workspace(session)
+        try:
+            resp = client.get("/api/user-profile/status")
+            data = resp.json()
+            avail = data["available_interface_languages"]
+            assert [a["code"] for a in avail] == list(AVAILABLE_INTERFACE_LANGUAGES)
+            for a in avail:
+                assert a["name"] == LANGUAGES[a["code"]]
         finally:
             p.stop()
             pp1.stop()
@@ -338,6 +398,59 @@ class TestSetDefaultLanguage:
             resp = client.post("/api/target-language/default", json={"lang": "en"})
             assert resp.status_code == 503
             assert current["target_language"] == ""
+        finally:
+            p.stop()
+            pp1.stop()
+            pp2.stop()
+
+
+# ── POST /api/user-profile/interface-language ───────────────────
+
+
+class TestSetInterfaceLanguage:
+    def test_valid_lang_writes_profile_and_bumps_version(self, client: TestClient):
+        current, pp1, pp2 = _patch_profile("", interface_language="")
+        session = AsyncMock()
+        p = _patch_workspace(session)
+        with patch("everlingo.gateway.user_profile_api.bump_prompt_version") as m_bump:
+            try:
+                resp = client.post("/api/user-profile/interface-language", json={"lang": "zh-CN"})
+                assert resp.status_code == 200
+                data = resp.json()
+                assert data["interface_language"] == "zh-CN"
+                assert [a["code"] for a in data["available_interface_languages"]] == list(
+                    AVAILABLE_INTERFACE_LANGUAGES
+                )
+                assert current["interface_language"] == "zh-CN"
+                m_bump.assert_called_once()
+            finally:
+                p.stop()
+                pp1.stop()
+                pp2.stop()
+
+    def test_invalid_lang_returns_400_and_no_bump(self, client: TestClient):
+        _, pp1, pp2 = _patch_profile("", interface_language="")
+        session = AsyncMock()
+        p = _patch_workspace(session)
+        with patch("everlingo.gateway.user_profile_api.bump_prompt_version") as m_bump:
+            try:
+                resp = client.post("/api/user-profile/interface-language", json={"lang": "fr"})
+                assert resp.status_code == 400
+                m_bump.assert_not_called()
+            finally:
+                p.stop()
+                pp1.stop()
+                pp2.stop()
+
+    def test_does_not_touch_target_language(self, client: TestClient):
+        current, pp1, pp2 = _patch_profile("ja", interface_language="")
+        session = AsyncMock()
+        p = _patch_workspace(session)
+        try:
+            resp = client.post("/api/user-profile/interface-language", json={"lang": "en"})
+            assert resp.status_code == 200
+            assert current["interface_language"] == "en"
+            assert current["target_language"] == "ja"
         finally:
             p.stop()
             pp1.stop()

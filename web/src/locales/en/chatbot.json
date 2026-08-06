@@ -1,0 +1,22 @@
+{
+  "app_name": "Xiaoji",
+  "notes": "Notes",
+  "me": "Me",
+  "welcome_text": "Hi! I'm Xiaoji🐹, your AI language tutor. How can I help?",
+  "connect_failed": "Could not connect to the server",
+  "send_failed": "Failed to send message",
+  "reconnecting": "Connection lost, auto retry in {{count}}s",
+  "retry_now": "Retry now",
+  "session_expired": "Session expired",
+  "restart": "Restart",
+  "session_reset_note": "Xiaoji lost the conversation, but your notes are safe",
+  "thinking": "Xiaoji🐹 is thinking…",
+  "input_placeholder": "Type a word, sentence or question...",
+  "send": "Send",
+  "voice_message": "Voice message",
+  "stop_playing": "Stop playback",
+  "play_voice": "Play voice",
+  "task_translate": "Translate",
+  "task_look_up": "Look up",
+  "task_chat": "Chat"
+}

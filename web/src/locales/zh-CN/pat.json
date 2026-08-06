@@ -1,0 +1,21 @@
+{
+  "back": "返回",
+  "title": "永久 Token",
+  "load_failed": "加载 Token 列表失败",
+  "created_failed": "生成 Token 失败",
+  "network_error": "网络错误，请重试",
+  "generated": "Token 生成成功",
+  "show_once": "仅显示一次，请立即复制保存，关闭后将无法再次查看。",
+  "copied": "已复制",
+  "copy": "复制",
+  "create_new": "生成新 Token",
+  "label_placeholder": "标签（如 chrome_ext）",
+  "generating": "生成中…",
+  "generate": "生成",
+  "existing": "已有 Token",
+  "none": "暂无 Token",
+  "created_at": "创建于 {{date}}",
+  "last_used": "最近使用 {{date}}",
+  "never_used": "从未使用",
+  "expires": "{{date}} 过期"
+}

@@ -1,15 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshCw, Search, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { search, listTags } from '@/editor/services/vaultApi';
 import type { SearchHit, SearchMode, TagCount, TagsOp } from '@/editor/types/vault';
-
-const MODES: { value: SearchMode; label: string }[] = [
-  { value: 'hybrid', label: '混合' },
-  { value: 'exact', label: '精确' },
-  { value: 'semantic', label: '语义' },
-];
 
 interface SearchBarProps {
   selectedLang: string;
@@ -20,6 +15,12 @@ interface SearchBarProps {
 }
 
 export default function SearchBar({ selectedLang, currentPath, onSelectPath, initialQ, initialTags }: SearchBarProps) {
+  const { t } = useTranslation('editor');
+  const MODES: { value: SearchMode; label: string }[] = [
+    { value: 'hybrid', label: t('mode_hybrid') },
+    { value: 'exact', label: t('mode_exact') },
+    { value: 'semantic', label: t('mode_semantic') },
+  ];
   const [q, setQ] = useState(initialQ || '');
   const [mode, setMode] = useState<SearchMode>(() => {
     return (localStorage.getItem('vault-editor:searchMode') as SearchMode) || 'hybrid';
@@ -99,7 +100,7 @@ export default function SearchBar({ selectedLang, currentPath, onSelectPath, ini
       <div className="p-2 shrink-0">
         <div className="flex items-center gap-1">
           <Input
-            placeholder="搜索…"
+            placeholder={t('search_placeholder')}
             value={q}
             onChange={e => setQ(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -113,7 +114,7 @@ export default function SearchBar({ selectedLang, currentPath, onSelectPath, ini
 
       {/* Mode toggle */}
       <div className="flex items-center gap-1 px-2 pb-1 shrink-0">
-        <span className="text-[10px] text-muted-foreground">搜索模式：</span>
+        <span className="text-[10px] text-muted-foreground">{t('search_mode')}</span>
         {MODES.map(m => (
           <Button
             key={m.value}
@@ -148,13 +149,13 @@ export default function SearchBar({ selectedLang, currentPath, onSelectPath, ini
             );
           })
         ) : (
-          <span className="text-[10px] text-muted-foreground">暂无 tag</span>
+          <span className="text-[10px] text-muted-foreground">{t('no_tags')}</span>
         )}
         <button
           type="button"
           onClick={refreshTags}
           disabled={tagsRefreshing}
-          title="刷新 tag"
+          title={t('refresh_tag')}
           className="inline-flex items-center justify-center size-5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-40 disabled:pointer-events-none"
         >
           <RefreshCw className={`size-3 ${tagsRefreshing ? 'animate-spin' : ''}`} />
@@ -164,20 +165,20 @@ export default function SearchBar({ selectedLang, currentPath, onSelectPath, ini
       {/* tags_op toggle */}
       {selectedTags.length > 1 && (
         <div className="flex items-center gap-1 px-2 pb-1 shrink-0">
-          <span className="text-[10px] text-muted-foreground">匹配：</span>
+          <span className="text-[10px] text-muted-foreground">{t('match')}</span>
           <Button
             size="xs"
             variant={tagsOp === 'and' ? 'default' : 'outline'}
             onClick={() => setTagsOp('and')}
           >
-            全部
+            {t('match_all')}
           </Button>
           <Button
             size="xs"
             variant={tagsOp === 'or' ? 'default' : 'outline'}
             onClick={() => setTagsOp('or')}
           >
-            任一
+            {t('match_any')}
           </Button>
         </div>
       )}
@@ -192,14 +193,14 @@ export default function SearchBar({ selectedLang, currentPath, onSelectPath, ini
       {/* Clear search hint */}
       {submittedRef.current && hits.length === 0 && !loading && (
         <div className="flex items-center justify-between px-2 py-1 shrink-0">
-          <span className="text-[11px] text-muted-foreground">无结果</span>
-          <Button size="xs" variant="ghost" onClick={clearSearch}>清除</Button>
+          <span className="text-[11px] text-muted-foreground">{t('no_results')}</span>
+          <Button size="xs" variant="ghost" onClick={clearSearch}>{t('clear')}</Button>
         </div>
       )}
 
       {/* Loading */}
       {loading && (
-        <div className="px-2 py-2 text-xs text-muted-foreground shrink-0">搜索中…</div>
+        <div className="px-2 py-2 text-xs text-muted-foreground shrink-0">{t('searching')}</div>
       )}
 
       {/* Results */}
@@ -234,7 +235,7 @@ export default function SearchBar({ selectedLang, currentPath, onSelectPath, ini
       {/* Submit hint when no results yet */}
       {!submittedRef.current && !loading && (
         <div className="flex-1 flex items-center justify-center px-2 text-[11px] text-muted-foreground">
-          输入关键词或选择 tag 搜索
+          {t('search_hint')}
         </div>
       )}
     </div>

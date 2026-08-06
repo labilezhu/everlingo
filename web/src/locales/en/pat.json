@@ -1,0 +1,21 @@
+{
+  "back": "Back",
+  "title": "Permanent token",
+  "load_failed": "Failed to load the token list",
+  "created_failed": "Failed to generate token",
+  "network_error": "Network error, please try again",
+  "generated": "Token generated",
+  "show_once": "Shown once. Please copy and save it now; you won't be able to view it again.",
+  "copied": "Copied",
+  "copy": "Copy",
+  "create_new": "Generate new token",
+  "label_placeholder": "Label (e.g. chrome_ext)",
+  "generating": "Generating…",
+  "generate": "Generate",
+  "existing": "Existing tokens",
+  "none": "No tokens",
+  "created_at": "Created {{date}}",
+  "last_used": "Last used {{date}}",
+  "never_used": "Never used",
+  "expires": "Expires {{date}}"
+}

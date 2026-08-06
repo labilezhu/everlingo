@@ -1,0 +1,20 @@
+{
+  "channels": "Channels",
+  "wechat_channel": "Wechat channel",
+  "wechat_channel_desc": "Login / start-stop / QR scan management",
+  "workspace_console": "Workspace Console",
+  "status_starting": "Starting…",
+  "status_waiting_scan": "Waiting for QR scan",
+  "status_scanned": "Confirmed on phone, waiting for login",
+  "status_logined": "Logged in ✅",
+  "status_conflict": "Wechat is running in standalone mode, please stop that process first",
+  "not_running": "Wechat channel is not running",
+  "running": "Running",
+  "not_running_short": "Not running",
+  "lock_conflict": "Lock conflict",
+  "start": "Start",
+  "retry": "Retry",
+  "stop": "Stop",
+  "open_scan_page": "Open scan page",
+  "poll_failed": "Status polling failed: {{error}}"
+}

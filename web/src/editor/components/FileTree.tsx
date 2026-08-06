@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronRight, ChevronDown, File, Folder, FilePlus, FolderPlus, Pencil, RefreshCw, Trash2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -31,6 +32,7 @@ interface FileTreeProps {
 }
 
 export default function FileTree({ entries, selectedPath, onSelect, onLazyLoad, onCreateFile, onMkdir, onRename, onDelete, onRefresh, refreshing }: FileTreeProps) {
+  const { t } = useTranslation('editor');
   return (
     <div className="flex flex-col h-full">
       {/* header toolbar */}
@@ -39,7 +41,7 @@ export default function FileTree({ entries, selectedPath, onSelect, onLazyLoad, 
           type="button"
           onClick={onRefresh}
           disabled={refreshing}
-          title="刷新"
+          title={t('refresh')}
           className="inline-flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-40 disabled:pointer-events-none"
         >
           <RefreshCw className={`size-3.5 ${refreshing ? 'animate-spin' : ''}`} />
@@ -79,6 +81,7 @@ interface FileTreeNodeProps {
 }
 
 function FileTreeNode({ entry, depth, selectedPath, onSelect, onLazyLoad, onCreateFile, onMkdir, onRename, onDelete }: FileTreeNodeProps) {
+  const { t } = useTranslation('editor');
   const [expanded, setExpanded] = useState(depth === 0 && !DEFAULT_COLLAPSED_ROOTS.has(entry.name));
   const [loading, setLoading] = useState(false);
   const [inlineAction, setInlineAction] = useState<InlineAction | null>(null);
@@ -143,29 +146,29 @@ function FileTreeNode({ entry, depth, selectedPath, onSelect, onLazyLoad, onCrea
         <>
           <ContextMenuItem onClick={() => setInlineAction({ kind: 'new-file', parent: entry })}>
             <FilePlus className="size-4" />
-            新建文件
+            {t('new_file')}
           </ContextMenuItem>
           <ContextMenuItem onClick={() => setInlineAction({ kind: 'new-dir', parent: entry })}>
             <FolderPlus className="size-4" />
-            新建目录
+            {t('new_dir')}
           </ContextMenuItem>
           <ContextMenuSeparator />
         </>
       )}
       <ContextMenuItem onClick={() => setInlineAction({ kind: 'rename', entry })}>
         <Pencil className="size-4" />
-        重命名
+        {t('rename')}
       </ContextMenuItem>
       <ContextMenuItem
         variant="destructive"
         onClick={() => {
-          if (confirm(`确定删除「${entry.name}」？此操作不可撤销。`)) {
+          if (confirm(t('delete_confirm', { name: entry.name }))) {
             onDelete(entry);
           }
         }}
       >
         <Trash2 className="size-4" />
-        删除
+        {t('delete')}
       </ContextMenuItem>
     </ContextMenuContent>
   );
@@ -228,6 +231,7 @@ interface InlineInputProps {
 }
 
 function InlineInput({ entry, action, depth, onConfirm, onCancel }: InlineInputProps) {
+  const { t } = useTranslation('editor');
   const [value, setValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -250,10 +254,10 @@ function InlineInput({ entry, action, depth, onConfirm, onCancel }: InlineInputP
   };
 
   const placeholder = action.kind === 'new-file'
-    ? '文件名（自动 .md）'
+    ? t('new_file_placeholder')
     : action.kind === 'new-dir'
-      ? '目录名'
-      : '新名称';
+      ? t('new_dir_placeholder')
+      : t('rename_placeholder');
 
   return (
     <div style={{ paddingLeft: `${depth * 16 + (action.kind === 'rename' ? 24 : 8)}px` }} className="flex items-center gap-1 px-2 py-0.5">

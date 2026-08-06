@@ -1,0 +1,23 @@
+{
+  "target_title": "目标学习语言",
+  "target_guidance": "请选定一个有效的目标学习语言并初始化笔记库",
+  "interface_title": "选择界面语言",
+  "interface_guidance": "请选择界面语言",
+  "interface_subtitle": "选择聊天界面与设置页显示的语言",
+  "load_error": "无法加载语言列表",
+  "vault_initialized": "笔记库已初始化",
+  "vault_not_initialized": "笔记库未初始化",
+  "default": "默认",
+  "save_failed": "保存失败",
+  "cant_connect": "无法连接服务器",
+  "switched": "已切换，对话已重置",
+  "reset_confirm": "\"知识库规范\" 下的文件，可能被替换，请确认你是否已修改过 \"知识库规范\"。",
+  "reset_failed": "重新初始化失败",
+  "reset_done": "已重新初始化知识库规范",
+  "reinit": "重新初始化",
+  "back_to_chat": "返回聊天",
+  "me": "Me",
+  "selected": "已选",
+  "saving": "保存中…",
+  "save": "保存"
+}
