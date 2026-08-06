@@ -443,7 +443,7 @@ export default function EditorApp() {
             }}
           >
             <MessageSquare className="size-4" />
-            <span className="hidden md:inline">{t('call_xiaoji')}</span>
+            <span className="hidden md:inline">{t('call_nori')}</span>
           </button>
 
           <button
@@ -451,7 +451,7 @@ export default function EditorApp() {
             onClick={() => { window.location.href = '/'; }}
           >
             <ExternalLink className="size-4" />
-            <span className="hidden md:inline">{t('go_to_xiaoji')}</span>
+            <span className="hidden md:inline">{t('go_to_nori')}</span>
           </button>
         </div>
       </header>

@@ -1,7 +1,7 @@
 {
   "app_name": "🐹 小记笔记编辑器",
-  "call_xiaoji": "呼叫小记",
-  "go_to_xiaoji": "转到小记",
+  "call_nori": "呼叫小记",
+  "go_to_nori": "转到小记",
   "no_default_lang": "未配置默认目标学习语言，编辑器暂时不可用。",
   "go_setup": "去设置",
   "configure_default_lang": "请先在设置页配置默认目标学习语言",

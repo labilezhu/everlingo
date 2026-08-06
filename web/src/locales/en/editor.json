@@ -1,7 +1,7 @@
 {
   "app_name": "🐹 Nori Notes Editor",
-  "call_xiaoji": "Call Nori",
-  "go_to_xiaoji": "Go to Nori",
+  "call_nori": "Call Nori",
+  "go_to_nori": "Go to Nori",
   "no_default_lang": "No default target language configured. The editor is unavailable.",
   "go_setup": "Set up",
   "configure_default_lang": "Please configure the default target language in settings first",
