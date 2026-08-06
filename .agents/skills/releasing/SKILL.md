@@ -45,8 +45,9 @@ Let's name the user specified release version as `<version>` for the following s
       1. src/everlingo/__init__.py — replace `__version__ = "..."` with `__version__ = "<version>"`
       2. web/src/me/MePage.tsx — replace the line `EverLingo 版本： ...` with `EverLingo 版本： <version>`
       3. src/everlingo/ws_master/app.py — replace `version="..."` with `version="<version>"`
-       4. src/everlingo/ws_router/app.py — replace `version="..."` with `version="<version>"`
-   4. Chrome Extension 更新 Chrome 扩展版本号（关键约束）：
+      4. src/everlingo/ws_router/app.py — replace `version="..."` with `version="<version>"`
+      5. pyproject.toml  — 替换 `version="..."` 但要注意。版本号要符合 PEP 440 规定。像 0.1.1-rc.6 要写成 0.1.1rc6
+   3. Chrome Extension 更新 Chrome 扩展版本号（关键约束）：
       - Chrome 的 `manifest.json` 的 `version` 字段**仅支持 1~4 个用点分隔的整数**（如 `0.1.1`），**不支持** semver 的预发布后缀（如 `-rc.4`）。任何带连字符的版本号在 Web Store 上传和本地 `chrome://extensions` 加载解压包时都会报 "Invalid value for 'version'" 而拒绝加载。
       - 因此需对 `<version>` 做如下转换后再写入文件：
         - 若 `<version>` 为正式版 `X.Y.Z`：manifest 与 package.json 均写 `X.Y.Z`。
@@ -57,7 +58,7 @@ Let's name the user specified release version as `<version>` for the following s
       - 验证：用 `node -e "console.log(JSON.parse(require('fs').readFileSync('extension/public/manifest.json')).version)"` 确认 manifest 输出为整数形式（如 `0.1.1.4`），并把 build 产物作为解压包加载到 `chrome://extensions` 确认无 version 报错。
 
  4. Check file `/home/labile/diy-log/home-lab/hp/everlingo/130-release.sh` exists. If not, the system will abort the release operation and tell the reason to the user. 
-5. Ask for a confirm and run:
+4. Ask for a confirm and run:
   ```bash
   EVERLINGO_VER=<version> mark-specific/local-deploy/130_deploy/130-release.sh
   ```

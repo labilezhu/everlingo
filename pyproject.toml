@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "everlingo"
-version = "0.1.0"
+version = "0.1.1rc6"
 description = "EverLingo - AI 外语学习助手"
 license = "MIT"
 requires-python = ">=3.11"

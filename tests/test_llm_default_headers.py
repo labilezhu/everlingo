@@ -3,11 +3,14 @@
 
 验证：
 - _build_llm 构造 ChatOpenAI 时传入 default_headers
-- User-Agent 格式为 `EverLingo/<__version__>`，且与包版本一致
+- User-Agent 格式为 `EverLingo/<__version__>`，与包版本一致
+- __version__ 符合语义化版本格式（不硬编码具体版本，避免 release 时频繁改动）
 - HTTP-Referer 与 X-Title 正确
 - 所有 LLM 工厂 (create_llm / create_extract_llm / create_mem_writer_llm)
   均携带 default_headers
 """
+import re
+
 import pytest
 
 import everlingo
@@ -51,7 +54,7 @@ class TestDefaultHeaders:
         llm_mod._build_llm()
         kwargs = _ChatOpenAIStub.instances[0]
         assert kwargs["default_headers"]["User-Agent"] == f"EverLingo/{everlingo.__version__}"
-        assert everlingo.__version__ == "0.1.1-rc.4"
+        assert re.fullmatch(r"\d+\.\d+\.\d+(-rc\.\d+)?", everlingo.__version__)
 
     def test_all_llm_factories_carry_headers(self):
         llm_mod.create_llm()
