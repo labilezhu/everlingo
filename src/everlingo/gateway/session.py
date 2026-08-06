@@ -11,6 +11,7 @@ from .channels.channel import Channel, ChannelMetadata
 from .channels.envelope import render_envelope_to_message_text
 from .session_events import QuitEvent, SystemNotice, UserMessage
 from ..agents.agent import MainAgent, MessageEvent
+from ..i18n import t
 from ..models import UserProfile
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,9 @@ class Session:
         self.title = ""
         self.channel = channel
         self.channel_metadata: ChannelMetadata = channel.get_metadata()
+        # 用户界面语言（Phase 1 保证非空合法），用于兜底文案 i18n。
+        # ref: docs/i18n/i18n.md — Phase 2
+        self._interface_lang = profile.language.interface_language
         self.agent = MainAgent(profile, self.channel_metadata, channel, session_id=self.id)
         # 统一事件队列：UserMessage / SystemNotice / QuitEvent 均入此队列
         self._event_queue: asyncio.Queue = asyncio.Queue()
@@ -104,7 +108,7 @@ class Session:
         except Exception:
             logger.exception("_handle_user_message: ainvoke failed")
             await self.channel.stop_typing_hint()
-            await self.channel.send("出错了，请稍后重试")
+            await self.channel.send(t("error_generic", self._interface_lang))
             return
         await self.channel.stop_typing_hint()
         logger.debug(

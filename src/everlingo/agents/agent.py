@@ -34,6 +34,7 @@ from ..mem.agents.mem_writer_mcp_client import (
     mcp_vault_connection,
 )
 from ..models import LANGUAGES, UserProfile
+from ..i18n import t
 from ..setting import load_resolved_profile, load_user_doc, prompt_input_mtime, get_web_public_base_url
 from ..tools.conf_manager import get_config_version
 from ..tools.tools import build_tools
@@ -607,6 +608,9 @@ class MainAgent:
         self._channel_metadata = channel_metadata
         self._channel = channel
         self._profile = profile
+        # 用户界面语言（Phase 1 已保证非空合法）。用于后端兜底文案 i18n。
+        # ref: docs/i18n/i18n.md — Phase 2
+        self._interface_lang = profile.language.interface_language
         self._llm = create_llm()
         self._target_lang = profile.language.target_language
         # 基础工具（不含 vault），vault 工具在 _ensure_mcp_stream 后追加
@@ -699,6 +703,7 @@ class MainAgent:
             return
 
         profile = load_resolved_profile()
+        self._interface_lang = profile.language.interface_language
 
         # target_lang 变化 → 关闭旧 MCP stream（新 lang 由 _ensure_mcp_stream 自动使用）
         if profile.language.target_language != self._target_lang:
@@ -781,9 +786,9 @@ class MainAgent:
             response = await _invoke_llm_with_retry(self._agent, messages_for_llm)
         except Exception as e:
             logger.exception("ainvoke: LLM call failed")
-            return [MessageEvent(text=f"出错了，请稍后重试: {e}")]
+            return [MessageEvent(text=t("error_retry", self._interface_lang, error=str(e)))]
         if response is None:
-            return [MessageEvent(text="AI 服务暂时不可用，请稍后重试 (已自动重试 2 次)")]
+            return [MessageEvent(text=t("ai_unavailable", self._interface_lang))]
 
         # 持久化 AI 回复
         # 含 ToolMessage，供多轮对话中 LLM 上下文使用
@@ -872,7 +877,7 @@ class MainAgent:
             response = await self._agent.ainvoke({"messages": messages_for_llm})
         except Exception as e:
             logger.exception("ahandle_system_notice failed")
-            return [MessageEvent(text=f"处理系统通知时出错: {e}")]
+            return [MessageEvent(text=t("system_notice_error", self._interface_lang, error=str(e)))]
 
         new_messages = response["messages"][len(messages_for_llm):]
         self._messages.extend(new_messages)
