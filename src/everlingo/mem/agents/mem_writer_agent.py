@@ -235,8 +235,8 @@ entry 中的 `new_messages` 和 `context_messages` 字段包含了触发本次�
 ```
 
 - `updated_files`：本次写入/修改的所有 vault 文件相对路径列表
-- `update_summary`：一句话概述更新内容，使用 entry 的 interface_language
-- `conversation_context`：根据 entry 的 new_messages 和 context_messages 字段生成的对话场景描述
+- `update_summary`：一句话概述更新内容，使用`界面语言(interface_lang)`编写
+- `conversation_context`：根据 entry 的 new_messages 和 context_messages 字段生成的对话场景描述。 使用`界面语言(interface_lang)`编写
 
 不要在此回复中输出其他内容。若写入失败无需此确认，回复空内容即可。
 

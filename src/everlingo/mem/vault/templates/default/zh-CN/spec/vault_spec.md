@@ -109,7 +109,7 @@ description_in_target_lang: 'Pragmatically, answering "Yes" or "No" can easily l
 created_at: 2026-06-22T18:08:00+08:00
 timestamp: 2026-06-26T09:15:00+08:00
 schema_version: 1
-everlingo_version: 0.1.1-rc.6
+everlingo_version: 0.1.1-rc.7
 first_seen: 2026-06-22T18:08:00+08:00
 last_seen: 2026-06-26T09:15:00+08:00
 seen_count: 4

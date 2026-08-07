@@ -40,7 +40,7 @@ Let's name the user specified release version as `<version>` for the following s
      - /user-docs/deployment/multiple-user-auth-deployment.md
      - /README.md
    2. Replace `everlingo_version` variable :
-      1. src/everlingo/mem/vault/templates/default/spec/vault_spec.md
+      1. src/everlingo/mem/vault/templates/default/*/spec/vault_spec.md
     3. Replace version literals in source code (non-doc) — skip missing files and report to user:
       1. src/everlingo/__init__.py — replace `__version__ = "..."` with `__version__ = "<version>"`
       2. web/src/me/MePage.tsx — replace the line `EverLingo 版本： ...` with `EverLingo 版本： <version>`
@@ -69,7 +69,7 @@ Let's name the user specified release version as `<version>` for the following s
   - state: released
   ```  
 
-1. 在 `/VERSION_HISTORY.yaml` 是最开头，插入下一版本号： 
+1. 在 `/VERSION_HISTORY.yaml` 最开头，插入下一版本号： 
    ```yaml
    - version: <next_version>
    - state: in-progress
