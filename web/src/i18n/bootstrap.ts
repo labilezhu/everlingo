@@ -8,6 +8,7 @@
 //      changeLanguage 校正（服务端值为最终生效值，可能是用户此前显式选写的）
 //   3. 返回 status 供调用方决定 onboarding 跳转 / 正常渲染
 import { i18n, initI18n } from './i18n';
+import type { Ns } from './i18n';
 import { detectBootstrapLang } from './detect';
 import { apiFetchJson } from '@/services/apiFetch';
 import type { ProfileStatus } from '@/types/profile';
@@ -38,6 +39,12 @@ export async function bootstrapI18n(): Promise<BootstrapResult> {
 // 切换界面语言后调用：写回 yaml 已由后端完成，前端即时切换无需刷新页面。
 export function changeInterfaceLanguage(lang: string): Promise<unknown> {
   return i18n.changeLanguage(lang);
+}
+
+// 设置页面 <title>：必须在 bootstrapI18n() 校正语言（拿到服务端 resolved）之后再调用，
+// 才能用最终生效语言渲染。登录页无 status 时沿用 navigator 启发值。
+export function setPageTitle(ns: Ns, key: string): void {
+  document.title = i18n.t(key, { ns, defaultValue: '' });
 }
 
 // 首屏加载占位文案（用启发值，避免 i18n 初始化完成前的闪烁）。

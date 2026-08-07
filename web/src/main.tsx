@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import ChatWindow from './components/ChatWindow';
 import ErrorBoundary from './components/ErrorBoundary';
 import { useAuthRecheck } from './services/useAuthRecheck';
-import { bootstrapI18n, onboardingTarget, bootstrapLoadingText } from './i18n/bootstrap';
+import { bootstrapI18n, onboardingTarget, bootstrapLoadingText, setPageTitle } from './i18n/bootstrap';
 import './index.css';
 
 // ref: docs/ADR/20260801-user-onboarding.md §5 — 首次使用强制跳转
@@ -19,6 +19,7 @@ async function boot() {
   const root = createRoot(document.getElementById('root')!);
   root.render(<div className="flex items-center justify-center h-screen text-muted-foreground">{bootstrapLoadingText()}</div>);
   const { status } = await bootstrapI18n();
+  setPageTitle('chatbot', 'page_title');
   if (status) {
     const target = onboardingTarget(status);
     if (target) {

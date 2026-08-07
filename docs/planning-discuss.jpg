@@ -1,4 +1,14 @@
 
+目前的设计是：
+[Vault MCP Server](docs/impl-spec/vault-mcp/vault-mcp-spec.md) 中 `create_vault` `reset_vault` `session.configure` 均可能会用
+`src/everlingo/mem/vault/templates/default/*` 对 `$workspace/memory/languages/$lang` Vault 目录进行初始化。
+
+现在要考虑 Vault 目录进行初始化 的 [i18n](docs/i18n/i18n.md) 。
+
+我的想法是：
+src/everlingo/mem/vault/templates/default/*
+
+---
 
 - 西班牙语 🇪🇸 Español
 - 韩语 🇰🇷 한국어
