@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 from everlingo.mem.agents.mem_writer_mcp_client import IndexerOfflineError
 from everlingo.models import AVAILABLE_INTERFACE_LANGUAGES, LANGUAGES, resolve_interface_language
-from everlingo.setting import bump_prompt_version, load_profile, save_profile
+from everlingo.setting import bump_prompt_version, load_profile, load_resolved_profile, save_profile
 
 from .vault_editor_mcp_client import mcp_session_workspace
 
@@ -168,10 +168,16 @@ async def set_default_language(body: SetDefaultBody) -> dict:
     if lang not in LANGUAGES:
         raise HTTPException(400, detail=f"unsupported target language: {lang!r}")
 
+    interface_language = (
+        load_resolved_profile().language.interface_language
+    )
     async with _workspace() as session:
         vaults = await _list_vaults(session)
         if lang not in vaults:
-            result = await session.call_tool("create_vault", {"lang": lang})
+            result = await session.call_tool(
+                "create_vault",
+                {"lang": lang, "interface_language": interface_language},
+            )
             if result.isError:
                 text = result.content[0].text if result.content else "unknown error"
                 raise HTTPException(500, detail=text)
@@ -197,8 +203,14 @@ async def reset_vault(body: SetDefaultBody) -> dict:
     if lang not in LANGUAGES:
         raise HTTPException(400, detail=f"unsupported target language: {lang!r}")
 
+    interface_language = (
+        load_resolved_profile().language.interface_language
+    )
     async with _workspace() as session:
-        result = await session.call_tool("reset_vault", {"lang": lang})
+        result = await session.call_tool(
+            "reset_vault",
+            {"lang": lang, "interface_language": interface_language},
+        )
         if result.isError:
             text = result.content[0].text if result.content else "unknown error"
             raise HTTPException(500, detail=text)

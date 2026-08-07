@@ -140,13 +140,16 @@ def mcp_inmem_server(tmp_mcp_workspace: Path):
             configured_langs: list[str] = []
 
             @asynccontextmanager
-            async def fake_connection(lang: str):
+            async def fake_connection(
+                lang: str, wanted_tools=None, interface_language=None
+            ):
                 configured_langs.append(lang)
                 client = Client(mcp)
                 async with client as c:
-                    await c.call_tool(
-                        "session.configure", {"lang": lang}
-                    )
+                    cfg_args: dict = {"lang": lang}
+                    if interface_language:
+                        cfg_args["interface_language"] = interface_language
+                    await c.call_tool("session.configure", cfg_args)
                     all_tools = await load_mcp_tools(c.session, server_name="vault_mcp", tool_name_prefix=True)
                     tools = [
                         t for t in all_tools

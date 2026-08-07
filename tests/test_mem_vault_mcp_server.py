@@ -615,7 +615,9 @@ def test_create_vault_creates_dir_and_spec(fresh_workspace):
     expected_vault = tmp_path / "memory" / "languages" / "fr" / "vault"
 
     async def body(c: Client) -> None:
-        r = await c.call_tool("create_vault", {"lang": target_lang})
+        r = await c.call_tool(
+            "create_vault", {"lang": target_lang, "interface_language": "zh-CN"}
+        )
         assert r.is_error is False
         assert r.data["ok"] is True
         assert r.data["lang"] == target_lang
@@ -665,7 +667,9 @@ def test_create_vault_idempotent(fresh_workspace):
 
     async def body(c: Client) -> None:
         # 第一次：新建
-        r1 = await c.call_tool("create_vault", {"lang": target_lang})
+        r1 = await c.call_tool(
+            "create_vault", {"lang": target_lang, "interface_language": "zh-CN"}
+        )
         assert r1.is_error is False
         assert r1.data["created"] is True
         assert r1.data["files_written"] > 0
@@ -676,7 +680,9 @@ def test_create_vault_idempotent(fresh_workspace):
         items_vocab_idx = expected_vault / "items" / "vocab" / "index.md"
         items_vocab_idx.write_text("USER EDITED ITEMS\n", encoding="utf-8")
         # 第二次：幂等
-        r2 = await c.call_tool("create_vault", {"lang": target_lang})
+        r2 = await c.call_tool(
+            "create_vault", {"lang": target_lang, "interface_language": "zh-CN"}
+        )
         assert r2.is_error is False
         assert r2.data["created"] is False
         assert r2.data["files_written"] == 0
@@ -761,7 +767,9 @@ def test_reset_vault_overwrites_spec(fresh_workspace):
 
     async def body(c: Client) -> None:
         # 先 create_vault
-        r = await c.call_tool("create_vault", {"lang": target_lang})
+        r = await c.call_tool(
+            "create_vault", {"lang": target_lang, "interface_language": "zh-CN"}
+        )
         assert r.is_error is False
         assert r.data["created"] is True
         assert r.data["files_written"] > 0
@@ -771,7 +779,9 @@ def test_reset_vault_overwrites_spec(fresh_workspace):
         items_vocab_idx = expected_vault / "items" / "vocab" / "index.md"
         items_vocab_idx.write_text("TAMPERED ITEMS\n", encoding="utf-8")
         # 调用 reset_vault
-        r = await c.call_tool("reset_vault", {"lang": target_lang})
+        r = await c.call_tool(
+            "reset_vault", {"lang": target_lang, "interface_language": "zh-CN"}
+        )
         assert r.is_error is False
         assert r.data["ok"] is True
         assert r.data["lang"] == target_lang
@@ -817,6 +827,185 @@ def test_reset_vault_idempotent_call(fresh_workspace):
 
     with factory(body):
         pass
+
+
+def test_create_vault_en_template(fresh_workspace):
+    """interface_language="en" → spec/*.md 实例化为英文模板。"""
+    factory, state, tmp_path = fresh_workspace
+    target_lang = "fr"
+    expected_vault = tmp_path / "memory" / "languages" / "fr" / "vault"
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool(
+            "create_vault", {"lang": target_lang, "interface_language": "en"}
+        )
+        assert r.is_error is False
+        assert r.data["files_written"] > 0
+        spec = (expected_vault / "spec" / "vault_spec.md").read_text("utf-8")
+        assert "# Single-Language Memory Vault Spec" in spec
+        # 其余 spec 也是英文头
+        events = (expected_vault / "spec" / "events_spec.md").read_text("utf-8")
+        assert "# Event Category" in events
+        # items raw-copy 目录标题英文
+        idx = (expected_vault / "items" / "vocab" / "index.md").read_text("utf-8")
+        assert "title: Vocab" in idx
+        idx = (expected_vault / "items" / "index.md").read_text("utf-8")
+        assert "title: Knowledge Base Items" in idx
+
+    with factory(body):
+        pass
+
+
+def test_create_vault_zh_template(fresh_workspace):
+    """interface_language="zh-CN" → spec/*.md 实例化为中文模板。"""
+    factory, state, tmp_path = fresh_workspace
+    target_lang = "fr"
+    expected_vault = tmp_path / "memory" / "languages" / "fr" / "vault"
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool(
+            "create_vault", {"lang": target_lang, "interface_language": "zh-CN"}
+        )
+        assert r.is_error is False
+        assert r.data["files_written"] > 0
+        spec = (expected_vault / "spec" / "vault_spec.md").read_text("utf-8")
+        assert "# 单语言 Memory Vault Spec" in spec
+
+    with factory(body):
+        pass
+
+
+def test_create_vault_infers_template_from_locale(fresh_workspace, monkeypatch):
+    """interface_language 省略时按 OS locale（zh_CN → zh-CN）推断模板语言。"""
+    factory, state, tmp_path = fresh_workspace
+    target_lang = "es"
+    expected_vault = tmp_path / "memory" / "languages" / "es" / "vault"
+
+    import everlingo.models as models_mod
+
+    monkeypatch.setattr(models_mod.locale, "getlocale", lambda: ("zh_CN", "UTF-8"))
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool("create_vault", {"lang": target_lang})
+        assert r.is_error is False
+        spec = (expected_vault / "spec" / "vault_spec.md").read_text("utf-8")
+        assert "# 单语言 Memory Vault Spec" in spec
+
+    with factory(body):
+        pass
+
+
+def test_create_vault_prefix_fallback_via_locale(fresh_workspace, monkeypatch):
+    """值不在可用集时，经 OS locale 前缀兜底（zh* locale → zh-CN）选模板语言。"""
+    factory, state, tmp_path = fresh_workspace
+    target_lang = "is"
+
+    monkeypatch.setattr(
+        "everlingo.models.locale.getlocale", lambda: ("zh_CN", "UTF-8")
+    )
+
+    async def body(c: Client) -> None:
+        # 传非法/未知值 x，靠 locale 兜底到 zh-CN
+        r = await c.call_tool(
+            "create_vault", {"lang": target_lang, "interface_language": "zz"}
+        )
+        assert r.is_error is False
+        spec = (
+            workspace.lang_vault_dir(target_lang) / "spec" / "vault_spec.md"
+        ).read_text("utf-8")
+        assert "# 单语言 Memory Vault Spec" in spec
+
+    with factory(body):
+        pass
+
+
+def test_create_vault_falls_back_to_en_when_template_missing(
+    fresh_workspace, monkeypatch
+):
+    """解析语言无对应模板子包时回退 en。"""
+    factory, state, tmp_path = fresh_workspace
+    target_lang = "pt"
+
+    monkeypatch.setattr(
+        "everlingo.mem.vault.mcp_server.mcp_server._resolve_template_lang",
+        lambda il: "en",
+    )
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool(
+            "create_vault", {"lang": target_lang, "interface_language": "xx"}
+        )
+        assert r.is_error is False
+        spec = (
+            workspace.lang_vault_dir(target_lang) / "spec" / "vault_spec.md"
+        ).read_text("utf-8")
+        assert "# Single-Language Memory Vault Spec" in spec
+
+    with factory(body):
+        pass
+
+
+def test_reset_vault_reseeds_with_new_template_lang(fresh_workspace):
+    """先用 zh-CN 建，再用 en reset → spec/*.md 被英文模板覆盖。"""
+    factory, state, tmp_path = fresh_workspace
+    target_lang = "nl"
+    expected_vault = tmp_path / "memory" / "languages" / "nl" / "vault"
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool(
+            "create_vault", {"lang": target_lang, "interface_language": "zh-CN"}
+        )
+        assert r.is_error is False
+        spec_path = expected_vault / "spec" / "vault_spec.md"
+        assert "# 单语言 Memory Vault Spec" in spec_path.read_text("utf-8")
+
+        r = await c.call_tool(
+            "reset_vault", {"lang": target_lang, "interface_language": "en"}
+        )
+        assert r.is_error is False
+        assert r.data["files_reset"] > 0
+        spec = spec_path.read_text("utf-8")
+        assert "# Single-Language Memory Vault Spec" in spec
+        assert "# 单语言 Memory Vault Spec" not in spec
+
+    with factory(body):
+        pass
+
+
+def test_session_configure_passes_interface_language_to_auto_create(fresh_workspace):
+    """session.configure 自动建缺失 vault 时透传 interface_language 选模板语言。"""
+    factory, state, tmp_path = fresh_workspace
+    target_lang = "sv"
+
+    async def body(c: Client) -> None:
+        r = await c.call_tool(
+            "session.configure",
+            {"lang": target_lang, "interface_language": "en"},
+        )
+        assert r.is_error is False
+        assert r.data["interface_language"] == "en"
+        spec = (
+            workspace.lang_vault_dir(target_lang) / "spec" / "vault_spec.md"
+        ).read_text("utf-8")
+        assert "# Single-Language Memory Vault Spec" in spec
+
+    with factory(body):
+        pass
+
+
+def test_templates_two_langs_have_identical_tree():
+    """en / zh-CN 模板目录应保持一致的文件路径树。"""
+    import importlib.resources
+
+    from everlingo.mem.vault.mcp_server.mcp_server import _walk_package
+
+    def _tree(lang: str) -> set[str]:
+        root = importlib.resources.files(
+            f"everlingo.mem.vault.templates.default.{lang}"
+        )
+        return {rel for rel, _ in _walk_package(root)}
+
+    assert _tree("en") == _tree("zh-CN")
 
 
 def test_reset_vault_rejects_invalid_lang(empty_mcp_client):

@@ -28,15 +28,18 @@ tools:
         - vaults
         - count
 
-  - name: create_vault
+- name: create_vault
     title: Create vault
     description: |
       Create and initialize a new target-learning-language vault directory at
       $workspace/memory/languages/$lang/vault/ and seed it with spec/*.md
-      (copied from templates/default/spec/*.md with includes expanded via
-      everlingo.utils.md_prompt_compiler.compile_prompt + PackageSource,
-      matching the same approach as mem_writer_agent.py:67 but without
-      shift_headings — each spec file is a standalone top-level document).
+      (copied from templates/default/{interface_language}/spec/*.md with includes
+      expanded via everlingo.utils.md_prompt_compiler.compile_prompt +
+      PackageSource, matching the same approach as mem_writer_agent.py:67 but
+      without shift_headings — each spec file is a standalone top-level document).
+      The template subpackage is chosen from the interface_language parameter
+      (resolved per AVAILABLE_INTERFACE_LANGUAGES; omitted → OS-locale inference,
+      falling back to the en template if no matching subpackage exists).
       After creation, synchronously registers the lang with the indexer's
       LangState via state._open_lang(lang) (same entry point as
       LangDiscoveryWatcher / lazy open). Idempotent: if a spec file already
@@ -52,6 +55,11 @@ tools:
             目标学习语言代码 (en / ja / zh-CN / ...)。
             禁止包含路径分隔符 (/、\)、点号（.、..）、空字符串、NUL 字符，
             否则返回 isError=true。
+        interface_language:
+          type: string
+          description: |
+            可选。界面语言代码（en / zh-CN），决定 vault 模板子目录。
+            省略时按 OS locale 推断，模板子目录不存在时回退 en。
       required:
         - lang
     outputSchema:
@@ -98,9 +106,12 @@ tools:
     description: |
       Reinitialize an existing target-learning-language vault's spec directory
       at $workspace/memory/languages/$lang/vault/spec/ by re-seeding
-      spec/*.md from templates/default/spec/*.md (with includes expanded
-      via everlingo.utils.md_prompt_compiler.compile_prompt + PackageSource,
-      same approach as create_vault but overwriting existing spec files).
+      spec/*.md from templates/default/{interface_language}/spec/*.md
+      (with includes expanded via everlingo.utils.md_prompt_compiler.compile_prompt
+      + PackageSource, same approach as create_vault but overwriting existing
+      spec files). The template subpackage is chosen from the interface_language
+      parameter (resolved per AVAILABLE_INTERFACE_LANGUAGES; omitted → OS-locale
+      inference, falling back to the en template if no matching subpackage exists).
       Does NOT touch items/, events/, or other non-spec files — only
       spec/*.md is refreshed. After reset, synchronously re-registers the
       lang with the indexer's LangState via state._open_lang(lang)
@@ -115,6 +126,11 @@ tools:
             目标学习语言代码 (en / ja / zh-CN / ...)。
             禁止包含路径分隔符 (/、\)、点号（.、..）、空字符串、NUL 字符，
             否则返回 isError=true。vault 必须先通过 create_vault 初始化。
+        interface_language:
+          type: string
+          description: |
+            可选。界面语言代码（en / zh-CN），决定 vault 模板子目录。
+            省略时按 OS locale 推断，模板子目录不存在时回退 en。
       required:
         - lang
     outputSchema:
@@ -213,6 +229,7 @@ tools:
           description: |
             界面语言代码 (zh-CN / en / ...)，表示用户界面使用的语言。
             供将来 prompt / 工具描述本地化使用。
+            自动创建缺失 vault 时，该值透传给 create_vault 以选择 Vault 初始化模板语言。
       required: []
     outputSchema:
       type: object

@@ -354,7 +354,9 @@ def test_system_prompt_instructs_produce_content_before_ack(zh_en_profile, defau
 @pytest.fixture
 def compiled_envelope_spec():
     """从 vault 默认模板编译 envelope_spec.md。"""
-    source = PackageSource(package="everlingo.mem.vault.templates.default.spec")
+    source = PackageSource(
+        package="everlingo.mem.vault.templates.default.zh-CN.spec"
+    )
     return compile_prompt("envelope_spec.md", source)
 
 

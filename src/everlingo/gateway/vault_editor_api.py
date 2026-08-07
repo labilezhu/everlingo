@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from everlingo.mem.agents.mem_writer_mcp_client import IndexerOfflineError
 from everlingo.mem.vault.frontmatter import parse_frontmatter
-from everlingo.setting import load_profile
+from everlingo.setting import load_profile, load_resolved_profile
 from everlingo.workspace import lang_vault_dir
 
 from .vault_editor_mcp_client import mcp_session_configured, mcp_session_workspace
@@ -132,9 +132,16 @@ def _inject_titles(entries: list[dict], vault_root: Path) -> None:
 
 
 @asynccontextmanager
-async def _configured(lang: str):
+async def _configured(lang: str, interface_language: str | None = None):
+    if not interface_language:
+        try:
+            interface_language = (
+                load_resolved_profile().language.interface_language
+            )
+        except Exception:
+            interface_language = None
     try:
-        async with mcp_session_configured(lang) as s:
+        async with mcp_session_configured(lang, interface_language) as s:
             yield s
     except IndexerOfflineError as e:
         raise HTTPException(503, detail=str(e))

@@ -26,6 +26,7 @@ MCP Server 不在启动时绑定单一 lang；而是通过 `session.configure` �
 - **生命周期**：`session.configure` 设置的状态按 MCP stream 生命周期存活——绑定到该 stream，stream 关闭即丢弃，无持久化、无跨重连保留。
 - **state 存放**：server 进程内按 MCP stream/session id 索引的内存 dict；不落盘，不进 SQLite。
 - **lang 合法性**：`session.configure` 传入的 lang 必须是 workspace 已存在的 lang（indexer 启动时按 `$workspace/memory/languages/*/` 确定可用 lang 集合；运行时新 lang 发现机制见 memory-vault-search-spec.md「运行时新 lang 发现」）。**不在集合内时 session.configure 内部自动调 create_vault_tool 创建该 lang vault；创建失败（含非法 lang 名）返回错误。**
+- **模板语言**：创建缺失 vault 时的初始化模板按 `session.configure` 传入的 `interface_language` 选择（`templates/default/{interface_language}/`，解析语义见 §vault 管理工具实现绑定）；未传时由 server 按 OS locale 推断，兜底 `en`。
 - **fs 工具**：path 相对会话 lang vault 根 `$workspace/memory/languages/$lang/vault/`，工具层强制校验解析后路径不逃出该 lang vault_dir（防 `../`）。以 `/` 或 `\` 开头的 path 视为相对 vault 根的路径，前导分隔符会被忽略（兼容 LLM 常见的 Unix 风格写法，如 `ls /` 等价于 `ls ""`）。
 - **搜索类 fs 工具（grep / find）路径不存在语义**：`grep` 与 `find` 的搜索根路径不存在时，返回空结果（`{ "matches": [] }` / `{ "files": [] }`），不报 `isError=true`。便于 agent 在尚无该子目录时（如首个 vocab 条目写入前）执行查重搜索，自然走"未命中→新建"逻辑。同一约束不适用于 `ls`/`read`/`append`/`delete`——这些工具路径不存在仍是错误。
 - **search 工具**：`lang` 参数可选，省略时取会话 lang；显式传入可覆盖会话 lang（支持一次跨 lang 检索）。`tags` 参数配合 `tags_op`（`"and"`/`"or"`，默认 `"and"`）按 tag 精确过滤。先用 `list_tags` 工具发现可用 tag 再构造 tag 过滤查询。
@@ -33,7 +34,7 @@ MCP Server 不在启动时绑定单一 lang；而是通过 `session.configure` �
 
 ### vault 管理工具豁免
 
-`list_vaults`、`create_vault` 与 `reset_vault` 是 workspace 级工具，不绑特定 lang：
+`list_vaults`、`create_vault` 与 `reset_vault` 是 workspace 级工具，不绑特定 lang（但 `create_vault` / `reset_vault` 接受可选 `interface_language` 参数以选择 Vault 初始化模板语言）：
 
 - 不需要也不接受 `session.configure`（workspace 还没有任何 lang 时也得能创建第一个）。
 - 不修改会话状态；返回里不含任何 session 级字段。
@@ -283,6 +284,6 @@ MCP server 在 `initialize` 响应里通过 `instructions` 字段（[MCP 2025-11
 ### vault 管理工具实现绑定
 
 - **`list_vaults`** 直接调 `workspace.lang_dirs()`，无需 AppState / session。返回 `{"vaults": [...], "count": N}`。
-- **`create_vault`** 顺序：校验 lang 名（禁 `/`、`\`、`.`、`..`、空、NUL）→ `mkdir vault_root(parents=True, exist_ok=True)` → 递归遍历 `everlingo.mem.vault.templates.default` 包内全部文件（`_walk_package` helper），按路径分派：`spec/*.md` 调 `compile_prompt(rel_path, PackageSource(package="everlingo.mem.vault.templates.default"))` 合成后写入（展开 include + 剥 frontmatter），其余文件 raw copy（保留 frontmatter）；均已存在则跳过（幂等，**不** `shift_headings`，因为这是独立顶级文档）→ 同步调 `state._open_lang(lang)` 注册到 indexer（与 `LangDiscoveryWatcher` 同一入口，加锁幂等，失败不阻断）。返回 `{"ok": true, "lang", "vault_path": "memory/languages/$lang/vault", "created", "files_written", "registered"}`。`vault_path` 取相对当前 workspace 根的路径。
-- **`reset_vault`** 顺序：校验 lang 名（同 `create_vault`）→ 校验 `vault_root.is_dir()`（未初始化则返回 isError）→ 仅遍历 `templates/default/spec/*.md`，对每个文件**覆盖写入**到 `vault/spec/`（有 frontmatter 的原样 copy、无 frontmatter 的走 `compile_prompt + PackageSource`，与 `create_vault` 同逻辑）；**不碰** `items/`、`events/` 等非 spec 文件（保护用户笔记数据）→ 同步调 `state._open_lang(lang)` 注册到 indexer（幂等 no-op）。返回 `{"ok": true, "lang", "vault_path": "memory/languages/$lang/vault", "files_reset", "registered"}`。`vault_path` 取相对当前 workspace 根的路径。
+- **`create_vault`** 顺序：校验 lang 名（禁 `/`、`\`、`.`、`..`、空、NUL）→ `mkdir vault_root(parents=True, exist_ok=True)` → 按 `interface_language` 可选参数选模板子包（`_resolve_template_lang(interface_language)` 复用 `resolve_interface_language()` 语义：精确命中 → OS locale 推断 → 前缀兜底 → `en`；模板子包缺失回退 `en`）→ 递归遍历 `everlingo.mem.vault.templates.default.{tpl_lang}` 包内全部文件（`_walk_package` helper），按路径分派：`spec/*.md` 调 `compile_prompt(rel_path, PackageSource(package="everlingo.mem.vault.templates.default.{tpl_lang}"))` 合成后写入（展开 include + 剥 frontmatter），其余文件 raw copy（保留 frontmatter）；均已存在则跳过（幂等，**不** `shift_headings`，因为这是独立顶级文档）→ 同步调 `state._open_lang(lang)` 注册到 indexer（与 `LangDiscoveryWatcher` 同一入口，加锁幂等，失败不阻断）。返回 `{"ok": true, "lang", "vault_path": "memory/languages/$lang/vault", "created", "files_written", "registered"}`。`vault_path` 取相对当前 workspace 根的路径。
+- **`reset_vault`** 顺序：校验 lang 名（同 `create_vault`）→ 校验 `vault_root.is_dir()`（未初始化则返回 isError）→ 按 `interface_language`（同 `create_vault` 的 `_resolve_template_lang`）选模板子包 → 仅遍历 `templates/default/{tpl_lang}/spec/*.md`，对每个文件**覆盖写入**到 `vault/spec/`（有 frontmatter 的原样 copy、无 frontmatter 的走 `compile_prompt + PackageSource`，与 `create_vault` 同逻辑）；**不碰** `items/`、`events/` 等非 spec 文件（保护用户笔记数据）→ 同步调 `state._open_lang(lang)` 注册到 indexer（幂等 no-op）。返回 `{"ok": true, "lang", "vault_path": "memory/languages/$lang/vault", "files_reset", "registered"}`。`vault_path` 取相对当前 workspace 根的路径。
 - **spec/ 目录不入索引**：由 indexer 端的 `is_excluded_vault_file(abs_path, memory_root)` helper（`src/everlingo/mem/vault/search/indexer.py`）统一排除 `spec/` 子目录、`tmp/` 子目录，以及 `VAULT_SPEC.md`（老 vault 根级文件，按 basename 向后兼容排除），调用方为 `walk_vault` / `sync.reconcile` / `watcher._dispatch`，避免在三个点各自重复排除规则。OS 隐藏文件/目录（相对 memory_root 的路径任一段以 `.` 开头，如 `.git`/`.obsidian`/`.DS_Store`）一并排除。

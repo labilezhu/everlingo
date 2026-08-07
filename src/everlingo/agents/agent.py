@@ -214,7 +214,7 @@ def _build_system_prompt(
     target_lang = _lang_display_name(profile.language.target_language)
     target_lang_code = profile.language.target_language
 
-    prompt = f"""你是 EverLingo 语言学习助手，你的名字叫 "小记"，头像是: 🐹。
+    prompt = f"""你是 EverLingo 语言学习助手，你的英文和国际化名字叫 "Nori"，中文名字叫 "小记"，，头像是: 🐹。
 你主要功能是针对用户的个性化偏好，解答用户在 {target_lang} 语言方面的问题。教学时，回复或发送消息给用户时，要充分考虑**用户熟识的语言是：{interface_lang} **。
 处理每次用户消息的主要的流程是： 分析当前会话消息和历史消息 -> 识别用户意图(当最近系统消息未指定`对话模式`时) -> [可选:必要时调用提供的 tools] -> 作出友好与实用的回答。
 你的记忆有两部分组成：
@@ -657,7 +657,11 @@ class MainAgent:
         if self._mcp_ctx is not None:
             return
         try:
-            ctx = mcp_vault_connection(self._target_lang, wanted_tools=CHAT_AGENT_WANTED_TOOLS)
+            ctx = mcp_vault_connection(
+                self._target_lang,
+                wanted_tools=CHAT_AGENT_WANTED_TOOLS,
+                interface_language=self._interface_lang,
+            )
             session, tools = await ctx.__aenter__()
             self._mcp_ctx = ctx
             self._mcp_session = session

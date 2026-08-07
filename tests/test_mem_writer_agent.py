@@ -49,21 +49,27 @@ from everlingo.utils.md_prompt_compiler import PackageSource, compile_prompt
 @pytest.fixture
 def mem_entry_spec_text():
     """从打包默认值编译真实 mem_entry_spec.md 文本，用作 _build_writer_system_prompt 的测试输入。"""
-    source = PackageSource(package="everlingo.mem.vault.templates.default.spec")
+    source = PackageSource(
+        package="everlingo.mem.vault.templates.default.zh-CN.spec"
+    )
     return compile_prompt("mem_entry_spec.md", source)
 
 
 @pytest.fixture
 def envelope_spec_text():
     """从打包默认值编译真实 envelope_spec.md 文本，用作 _build_writer_system_prompt 的测试输入。"""
-    source = PackageSource(package="everlingo.mem.vault.templates.default.spec")
+    source = PackageSource(
+        package="everlingo.mem.vault.templates.default.zh-CN.spec"
+    )
     return compile_prompt("envelope_spec.md", source)
 
 
 @pytest.fixture
 def vault_spec_text():
     """从打包默认值编译真实 vault_spec.md 文本，用作 _build_writer_system_prompt 的测试输入。"""
-    source = PackageSource(package="everlingo.mem.vault.templates.default.spec")
+    source = PackageSource(
+        package="everlingo.mem.vault.templates.default.zh-CN.spec"
+    )
     return compile_prompt("vault_spec.md", source)
 
 
@@ -975,7 +981,9 @@ class TestWriterLangSandbox:
             agent = MemoryWriterAgent()
 
             @asynccontextmanager
-            async def broken_connection(lang: str):
+            async def broken_connection(
+                lang: str, wanted_tools=None, interface_language=None
+            ):
                 raise IndexerOfflineError("indexer not running")
                 yield  # unreachable
 

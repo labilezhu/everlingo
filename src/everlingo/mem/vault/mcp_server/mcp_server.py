@@ -35,6 +35,7 @@ from everlingo.mem.vault.frontmatter import normalize_frontmatter_text, split_fr
 from everlingo.mem.vault.search.protocol import SearchHit
 from everlingo.mem.vault.search.search import search as do_search
 from everlingo.mem.vault.search.server import AppState
+from everlingo.models import resolve_interface_language
 from everlingo.utils.md_prompt_compiler import (
     CompileError,
     FilesystemSource,
@@ -42,7 +43,26 @@ from everlingo.utils.md_prompt_compiler import (
     compile_prompt,
 )
 
+# vault 初始化模板根包；按界面语言拆分到 default/{interface_language}/。
+# 可用模板语言 = 可用界面语言（AVAILABLE_INTERFACE_LANGUAGES：en / zh-CN）。
 _VAULT_TEMPLATES_PACKAGE = "everlingo.mem.vault.templates.default"
+
+
+def _resolve_template_lang(interface_language: str | None) -> str:
+    """解析 vault 初始化模板的界面语言子包。
+
+    匹配逻辑与 resolve_interface_language() 一致（非空精确命中 → OS locale
+    推断 → 前缀兜底 zh*/en* → "en"）；额外做模板子包存在性检查：若解析出的
+    语言没有对应模板子包，回退 "en"。
+    """
+    tpl_lang = resolve_interface_language(interface_language or "")
+    try:
+        root = importlib.resources.files(f"{_VAULT_TEMPLATES_PACKAGE}.{tpl_lang}")
+        if root.is_dir():
+            return tpl_lang
+    except ModuleNotFoundError:
+        pass
+    return "en"
 
 logger = logging.getLogger("everlingo.mem.vault.mcp_server")
 
@@ -309,8 +329,12 @@ def create_mcp_app(state: AppState) -> FastMCP:
         description=(
             "Create and initialize a new target-learning-language vault directory "
             "at $workspace/memory/languages/$lang/vault/ and seed it with "
-            "templates/default/* (spec/*.md compiled with includes expanded, "
-            "other files raw-copied). "
+            "templates/default/{interface_language}/* (spec/*.md compiled with "
+            "includes expanded, other files raw-copied). The template language is "
+            "chosen from the interface_language parameter (resolved like "
+            "AVAILABLE_INTERFACE_LANGUAGES); when omitted, it is inferred from "
+            "the OS locale with fallbacks, and the en template is used if no "
+            "matching template subpackage exists. "
             "After creation, the lang is synchronously registered with the indexer's "
             "LangState so subsequent session.configure(lang=$lang) + search works "
             "immediately. "
@@ -320,7 +344,9 @@ def create_mcp_app(state: AppState) -> FastMCP:
         ),
     )
     @_log_mcp_tool("create_vault")
-    async def create_vault_tool(lang: str) -> dict[str, Any]:
+    async def create_vault_tool(
+        lang: str, interface_language: str | None = None
+    ) -> dict[str, Any]:
         # 校验 lang 名：防路径注入 / 逃逸
         if (
             not lang
@@ -336,10 +362,13 @@ def create_mcp_app(state: AppState) -> FastMCP:
         vault_root = workspace.lang_vault_dir(lang)
         already_existed = vault_root.is_dir()
         vault_root.mkdir(parents=True, exist_ok=True)
-        # 递归遍历 templates/default/，幂等写入（不存在才写）
+        # 按界面语言解析模板子包，递归遍历该语言模板，幂等写入（不存在才写）
         files_written = 0
-        source = PackageSource(package=_VAULT_TEMPLATES_PACKAGE)
-        root_traversable = importlib.resources.files(_VAULT_TEMPLATES_PACKAGE)
+        tpl_lang = _resolve_template_lang(interface_language)
+        source = PackageSource(package=f"{_VAULT_TEMPLATES_PACKAGE}.{tpl_lang}")
+        root_traversable = importlib.resources.files(
+            f"{_VAULT_TEMPLATES_PACKAGE}.{tpl_lang}"
+        )
         for rel_path, entry in _walk_package(root_traversable):
             target = vault_root / rel_path
             if target.exists():
@@ -387,9 +416,11 @@ def create_mcp_app(state: AppState) -> FastMCP:
         description=(
             "Reinitialize an existing target-learning-language vault's spec "
             "directory at $workspace/memory/languages/$lang/vault/spec/ by "
-            "re-seeding spec/*.md from templates/default/spec/*.md "
+            "re-seeding spec/*.md from templates/default/{interface_language}/spec/*.md "
             "(with includes expanded via compile_prompt + PackageSource, "
-            "same approach as create_vault but overwriting existing files). "
+            "same approach as create_vault but overwriting existing files). The "
+            "template language is resolved from the interface_language parameter "
+            "(defaulting to inference, falling back to the en template). "
             "Does NOT touch items/, events/, or other non-spec files — "
             "only spec/*.md is refreshed. "
             "After reset, synchronously re-registers the lang with the indexer's "
@@ -399,7 +430,9 @@ def create_mcp_app(state: AppState) -> FastMCP:
         ),
     )
     @_log_mcp_tool("reset_vault")
-    async def reset_vault_tool(lang: str) -> dict[str, Any]:
+    async def reset_vault_tool(
+        lang: str, interface_language: str | None = None
+    ) -> dict[str, Any]:
         if (
             not lang
             or not isinstance(lang, str)
@@ -418,13 +451,18 @@ def create_mcp_app(state: AppState) -> FastMCP:
             )
         spec_dir = vault_root / "spec"
         spec_dir.mkdir(parents=True, exist_ok=True)
-        # 仅遍历 templates/default/spec/，覆盖写入
+        # 仅遍历所选界面语言模板的 spec/，覆盖写入
         files_reset = 0
-        source = PackageSource(package=_VAULT_TEMPLATES_PACKAGE)
-        root_traversable = importlib.resources.files(_VAULT_TEMPLATES_PACKAGE)
+        tpl_lang = _resolve_template_lang(interface_language)
+        source = PackageSource(package=f"{_VAULT_TEMPLATES_PACKAGE}.{tpl_lang}")
+        root_traversable = importlib.resources.files(
+            f"{_VAULT_TEMPLATES_PACKAGE}.{tpl_lang}"
+        )
         spec_root = root_traversable / "spec"
         if not spec_root.is_dir():
-            raise RuntimeError("templates/default/spec/ not found in package")
+            raise RuntimeError(
+                f"templates/default/{tpl_lang}/spec/ not found in package"
+            )
         for rel_path, entry in _walk_package(spec_root):
             target = spec_dir / rel_path
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -505,7 +543,9 @@ def create_mcp_app(state: AppState) -> FastMCP:
         valid_langs = workspace.lang_dirs()
         if lang not in valid_langs:
             try:
-                await create_vault_tool(lang=lang)
+                await create_vault_tool(
+                    lang=lang, interface_language=interface_language
+                )
             except RuntimeError as e:
                 raise RuntimeError(
                     f"auto-create vault failed for lang {lang!r}: {e}"

@@ -1,4 +1,11 @@
 
+[i18n](docs/i18n/i18n.md) 的检漏：
+- src/everlingo/mem/agents/mem_writer_agent.py:56
+- src/everlingo/mem/agents/mem_entries.py:15
+
+---
+
+
 看看以下设计的合理性和可行性：
 
 # Vault 目录进行初始化模板的 i18n

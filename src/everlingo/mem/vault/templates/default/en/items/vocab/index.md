@@ -1,0 +1,5 @@
+---
+title: Vocab
+---
+
+# Vocab

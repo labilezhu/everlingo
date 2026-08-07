@@ -80,6 +80,7 @@ def _read_mcp_url() -> str:
 async def mcp_vault_connection(
     lang: str,
     wanted_tools: frozenset[str] | None = None,
+    interface_language: str | None = None,
 ) -> AsyncIterator[tuple[ClientSession, list[Any]]]:
     """per-entry MCP stream 上下文管理器。
 
@@ -87,6 +88,9 @@ async def mcp_vault_connection(
         async with mcp_vault_connection(entry.lang) as (session, tools):
             # session 供代码直接 call_tool（events 写入）
             # tools 供 langchain agent（kb item 写入）
+
+    interface_language：可选。传给 session.configure，供自动创建缺失 vault
+    时选择 Vault 初始化模板语言；省略时由服务端按 OS locale 推断。
 
     参数：
         lang: 目标语言代码。
@@ -113,8 +117,11 @@ async def mcp_vault_connection(
     )
     try:
         async with client.session("vault_mcp") as session:
+            cfg_args: dict[str, Any] = {"lang": lang}
+            if interface_language:
+                cfg_args["interface_language"] = interface_language
             cfg_result = await session.call_tool(
-                "session.configure", {"lang": lang}
+                "session.configure", cfg_args
             )
             if cfg_result.isError:
                 err_text = (

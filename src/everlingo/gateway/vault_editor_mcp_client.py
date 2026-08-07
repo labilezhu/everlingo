@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
+from typing import Any, AsyncIterator
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from mcp import ClientSession
@@ -13,14 +13,19 @@ logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def mcp_session_configured(lang: str) -> AsyncIterator[ClientSession]:
+async def mcp_session_configured(
+    lang: str, interface_language: str | None = None
+) -> AsyncIterator[ClientSession]:
     url = _read_mcp_url()
     client = MultiServerMCPClient(
         {"vault_mcp": {"transport": "http", "url": url}}
     )
     try:
         async with client.session("vault_mcp") as session:
-            cfg_result = await session.call_tool("session.configure", {"lang": lang})
+            cfg_args: dict[str, Any] = {"lang": lang}
+            if interface_language:
+                cfg_args["interface_language"] = interface_language
+            cfg_result = await session.call_tool("session.configure", cfg_args)
             if cfg_result.isError:
                 err_text = (
                     cfg_result.content[0].text

@@ -330,7 +330,9 @@ async def _append_event_async(
     rel = _events_rel_path(entry)
     section = _format_event_section(entry, conversation_context)
 
-    async with mcp_vault_connection(entry.lang) as (session, _tools):
+    async with mcp_vault_connection(
+            entry.lang, interface_language=entry.interface_language
+        ) as (session, _tools):
         stat_result = await session.call_tool("stat", {"path": rel})
         if stat_result.isError:
             raise RuntimeError(
@@ -399,7 +401,9 @@ async def _append_action_event_async(entry: MemoryEntry, action: str) -> None:
     rel = _events_rel_path(entry)
     section = _format_action_event_section(entry, action)
 
-    async with mcp_vault_connection(entry.lang) as (session, _tools):
+    async with mcp_vault_connection(
+            entry.lang, interface_language=entry.interface_language
+        ) as (session, _tools):
         stat_result = await session.call_tool("stat", {"path": rel})
         if stat_result.isError:
             raise RuntimeError(
@@ -702,7 +706,9 @@ class MemoryWriterAgent:
         if not file_path:
             return {"ok": False, "error": "file_path is required"}
 
-        async with mcp_vault_connection(entry.lang) as (session, _tools):
+        async with mcp_vault_connection(
+            entry.lang, interface_language=entry.interface_language
+        ) as (session, _tools):
             stat_result = await session.call_tool("stat", {"path": file_path})
             if stat_result.isError:
                 return {"ok": False, "error": f"stat failed: {stat_result.content[0].text}"}
@@ -751,7 +757,9 @@ class MemoryWriterAgent:
         if not entry.body:
             return {"ok": False, "error": "body is required for edit operation"}
 
-        async with mcp_vault_connection(entry.lang) as (session, _tools):
+        async with mcp_vault_connection(
+            entry.lang, interface_language=entry.interface_language
+        ) as (session, _tools):
             read_result = await session.call_tool("read", {"path": file_path})
             if read_result.isError:
                 return {"ok": False, "error": f"read failed: {read_result.content[0].text}"}
@@ -809,7 +817,9 @@ class MemoryWriterAgent:
         若通知 sink 已注入，写成功后将写入确认发给对应 Session。
         返回 conversation_context（由 LLM 在确认 JSON 中输出）。
         """
-        async with mcp_vault_connection(entry.lang) as (session, tools):
+        async with mcp_vault_connection(
+            entry.lang, interface_language=entry.interface_language
+        ) as (session, tools):
             # 通过同一条 MCP session 加载两个 spec（共用 session，减少连接开销）
             mem_entry_spec = await _call_compile_prompt(session, "spec/mem_entry_spec.md")
             envelope_spec = await _call_compile_prompt(session, "spec/envelope_spec.md")
