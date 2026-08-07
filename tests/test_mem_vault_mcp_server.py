@@ -226,7 +226,6 @@ def test_session_configure_auto_creates_vault(fresh_workspace):
         assert (spec_dir / "vault_spec.md").is_file()
         assert (spec_dir / "events_spec.md").is_file()
         assert (spec_dir / "kb_items_spec_vocab.md").is_file()
-        assert (spec_dir / "mem_entry_spec.md").is_file()
 
         # 后续 fs 工具可用
         r = await c.call_tool("ls", {"path": ""})
@@ -630,7 +629,7 @@ def test_create_vault_creates_dir_and_spec(fresh_workspace):
         spec_dir = expected_vault / "spec"
         assert spec_dir.is_dir()
         for name in ("vault_spec.md", "events_spec.md", "kb_items_spec_vocab.md",
-                      "kb_items_spec_phrase.md", "mem_entry_spec.md"):
+                      "kb_items_spec_phrase.md"):
             assert (spec_dir / name).is_file()
         # spec/index.md 含 frontmatter → 原样 copy，frontmatter 保留
         idx = spec_dir / "index.md"
@@ -795,8 +794,7 @@ def test_reset_vault_overwrites_spec(fresh_workspace):
         assert items_vocab_idx.read_text(encoding="utf-8") == "TAMPERED ITEMS\n"
         # 所有 spec 文件均被覆盖（非幂等）
         for name in ("events_spec.md", "kb_items_spec_vocab.md",
-                      "kb_items_spec_phrase.md", "mem_entry_spec.md",
-                      "envelope_spec.md"):
+                      "kb_items_spec_phrase.md"):
             p = expected_spec_dir / name
             assert p.is_file(), f"spec/{name} missing"
             assert "TAMPERED" not in p.read_text(encoding="utf-8")

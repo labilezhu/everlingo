@@ -29,7 +29,11 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from ...gateway.session_events import NoticeSink
 from ...i18n.vault import event_file_preamble
 from ...llm import create_agent, create_mem_writer_llm
-from ...utils.md_prompt_compiler import shift_headings
+from ...utils.md_prompt_compiler import (
+    PackageSource,
+    compile_prompt,
+    shift_headings,
+)
 from ...mem.vault.frontmatter import (
     dump_frontmatter,
     parse_frontmatter,
@@ -73,7 +77,7 @@ class _ActionRequest:
 # ── 系统提示词构建 ──────────────────────────────────────────────────
 
 
-def _build_writer_system_prompt(mem_entry_spec_content: str, envelope_spec_content: str, vault_spec_content: str) -> str:
+def _build_writer_system_prompt(mem_entry_spec_content: str, envelope_spec_content: str, vault_spec_content: str, target_lang: str, interface_lang: str) -> str:
     """构建 Memory Writer Agent 的 system prompt。
 
     ref: docs/impl-spec/memory-writer-agent-spec.md — System prompt
@@ -111,8 +115,8 @@ Memory vault : 可简称为 vault 。 Everlingo 个人语言学习笔记库，�
 
 每次处理的 entry 携带两个语言相关字段：
 
-- `目标学习语言`：来源于 entry 的 `lang` 字段（语言代码，如 `ja`、`en`）。 下文引用为 $lang
-- `界面语言`：来源于 entry 的 `interface_language` 字段（语言代码，如 `zh-CN`）。
+- `目标学习语言(target_lang)`： {target_lang} 。 下文引用为 $lang
+- `界面语言(interface_lang)`： {interface_lang}。 
 
 两者的值均由 Chat Agent 在上游填充，你直接采用 entry 中的值，
 不要自行推断或改写。
@@ -128,7 +132,7 @@ Memory vault : 可简称为 vault 。 Everlingo 个人语言学习笔记库，�
 """    
 
     prompt += f"""
-## 输入给你的 entry 结构
+## 输入给你的 entry 结构(mem_entry_spec.md)
 
 每轮你会收到**一个** entry（JSON 格式），其完整结构与字段含义如下。
 下文为该 schema 的规范说明，请严格按字段含义理解 entry 内容。
@@ -138,7 +142,7 @@ Memory vault : 可简称为 vault 。 Everlingo 个人语言学习笔记库，�
 
     prompt += f"""
 
-## 输入消息的 Envelope 格式
+## 输入消息的 Envelope 格式(envelope_spec.md)
 
 输入中的 `new_messages` 和 `context_messages` 字段包含以 Envelope 格式包装的
 原始用户输入消息。每条消息均遵循以下 Envelope 结构：
@@ -205,10 +209,9 @@ events/ 目录由代码直接追加，不由你处理；你只负责 items/ 知�
 
 ### 写作语言
 
-memory vault 中的 markdown 文件正文，主要语言必须使用 entry 的 `interface_language`
-字段（界面语言）编写。
+memory vault 中的 markdown 文件正文，主要语言必须使用 `界面语言(interface_lang)` 编写。
 
-对 `目标学习语言`（entry 的 `lang` 字段）的引用——例如该语言的词语、例句、示例、
+对 `目标学习语言` 的引用——例如该语言的词语、例句、示例、
 术语——应使用 `目标学习语言` 本身书写，不要翻译成界面语言。
 
 
@@ -216,8 +219,7 @@ memory vault 中的 markdown 文件正文，主要语言必须使用 entry 的 `
 
 entry 中的 `new_messages` 和 `context_messages` 字段包含了触发本次记忆的原始对话内容。
 在将 entry 写入 kb 条目时，你需要根据对话内容生成 `conversation_context`（一两句话，
-描述用户在什么场景下查询/学习这个知识点，使用界面语言）。
-`conversation_context`
+描述用户在什么场景下查询/学习这个知识点，使用`界面语言(interface_lang)`编写）。
 
 ### 写入完成确认
 
@@ -301,7 +303,7 @@ def _format_event_section(
 
     if conversation_context:
         parts.append(
-            f"\n### conversation_context\n{conversation_context}\n"
+            f"\n### conversation context\n{conversation_context}\n"
         )
 
     return "".join(parts)
@@ -550,7 +552,7 @@ class MemoryWriterAgent:
         # LLM 工厂使用 create_mem_writer_llm()（temperature=0），
         # kb items 正文（释义/例句/记忆钩子）需要自然语言写作。
         # 工具集 per-entry 重建（依赖 mcp_vault_connection session）。
-        # system prompt 也 per-entry 重建（mem_entry_spec 从 vault 加载）。
+        # system prompt 也 per-entry 重建（mem_entry_spec 从 agents/spec 包加载）。
         self._llm = create_mem_writer_llm()
         self._notice_sink = notice_sink
 
@@ -805,8 +807,8 @@ class MemoryWriterAgent:
         """对单个 entry 调一次 LLM agent，返回 conversation_context（可能为 None）。
 
         ref: memory-writer-agent-spec.md — 更新知识点类 memory items
-        先通过 MCP compile_prompt 从 vault 加载 mem_entry_spec.md 构建 system
-        prompt；再 per-entry 打开一条 MCP stream 加载过滤后的 fs 工具 +
+        先本地从 agents/spec 包加载 mem_entry_spec/envelope_spec，再 per-entry
+        打开一条 MCP stream 加载 vault_spec + 过滤后的 fs 工具 +
         vault_mcp_gen_id 工具，构建 langchain agent，调 ainvoke。
         spec 加载失败（IndexerOfflineError）向上传播，调用方丢弃该 entry。
         若通知 sink 已注入，写成功后将写入确认发给对应 Session。
@@ -815,11 +817,14 @@ class MemoryWriterAgent:
         async with mcp_vault_connection(
             entry.lang, interface_language=entry.interface_language
         ) as (session, tools):
-            # 通过同一条 MCP session 加载两个 spec（共用 session，减少连接开销）
-            mem_entry_spec = await _call_compile_prompt(session, "spec/mem_entry_spec.md")
-            envelope_spec = await _call_compile_prompt(session, "spec/envelope_spec.md")
+            # mem_entry_spec 与 envelope_spec 是 agent 输入/输出契约，属代码资产，
+            # 从 agents/spec 包本地加载（PackageSource），不依赖 vault 在线。
+            _spec_source = PackageSource(package="everlingo.agents.spec")
+            mem_entry_spec = compile_prompt("mem_entry_spec.md", _spec_source)
+            envelope_spec = compile_prompt("envelope_spec.md", _spec_source)
+            # vault_spec 是用户 vault 内容，仍通过 MCP 从 vault 加载
             vault_spec = await _call_compile_prompt(session, "spec/vault_spec.md")
-            system_prompt = _build_writer_system_prompt(mem_entry_spec, envelope_spec, vault_spec)
+            system_prompt = _build_writer_system_prompt(mem_entry_spec, envelope_spec, vault_spec, entry.lang, entry.interface_language)
 
             payload = _render_entry_payload(entry)
             user_msg = (

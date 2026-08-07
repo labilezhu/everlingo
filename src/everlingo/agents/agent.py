@@ -30,7 +30,6 @@ from ..mem.agents.mem_entries import MemoryEntry
 from ..mem.agents.mem_writer_mcp_client import (
     CHAT_AGENT_WANTED_TOOLS,
     IndexerOfflineError,
-    _call_compile_prompt,
     mcp_vault_connection,
 )
 from ..models import LANGUAGES, UserProfile
@@ -38,7 +37,11 @@ from ..i18n import t
 from ..setting import load_resolved_profile, load_user_doc, prompt_input_mtime, get_web_public_base_url
 from ..tools.conf_manager import get_config_version
 from ..tools.tools import build_tools
-from ..utils.md_prompt_compiler import shift_headings
+from ..utils.md_prompt_compiler import (
+    PackageSource,
+    compile_prompt,
+    shift_headings,
+)
 
 import logging
 
@@ -203,6 +206,7 @@ def _render_context_messages(messages) -> str:
 def _build_system_prompt(
     profile: UserProfile, user_doc: str = "", channel_metadata: ChannelMetadata | None = None,
     vault_available: bool = False, envelope_spec_content: str | None = None,
+    memory_extract_output_spec_content: str | None = None,
     public_address_base_url: str = "",
 ) -> str:
     """构建统一的 Agent system prompt，整合词典老师和翻译老师的功能。
@@ -268,15 +272,27 @@ def _build_system_prompt(
 """
 
     # ref: docs/impl-spec/chat-agent-spec.md — 结构化用户输入（envelope）
-    # envelope schema 通过 MCP compile_prompt 从 vault 运行期加载，shift_headings(+2) 后注入。
+    # envelope schema 从 agents/spec 包本地加载（PackageSource），shift_headings(+2) 后注入。
     envelope_section = r"""
 
-## 结构化用户输入（envelope）
+## 结构化用户输入（envelope_spec.md）
 用户消息始终被 <envelope>...</envelope> 标签包裹，标签内是 JSON。
 
 """
     if envelope_spec_content:
         envelope_section += shift_headings(envelope_spec_content.strip(), offset=2) + "\n\n"
+
+    # ref: docs/impl-spec/chat-agent-spec.md — 抽取对话内容到笔记（memory extract output）
+    # entries 输出规范从 agents/spec 包本地加载（PackageSource），shift_headings(+2) 后注入。
+    memory_extract_section = ""
+    if memory_extract_output_spec_content:
+        memory_extract_section = shift_headings(
+            memory_extract_output_spec_content.strip(), offset=2
+        )
+    else:
+        memory_extract_section = (
+            "（memory_extract_output_spec 暂不可用，按 request_memory_extraction 工具的字段说明构造 entries）"
+        )
 
     prompt += envelope_section + f"""
 
@@ -479,10 +495,14 @@ interface_language 书写），说明为什么这个知识点值得记，例如�
 - 因为，这些产出是下游 Memory Writer Agent 生成 conversation_context 与笔记正文的唯一事实来源
 
 #### 当需要执行 `抽取对话内容到笔记` 时，按以下流程操作
-1. 先调用 `vault_mcp_read(path="spec/memory_extract_output_spec.md")` 加载 entries 输出规范与字段说明
-2. 按规范构造 entries，调用 `request_memory_extraction(entries=[...])`
+1. 按下方 `entries 输出规范与字段说明（memory_extract_output_spec.md）` 构造 entries
+2. 调用 `request_memory_extraction(entries=[...])`
 3. 回复用户：已提交后台笔记请求
 4. 下游 Memory Writer Agent 会异步将 entries 写入笔记库。你不需要直接调用读写笔记的工具
+
+### entries 输出规范与字段说明（memory_extract_output_spec.md）
+
+{memory_extract_section}
 
 
 ### 笔记删除
@@ -721,18 +741,23 @@ class MainAgent:
         # 确保 MCP stream 已打开
         await self._ensure_mcp_stream()
 
-        # 通过 MCP compile_prompt 从 vault 加载 envelope_spec.md（与 Memory Writer 一致）
-        # vault 离线时不兜底，envelope_spec_content 为 None
+        # 从 agents/spec 包本地加载 envelope_spec 与 memory_extract_output_spec（PackageSource）
+        # 二者是 agent 输入/输出契约，属代码资产，不依赖 vault 在线。
+        _spec_source = PackageSource(package="everlingo.agents.spec")
         envelope_spec_content: str | None = None
-        if self._mcp_session is not None:
-            try:
-                envelope_spec_content = await _call_compile_prompt(
-                    self._mcp_session, "spec/envelope_spec.md"
-                )
-            except (IndexerOfflineError, RuntimeError) as e:
-                logger.warning(
-                    "failed to load envelope_spec via MCP compile_prompt: %s", e
-                )
+        memory_extract_output_spec_content: str | None = None
+        try:
+            envelope_spec_content = compile_prompt("envelope_spec.md", _spec_source)
+        except Exception as e:
+            logger.warning("failed to compile envelope_spec from package: %s", e)
+        try:
+            memory_extract_output_spec_content = compile_prompt(
+                "memory_extract_output_spec.md", _spec_source
+            )
+        except Exception as e:
+            logger.warning(
+                "failed to compile memory_extract_output_spec from package: %s", e
+            )
 
         user_doc = load_user_doc()
         extract_tool = make_request_memory_extract_tool(self._add_pending_drafts)
@@ -753,6 +778,7 @@ class MainAgent:
                 profile, user_doc, self._channel_metadata,
                 vault_available=bool(self._vault_tools),
                 envelope_spec_content=envelope_spec_content,
+                memory_extract_output_spec_content=memory_extract_output_spec_content,
                 public_address_base_url=public_base_url,
             ),
         )

@@ -16,7 +16,7 @@ Memory Writer Agent 用一个队列接收请求，然后**异步**处理。Memor
 
 
 ## 输入
-见： [Memory Entry 结构说明](/src/everlingo/mem/vault/templates/default/spec/mem_entry_spec.md) 。
+见： [Memory Entry 结构说明](/src/everlingo/agents/spec/mem_entry_spec.md) 。
 
 Chat Agent 在 `MainAgent.invoke()` 末尾为每条 entry 填充 `chat_session_id` / `entry_id` / `timestamp` / `channel_name` / `lang` / `interface_language` 等系统字段；Writer Agent 不应自行生成或改写这些字段。
 
@@ -72,7 +72,7 @@ Public API：`MemoryWriterAgent.execute_action_async(entry: MemoryEntry) -> dict
 
 ### 输入字段
 
-delete/edit 的 `MemoryEntry` 由 Chat Agent 的 `memory_writer_action` 工具构造（见 [mem_entry_spec.md](/src/everlingo/mem/vault/templates/default/spec/mem_entry_spec.md)）：
+ delete/edit 的 `MemoryEntry` 由 Chat Agent 的 `memory_writer_action` 工具构造（见 [mem_entry_spec.md](/src/everlingo/agents/spec/mem_entry_spec.md)）：
 
 - `operation`：`"delete"` / `"edit"`
 - `file_path`：必选，相对 vault 根路径（如 `items/vocab/aimai--01JZABD123.md`）
@@ -180,17 +180,16 @@ session 不存在时丢弃（与 daemon thread "可接受丢失"语义一致）�
 
 ### System prompt
 System prompt 需要包括 `vault_spec.md`，因为需要告诉 Agent memory vault 的结构。
-通过运行期调 MCP `compile_prompt` 工具从 vault 动态加载 `spec/vault_spec.md`
-（与 `mem_entry_spec.md`、`envelope_spec.md` 共用同一条 MCP session，减少开销）。
+通过运行期调 MCP `compile_prompt` 工具从 vault 动态加载 `spec/vault_spec.md`。
 `vault_spec.md` 自身使用普通 markdown 链接指向子规范文件（如 `kb_items_spec_vocab.md`），
 不符合 `{{ include }}` 语法，故不被 `compile_prompt` 自动展开；
 子规范由 LLM 在需要对应知识类型时通过 `read(path="spec/kb_items_spec_<type>.md")` 按需加载。
 
-System prompt 还需要包括 `mem_entry_spec.md` ，用于告知 Agent 其输入 entry 的完整字段结构与字段含义（字段补充说明）。通过运行期调 MCP `compile_prompt` 工具从 vault 动态加载 `spec/mem_entry_spec.md`（含 include 展开），与 Extract Agent 的 spec 加载方式一致。不再通过本地 `PackageSource` 加载。
+System prompt 还需要包括 `mem_entry_spec.md` ，用于告知 Agent 其输入 entry 的完整字段结构与字段含义（字段补充说明）。`mem_entry_spec.md` 与 `envelope_spec.md` 是 agent 输入/输出契约（代码资产），从 `src/everlingo/agents/spec/` 包本地加载（`PackageSource("everlingo.agents.spec")` + `compile_prompt` 展开 include），不依赖 vault 在线。
 
-System prompt 同样需要包括 `spec/envelope_spec.md`，用于告知 Agent `new_messages` 与 `context_messages` 字段中 `<envelope>{JSON}</envelope>` 包装格式的 schema。通过同一条 MCP session 调 `compile_prompt` 加载 `spec/envelope_spec.md`（与 mem_entry_spec 共用一条连接，减少开销）。
+System prompt 同样需要包括 `spec/envelope_spec.md`，用于告知 Agent `new_messages` 与 `context_messages` 字段中 `<envelope>{JSON}</envelope>` 包装格式的 schema。同样从 `everlingo.agents.spec` 包本地加载。
 
-注入 `mem_entry_spec.md`、`envelope_spec.md` 与 `vault_spec.md` 前，需用 `md_prompt_compiler.shift_headings(doc, 2)` 整体平移标题 +2 级，使其最浅标题 h1 → h3，嵌套于外层 `## 输入 entry 结构` / `## 输入消息的 Envelope 格式` / `## memory vault 结构规范` (h2) 之下。此约定与 `chat-agent-spec.md` 中「*.md 注入需降级标题」一致。`compile_prompt` 内部的 `context_level` 机制只调整 include 子文件标题，不调整入口文件自身标题，故需 `shift_headings` 在编译输出上额外平移。
+注入 `mem_entry_spec.md`、`envelope_spec.md` 与 `vault_spec.md` 前，需用 `md_prompt_compiler.shift_headings(doc, 2)` 整体平移标题 +2 级，使其最浅标题 h1 → h3，嵌套于外层 `## 输入 entry 结构` / `## 输入消息的 Envelope 格式` / `## memory vault 结构规范` (h2) 之下。此约定与 `chat-agent-spec.md` 中「*.md 注入需降级标题」一致。`compile_prompt` 内部的 `context_level` 机制只调整 include 子文件标题，不调整入口文件自身标题，故需 `shift_headings` 在编译输出上额外平移。前两者从 `everlingo.agents.spec` 包本地编译，`vault_spec.md`（用户 vault 内容）经 MCP `compile_prompt` 从 vault 加载。
 
 注入位置顺序（自上而下）：
 1. `## 输入给你的 entry 结构` — 说明 entry 整体字段

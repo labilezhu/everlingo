@@ -68,9 +68,11 @@ templates/default/
 
 `create_vault` / `reset_vault` 的 `PackageSource` 与 `root_traversable` 均按 `tpl_lang` 拼接子包路径。
 
+- 2026-08-08 修订：`envelope_spec.md`、`mem_entry_spec.md`、`memory_extract_output_spec.md` 界定为 agent 输入/输出契约，迁出 `vault/templates`（见 [ADR 20260808-agent-specs-relocate.md](20260808-agent-specs-relocate.md)），不再参与 en/zh 拆分；本 ADR 关于 `vault_spec.md` / `kb_items_spec_*.md` / `events_spec.md` / `index.md` 的拆分逻辑不变。
+
 ### 3.3 spec/*.md 的 include 展开
 
-`spec/*.md`（无 frontmatter）走 `compile_prompt + PackageSource`，PackageSource 指向所选语言子包，include 相对路径在语言子包内解析（如 `memory_extract_output_spec.md` include `mem_entry_spec.md`）。`spec/index.md` 与 items 目录 index 有 frontmatter，raw copy。
+`spec/*.md`（无 frontmatter，不含已迁出的 3 个 agent 契约）走 `compile_prompt + PackageSource`，PackageSource 指向所选语言子包，include 相对路径在语言子包内解析（如 `vault_spec.md` 内联子规范引用）。`spec/index.md` 与 items 目录 index 有 frontmatter，raw copy。
 
 ### 3.4 调用链界面语言来源
 

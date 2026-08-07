@@ -269,7 +269,7 @@ sys_setting:
     log_level: debug
 user_profile:
   language:
-    interface_language: ${interface_language} #界面语言（可选）：留空时按 OS locale 推断，兜底 en
+    interface_language: ''
     target_language: ${target_language} #默认目标学习语言是英文
 
 plugins:

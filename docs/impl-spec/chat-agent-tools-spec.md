@@ -184,8 +184,7 @@ returns: string 。固定返回 "memory extraction requested"。
 - 用户明确要求记住（"记住 X"、"帮我记下 X"）→ `why_want_to_save_memory="用户明确要求记住知识点"`
 - 纠正用户目标学习语言错误且用户未预期到 → `why_want_to_save_memory="纠正事项"`
 - 其他值得记录的情形 → `why_want_to_save_memory="Chat Agent 判定"`
-- 调用前必须先 `vault_mcp_read(path="spec/memory_extract_output_spec.md")` 加载 entries 输出规范与字段说明
-- 调用前必须已在本轮回复中产出知识点实际内容（释义/解释/用法/举例）
+- 调用前必须已在本轮回复中产出知识点实际内容（释义/解释/用法/举例）；entries 输出规范与字段说明见 system prompt「抽取对话内容到笔记」节的 memory_extract_output_spec 注入，无需 vault_mcp_read 加载
 - 与 target_lang 无关的闲聊 / 纯查词翻译无纠正 / 用户偏好类 → 不调用
 
 **实现机制**：

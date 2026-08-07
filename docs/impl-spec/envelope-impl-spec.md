@@ -34,7 +34,7 @@ class UserInputEnvelope(BaseModel):
 
 ### 字段说明
 
-见： [Envelope 结构化用户输入格式](/src/everlingo/mem/vault/templates/default/spec/envelope_spec.md)
+见： [Envelope 结构化用户输入格式](/src/everlingo/agents/spec/envelope_spec.md)
 
 
 ### `source` 字段实现补充

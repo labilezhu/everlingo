@@ -50,9 +50,10 @@ def make_request_memory_extract_tool(
         - 其他你觉得值得记录的情形
 
         调用前必须已在本轮回复中产出知识点的实际内容（释义/解释/用法/举例）。
-        调用前应先 vault_mcp_read(path="spec/memory_extract_output_spec.md")
-        了解 entries 字段结构与含义；item_type 取值以 vault_spec.md 中 `知识类型`
-        的定义为准，不确定时应先 vault_mcp_read(path="spec/vault_spec.md")。
+        entries 的字段结构与含义见 system prompt 中注入的
+        `entries 输出规范与字段说明（memory_extract_output_spec.md）`；
+        item_type 取值以 system prompt 中 `知识类型`（vault_spec）的定义为准，
+        不确定时应先 vault_mcp_read(path="spec/vault_spec.md")。
 
         调用后立即返回，写入异步执行，不阻塞回复。
         """

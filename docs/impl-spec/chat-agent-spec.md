@@ -41,7 +41,7 @@ Agent 的`用户意图分析` 与 `用户意图的执行与回复响应` 见 Age
 
 system prompt 在 `## 用户意图分类` 之前新增 `## 结构化用户输入（envelope）` 节，说明 `<envelope>` 标签包裹的 JSON 输入格式及各字段含义。所有 Channel 统一产 `UserInputEnvelope`（详见 [envelope-spec.md](envelope-spec.md)），LLM 看到的用户消息始终是 `{envelope}` 序列化格式。
 
-**运行期加载**：envelope schema 在 `_refresh_agent_if_needed()` 中通过 MCP 长连接调用 `compile_prompt(path="spec/envelope_spec.md")` 从 vault 加载（与 Memory Writer Agent 加载 `envelope_spec.md` 的机制一致），经 `shift_headings(+2)` 后注入到 `## 结构化用户输入（envelope）` 节（h1→h3 嵌套于外层 h2 之下）。vault 离线时不注入 schema（无兜底），仅保留 envelope 标签简介与延续语义规则。
+**本地加载**：envelope schema 是 agent 输入契约（代码资产），在 `_refresh_agent_if_needed()` 中从 `src/everlingo/agents/spec/` 包本地加载（`PackageSource("everlingo.agents.spec")` + `compile_prompt`），经 `shift_headings(+2)` 后注入到 `## 结构化用户输入（envelope）` 节（h1→h3 嵌套于外层 h2 之下）。不依赖 vault 在线，无兜底需求。
 
 该节附加一条延续语义规则：当 `task=look_up` 且 `chat.message` 为空且 `chat_context.resource_contexts` 不含 `selected_text` 项时，视为"延续上一轮笔记话题"——LLM 不应回复"未收到输入"，而应基于对话历史继续推进相关工作（如读取/编辑上一轮提到的笔记）。该规则同时写入 `agent.py` system prompt。
 
@@ -158,7 +158,7 @@ Chat Agent 通过 `request_memory_extraction` 工具**显式触发**记忆写入
 
 ### 输出规范
 
-LLM 在调用 `request_memory_extraction` 工具前，应先 `vault_mcp_read(path="spec/memory_extract_output_spec.md")` 加载 entries 输出规范与字段含义。该文件已在 vault 创建时展开 `include` 指令落盘，直接可读。
+LLM 在调用 `request_memory_extraction` 工具前，entries 的输出规范与字段含义已注入 Chat Agent system prompt「抽取对话内容到笔记」节的 `entries 输出规范与字段说明（memory_extract_output_spec）`，无需再 `vault_mcp_read` 加载。（该 spec 为 agent 输出契约，从 `src/everlingo/agents/spec/` 包本地加载。）
 
 ### 用户要求记住某知识点时的行为契约
 
