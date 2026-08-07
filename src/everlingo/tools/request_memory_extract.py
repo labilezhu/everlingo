@@ -1,4 +1,4 @@
-from typing import Callable, Literal
+from typing import Callable
 
 from langchain_core.tools import StructuredTool, tool
 from pydantic import BaseModel, Field
@@ -12,12 +12,12 @@ class _MemoryEntryDraft(BaseModel):
     item_type: str = Field(
         description="知识点类型；取值以 vault_spec.md 的 `知识类型` 定义为准。",
     )
-    why_want_to_save_memory: Literal[
-        "用户明确要求记住知识点",
-        "纠正事项",
-        "Chat Agent 判定",
-    ] = Field(
-        description="为什么要记住：用户明确要求记住知识点 / 纠正事项 / Chat Agent 判定",
+    why_want_to_save_memory: str = Field(
+        description=(
+            "为什么值得记住：用界面语言（interface_language）写一句简短原因，"
+            "例如「用户明确要求记住认识的新词」/「纠正了用户的目标语言错误」。"
+            "不要用固定枚举，自由表述即可。"
+        ),
     )
     title: str = Field(
         description="使用界面语言，限一句话，描述本知识点。用于语义搜索和全文搜索。",

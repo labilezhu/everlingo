@@ -190,6 +190,18 @@ class TestAppendEvent:
         assert text.count("# 当天事件") == 1
         assert any("events: appended" in r.message for r in caplog.records)
 
+    def test_preamble_selected_by_interface_language(self, mcp_inmem_server, tmp_vault):
+        with mcp_inmem_server():
+            import asyncio
+            asyncio.run(_append_event_async(_entry(
+                timestamp="2026-11-21 14:58:56", lang="en",
+                interface_language="en",
+            )))
+        f = tmp_vault / "events/2026/11/2026-11-21.md"
+        text = f.read_text(encoding="utf-8")
+        assert text.startswith("# Today's Events")
+        assert "当天事件" not in text
+
 
 # ── action event 格式 & 写入 ──────────────────────────────────
 

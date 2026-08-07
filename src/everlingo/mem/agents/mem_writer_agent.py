@@ -27,6 +27,7 @@ from typing import Any, Optional
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from ...gateway.session_events import NoticeSink
+from ...i18n.vault import event_file_preamble
 from ...llm import create_agent, create_mem_writer_llm
 from ...utils.md_prompt_compiler import shift_headings
 from ...mem.vault.frontmatter import (
@@ -51,13 +52,7 @@ logger = logging.getLogger(__name__)
 # ref: memory-extract-agent-spec.md — entry.timestamp 格式
 _TIMESTAMP_FMT = "%Y-%m-%d %H:%M:%S"
 
-# ref: events_spec.md — 当日 events 文件首次创建时写入的「文件前置内容」。
-# 见 events_spec.md:24-32
-_EVENT_FILE_PREAMBLE = (
-    "# 当天事件\n\n"
-    "事件按时间顺序记录，即最早的事件在前面。\n"
-    "事件记录格式：\n\n"
-)
+
 
 
 # ── _ActionRequest ──────────────────────────────────────────────────────
@@ -344,7 +339,7 @@ async def _append_event_async(
 
         if not exists:
             write_result = await session.call_tool(
-                "write", {"path": rel, "content": _EVENT_FILE_PREAMBLE}
+                "write", {"path": rel, "content": event_file_preamble(entry.interface_language)}
             )
             if write_result.isError:
                 raise RuntimeError(
@@ -415,7 +410,7 @@ async def _append_action_event_async(entry: MemoryEntry, action: str) -> None:
 
         if not exists:
             write_result = await session.call_tool(
-                "write", {"path": rel, "content": _EVENT_FILE_PREAMBLE}
+                "write", {"path": rel, "content": event_file_preamble(entry.interface_language)}
             )
             if write_result.isError:
                 raise RuntimeError(

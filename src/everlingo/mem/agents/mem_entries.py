@@ -4,15 +4,12 @@
 
 from __future__ import annotations
 
-from typing import Literal
-
 from pydantic import BaseModel
 
 
 # `item_type` 取值以 vault_spec.md 的 `知识类型` 定义为准（自由字符串，不由代码枚举）。
-# why_want_to_save_memory 枚举值：
-# - "用户明确要求记住知识点" / "纠正事项" / "Chat Agent 判定"
-WhySave = Literal["用户明确要求记住知识点", "纠正事项", "Chat Agent 判定"]
+# why_want_to_save_memory 为自由文本：由 LLM 按界面语言生成一句「记住原因」，
+# 程序不按枚举处理（见 i18n.md —— 界面语言相关内容由 LLM 依据 prompt 决定）。
 
 
 class MemoryEntry(BaseModel):
@@ -42,7 +39,7 @@ class MemoryEntry(BaseModel):
 
     # LLM 生成（通过工具 args_schema 约束）
     item_type: str = "others"
-    why_want_to_save_memory: WhySave = "Chat Agent 判定"
+    why_want_to_save_memory: str = ""
     title: str = ""
 
     # delete/edit 专属字段

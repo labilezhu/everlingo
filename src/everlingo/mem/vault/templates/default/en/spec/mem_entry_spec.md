@@ -24,7 +24,7 @@
 - operation: the operation type. `"create"` (default, create/merge entry) / `"delete"` (delete the note file) / `"edit"` (edit the note body). If not provided, defaults to create.
 - lang: the target learning language.
 - interface_language: the interface language.
-- why_want_to_save_memory: why it should be remembered. User explicitly asked to save this knowledge point / Correction item / Chat Agent judgment.
+- why_want_to_save_memory: why it should be remembered. Write a short free-form reason in the interface language (not a fixed enum), e.g. "The user explicitly asked to remember this new word" / "Corrected the user's target-language mistake".
 - item_type: the memory type/`knowledge-point type`. Valid values are defined under `knowledge types` in [vault_spec.md](vault_spec.md).
 - title: primarily written in the `interface language`, limited to one sentence, describing this `knowledge point`. Used for semantic search and full text search. For delete/edit, the entry's title is only a placeholder.
 - new_messages: the conversation messages that triggered the memory. Ignored for delete/edit operations.
