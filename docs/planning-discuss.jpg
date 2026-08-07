@@ -1,4 +1,8 @@
 
+看看以下设计的合理性和可行性：
+
+# Vault 目录进行初始化模板的 i18n
+
 目前的设计是：
 [Vault MCP Server](docs/impl-spec/vault-mcp/vault-mcp-spec.md) 中 `create_vault` `reset_vault` `session.configure` 均可能会用
 `src/everlingo/mem/vault/templates/default/*` 对 `$workspace/memory/languages/$lang` Vault 目录进行初始化。
@@ -6,7 +10,21 @@
 现在要考虑 Vault 目录进行初始化 的 [i18n](docs/i18n/i18n.md) 。
 
 我的想法是：
-src/everlingo/mem/vault/templates/default/*
+把 src/everlingo/mem/vault/templates/default/* 按 `可用界面语言` 拆分目录和对文件内容做 i18n： 
+- src/everlingo/mem/vault/templates/default/en
+- src/everlingo/mem/vault/templates/default/zh-CN
+
+即把现有的 src/everlingo/mem/vault/templates/default/ 下的所有文件和目录 当前是中文内容） 复制到 src/everlingo/mem/vault/templates/default/zh-CN/
+再把 src/everlingo/mem/vault/templates/default/zh-CN/* 下的所有文件和目录，翻译成英文，放到 src/everlingo/mem/vault/templates/default/en/
+
+
+### 运行期
+
+当需要对 Vault 目录进行初始化时，按 当前的 `界面语言(interface_language)` 设置 匹配要复制的 vault templates 。 匹配参考 [i18n](docs/i18n/i18n.md) 中的 “## interface_language 配置语义”
+
+---
+
+现有的 PWA 信息，已经做了 [i18n](docs/i18n/i18n.md) 了吗？
 
 ---
 
