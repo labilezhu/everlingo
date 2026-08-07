@@ -301,13 +301,10 @@ Radix UI
 
 ### Manifest
 
-新增 `web/public/manifest.webmanifest`：
+新增 `web/public/manifest.webmanifest`，**仅含语言无关字段**（`name` / `short_name` / `description` 由后端按请求语言动态注入，见 §PWA i18n）：
 
 ```json
 {
-  "name": "小记🐹 AI 外语老师",
-  "short_name": "小记",
-  "description": "小记🐹 AI 外语老师 — 翻译 / 查词 / 聊天，并可视化编辑记忆笔记。",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -327,6 +324,17 @@ Radix UI
 - `orientation: portrait`：手机优先，editor 在窄屏下走抽屉模式（见 [vault-editor.md §移动端适配](vault-editor.md)）。
 - icons 源图复用 `docs/arts/chrome-icon.png`，导出 192 / 512 / 512-maskable 三档（maskable 需在原图四周留出 10% safe area，可由源图加 padding 生成）。
 
+### PWA i18n（动态语言协商）
+
+PWA 信息的 `name` / `short_name` / `description` 与 HTML 入口的 `apple-mobile-web-app-title` 按请求语言动态协商，英文界面用户安装 PWA 后看到英文应用名。详见 [ADR 20260807-pwa-i18n.md](../ADR/20260807-pwa-i18n.md) 与 [i18n.md Phase 5](../i18n/i18n.md)。
+
+**文案真源**：`src/everlingo/i18n/pwa.py` 的 `PWA_MANIFEST_TEXT: dict[str, dict[str, str]]`（与 `src/everlingo/i18n/messages.py` 同模式），前端 `web/src/locales/` 不含 PWA 文案。
+
+**语言协商**：`resolve_manifest_language(accept_language, interface_language=None) -> str`，优先级：
+1. `interface_language`（合法，仅 web_acceptor 传）→ 直接用
+2. `parse_accept_language(accept_language)` 解析 HTTP `Accept-Language` 头，首个命中 `AVAILABLE_INTERFACE_LANGUAGES` 或前缀命中（`zh*`→`zh-CN`、`en*`→`en`）→ 返回
+3. 兜底 `"en"`
+
 ### HTML 入口改动
 
 `web/index.html` 与 `web/editor.html` 的 `<head>` 各新增：
@@ -336,21 +344,23 @@ Radix UI
 <meta name="theme-color" content="#ffffff" />
 <link rel="apple-touch-icon" href="/icon-192.png" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-title" content="小记" />
+<meta name="apple-mobile-web-app-title" content="{{pwa_short_name}}" />
 ```
 
 - iOS Safari 不读 `manifest` 的 `display`，靠 `apple-mobile-web-app-capable=yes` 实现 standalone。
 - `apple-touch-icon` 用 192 即可，iOS 自动缩放。
 - 两入口共用同一组 meta（图标、theme_color、apple 标题相同）；不同入口只在 `<title>` 上区分（已有）。
+- `apple-mobile-web-app-title` 的 `content="{{pwa_short_name}}"` 为占位符，服务端在返回 HTML 时按协商语言替换为对应 `short_name`（如 zh-CN → "小记"、en → "Nori"）。Vite 不处理 meta content，占位符原样保留到构建产物。
 
 ### 后端 catch-all
 
-`web_acceptor.py` 仿照 `GET /favicon.png` 的处理，新增静态文件路由（早于 catch-all `/{path:path}` 注册）：
+`web_acceptor.py` 仿照 `GET /favicon.png` 的处理，新增路由（早于 catch-all `/{path:path}` 注册）：
 
-- `GET /manifest.webmanifest` → `web/dist/manifest.webmanifest`，`Content-Type: application/manifest+json`
-- `GET /icon-192.png` / `GET /icon-512.png` / `GET /icon-512-maskable.png` → `web/dist/...`，`Content-Type: image/png`
+- `GET /manifest.webmanifest` → **动态响应**（`_serve_manifest(request)`）：读 `web/dist/manifest.webmanifest` 的语言无关字段 + 合并 `PWA_MANIFEST_TEXT[lang]` 的 `name` / `short_name` / `description` → `json.dumps` → `Response(content=..., media_type="application/manifest+json", headers={"Cache-Control": "no-cache", "Vary": "Accept-Language"})`。语言由 `resolve_manifest_language(accept_language, interface_language=load_profile().language.interface_language)` 协商。
+- HTML 入口（`/`、`/editor`、`/console/me`、`/console/me/target-language`、`/console/me/interface-language`、`/console/web-console`）→ **动态响应**（`_serve_html_with_i18n(file, request)`）：读 HTML 字符串 → 按 `resolve_manifest_language(...)` 取 `short_name` → `str.replace("{{pwa_short_name}}", short_name)` → `Response(media_type="text/html", headers={"Cache-Control": "no-store, must-revalidate", "Vary": "Accept-Language"})`。
+- `GET /icon-192.png` / `GET /icon-512.png` / `GET /icon-512-maskable.png` → `web/dist/...`，`Content-Type: image/png`（静态，语言无关）。
 
-Vite `public/` 约定会自动把 `web/public/` 下文件拷到 `web/dist/` 根，后端只需透传。
+Vite `public/` 约定会自动把 `web/public/` 下文件拷到 `web/dist/` 根，后端只需透传（manifest 改为动态合并，icon 仍透传）。
 
 ### 构建产物
 
@@ -367,19 +377,20 @@ Vite `public/` 约定会自动把 `web/public/` 下文件拷到 `web/dist/` 根�
 - **HTTPS 要求**：Android Chrome 要求 PWA 安装来源为 HTTPS（或 localhost）。局域网 HTTP 部署需在 Chrome `chrome://flags/#unsafely-treat-insecure-origin-as-secure` 把 `http://<lan-ip>:8000` 加白名单才能安装。localhost 默认可装。
 - **iOS**：仅 Safari 支持「添加到主屏幕」，Chrome/Firefox on iOS 不支持 PWA 安装。iOS 不支持 maskable icon，会用 `any` 图标裁剪。
 - **无离线**：断网后打开主屏图标会显示浏览器默认的离线页，应用本身不缓存。SSE 断线重连机制（见上「SSE 自动重连」）仍生效。
-- **更新**：manifest / icon 变更后，用户需重新触发安装或等浏览器更新缓存；无 SW 即无版本管理负担，也无缓存陷阱。
+- **更新**：manifest / icon 变更后，用户需重新触发安装或等浏览器更新缓存；无 SW 即无版本管理负担，也无缓存陷阱。manifest 的 `name` / `short_name` / `description` 按请求语言动态协商（`Vary: Accept-Language`，`Cache-Control: no-cache`），用户切换浏览器语言后重新加载即可看到对应语言的应用名。
 - **scope 覆盖 editor**：从主屏图标启动 chatbot 后跳到 `/editor`，仍在同一 PWA 窗口内（同 origin + scope `/`），不会跳出至浏览器。
 
 ### 实现顺序
 
 1. 生成 icons（源图 → 三档 PNG）。
-2. 新增 `web/public/manifest.webmanifest` + 图标文件。
-3. 改 `web/index.html`、`web/editor.html` 的 `<head>`。
-4. 后端 `web_acceptor.py` 加 manifest / icon 路由。
-5. 手工验证：Android Chrome 打开 `http://localhost:8000/` → 菜单「安装应用」→ 主屏图标启动 → 跳 `/editor` 验证仍在独立窗口内。iOS Safari「添加到主屏幕」同样验证一次。
+2. 新增 `web/public/manifest.webmanifest`（仅语言无关字段）+ 图标文件。
+3. 改 `web/index.html`、`web/editor.html` 的 `<head>`（`apple-mobile-web-app-title` 用 `{{pwa_short_name}}` 占位符）。
+4. 后端 `web_acceptor.py` 加 manifest（动态协商） / icon 路由 + HTML 占位符替换。
+5. 手工验证：Android Chrome 打开 `http://localhost:8000/` → 菜单「安装应用」→ 主屏图标启动 → 跳 `/editor` 验证仍在独立窗口内。iOS Safari「添加到主屏幕」同样验证一次。验证中英文浏览器分别看到对应语言的 manifest name 与 apple-mobile-web-app-title。
 
 ### 不在本范围（PWA）
 
 - **离线能力 / Service Worker / 资源缓存**：本 spec 仅做「可安装到主屏」，不实现离线。
 - **推送通知 / 后台同步**：无 SW 即不支持，不在范围。
 - **为 editor 出独立 manifest**：共用 `/` scope 即可。
+- **Chrome Extension MV3 `manifest.json` 的 i18n**：见 [i18n.md Phase 4](../i18n/i18n.md)，不引入 `chrome.i18n` / `_locales/`。

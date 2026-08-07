@@ -227,6 +227,15 @@ LANGUAGES: dict[str, str] = {
 AVAILABLE_INTERFACE_LANGUAGES: tuple[str, ...] = ("zh-CN", "en")
 
 
+def _normalize_lang_tag(tag: str) -> str:
+    """归一化语言标签：小写、`_`→`-`、去编码后缀（如 `zh_CN.UTF-8` → `zh-cn`）。
+
+    ref: docs/ADR/20260806-interface-language-optional.md §3
+    供 resolve_interface_language / i18n.parse_accept_language 复用。
+    """
+    return tag.lower().split(".")[0].replace("_", "-")
+
+
 def resolve_interface_language(value: str) -> str:
     """解析运行时生效的界面语言。
 
@@ -244,7 +253,7 @@ def resolve_interface_language(value: str) -> str:
 
     lang, _ = locale.getlocale()  # 可能 (None, None)，如容器环境
     if lang:
-        normalized = lang.lower().split(".")[0].replace("_", "-")
+        normalized = _normalize_lang_tag(lang)
         if normalized in AVAILABLE_INTERFACE_LANGUAGES:
             return normalized
         if normalized.startswith("zh-") or normalized == "zh":

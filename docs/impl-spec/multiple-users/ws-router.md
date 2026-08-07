@@ -135,11 +135,14 @@ Phase 1 只需保证 `AuthProvider` 抽象与 `user_identities` 表 schema 存�
 | GET | `/login/google` | （预留）重定向到 Google OAuth |
 | GET | `/login/google/callback` | （预留）OAuth 回调 |
 | GET | `/assets/{path:path}` | 前端静态资源（登录页 + 公开 chunk） |
-| GET | `/favicon.png` `/manifest.webmanifest` `/icon-*.png` | 前端公开静态文件（pre-auth 可达） |
+| GET | `/favicon.png` `/icon-*.png` | 前端公开静态文件（pre-auth 可达） |
+| GET | `/manifest.webmanifest` | PWA manifest（动态语言协商，pre-auth 可达，见 §4.3） |
 
 ### 4.2 反代路由（透传到后端容器）
 
-`/`、`/editor`、`/api/session/...`、`/api/session/{id}/events`（SSE）、`/manifest.webmanifest` 等全部透传。后端 ws-container 内的 `web_acceptor.py` 逻辑不变（见 [web-session-acceptor.md](../web-session-acceptor.md)）。
+`/`、`/editor`、`/api/session/...`、`/api/session/{id}/events`（SSE）等全部透传。后端 ws-container 内的 `web_acceptor.py` 逻辑不变（见 [web-session-acceptor.md](../web-session-acceptor.md)）。
+
+> **manifest 例外**：`/manifest.webmanifest` **不透传**到 ws-container，由 WS-Router 本地动态协商（见 §4.3）。原因是 WS-Router 的登录页（pre-auth）就要读 manifest，且 ws-container 内的 web_acceptor 也有自己的 manifest 协商逻辑（profile 优先 + Accept-Language 兜底，见 [web-chatbot.md §PWA i18n](../web-chatbot.md)），两套实现各自服务其拓扑。
 
 ### 4.3 登录页（React SPA）
 
@@ -171,14 +174,22 @@ Phase 1 只需保证 `AuthProvider` 抽象与 `user_identities` 表 schema 存�
 |---|---|---|
 | `/assets/{path:path}` | `web/dist/assets/` | 登录页 JS/CSS chunk（Vite 共享 vendor chunk 无法按入口拆分，整目录服务；主 SPA 的同名 chunk 也由此服务） |
 | `/favicon.png` | `web/dist/favicon.png` | 登录页 favicon |
-| `/manifest.webmanifest` | `web/dist/manifest.webmanifest` | PWA manifest（登录页引用，pre-auth 可达） |
+| `/manifest.webmanifest` | `web/dist/manifest.webmanifest`（语言无关字段）+ `src/everlingo/i18n/pwa.py` 的 `PWA_MANIFEST_TEXT` | PWA manifest（**动态协商**，见下） |
 | `/icon-192.png` `/icon-512.png` `/icon-512-maskable.png` | `web/dist/...` | PWA 图标 |
 
-主 SPA 的 HTML 入口（`/`、`/editor`、`/console/*`）仍由 ws-container 反代提供（post-auth），其静态资源请求会落到 WS-Router 本地 `/assets/*`——因两镜像共用同一 `web/dist`（CI 同步构建），asset hash 一致，行为正确。
+**manifest 动态语言协商**（[ADR 20260807-pwa-i18n.md](../../ADR/20260807-pwa-i18n.md)）：`/manifest.webmanifest` 由 WS-Router 本地动态响应 `_serve_manifest(request)`：
+1. 读 `request.headers.get("Accept-Language")`；
+2. 调 `resolve_manifest_language(accept_language=...)`（WS-Router **不传** `interface_language`，因 pre-auth 白名单绕过认证，不持有 user profile）；
+3. 从 `web/dist/manifest.webmanifest` 读语言无关字段（`start_url` / `scope` / `display` / `orientation` / `background_color` / `theme_color` / `icons`），合并 `PWA_MANIFEST_TEXT[lang]` 的 `name` / `short_name` / `description`，`json.dumps`；
+4. 返回 `Response(media_type="application/manifest+json", headers={"Cache-Control": "no-cache", "Vary": "Accept-Language"})`。
 
-**ws-container 职责不变**：单用户独立部署（无 WS-Router）时，ws-container 的 `web_acceptor.py` 依旧独自提供全部前端文件（含 PWA manifest / icons / favicon），见 [web-session-acceptor.md](../web-session-acceptor.md)。
+**HTML 入口占位符替换**：WS-Router 本地服务的 HTML 入口（`/login`、`/self-service`、`/self-service/pat`）由 `_serve_html_with_i18n(file, request)` 响应——读 HTML 字符串 → 按 `resolve_manifest_language(...)` 取 `short_name` → `str.replace("{{pwa_short_name}}", short_name)` → 返回 `Response(media_type="text/html", headers={"Cache-Control": "no-store, must-revalidate", "Vary": "Accept-Language"})`。`web/*.html` 源中 `<meta name="apple-mobile-web-app-title" content="{{pwa_short_name}}">` 为占位符，Vite 不处理 meta content，原样保留到构建产物。
 
-**为什么 WS-Router 也提供 manifest / icons**：手机浏览器在加载**任何**带 `<link rel="manifest">` 的页面时都会读取 manifest（与登录状态无关）。iOS Safari「添加到主屏幕」是用户在任意页面手动触发的。若登录页不提供 manifest / apple-touch-icon，用户在登录页触发安装时图标会降级为截图或默认图标，体验差。因此登录页 `login.html` 引用与主 SPA 相同的 manifest / icons，WS-Router pre-auth 本地服务之。
+主 SPA 的 HTML 入口（`/`、`/editor`、`/console/*`）仍由 ws-container 反代提供（post-auth），其静态资源请求会落到 WS-Router 本地 `/assets/*`——因两镜像共用同一 `web/dist`（CI 同步构建），asset hash 一致，行为正确。主 SPA HTML 入口的 `apple-mobile-web-app-title` 占位符替换由 ws-container 内的 `web_acceptor.py` 完成（profile 优先 + Accept-Language 兜底，见 [web-chatbot.md §PWA i18n](../web-chatbot.md)）。
+
+**ws-container 职责不变**：单用户独立部署（无 WS-Router）时，ws-container 的 `web_acceptor.py` 依旧独自提供全部前端文件（含 PWA manifest 动态协商 / icons / favicon），见 [web-session-acceptor.md](../web-session-acceptor.md)。
+
+**为什么 WS-Router 也提供 manifest / icons**：手机浏览器在加载**任何**带 `<link rel="manifest">` 的页面时都会读取 manifest（与登录状态无关）。iOS Safari「添加到主屏幕」是用户在任意页面手动触发的。若登录页不提供 manifest / apple-touch-icon，用户在登录页触发安装时图标会降级为截图或默认图标，体验差。因此登录页 `login.html` 引用与主 SPA 相同的 manifest / icons，WS-Router pre-auth 本地服务之。manifest 的 `name` / `short_name` / `description` 按 `Accept-Language` 动态协商，确保英文浏览器用户在登录页安装 PWA 时看到英文应用名。
 
 **`POST /login` 仅支持 JSON 提交**（随服务端渲染 HTML 的移除，form 提交一并废弃）。程序化客户端（curl / Chrome Extension）与浏览器 React SPA 均走 JSON（见 §4.4）。
 

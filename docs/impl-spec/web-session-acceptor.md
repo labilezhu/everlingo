@@ -106,6 +106,10 @@ app.add_middleware(
 - `/console/me` → `web/dist/me.html`（2026-07 新增）
 - `/console/web-console`、`/console/web-console/{path}` → `web/dist/web-console.html`（2026-07 新增）
 
+HTML 入口响应经占位符替换：`_serve_html_with_i18n()` 读 HTML 字符串 → 按请求语言（`interface_language` 优先 + `Accept-Language` 兜底）替换 `<meta name="apple-mobile-web-app-title" content="{{pwa_short_name}}">` 占位符 → 返回 `Vary: Accept-Language`。详见 [web-chatbot.md §PWA i18n](web-chatbot.md) 与 [ADR 20260807-pwa-i18n.md](../ADR/20260807-pwa-i18n.md)。
+
+`/manifest.webmanifest` 端点同样由 `web_acceptor.py` 动态协商（读 `web/dist/manifest.webmanifest` 语言无关字段 + 合并 `src/everlingo/i18n/pwa.py` 的 `PWA_MANIFEST_TEXT[lang]`），返回 `Vary: Accept-Language` + `Cache-Control: no-cache`。详见 [web-chatbot.md §PWA i18n](web-chatbot.md)。
+
 
 ## Session 超时回收
 

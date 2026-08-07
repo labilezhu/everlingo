@@ -5,6 +5,7 @@ ref: ws-router.md §4
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import uuid
@@ -14,7 +15,7 @@ import httpx
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 
 from .auth import (
     AuthProvider,
@@ -27,6 +28,7 @@ from .config import RouterConfig
 from .master_client import MasterClient
 from .middleware import make_auth_middleware, trusted_proxy_middleware
 from .proxy import proxy_request
+from everlingo.i18n.pwa import manifest_text, resolve_manifest_language
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +53,51 @@ MANIFEST_CACHE_CONTROL = "no-cache"
 
 def _static_response(path: str, media_type: str | None = None, cache: str = HTML_CACHE_CONTROL) -> FileResponse:
     return FileResponse(path, media_type=media_type, headers={"Cache-Control": cache})
+
+
+PWA_MANIFEST_PLACEHOLDER = "{{pwa_short_name}}"
+
+
+def _serve_manifest(request: Request) -> Response:
+    """PWA manifest 动态语言协商（仅 Accept-Language，WS-Router 不持 profile）。
+
+    ref: docs/ADR/20260807-pwa-i18n.md §3.2/§3.3
+    """
+    path = os.path.join(_static_dir(), "manifest.webmanifest")
+    if not os.path.exists(path):
+        return JSONResponse(
+            content={"message": "Frontend not built. Run `npm run build` in the web/ directory."},
+            status_code=503,
+        )
+    with open(path, encoding="utf-8") as f:
+        manifest = json.load(f)
+    lang = resolve_manifest_language(request.headers.get("Accept-Language"))
+    manifest.update({key: manifest_text(lang, key) for key in ("name", "short_name", "description")})
+    headers = {"Cache-Control": MANIFEST_CACHE_CONTROL, "Vary": "Accept-Language"}
+    return Response(
+        content=json.dumps(manifest, ensure_ascii=False),
+        media_type="application/manifest+json",
+        headers=headers,
+    )
+
+
+def _serve_html_with_i18n(path: str, request: Request, cache: str = HTML_CACHE_CONTROL) -> Response:
+    """HTML 外壳动态响应：替换 {{pwa_short_name}} 占位符 + 加 Vary: Accept-Language。
+
+    ref: docs/ADR/20260807-pwa-i18n.md §3.4
+    """
+    if not os.path.exists(path):
+        return JSONResponse(
+            content={"message": "Frontend not built. Run `npm run build` in the web/ directory."},
+            status_code=503,
+        )
+    with open(path, encoding="utf-8") as f:
+        html = f.read()
+    lang = resolve_manifest_language(request.headers.get("Accept-Language"))
+    short_name = manifest_text(lang, "short_name")
+    html = html.replace(PWA_MANIFEST_PLACEHOLDER, short_name)
+    headers = {"Cache-Control": cache, "Vary": "Accept-Language"}
+    return Response(content=html, media_type="text/html", headers=headers)
 
 
 class AppState:
@@ -117,12 +164,7 @@ def create_app(config: RouterConfig) -> FastAPI:
     @app.get("/login")
     async def get_login(request: Request):
         index = os.path.join(_static_dir(), "login.html")
-        if not os.path.exists(index):
-            return JSONResponse(
-                content={"message": "Frontend not built. Run `npm run build` in the web/ directory."},
-                status_code=503,
-            )
-        return _static_response(index)
+        return _serve_html_with_i18n(index, request)
 
     @app.post("/login")
     async def post_login(request: Request):
@@ -158,7 +200,13 @@ def create_app(config: RouterConfig) -> FastAPI:
         )
         return resp
 
+    @app.get("/manifest.webmanifest", include_in_schema=False)
+    async def get_manifest(request: Request):
+        return _serve_manifest(request)
+
     for static_path, media_type in STATIC_MEDIA_TYPES.items():
+        if static_path == "/manifest.webmanifest":
+            continue
 
         @app.get(static_path, include_in_schema=False)
         async def serve_static(path: str = static_path, media_type: str = media_type):
@@ -168,8 +216,6 @@ def create_app(config: RouterConfig) -> FastAPI:
                     content={"message": "Frontend not built. Run `npm run build` in the web/ directory."},
                     status_code=503,
                 )
-            if static_path == "/manifest.webmanifest":
-                return _static_response(file, media_type=media_type, cache=MANIFEST_CACHE_CONTROL)
             return _static_response(file, media_type=media_type, cache=ASSET_CACHE_CONTROL)
 
     @app.get("/logout")
@@ -209,22 +255,12 @@ def create_app(config: RouterConfig) -> FastAPI:
     @app.get("/self-service")
     async def get_self_service(request: Request):
         index = os.path.join(_static_dir(), "self-service.html")
-        if not os.path.exists(index):
-            return JSONResponse(
-                content={"message": "Frontend not built. Run `npm run build` in the web/ directory."},
-                status_code=503,
-            )
-        return _static_response(index)
+        return _serve_html_with_i18n(index, request)
 
     @app.get("/self-service/pat")
     async def get_self_service_pat(request: Request):
         index = os.path.join(_static_dir(), "pat.html")
-        if not os.path.exists(index):
-            return JSONResponse(
-                content={"message": "Frontend not built. Run `npm run build` in the web/ directory."},
-                status_code=503,
-            )
-        return _static_response(index)
+        return _serve_html_with_i18n(index, request)
 
     @app.get("/self-service/api/pats")
     async def list_self_service_pats(request: Request):

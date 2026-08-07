@@ -5,5 +5,12 @@ ref: docs/i18n/i18n.md — Phase 2 Chat Agent 兜底文案 i18n
 （给 LLM 看的指令，LLM 依 interface_lang 自行决定回复语言）。
 """
 from .messages import FALLBACK_LANG, MESSAGES, t
+from .pwa import parse_accept_language, resolve_manifest_language
 
-__all__ = ["FALLBACK_LANG", "MESSAGES", "t"]
+__all__ = [
+    "FALLBACK_LANG",
+    "MESSAGES",
+    "t",
+    "parse_accept_language",
+    "resolve_manifest_language",
+]

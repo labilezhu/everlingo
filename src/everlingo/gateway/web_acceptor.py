@@ -11,7 +11,7 @@ from typing import Any, Union
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
 from everlingo.gateway.channels.envelope import UserInputEnvelope, wrap_plain_text
@@ -20,6 +20,8 @@ from everlingo.gateway.session_acceptor import SessionAcceptor
 from everlingo.gateway.user_profile_api import router as user_profile_router
 from everlingo.gateway.vault_editor_api import router as vault_editor_router
 from everlingo.gateway.workspace_console.router import router as workspace_console_router
+from everlingo.i18n.pwa import manifest_text, resolve_manifest_language
+from everlingo.setting import load_profile
 from everlingo.workspace import indexer_mcp_url_path
 
 app = FastAPI()
@@ -135,69 +137,106 @@ def _static_response(path: str, media_type: str | None = None, cache: str = HTML
     return FileResponse(path, media_type=media_type, headers=headers)
 
 
-@app.get("/manifest.webmanifest")
-async def serve_manifest():
+PWA_MANIFEST_PLACEHOLDER = "{{pwa_short_name}}"
+
+
+def _manifest_language(request: Request) -> str:
+    """协商 PWA 信息语言：profile 优先，Accept-Language 兜底。
+
+    ref: docs/ADR/20260807-pwa-i18n.md §3.2
+    """
+    interface_language = None
+    try:
+        interface_language = load_profile().language.interface_language
+    except Exception:
+        interface_language = None
+    return resolve_manifest_language(
+        request.headers.get("Accept-Language"), interface_language
+    )
+
+
+def _serve_manifest(request: Request) -> Response:
+    """PWA manifest 动态响应：语言无关字段 + PWA_MANIFEST_TEXT[lang] 合并。
+
+    ref: docs/ADR/20260807-pwa-i18n.md §3.3
+    """
     path = os.path.join(_static_dir(), "manifest.webmanifest")
     if not os.path.exists(path):
-        return {"message": "manifest not found. Run `npm run build` in the web/ directory."}
-    return _static_response(path, media_type="application/manifest+json", cache=MANIFEST_CACHE_CONTROL)
+        return JSONResponse(
+            content={"message": "manifest not found. Run `npm run build` in the web/ directory."},
+            status_code=503,
+        )
+    with open(path, encoding="utf-8") as f:
+        manifest = json.load(f)
+    lang = _manifest_language(request)
+    manifest.update({key: manifest_text(lang, key) for key in ("name", "short_name", "description")})
+    headers = {"Cache-Control": MANIFEST_CACHE_CONTROL, "Vary": "Accept-Language"}
+    return Response(
+        content=json.dumps(manifest, ensure_ascii=False),
+        media_type="application/manifest+json",
+        headers=headers,
+    )
+
+
+def _serve_html_with_i18n(path: str, request: Request, cache: str = HTML_CACHE_CONTROL) -> Response:
+    """HTML 外壳动态响应：替换 {{pwa_short_name}} 占位符 + 加 Vary: Accept-Language。
+
+    ref: docs/ADR/20260807-pwa-i18n.md §3.4
+    """
+    if not os.path.exists(path):
+        return JSONResponse(
+            content={"message": "Frontend not built. Run `npm run build` in the web/ directory."},
+            status_code=503,
+        )
+    with open(path, encoding="utf-8") as f:
+        html = f.read()
+    lang = _manifest_language(request)
+    short_name = manifest_text(lang, "short_name")
+    html = html.replace(PWA_MANIFEST_PLACEHOLDER, short_name)
+    headers = {"Cache-Control": cache, "Vary": "Accept-Language"}
+    return Response(content=html, media_type="text/html", headers=headers)
+
+
+@app.get("/manifest.webmanifest")
+async def serve_manifest(request: Request):
+    return _serve_manifest(request)
 
 
 @app.get("/editor")
 @app.get("/editor/{path:path}")
-async def serve_editor(path: str = ""):
+async def serve_editor(path: str = "", request: Request = None):
     """提供编辑器前端 SPA（dist/editor.html fallback）。"""
     editor_index = os.path.join(_static_dir(), "editor.html")
-
-    if not os.path.exists(editor_index):
-        return {"message": "Frontend not built. Run `npm run build` in the web/ directory."}
-
-    return _static_response(editor_index)
+    return _serve_html_with_i18n(editor_index, request)
 
 
 @app.get("/console/me")
-async def serve_me():
+async def serve_me(request: Request = None):
     """Me 页（Workspace Console 入口）。"""
     index = os.path.join(_static_dir(), "me.html")
-
-    if not os.path.exists(index):
-        return {"message": "Frontend not built. Run `npm run build` in the web/ directory."}
-
-    return _static_response(index)
+    return _serve_html_with_i18n(index, request)
 
 
 @app.get("/console/me/target-language")
-async def serve_target_language():
+async def serve_target_language(request: Request = None):
     """目标学习语言设置页（Me 页子页）。"""
     index = os.path.join(_static_dir(), "target-language.html")
-
-    if not os.path.exists(index):
-        return {"message": "Frontend not built. Run `npm run build` in the web/ directory."}
-
-    return _static_response(index)
+    return _serve_html_with_i18n(index, request)
 
 
 @app.get("/console/me/interface-language")
-async def serve_interface_language():
+async def serve_interface_language(request: Request = None):
     """界面语言设置页（Me 页子页 / onboarding step 1）。"""
     index = os.path.join(_static_dir(), "interface-language.html")
-
-    if not os.path.exists(index):
-        return {"message": "Frontend not built. Run `npm run build` in the web/ directory."}
-
-    return _static_response(index)
+    return _serve_html_with_i18n(index, request)
 
 
 @app.get("/console/web-console")
 @app.get("/console/web-console/{path:path}")
-async def serve_web_console(path: str = ""):
+async def serve_web_console(path: str = "", request: Request = None):
     """Workspace Console SPA（dist/web-console.html fallback）。"""
     index = os.path.join(_static_dir(), "web-console.html")
-
-    if not os.path.exists(index):
-        return {"message": "Frontend not built. Run `npm run build` in the web/ directory."}
-
-    return _static_response(index)
+    return _serve_html_with_i18n(index, request)
 
 
 @app.get("/healthz")
@@ -231,7 +270,7 @@ async def healthz():
 
 @app.get("/")
 @app.get("/{path:path}")
-async def serve_frontend(path: str = ""):
+async def serve_frontend(path: str = "", request: Request = None):
     """提供前端静态文件。"""
     static_dir = _static_dir()
     index_path = os.path.join(static_dir, "index.html")
@@ -242,12 +281,14 @@ async def serve_frontend(path: str = ""):
     file_path = os.path.join(static_dir, path) if path else index_path
     if os.path.isfile(file_path):
         # 带内容 hash 的构建资源（/assets/**）走 immutable 长缓存；
-        # 其余（HTML 外壳、图标等）保持 no-store。
+        # HTML 外壳（占位符替换 + Vary: Accept-Language）与其他静态文件保持 no-store。
         if path.startswith("assets/"):
             return _static_response(file_path, cache=ASSET_CACHE_CONTROL)
+        if file_path.endswith(".html"):
+            return _serve_html_with_i18n(file_path, request)
         return _static_response(file_path)
     # SPA fallback（history 路由命中到 HTML 外壳）
-    return _static_response(index_path)
+    return _serve_html_with_i18n(index_path, request)
 
 
 class WebSessionAcceptor(SessionAcceptor):

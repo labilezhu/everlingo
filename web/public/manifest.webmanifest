@@ -1,7 +1,4 @@
 {
-  "name": "小记🐹 AI 外语老师",
-  "short_name": "小记",
-  "description": "小记🐹 AI 外语老师 — 翻译 / 查词 / 聊天，并可视化编辑记忆笔记。",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
