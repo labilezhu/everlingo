@@ -1,4 +1,15 @@
 
+看看以下设计的合理性和可行性，并评估一下影响和修改面。
+
+以下文件，其内容其实不能由用户自由定义，所以不应该放在 vault/templates 下了。 应许放在 src/everlingo/agents 下，并只保留 zh-CN 版本。
+
+- src/everlingo/mem/vault/templates/default/zh-CN/spec/memory_extract_output_spec.md
+- src/everlingo/mem/vault/templates/default/zh-CN/spec/mem_entry_spec.md
+- src/everlingo/mem/vault/templates/default/zh-CN/spec/envelope_spec.md
+- 和相应 src/everlingo/mem/vault/templates/default/en 下的三个文件。
+
+---
+
 [i18n](docs/i18n/i18n.md) 的检漏：
 - src/everlingo/mem/agents/mem_writer_agent.py:56
 - src/everlingo/mem/agents/mem_entries.py:15
