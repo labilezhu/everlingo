@@ -70,7 +70,10 @@ async def create_session():
     task.add_done_callback(
         lambda _: _channels.pop(session_id, None)
     )
-    return {"session_id": session_id}
+    # interface_language：供 Chrome Extension 首次建 session 时缓存为运行时语言。
+    # ref: docs/i18n/i18n.md — Phase 4
+    interface_language = getattr(_gateway, "interface_language", None) or "en"
+    return {"session_id": session_id, "interface_language": interface_language}
 
 
 @app.post("/api/session/{session_id}/message")

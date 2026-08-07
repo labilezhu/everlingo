@@ -1,0 +1,13 @@
+{
+  "page_title": "Me - EverLingo",
+  "title": "Me",
+  "back_to_chat": "Chat",
+  "target_language": "Target language",
+  "target_language_desc": "Choose your default learning language and initialize the vault",
+  "interface_language": "Interface language",
+  "interface_language_desc": "Switch the display language of the chat and settings pages",
+  "workspace_console": "Workspace Console",
+  "workspace_console_desc": "Channel & gateway management",
+  "account": "Account",
+  "version": "EverLingo {{version}}"
+}

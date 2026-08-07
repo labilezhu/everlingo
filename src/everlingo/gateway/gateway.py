@@ -105,6 +105,17 @@ class Gateway:
         # 注册为 NoticeSink（供 Memory Writer 跨线程推送通知）
         memory_writer.set_notice_sink(self)
 
+    @property
+    def interface_language(self) -> str:
+        """当前 resolved 界面语言，供 session 创建响应返回给前端。
+
+        ref: docs/i18n/i18n.md — Phase 4（Chrome Extension 首次建 session 时缓存语言）
+        _profile 由 _ensure_profile() 保证非空且 interface_language 合法。
+        """
+        if self._profile is None:
+            return "en"
+        return self._profile.language.interface_language
+
     # ── NoticeSink ───────────────────────────────────────────────
 
     def notify(

@@ -1,0 +1,22 @@
+{
+  "title": "小记 设置",
+  "server_url": "服务端地址",
+  "server_url_hint": "默认 {{url}}。修改后请刷新或重新打开 sidecar 面板生效。",
+  "server_token": "服务端 Token",
+  "token_placeholder": "（直连 ws-container 可留空）",
+  "token_hint_before": "PAT 通过",
+  "token_hint_after": "生成；直连 ws-container 无需填写。",
+  "show_token": "显示 Token",
+  "hide_token": "隐藏 Token",
+  "save": "保存",
+  "testing": "测试中…",
+  "test_connection": "测试连接",
+  "saved": "已保存",
+  "connect_ok": "连接成功",
+  "connect_ok_ready": "连接成功（服务端已就绪）",
+  "token_invalid": "Token 无效（401）",
+  "access_denied": "访问被拒绝（403），请检查凭据",
+  "bad_status": "服务端返回异常状态码 {{status}}",
+  "timeout": "连接超时（3 秒），请检查地址是否正确",
+  "cannot_connect": "无法连接，请检查服务端地址和网络"
+}

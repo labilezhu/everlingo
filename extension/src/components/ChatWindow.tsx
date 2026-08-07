@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { NotebookPen } from 'lucide-react';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
@@ -21,10 +22,11 @@ interface PageSnapshot {
 }
 
 export default function ChatWindow() {
+  const { t } = useTranslation('chatbot');
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [task, setTask] = useState<TaskKind>('translate');
   const [messages, setMessages] = useState<Message[]>([
-    { id: uid(), text: '你好！我是小记🐹，你的 AI 外语老师。有什么可以帮你的吗？', from: 'bot' },
+    { id: uid(), text: t('welcome_text'), from: 'bot' },
   ]);
   const [thinking, setThinking] = useState(false);
   const [pending, setPending] = useState(false);
@@ -93,7 +95,7 @@ export default function ChatWindow() {
       });
     } catch {
       setPending(false);
-      setError('翻译失败');
+      setError(t('translate_failed'));
     }
   }
 
@@ -111,7 +113,7 @@ export default function ChatWindow() {
 
     const defaultMsg: Message = {
       id: uid(),
-      text: '你好！我是小记🐹，你的 AI 外语老师。有什么可以帮你的吗？',
+      text: t('welcome_text'),
       from: 'bot',
     };
     if (fresh) {
@@ -147,7 +149,7 @@ export default function ChatWindow() {
 
     const systemMsg: Message = {
       id: uid(),
-      text: '小记刚才断片了，对话忘记了，笔记还在',
+      text: t('session_reset_note'),
       from: 'system',
     };
     setMessages((prev) => [...prev, systemMsg]);
@@ -174,7 +176,7 @@ export default function ChatWindow() {
       cleanupRef.current = conn.cleanup;
       retryNowRef.current = conn.retryNow;
     } catch {
-      setError('重新连接失败');
+      setError(t('reconnect_failed'));
     }
   }
 
@@ -184,7 +186,7 @@ export default function ChatWindow() {
       const win = await chrome.windows.getCurrent();
       if (activeInfo.windowId !== (win.id ?? -1)) return;
       try { await switchToTab(); }
-      catch { setError('切换 tab 失败'); }
+      catch { setError(t('switch_tab_failed')); }
     };
     chrome.tabs.onActivated.addListener(handler);
     return () => chrome.tabs.onActivated.removeListener(handler);
@@ -229,7 +231,7 @@ export default function ChatWindow() {
           }
         }
       } catch {
-        setError('无法连接到服务器');
+        setError(t('connect_failed'));
       }
     })();
     return () => {
@@ -292,7 +294,7 @@ export default function ChatWindow() {
         await sendEnvelope(base, sid, env, auth);
       } catch {
         setPending(false);
-        setError('发送消息失败');
+        setError(t('send_failed'));
       }
     },
     [task],
@@ -303,13 +305,13 @@ export default function ChatWindow() {
       <header className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border">
         <div className="flex items-center gap-2">
           <span className="text-lg">🐹</span>
-          <h1 className="text-base font-semibold text-foreground">小记</h1>
+          <h1 className="text-base font-semibold text-foreground">{t('app_name')}</h1>
         </div>
         <Button variant="ghost" size="sm" onClick={() => {
           chrome.tabs.create({ url: `${baseUrlRef.current}/editor` });
         }}>
           <NotebookPen />
-          <span>笔记</span>
+          <span>{t('notes')}</span>
         </Button>
       </header>
 
@@ -323,24 +325,24 @@ export default function ChatWindow() {
 
       {connStatus?.state === 'reconnecting' && (
         <div className="px-3 py-1.5 bg-amber-50 text-amber-700 text-xs border-b border-amber-200 flex items-center justify-between gap-2">
-          <span>连接断开，{connStatus.countdown}s 后自动重试</span>
+          <span>{t('reconnecting', { count: connStatus.countdown })}</span>
           <button
             onClick={() => retryNowRef.current?.()}
             className="underline whitespace-nowrap font-medium shrink-0"
           >
-            立即重试
+            {t('retry_now')}
           </button>
         </div>
       )}
 
       {connStatus?.state === 'session_expired' && (
         <div className="px-3 py-1.5 bg-amber-50 text-amber-700 text-xs border-b border-amber-200 flex items-center justify-between gap-2">
-          <span>会话已过期</span>
+          <span>{t('session_expired')}</span>
           <button
             onClick={handleRebuild}
             className="underline whitespace-nowrap font-medium shrink-0"
           >
-            重新开始
+            {t('restart')}
           </button>
         </div>
       )}
@@ -353,7 +355,7 @@ export default function ChatWindow() {
         {thinking && (
           <div className="flex justify-start">
             <div className="bg-muted text-foreground rounded-2xl rounded-bl-md px-3 py-1.5 animate-pulse text-sm">
-              小记🐹正在思考……
+              {t('thinking')}
             </div>
           </div>
         )}

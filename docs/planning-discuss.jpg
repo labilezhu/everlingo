@@ -20,7 +20,7 @@
 
 ### 运行期
 
-当需要对 Vault 目录进行初始化时，按 当前的 `界面语言(interface_language)` 设置 匹配要复制的 vault templates 。 匹配参考 [i18n](docs/i18n/i18n.md) 中的 “## interface_language 配置语义”
+当需要对 Vault 目录进行初始化时，按 当前的 `界面语言(interface_language)` 设置 匹配要复制的 vault templates 。 匹配逻辑参考 [i18n](docs/i18n/i18n.md) 中的 “## interface_language 配置语义”
 
 ---
 

@@ -1,0 +1,11 @@
+{
+  "page_title": "Sign in - EverLingo",
+  "welcome": "Welcome",
+  "sign_in_to": "Sign in to 🐹Nori",
+  "username": "Username",
+  "password": "Password",
+  "login": "Log in",
+  "logging_in": "Logging in…",
+  "login_failed": "Login failed, please try again",
+  "network_error": "Network error, please try again"
+}

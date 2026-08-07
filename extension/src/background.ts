@@ -1,4 +1,6 @@
-import { getApiConfig } from '@/config';
+import { getApiConfig, getStoredInterfaceLanguage, setStoredInterfaceLanguage } from '@/config';
+import { resolveSupportedLang } from '@/i18n/detect';
+import { contextMenuTitle } from '@/i18n/menu';
 
 // ── 安装时生成 device_id + 创建右键菜单 + 设全局 side panel ──────────
 chrome.runtime.onInstalled.addListener(async () => {
@@ -12,9 +14,10 @@ chrome.runtime.onInstalled.addListener(async () => {
   // 迁移：清除旧版 Basic Auth 凭据
   await chrome.storage.local.remove(['server_username', 'server_password']);
 
+  const lang = resolveSupportedLang(await getStoredInterfaceLanguage());
   chrome.contextMenus.create({
     id: 'translate-selection',
-    title: '用小记🐹翻译',
+    title: contextMenuTitle(lang),
     contexts: ['selection'],
   });
 });
@@ -111,5 +114,17 @@ async function createSession(): Promise<string> {
     throw new Error(`Failed to create session: ${res.status}`);
   }
   const data = await res.json();
+  // 缓存后端返回的界面语言（与 device_id 同生命周期），并同步右键菜单文案。
+  // ref: docs/i18n/i18n.md — Phase 4
+  const lang: string = data.interface_language ?? '';
+  if (lang) {
+    await setStoredInterfaceLanguage(lang);
+    const resolved = resolveSupportedLang(lang);
+    try {
+      chrome.contextMenus.update('translate-selection', { title: contextMenuTitle(resolved) });
+    } catch {
+      // 菜单尚未创建时忽略
+    }
+  }
   return data.session_id as string;
 }

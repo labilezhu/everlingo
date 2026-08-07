@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeUrl, DEFAULT_API_BASE_URL, buildBearerHeader } from './config';
+import { normalizeUrl, DEFAULT_API_BASE_URL, buildBearerHeader, UrlFormatError } from './config';
 
 describe('normalizeUrl', () => {
   it('returns default for empty string', () => {
@@ -16,6 +16,11 @@ describe('normalizeUrl', () => {
   it('throws for missing scheme', () => {
     expect(() => normalizeUrl('localhost:8000')).toThrow();
     expect(() => normalizeUrl('example.com')).toThrow();
+  });
+
+  it('throws UrlFormatError for missing scheme', () => {
+    expect(() => normalizeUrl('localhost:8000')).toThrowError(UrlFormatError);
+    expect(() => normalizeUrl('example.com')).toThrowError(UrlFormatError);
   });
 
   it('accepts http and https', () => {

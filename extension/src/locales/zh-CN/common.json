@@ -1,0 +1,13 @@
+{
+  "loading": "加载中…",
+  "back": "返回",
+  "close": "关闭",
+  "save": "保存",
+  "saving": "保存中…",
+  "cancel": "取消",
+  "page_error": "页面遇到了一点问题",
+  "page_error_hint": "可能是网络波动或登录状态已失效。请重新加载，必要时重新登录。",
+  "reload": "重新加载",
+  "re_login": "重新登录",
+  "login_expired": "登录已过期，请重新登录"
+}

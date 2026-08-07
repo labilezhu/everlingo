@@ -19,6 +19,7 @@ def _make_gateway():
     """创建模拟 Gateway，accept_session 正确存储 session。"""
     gateway = MagicMock()
     gateway.sessions = {}
+    gateway.interface_language = "zh-CN"
 
     async def fake_accept_session(channel, session_id):
         session = MagicMock()
@@ -89,6 +90,25 @@ class TestCreateSession:
         resp = client.post("/api/session")
         session_id = resp.json()["session_id"]
         assert session_id in gateway.sessions
+
+    def test_returns_interface_language_from_gateway(self):
+        import everlingo.gateway.web_acceptor as wa
+        wa._gateway = _make_gateway()
+
+        client = TestClient(app)
+        resp = client.post("/api/session")
+        data = resp.json()
+        assert data["interface_language"] == "zh-CN"
+
+    def test_returns_en_when_gateway_lacks_interface_language(self):
+        import everlingo.gateway.web_acceptor as wa
+        gateway = _make_gateway()
+        del gateway.interface_language  # 模拟无该属性的旧 mock
+        wa._gateway = gateway
+
+        client = TestClient(app)
+        resp = client.post("/api/session")
+        assert resp.json()["interface_language"] == "en"
 
 
 class TestSendMessage:

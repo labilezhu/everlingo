@@ -1,0 +1,22 @@
+{
+  "title": "Nori Settings",
+  "server_url": "Server URL",
+  "server_url_hint": "Defaults to {{url}}. Changes apply after refreshing or reopening the sidecar panel.",
+  "server_token": "Server Token",
+  "token_placeholder": "(blank for direct ws-container)",
+  "token_hint_before": "Generate a PAT with",
+  "token_hint_after": "to connect; leave blank for direct ws-container.",
+  "show_token": "Show Token",
+  "hide_token": "Hide Token",
+  "save": "Save",
+  "testing": "Testing…",
+  "test_connection": "Test Connection",
+  "saved": "Saved",
+  "connect_ok": "Connection successful",
+  "connect_ok_ready": "Connection successful (server ready)",
+  "token_invalid": "Invalid Token (401)",
+  "access_denied": "Access denied (403), check credentials",
+  "bad_status": "Server returned abnormal status code {{status}}",
+  "timeout": "Connection timed out (3s), check the address",
+  "cannot_connect": "Cannot connect, check the server address and network"
+}

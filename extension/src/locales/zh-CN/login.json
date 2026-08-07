@@ -1,0 +1,11 @@
+{
+  "page_title": "登录 - 记了么",
+  "welcome": "Welcome",
+  "sign_in_to": "Sign in to 🐹记了么",
+  "username": "Username",
+  "password": "Password",
+  "login": "登录",
+  "logging_in": "登录中…",
+  "login_failed": "登录失败，请重试",
+  "network_error": "网络错误，请重试"
+}
