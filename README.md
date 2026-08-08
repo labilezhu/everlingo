@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="README.md">English</a> ·
-  <a href="README.zh-CN.md">简体中文</a> ·
+  <a href="README.zh-CN.md">简体中文</a>
 </p>
 
 # EverLingo: An AI Language Companion That Remembers
@@ -39,39 +39,33 @@ Think of it as an OpenClaw lobster 🦞 optimized for language learning — or s
 
 
 
-![chrome-ext-menu.png](./README.assets/chrome-ext-menu.png)
+![image-20260808225418546](./README.assets/chrome-ext-menu.png)
 
 *Figure: Capturing notes with the browser extension*
 
 
 
-![image-20260723205840266](./README.assets/note-editor.png)
+![image-20260808230015312](./README.assets/note-editor.png)
 
 *Figure: A note-taking scenario*
 
 
 
-![image-20260801223219592](./README.assets/web-note-editor-context-to-agent.png)
+![image-20260808231245163](./README.assets/web-note-editor-context-to-agent.png)
 
 *Figure: AI-assisted note editing and human-AI "vibe noting"*
 
 
 
-![chrome-ext-note-recall.png](./README.assets/chrome-ext-note-recall.png)
+![image-20260808232347863](./README.assets/chrome-ext-note-recall.png)
 
 *Figure: Bringing your accumulated notes back to life*
 
 
 
-![手机编辑](./README.assets/pwa-edit-by-chat.png)
+![image-20260808232817728](./README.assets/pwa-edit-by-chat.png)
 
 *Figure: AI note-taking through chat on mobile*
-
-
-
-![image-20260801230258830](./README.assets/wechat-dog.png)
-
-*Figure: WeChat integration — scan a QR code; no public internet resources required*
 
 
 
@@ -157,10 +151,11 @@ If you prefer learning at your computer, EverLingo provides both a Web interface
 
 No public IP or public server is required. Self-host EverLingo, scan a QR code, and connect Nori to your [WeChat ClawBot](https://cloud.tencent.com/developer/article/2651968). Then simply chat with it in WeChat, just like messaging a friend. Ask a question and learn something while commuting or waiting for coffee. Voice input 🎙️ and pronunciation playback 🔊 are supported.
 
-![image-20260624103141166](./README.assets/wechat-read-ja.png)
+
 
 ![a](./README.assets/a-1785641636193-6.png)
 
+WeChat integration — scan a QR code; no public internet resources required.
 
 ### Your notes are yours
 

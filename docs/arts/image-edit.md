@@ -9,11 +9,11 @@
 ######## 圆角 #########
 
 
-convert /home/labile/Downloads/d.png \( +clone -alpha extract \
+convert README.zh-CN.assets/cover.png \( +clone -alpha extract \
   -draw 'fill black polygon 0,0 0,30 30,0 fill white circle 30,30 30,0' \
   \( +clone -flip \) -compose Multiply -composite \
   \( +clone -flop \) -compose Multiply -composite \
-  \) -alpha off -compose CopyOpacity -composite /home/labile/Downloads/d.png
+  \) -alpha off -compose CopyOpacity -composite README.zh-CN.assets/cover.png
 
 
 magick ~/a.jpg \
