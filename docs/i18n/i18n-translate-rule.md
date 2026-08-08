@@ -1,8 +1,20 @@
+# 翻译规则定制
 
-- zh-CN: `小记`  。小记是人类用户对 EverLingo 聊天机器人的称呼。 头像是 仓鼠 🐹
-  - en: 不应该翻译成 `Xiaoji` ，应该用 `Nori` 。 一眼就知道和记忆有关，意为 Memo the Hamster
-  - 其它语言： 用 `Nori` 到对应语言的音译。尽量是个听起来像个 AI 助手的名字。
+记录这个项目的翻译规则。
 
-- zh-CN: `记了么`  。这个产品的名称。 图标是 仓鼠 🐹
-  - en: 不应该翻译成 `Jilemo` ，应该用 `EverLingo` 。
-  - 其它语言： 用 `EverLingo` 
+- zh-CN: `小记` 
+  - 其它语言：: `Nori` 
+
+- zh-CN: `记了么`
+  - 其它语言： `EverLingo` 。
+
+- zh-CN: `AI 外教` / `AI 教师` / `AI 书童`
+  - en: `AI language companion` 。
+  - 其它语言: `AI language companion` 在指定语言的翻译 。
+
+
+
+## 一些英语表达用词
+
+-  `AI Language Teacher` 应为 `AI Language Companion`
+-  `AI tutor` 应为 `AI Language Companion`

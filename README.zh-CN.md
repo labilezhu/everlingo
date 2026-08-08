@@ -1,0 +1,446 @@
+![cover](./README.zh-CN.assets/cover.png)
+
+
+
+# 记了么：一个有记忆的 AI 外语老师
+
+无论是学习外语的学生，还是职场上要使用外语和记忆专业术语的牛马🐮🐴。都面对一个问题：
+
+> 外语学习需要记录和整理，但人天性喜懒
+
+同一个单词或术语查了n次，每次都觉得"这次应该记住了"，结果下次遇到还是从头来过。
+
+
+
+一般翻译工具有几个问题：
+
+- 给出八股文式的通用答案，你在乎的领域专有信息，要么没有，要么花时间过滤无用信息。
+- 把记录领域专有信息记录的责任，推给了你
+- 下次再来问同一个知识点，它还是完全漠视你之前的积累。
+
+
+
+**记了么（EverLingo）**想解决这些问题。用智能笔记定制一本自己的词典和一个AI 外语老师。
+
+> **记忆，需要场景才能加强；笔记，需要盘活才有价值。** 🐹
+
+---
+
+## 记了么是什么
+
+一句话：**有记忆的 AI 外语老师。**
+
+它是一个会在你查词、翻译、提问的过程中，**随时记录你的个性学习场景**，整理成笔记，并在未来帮你复习和巩固的 AI 学习伙伴。可类比为一个专为外语学习优化的 OpenClaw 龙虾🦞。你也可以养一个外教🐹。
+
+
+
+![chrome-ext-menu.png](./README.zh-CN.assets/chrome-ext-menu.png)
+
+*图：浏览器扩展摘录笔记*
+
+
+
+![image-20260723205840266](./README.zh-CN.assets/note-editor.png)
+
+*图：笔记摘录场景*
+
+
+
+![image-20260801223219592](./README.zh-CN.assets/web-note-editor-context-to-agent.png)
+
+*图：AI 编辑笔记，人机交互氛围记笔记， vibe noting*
+
+
+
+![chrome-ext-note-recall.png](./README.zh-CN.assets/chrome-ext-note-recall.png)
+
+*图：盘活笔记积累*
+
+
+
+![手机编辑](./README.zh-CN.assets/pwa-edit-by-chat.png)
+
+*图：聊出来的手机 AI 笔记*
+
+
+
+![image-20260801230258830](./README.zh-CN.assets/wechat-dog.png)
+
+*图：微信接入，只要扫个码，有电脑就能装，无须公网资源*
+
+
+
+
+---
+
+## 特性
+
+### 你所查的，整理成 wiki 笔记
+
+外语学习，特别是专有领域的用语学习，需要记录和整理，但人总是懒的。记了么在你查询时顺手帮你把结果和你的补充整理成笔记。可查可改可浏览。AI 负责根据用户的想法，维护知识库。用户在自然沟通中轻松记录，避免了繁琐且容易出错的人工笔记维护。
+
+![d](./README.zh-CN.assets/web-chat-save-word.png)
+
+![3](./README.zh-CN.assets/web-chat-preview-note.png)
+
+
+
+#### 浏览器插件：查询即记录
+
+划词、查词、翻译、网页阅读一体化。浏览英文网页时，看到不懂的词直接划一下，小记自动记录这个查询场景——你在看哪篇文章、哪个段落、前后文是什么。
+
+**让阅读过程本身变成学习素材。**
+
+![chrome-ext-menu.png](./README.zh-CN.assets/chrome-ext-menu.png)
+
+
+
+### 像聊天一样学外语
+
+记了么的核心是一个对话式 Chatbot。直接问就行。
+
+查词、翻译、语法疑问、表达方式对比，都可以直接跟小记聊。它会根据你的语言水平和背景，给你**适合你的解释**，而不是千篇一律的词典释义。
+
+比如你是程序员，它会用技术场景来解释词义；你做商务，它会优先给你商务场景的例句。还可以朗读发音🔊 。
+
+![image-20260622181503246](./README.zh-CN.assets/wechat-gcc.png)
+
+![image-20260624120149513](./README.zh-CN.assets/web-ja-welcome.png)
+
+### 越用越懂你
+
+这是记了么最核心的特性。
+
+小记会在对话中**动态学习你的偏好**。你可以直接告诉它："我是做后端开发的，主要看技术文档"，或者"我希望释义时多给词源解释"，它会记住这些偏好，并在之后的每一次回答中体现出来。
+
+这些偏好存储在一个叫 `USER.md` 的文件里，你可以自己编辑，也可以让小记帮你更新。它会被实时注入到 AI 的回答逻辑中，不需要重启，不需要重新配置。
+
+**不是你在适应工具，是工具在适应你。**
+
+![image-20260622180857462](./README.zh-CN.assets/wechat-wo-shi-ma-long.png)
+
+
+
+### 多种接入方法
+
+- 微信
+- 手机网页应用 (PWA) 。可放手机主屏直接启动。
+- 电脑网页 / 手机网页
+- 电脑浏览器扩展摘录网页
+- 电脑文本终端
+
+#### 微信
+
+**不需要装 App，微信随时使用**。
+
+不需要公网IP和服务器，自家部署，扫个码，把小记接入你的 [微信 ClawBot](https://cloud.tencent.com/developer/article/2651968) 。之后在微信里直接跟它聊就行，就像跟朋友发消息一样。通勤路上、等咖啡的时候，随时问一句，随时学一点。支持语音输入🎙️和朗读发音🔊
+
+![image-20260624103141166](./README.zh-CN.assets/wechat-read-ja.png)
+
+![a](./README.zh-CN.assets/a-1785641636193-6.png)
+
+#### 网站、终端
+
+如果你更喜欢在电脑前学习，记了么提供了 Web 网页界面和终端 TUI 两种接入方式。
+
+- **Web 界面**：一个干净的聊天对话框，支持 Markdown 渲染，代码、表格、列表都能清晰展示。
+- **终端 TUI**：程序员友好，在命令行里直接跟小记对话。
+
+![image-20260622183010284](./README.zh-CN.assets/web-sprint.png)
+
+![image-20260624120149513](./README.zh-CN.assets/web-ja-welcome.png)
+
+  
+
+
+
+### 自主的笔记财产
+
+就算某天不用 EverLingo 了，笔记财产还有价值。
+
+双层可移植保障的笔记：
+
+1. 兼容 [Open Knowledge Format (OKF)](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) 开放标准的笔记，符合 Andrej Karpathy 的 [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) 的设计哲学。让 LLM 快速学习笔记规范。兼容 Obsidian 等 markdown 文本编辑器。
+
+2. 为所有 AI 应用提供了标准 MCP 接口笔记访问接口。让任何 AI Agent 无代码快速接入笔记库。
+
+
+
+计划实现笔记导出下载与同步到 github 功能。
+
+### 多语言支持
+
+目前已支持 **英语、简体中文、日本語、法语、德语** 四种目标学习语言，界面语言同样支持中文、英文等多语种切换。后续还会持续扩展。
+
+
+
+![a](./README.zh-CN.assets/a.png)
+
+
+
+---
+
+## 正在路上
+
+以下是规划中、正在开发或即将开发的功能：
+
+
+
+### 科学复习与自动强化
+
+这是记了么的下一个重点。
+
+系统会自动识别你反复查询的单词、容易遗忘的表达、长期未复习的知识点，然后基于遗忘曲线和间隔重复原理，**在最合适的时间主动推送复习内容**。
+
+不再需要你自己维护一个永远不会看的生词本。
+
+### iPhone 实时翻译集成
+
+在手机界面中选词，查询、翻译。小记帮你翻译并记住。
+
+### 更丰富的学习档案
+
+系统会逐步构建你的个人学习档案：掌握程度曲线、薄弱知识点图谱、学习时长统计等，让你清楚看到自己的进步。
+
+
+
+---
+
+## 总结
+
+市面上不缺 AI 词典，不缺 AI 翻译，甚至不缺 AI 外教。
+
+缺的是一个**记得住你的 AI 老师**。
+
+记了么现在还在早期阶段，很多功能还在路上。但它的核心理念已经跑通了：**把查询行为本身变成学习资产。**
+
+如果你也在学外语，如果你也受够了查了又忘、忘了又查的循环，欢迎来试试。
+
+也欢迎给项目提 Issue、提 PR，一起把它做得更好。
+
+
+
+最后，我想说说为什么有这个项目：
+
+- 我本人是一个无论前职场中，还是技术学习中均要使用外语的🐮🐴。深知记忆场景化和知识整理的重要性
+- 我认为我家的初中的娃需要，最少，是一个错题集和对错误的分类。然后可以复盘加强练习。而这些都是 AI 胜任的。
+- 我想练手 基于 Langchain 的 AI Agent 开发。 并且，可以实战 Coding agent 去开发项目。有句话，你不会构造它，表示你不完全了解它。这对于一个刚在这个技术巨变期间失业一年的人，很重要。
+
+
+
+最后的最后，如果你觉得这开源项目 https://github.com/labilezhu/everlingo 将来有点用，记得给它打个小星星⭐。谢谢大家🤗！
+
+
+
+## Quick Start
+
+当前支持 amd64(Linux/Windows WSL PC) 与 arm64( M系列的 MacOS 下的 Linux 容器 / Raspberry Pi )
+
+其中，我有环境实测的是 amd64 Linux / arm64 Raspberry Pi 。
+
+
+
+### 简单快速 docker 运行
+
+```bash
+export HOST_WS_DIR=<your path to save workspace>
+
+export OPENAI_API_KEY=<your key>
+export OPENAI_BASE_URL=https://openrouter.ai/api/v1 # 兼容 OpenAI API 的 base URL
+export OPENAI_MODEL=deepseek/deepseek-v4-flash # LLM
+export OPENAI_EMBEDDING_MODEL=baai/bge-m3 # 语义搜索用的模型
+
+export EVERLINGO_PUBLIC_BASE_URL=http://your_host_ip:8000 # 能连接到将运行的 EverLingo 的地址。用于聊天消息中的笔记超链。
+export target_language=en # 目标学习语言： en/ja/zh-CN/fr/de
+
+export EVERLINGO_VER=0.1.1-rc.7
+
+mkdir -p ${HOST_WS_DIR}
+cd $HOST_WS_DIR
+
+cat >${HOST_WS_DIR}/everlingo.yaml << EOF
+sys_setting:
+  openai_api_key: "$OPENAI_API_KEY"
+  openai_base_url: $OPENAI_BASE_URL
+  openai_model: $OPENAI_MODEL
+  openai_embedding_model: $OPENAI_EMBEDDING_MODEL
+  logging_setting:
+    log_file: ''
+    log_level: debug
+user_profile:
+  language:
+    interface_language: ''
+    target_language: ${target_language} #默认目标学习语言是英文
+
+plugins:
+  channels:
+    channel_web: # Web Session Acceptor 配置
+      listener: # 监听地址
+        port: 8000 # 默认 8000
+        interface: 0.0.0.0  # 默认 localhost
+      public_address: # 浏览器访问地址。如外网或 https 反向代理访问时配置
+        base_url: $EVERLINGO_PUBLIC_BASE_URL
+EOF
+
+WORKSPLACE_IMAGE=ghcr.io/labilezhu/everlingo:${EVERLINGO_VER}
+docker run --rm -d \
+  -p 8000:8000 \
+  -v ${HOST_WS_DIR}:/home/everlingo/.everlingo/workspaces/default \
+  --name everlingo -h everlingo \
+  ${WORKSPLACE_IMAGE}
+```
+
+
+
+### 多用户与认证 部署
+
+见： [用户认证与多用户部署](user-docs/deployment/multiple-user-auth-deployment.md)
+
+
+
+## 开发
+
+对于开发者朋友，简单说一下架构。
+
+记了么是一个 **Python 开源项目**，基于 **LangChain + LLM** 构建。核心设计思路：
+
+- **Gateway 架构**：一个独立的 Gateway 进程管理多个 Session，每个 Session 绑定一个 Channel（微信/Web/终端）和一个 Agent。新连接进来时自动创建或恢复 Session。
+- **Agent 驱动**：用户意图由 LLM Agent 自主判断，而不是硬编码路由。Agent 的 system prompt 会根据用户配置和偏好笔记动态刷新——配置改了，下一次对话立刻生效。
+- **个性化注入**：用户的偏好（`USER.md`）以 Markdown 自由文本的形式存在，动态注入 Agent 的 system prompt。
+- LLM tools: 文件转语音 Edge TTS
+- [微信 ClawBot](https://cloud.tencent.com/developer/article/2651968) 接入
+
+
+
+技术栈：
+
+后端：Python + LangChain + FastAPI（后端）
+
+Web 前端：React + Vite + TailwindCSS + shadcn/ui
+
+微信 ClawBot 前端：微信 iLink 协议
+
+
+
+开发使用了 Opencode 生成代码，但我永远要用 design spec 控制架构和对修改做 code review。完善的 design spec 文档可以让你的 coding agent 快速参与到这个项目。
+
+
+
+### 源码运行
+
+Everlingo 是个分体式应用，包括两个进程：
+
+- Vault MCP Server(Indexer) : 知识库维护 MCP 服务，同时还是内容索引和搜索服务
+- Gateway : Everlingo 的用户接入端。提供各种 Channel 让用户接入。
+
+
+
+以后会有一个统一的管理进程去启动和管理他们。现在先麻烦大家手工启动了 ：） 
+
+#### Vault MCP Server(Indexer)
+
+```bash
+export OPENAI_API_KEY=sk-xxxxf98300
+export OPENAI_BASE_URL=https://openrouter.ai/api/v1 
+export OPENAI_MODEL=deepseek/deepseek-v4-flash
+# Embedding 模型
+OPENAI_EMBEDDING_MODEL=baai/bge-m3
+
+uv run python -m everlingo mem indexer start
+```
+
+
+
+#### Gateway
+
+##### TUI
+
+```bash
+export OPENAI_API_KEY=sk-xxxxf98300
+export OPENAI_BASE_URL=https://openrouter.ai/api/v1 
+export OPENAI_MODEL=deepseek/deepseek-v4-flash
+# Embedding 模型
+OPENAI_EMBEDDING_MODEL=baai/bge-m3
+
+uv run python -m everlingo.main
+# or
+uv run python -m everlingo.gateway.gateway --channel_stdio
+```
+
+##### 微信
+
+```bash
+uv run python -m everlingo.gateway.gateway --channel_wechat
+```
+
+```log
+当前配置 — 界面语言: 简体中文, 目标学习语言: 日本語
+[wechatbot] Scan this URL in WeChat: https://liteapp.weixin.qq.com/q/7Giu1?qrcode=b0e7e2xxx&bot_type=3
+[wechatbot] Login confirmed
+[wechatbot] Logged in as o9cq80y@im.wechat
+[wechatbot] Long-poll started
+```
+
+##### Web
+
+两个终端：
+终端 1 — 后端（FastAPI + uvicorn）
+
+```bash
+.venv/bin/python -m everlingo.gateway.gateway --channel_web
+```
+
+启动后监听 http://localhost:8000，提供 API 和静态文件。
+
+终端 2 — 前端开发（Vite 热更新）
+
+```bash
+cd web && npm run dev
+```
+
+启动后监听 http://localhost:5173，/api/* 自动代理到后端 8000 端口。
+
+如使用 http://localhost:8000 访问，如前端代码有变更，还需在启动 gateway 前:
+
+```bash
+pushd web
+rm -rf dist
+npm install          # 若 node_modules 缺失/版本变化
+npm run build        # tsc && vite build → 重新生成 dist/
+popd
+```
+
+构建一次，FastAPI 自动从 web/dist/ 提供前端文件。后端进程启动后，直接访问 http://localhost:8000 即可。
+
+##### Chrome 扩展
+
+```bash
+# 构建 extension
+cd extension
+npm run build # 产物在 extension/dist/
+
+# 加载扩展:
+# Chrome → chrome://extensions → 开启"开发者模式" → "加载已解压的扩展程序"
+# 选择 extension/dist 目录
+```
+
+
+
+
+
+
+
+## 文档
+
+文档说明：
+
+- [产品文档](./PRODUCT-FUNC.md)
+- [领域模型](./DOMAIN.md)
+- [架构设计](./ARCHITECTURE.md)
+- [ROADMAP](ROADMAP.md)
+- [项目状态](./STATE.md)
+- [当前开发任务](./TASKS.md)
+
+
+
+EverLingo 的吉祥物是一只仓鼠🐹，叫**小记**——善于储存，帮你积累。

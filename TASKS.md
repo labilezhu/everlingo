@@ -7,6 +7,8 @@
 ## 完成的任务
 格式：完成日期与时间(GMT+8 timezone) | 任务描述 。 示例： " - 2026-06-20 19:28 | 生成主入口代码"
 
+ - 2026-08-08 | 文档 i18n：新增英文翻译版 `README.en.md`（译自 README.md，保留代码块/命令/图片路径，按 i18n-translate-rule.md 定制词汇 小记→Nori、记了么→EverLingo、AI 外教/教师/书童→AI language companion，README 内链接指到 .en.md）与 `user-docs/deployment/multiple-user-auth-deployment.en.md`（译自同名中文文档，仅翻译非代码文本）。
+
  - 2026-08-07 | 发布 0.1.1-rc.7：同步 EVERLINGO_VER / everlingo_version / 源码 version 字面量（`src/everlingo/__init__.py`、MePage.tsx、ws_master、ws_router、pyproject `0.1.1rc7`）与 Chrome Extension（manifest `0.1.1.7`、package.json `0.1.1-rc.7`、npm install 同步 lock）；VERSION_HISTORY 0.1.1-rc.7 → released、插入 0.1.1-rc.8 in-progress；release notes 定稿。
 
  - 2026-08-08 | 把 agent 输入/输出契约 spec 从 vault 模板迁到 agents 代码资产：`memory_extract_output_spec.md`、`mem_entry_spec.md`、`envelope_spec.md`（zh-CN 版）从 `templates/default/{zh-CN,en}/spec/` 迁至 `src/everlingo/agents/spec/`，删除 en 版（仅留 zh-CN，agent 内部契约不再区分界面语言）。`agent.py` 改用 `PackageSource("everlingo.agents.spec")` 本地编译加载 envelope_spec 与 memory_extract_output_spec（不再经 MCP 从 vault 加载，删除 vault 离线兜底），并把 memory_extract_output_spec 注入 Chat Agent system prompt「抽取对话内容到笔记」节；`mem_writer_agent.py` 同包本地编译加载 mem_entry_spec/envelope_spec，vault_spec 仍经 MCP 从 vault 加载；`request_memory_extract.py` docstring 去掉「先 vault_mcp_read(spec/memory_extract_output_spec.md)」指引改指注入的 system prompt。测试：test_mem_writer_agent/test_unified_agent fixture 包路径改 `everlingo.agents.spec`，test_mem_vault_mcp_server 删 3 个 spec 的 seed/覆盖断言。文档：ADR 2026080X-agent-specs-relocate.md、memory-writer-agent-spec.md、chat-agent-spec.md、envelope-impl-spec.md、chat-agent-tools-spec.md、i18n.md、TASKS、release notes。
