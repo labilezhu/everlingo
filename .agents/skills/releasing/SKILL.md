@@ -38,7 +38,9 @@ Let's name the user specified release version as `<version>` for the following s
      - /home/labile/diy-log/home-lab/pi4ub/everlingo/router-master@container/68-multiple-user-auth-deployment.md
      - /user-docs/deployment/simple-single-deployment.md
      - /user-docs/deployment/multiple-user-auth-deployment.md
+     - /user-docs/deployment/multiple-user-auth-deployment.zh-CN.md
      - /README.md
+     - /README.zh-CN.md
    2. Replace `everlingo_version` variable :
       1. src/everlingo/mem/vault/templates/default/*/spec/vault_spec.md
     3. Replace version literals in source code (non-doc) — skip missing files and report to user:

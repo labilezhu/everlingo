@@ -1,36 +1,41 @@
 ![cover](./README.assets/cover.png)
 
+<p align="center">
+  <a href="README.md">English</a> ·
+  <a href="README.zh-CN.md">简体中文</a> ·
+</p>
 
-
-# EverLingo: An AI Language Companion with Memory
+# EverLingo: An AI Language Companion That Remembers
 
 Whether you're a student learning a foreign language or a working professional who needs to use a foreign language and remember domain-specific terminology, you face the same problem:
 
-> Foreign language learning requires recording and organizing knowledge, but people are naturally lazy.
+> Learning a language requires recording and organizing knowledge, but people are naturally bad at keeping up with it.
 
-You may look up the same word or term n times, thinking, "I'll remember it this time." Yet the next time you encounter it, you start from scratch again.
-
-
-
-Typical translation tools have several problems:
-
-- They give you generic, formulaic answers. Domain-specific information that matters to you is either missing or buried under information you have to filter out.
-- They leave the responsibility of recording domain-specific knowledge to you.
-- When you ask about the same concept again, they completely ignore everything you have learned before.
+You may look up the same word or term n times, thinking, "I'll remember it this time." Then you encounter it again and have to start from scratch.
 
 
 
-**EverLingo** aims to solve these problems by using intelligent notes to build your own dictionary and your own AI Language Companion.
+Traditional dictionaries and translation tools have a few limitations:
 
-> **Memory gets stronger with context; notes become valuable when they are put to work.** 🐹
+- They tend to give you generic answers. Domain-specific information that matters to you may be missing, or buried under information you have to filter out.
+- They leave it up to you to capture and organize the knowledge you actually want to keep.
+- When you ask about the same thing again, they usually have no idea what you learned last time.
+
+
+
+**EverLingo** addresses this gap by turning your learning interactions into contextual notes — building a personal knowledge base that your AI language companion can use again later.
+
+> **Learn in context. Make your notes work for you.** 🐹
 
 ---
 
 ## What is EverLingo?
 
-In one sentence: **An AI Language Companion with memory.**
+In one sentence: **An AI language companion with memory.**
 
-EverLingo is an AI learning companion that **continuously captures your personal learning context** as you look up words, translate, and ask questions, organizes it into notes, and helps you review and reinforce it later. You can think of it as an OpenClaw lobster 🦞 optimized specifically for foreign language learning. Or you can raise your own AI Language Companion 🐹.
+EverLingo is an AI language companion that **captures your learning context as you learn**. When you look up a word, translate a sentence, or ask a question, Nori 🐹 can turn that moment into a useful note — including the context in which you learned it. Later, those notes can be recalled when they are relevant, helping you strengthen your memory instead of starting from scratch again.
+
+Think of it as an OpenClaw lobster 🦞 optimized for language learning — or simply your own little AI learning companion 🐹.
 
 
 
@@ -75,9 +80,13 @@ EverLingo is an AI learning companion that **continuously captures your personal
 
 ## Features
 
-### Turn what you look up into wiki notes
+### Turn what you look up into useful notes
 
-Foreign language learning, especially learning terminology in specialized domains, requires recording and organizing knowledge. But people are lazy. EverLingo helps you turn your lookup results and your own additions into notes as you go. You can search, edit, and browse them. AI maintains the knowledge base according to your intent, allowing you to record knowledge naturally through conversation without the tedious and error-prone process of maintaining notes manually.
+Language learning — especially learning terminology in a specialized domain — creates a lot of knowledge worth keeping. The problem is that taking and maintaining notes is tedious.
+
+EverLingo helps you capture useful notes while you are learning. Nori 🐹 can organize lookup results together with your own additions, preserving the **learning context** behind each note. You can search, edit, and browse your notes, while AI helps maintain the knowledge base through natural conversation.
+
+That context is not just stored for later. When a related topic comes up again, Nori can **recall the relevant notes and bring the original learning context back into the conversation**.
 
 ![d](./README.assets/web-chat-save-word.png)
 
@@ -85,9 +94,9 @@ Foreign language learning, especially learning terminology in specialized domain
 
 
 
-#### Browser extension: Look it up, and it's recorded
+#### Browser extension: Look it up, and the context is captured
 
-Integrated word selection, dictionary lookup, translation, and web reading. When reading an English webpage, simply select an unfamiliar word. Xiaoji automatically records the context of that lookup — which article you were reading, which paragraph, and the surrounding context.
+The browser extension brings word selection, dictionary lookup, translation, and web reading together. When reading an webpage, select an unfamiliar word and Nori can capture the context of that lookup — which article you were reading, which paragraph, and what was being discussed around it.
 
 **Turn the reading process itself into learning material.**
 
@@ -95,11 +104,11 @@ Integrated word selection, dictionary lookup, translation, and web reading. When
 
 
 
-### Learn a foreign language through conversation
+### Learn through conversation
 
-The core of EverLingo is a conversational chatbot. Just ask.
+The core of EverLingo is a conversational chatbot Nori 🐹. Just ask.
 
-You can chat with Xiaoji about word lookups, translations, grammar questions, and comparisons between different expressions. It gives you explanations **tailored to your language level and background**, rather than one-size-fits-all dictionary definitions.
+You can chat with Nori about word lookups, translations, grammar questions, and differences between expressions. It gives you explanations **tailored to your language level and background**, rather than one-size-fits-all dictionary definitions.
 
 For example, if you're a programmer, it can explain a word in a technical context; if you work in business, it can prioritize business-oriented example sentences. It can also read pronunciations aloud 🔊.
 
@@ -109,11 +118,11 @@ For example, if you're a programmer, it can explain a word in a technical contex
 
 ### The more you use it, the better it understands you
 
-This is EverLingo's core feature.
+This is one of EverLingo's core ideas.
 
-Xiaoji **dynamically learns your preferences** during conversations. You can simply tell it, "I'm a backend developer and mainly read technical documentation," or "I'd like more etymology when you explain words." It remembers these preferences and reflects them in future responses.
+Nori **dynamically learns your preferences** during conversations. You can simply tell it, "I'm a backend developer and mainly read technical documentation," or "I'd like more etymology when you explain words." It remembers these preferences and reflects them in future responses.
 
-These preferences are stored in a file called `USER.md`. You can edit it yourself or ask Xiaoji to update it. The file is injected into the AI's response logic in real time, with no restart or reconfiguration required.
+These preferences are stored in a file called `USER.md`. You can edit it yourself or ask Nori to update it.
 
 **You don't adapt to the tool; the tool adapts to you.**
 
@@ -123,38 +132,37 @@ These preferences are stored in a file called `USER.md`. You can edit it yoursel
 
 ### Multiple ways to access EverLingo
 
-- WeChat
 - Mobile web app (PWA), which can be added to your phone's home screen
 - Desktop web / mobile web
 - Desktop browser extension for capturing web content
 - Desktop terminal
+- WeChat
+- WhatsApp(Coming soon)
+- Telegram(Coming soon)
 
-#### WeChat
-
-**No app installation required — use WeChat anytime.**
-
-No public IP or public server is required. Self-host EverLingo, scan a QR code, and connect Xiaoji to your [WeChat ClawBot](https://cloud.tencent.com/developer/article/2651968). Then simply chat with it in WeChat, just like messaging a friend. Ask a question and learn something while commuting or waiting for coffee. Voice input 🎙️ and pronunciation playback 🔊 are supported.
-
-![image-20260624103141166](./README.assets/wechat-read-ja.png)
-
-![a](./README.assets/a-1785641636193-6.png)
 
 #### Web and terminal
 
 If you prefer learning at your computer, EverLingo provides both a Web interface and a terminal TUI.
 
 - **Web interface**: A clean chat interface with Markdown rendering, clearly displaying code, tables, and lists.
-- **Terminal TUI**: Programmer-friendly; chat with Xiaoji directly from the command line.
+- **Terminal TUI**: Programmer-friendly; chat with Nori directly from the command line.
 
 ![image-20260622183010284](./README.assets/web-sprint.png)
 
 ![image-20260624120149513](./README.assets/web-ja-welcome.png)
 
 
+#### WeChat
+
+No public IP or public server is required. Self-host EverLingo, scan a QR code, and connect Nori to your [WeChat ClawBot](https://cloud.tencent.com/developer/article/2651968). Then simply chat with it in WeChat, just like messaging a friend. Ask a question and learn something while commuting or waiting for coffee. Voice input 🎙️ and pronunciation playback 🔊 are supported.
+
+![image-20260624103141166](./README.assets/wechat-read-ja.png)
+
+![a](./README.assets/a-1785641636193-6.png)
 
 
-
-### Your notes remain yours
+### Your notes are yours
 
 Even if you stop using EverLingo someday, your notes still have value.
 
@@ -168,9 +176,11 @@ Your notes have two layers of portability:
 
 Note export/download and GitHub synchronization are planned.
 
+
+
 ### Multilingual support
 
-EverLingo currently supports **English, Simplified Chinese, Japanese, French, and German** as target learning languages. The interface can also be switched between Chinese, English, and other languages. More languages will continue to be added.
+EverLingo currently supports **English, Simplified Chinese, Japanese, French, and German** as target learning languages. The interface can also be switched between English and Chinese. More languages will continue to be added.
 
 
 
@@ -186,7 +196,7 @@ The following features are planned, under development, or coming soon:
 
 
 
-### Spaced repetition and automatic reinforcement
+### Spaced repetition and automatic review
 
 This is EverLingo's next major focus.
 
@@ -196,7 +206,7 @@ No more maintaining a vocabulary list that you never actually look at.
 
 ### iPhone real-time translation integration
 
-Select a word on your phone to look it up and translate it. Xiaoji will translate it and remember it for you.
+Select a word on your phone to look it up and translate it. Nori will translate it and remember it for you.
 
 ### A richer learning profile
 
@@ -208,11 +218,11 @@ The system will gradually build your personal learning profile: mastery curves, 
 
 ## Summary
 
-There is no shortage of AI dictionaries, AI translators, or even AI Language Companions.
+There is no shortage of AI dictionaries, AI translators, or AI language companions.
 
-What is missing is an **AI Language Companion that remembers you**.
+What is missing is a learning companion that **remembers the context in which you learned** and can bring it back when you need it.
 
-EverLingo is still in its early stage, and many features are still on the way. But its core idea has already been validated: **turn the act of looking things up into a learning asset.**
+EverLingo is still in its early stage, and many features are still on the way. But the core idea is simple: **capture the context while you learn, then recall it when it can strengthen your memory.**
 
 If you're learning a foreign language and are tired of the cycle of looking something up, forgetting it, and looking it up again, give EverLingo a try.
 
@@ -222,7 +232,7 @@ Issues and PRs are also welcome — let's make it better together.
 
 Finally, here's why I started this project:
 
-- I am a 🐮🐴 who needs to use foreign languages both in my professional work and when learning technology. I know firsthand how important contextualized memory and knowledge organization are.
+- I am a office worker who needs to use foreign languages both in my professional work and when learning technology. I know firsthand how important contextualized memory and knowledge organization are.
 - I believe my middle-school-aged kid needs, at the very least, an error notebook and a way to classify mistakes, so they can review them and practice more effectively. These are things AI is well suited to help with.
 - I wanted hands-on experience developing AI Agents with LangChain, and I also wanted to use Coding Agents to build a real project. There's a saying: if you cannot build it, you don't fully understand it. That matters a lot to someone who has been out of work for a year during a period of rapid technological change.
 
@@ -444,4 +454,4 @@ Documentation:
 
 
 
-EverLingo's mascot is a hamster 🐹 named **Xiaoji** — good at storing things and helping you build up your knowledge.
+EverLingo's mascot is a hamster 🐹 named **Nori** — good at storing things, remembering context, and helping you build knowledge over time.

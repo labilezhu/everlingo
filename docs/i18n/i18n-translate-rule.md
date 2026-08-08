@@ -8,7 +8,7 @@
 - zh-CN: `记了么`
   - 其它语言： `EverLingo` 。
 
-- zh-CN: `AI 外教` / `AI 教师` / `AI 书童`
+- zh-CN: `AI 外教` / `AI 教师` / `AI 书童` / `学伴`
   - en: `AI language companion` 。
   - 其它语言: `AI language companion` 在指定语言的翻译 。
 
