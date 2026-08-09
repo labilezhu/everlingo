@@ -27,7 +27,8 @@ Traditional dictionaries and translation tools have a few limitations:
 > **Learn in context. Make your notes work for you.** 
 >
 > 📝 **Make Notes Great Again. (MNGA)**
->  Turn forgotten notes into useful knowledge.
+>
+> Turn forgotten notes into useful knowledge.
 >
 > -- 🐹
 
