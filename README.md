@@ -74,6 +74,48 @@ Think of it as an OpenClaw lobster 🦞 optimized for language learning — or s
 
 ## Features
 
+-  Turn what you look up into useful notes
+
+-  Learn through conversation
+
+- Know your preferences. Deliver knowledge that fits you
+
+- Multiple ways to access
+
+- Your notes are yours
+
+- Multilingual support
+
+
+
+### Learn through conversation
+
+The core of EverLingo is a conversational chatbot Nori 🐹. Just ask.
+
+You can chat with Nori about word lookups, translations, grammar questions, and differences between expressions. 
+
+![image-20260622181503246](./README.assets/wechat-gcc.png)
+
+![image-20260624120149513](./README.assets/web-ja-welcome.png)
+
+### Know your preferences. Deliver knowledge that fits you
+
+This is one of EverLingo's core ideas.
+
+Nori **dynamically learns your preferences** during conversations. You can simply tell it, "I'm a backend developer and mainly read technical documentation," or "I'd like more etymology when you explain words." It remembers these preferences and reflects them in future responses.
+
+These preferences are stored in a file called `USER.md`. You can edit it yourself or ask Nori to update it.
+
+It gives you explanations **tailored to your language level and background**, rather than one-size-fits-all dictionary definitions.
+
+For example, if you're a programmer, it can explain a word in a technical context; if you work in business, it can prioritize business-oriented example sentences. It can also read pronunciations aloud 🔊.
+
+![image-20260622180857462](./README.assets/wechat-wo-shi-ma-long.png)
+
+
+
+
+
 ### Turn what you look up into useful notes
 
 Language learning — especially learning terminology in a specialized domain — creates a lot of knowledge worth keeping. The problem is that taking and maintaining notes is tedious.
@@ -98,33 +140,13 @@ The browser extension brings word selection, dictionary lookup, translation, and
 
 
 
-### Learn through conversation
+### Bring your notes to life
 
-The core of EverLingo is a conversational chatbot Nori 🐹. Just ask.
+![image-20260808232347863](./README.assets/chrome-ext-note-recall.png)
 
-You can chat with Nori about word lookups, translations, grammar questions, and differences between expressions. It gives you explanations **tailored to your language level and background**, rather than one-size-fits-all dictionary definitions.
+*Figure: Bringing your accumulated notes back to life*
 
-For example, if you're a programmer, it can explain a word in a technical context; if you work in business, it can prioritize business-oriented example sentences. It can also read pronunciations aloud 🔊.
-
-![image-20260622181503246](./README.assets/wechat-gcc.png)
-
-![image-20260624120149513](./README.assets/web-ja-welcome.png)
-
-### The more you use it, the better it understands you
-
-This is one of EverLingo's core ideas.
-
-Nori **dynamically learns your preferences** during conversations. You can simply tell it, "I'm a backend developer and mainly read technical documentation," or "I'd like more etymology when you explain words." It remembers these preferences and reflects them in future responses.
-
-These preferences are stored in a file called `USER.md`. You can edit it yourself or ask Nori to update it.
-
-**You don't adapt to the tool; the tool adapts to you.**
-
-![image-20260622180857462](./README.assets/wechat-wo-shi-ma-long.png)
-
-
-
-### Multiple ways to access EverLingo
+### Multiple ways to access
 
 - Mobile web app (PWA), which can be added to your phone's home screen
 - Desktop web / mobile web
