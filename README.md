@@ -24,7 +24,12 @@ Traditional dictionaries and translation tools have a few limitations:
 
 **EverLingo** addresses this gap by turning your learning interactions into contextual notes — building a personal knowledge base that your AI language companion can use again later.
 
-> **Learn in context. Make your notes work for you.** 🐹
+> **Learn in context. Make your notes work for you.** 
+>
+> 📝 **Make Notes Great Again. (MNGA)**
+>  Turn forgotten notes into useful knowledge.
+>
+> -- 🐹
 
 ---
 
