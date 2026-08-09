@@ -7,6 +7,8 @@
 ## 完成的任务
 格式：完成日期与时间(GMT+8 timezone) | 任务描述 。 示例： " - 2026-06-20 19:28 | 生成主入口代码"
 
+ - 2026-08-09 | 发布正式版 0.1.1：同步 EVERLINGO_VER / everlingo_version / 源码 version 字面量（`src/everlingo/__init__.py`、MePage.tsx、ws_master、ws_router、pyproject `0.1.1`）与 Chrome Extension（manifest `0.1.1`、package.json `0.1.1`、npm install 同步 lock）；VERSION_HISTORY 删除未发布的 0.1.1-rc.10 条目、0.1.1 → released、插入 0.1.2-rc.1 in-progress；发布 tag v0.1.1。
+
  - 2026-08-09 | 发布 0.1.1-rc.9：同步 EVERLINGO_VER / everlingo_version / 源码 version 字面量（`src/everlingo/__init__.py`、MePage.tsx、ws_master、ws_router、pyproject `0.1.1rc9`）与 Chrome Extension（manifest `0.1.1.9`、package.json `0.1.1-rc.9`、npm install 同步 lock）；VERSION_HISTORY 0.1.1-rc.9 → released、插入 0.1.1-rc.10 in-progress；release notes rc.9 定稿。
 
  - 2026-08-09 | 发布 0.1.1-rc.8：同步 EVERLINGO_VER / everlingo_version / 源码 version 字面量（`src/everlingo/__init__.py`、MePage.tsx、ws_master、ws_router、pyproject `0.1.1rc8`）与 Chrome Extension（manifest `0.1.1.8`、package.json `0.1.1-rc.8`、npm install 同步 lock）；VERSION_HISTORY 0.1.1-rc.8 → released、插入 0.1.1-rc.9 in-progress；release notes 定稿。
