@@ -43,7 +43,7 @@ export EVERLINGO_VER=0.1.1-rc.8
 
 export OPENAI_API_KEY=<your_api_key>
 export OPENAI_BASE_URL=https://openrouter.ai/api/v1
-export OPENAI_MODEL=deepseek/deepseek-v4-flash
+export OPENAI_MODEL=deepseek/deepseek-v4-flash-0731
 export OPENAI_EMBEDDING_MODEL=baai/bge-m3
 
 export EVERLINGO_PUBLIC_BASE_URL=https://your_domain

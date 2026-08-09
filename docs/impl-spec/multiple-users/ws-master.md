@@ -181,7 +181,7 @@ master:
   # LLM 配置：作为容器 env 注入 ws-container；远期 per-user key 启用时优先读 users.openai_*
   openai_api_key: ${OPENAI_API_KEY}
   openai_base_url: https://openrouter.ai/api/v1
-  openai_model: deepseek/deepseek-v4-flash
+  openai_model: deepseek/deepseek-v4-flash-0731
   openai_embedding_model: baai/bge-m3
 
   # 外部访问地址（如 https://app.everlingo.com）。注入 ws-container env

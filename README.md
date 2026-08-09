@@ -94,23 +94,25 @@ The core of EverLingo is a conversational chatbot Nori 🐹. Just ask.
 
 You can chat with Nori about word lookups, translations, grammar questions, and differences between expressions. 
 
-![image-20260622181503246](./README.assets/wechat-gcc.png)
+![image-20260809171021115](./README.assets/web-ja-welcome.png)
 
-![image-20260624120149513](./README.assets/web-ja-welcome.png)
+![image-20260809170302637](./README.assets/wechat-gcc.png)
+
+
 
 ### Know your preferences. Deliver knowledge that fits you
 
-This is one of EverLingo's core ideas.
-
 Nori **dynamically learns your preferences** during conversations. You can simply tell it, "I'm a backend developer and mainly read technical documentation," or "I'd like more etymology when you explain words." It remembers these preferences and reflects them in future responses.
-
-These preferences are stored in a file called `USER.md`. You can edit it yourself or ask Nori to update it.
 
 It gives you explanations **tailored to your language level and background**, rather than one-size-fits-all dictionary definitions.
 
-For example, if you're a programmer, it can explain a word in a technical context; if you work in business, it can prioritize business-oriented example sentences. It can also read pronunciations aloud 🔊.
+For example, if you're a programmer, it can explain a word in a technical context; if you work in business, it can prioritize business-oriented example sentences. 
 
-![image-20260622180857462](./README.assets/wechat-wo-shi-ma-long.png)
+These preferences are stored in a file called `USER.md`. You can edit it yourself or ask Nori to update it.
+
+
+
+![image-20260809172755542](./README.assets/wechat-wo-shi-ma-long.png)
 
 
 
@@ -164,10 +166,9 @@ If you prefer learning at your computer, EverLingo provides both a Web interface
 - **Web interface**: A clean chat interface with Markdown rendering, clearly displaying code, tables, and lists.
 - **Terminal TUI**: Programmer-friendly; chat with Nori directly from the command line.
 
-![image-20260622183010284](./README.assets/web-sprint.png)
+
 
 ![image-20260624120149513](./README.assets/web-ja-welcome.png)
-
 
 #### WeChat
 
@@ -201,7 +202,7 @@ EverLingo currently supports **English, Simplified Chinese, Japanese, French, an
 
 
 
-![a](./README.assets/a.png)
+![image-20260809175004331](./README.assets/a.png)
 
 
 
@@ -221,7 +222,7 @@ The system will automatically identify words you repeatedly look up, expressions
 
 No more maintaining a vocabulary list that you never actually look at.
 
-### iPhone real-time translation integration
+### iPhone lookup and translation integration
 
 Select a word on your phone to look it up and translate it. Nori will translate it and remember it for you.
 
@@ -274,7 +275,7 @@ export HOST_WS_DIR=<your path to save workspace>
 
 export OPENAI_API_KEY=<your key>
 export OPENAI_BASE_URL=https://openrouter.ai/api/v1 # OpenAI-compatible base URL
-export OPENAI_MODEL=deepseek/deepseek-v4-flash # LLM
+export OPENAI_MODEL=deepseek/deepseek-v4-flash-0731 # LLM
 export OPENAI_EMBEDDING_MODEL=baai/bge-m3 # Model for semantic search
 
 export EVERLINGO_PUBLIC_BASE_URL=http://your_host_ip:8000 # Address that can reach the running EverLingo instance. Used for note links in chat messages.
@@ -369,7 +370,7 @@ A unified management process will eventually start and manage both of them. For 
 ```bash
 export OPENAI_API_KEY=sk-xxxxf98300
 export OPENAI_BASE_URL=https://openrouter.ai/api/v1 
-export OPENAI_MODEL=deepseek/deepseek-v4-flash
+export OPENAI_MODEL=deepseek/deepseek-v4-flash-0731
 # Embedding model
 OPENAI_EMBEDDING_MODEL=baai/bge-m3
 
@@ -385,7 +386,7 @@ uv run python -m everlingo mem indexer start
 ```bash
 export OPENAI_API_KEY=sk-xxxxf98300
 export OPENAI_BASE_URL=https://openrouter.ai/api/v1 
-export OPENAI_MODEL=deepseek/deepseek-v4-flash
+export OPENAI_MODEL=deepseek/deepseek-v4-flash-0731
 # Embedding model
 OPENAI_EMBEDDING_MODEL=baai/bge-m3
 

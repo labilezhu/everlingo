@@ -13,7 +13,7 @@ export HOST_WS_DIR=<your path to save workspace>
 
 export OPENAI_API_KEY=<your key>
 export OPENAI_BASE_URL=https://openrouter.ai/api/v1 # 兼容 OpenAI API 的 base URL
-export OPENAI_MODEL=deepseek/deepseek-v4-flash # LLM
+export OPENAI_MODEL=deepseek/deepseek-v4-flash-0731 # LLM
 export OPENAI_EMBEDDING_MODEL=baai/bge-m3 # 语义搜索用的模型
 
 export EVERLINGO_PUBLIC_BASE_URL=http://your_host_ip:8000 # 能连接到将运行的 EverLingo 的地址。用于聊天消息中的笔记超链。

@@ -90,9 +90,11 @@
 
 查词、翻译、语法疑问、表达方式对比，都可以直接跟小记聊。
 
+![image-20260624120149513](./README.zh-CN.assets/web-ja-welcome.png)
+
 ![image-20260622181503246](./README.zh-CN.assets/wechat-gcc.png)
 
-![image-20260624120149513](./README.zh-CN.assets/web-ja-welcome.png)
+
 
 
 
@@ -100,11 +102,11 @@
 
 小记会在对话中**动态学习你的偏好**。你可以直接告诉它："我是做后端开发的，主要看技术文档"，或者"我希望释义时多给词源解释"，它会记住这些偏好，并在之后的每一次回答中体现出来。
 
-这些偏好存储在一个叫 `USER.md` 的文件里，你可以自己编辑，也可以让小记帮你更新。
-
 它会根据你的语言水平和背景，给你**适合你的解释**，而不是千篇一律的词典释义。
 
 比如你是程序员，它会用技术场景来解释词义；你做商务，它会优先给你商务场景的例句。
+
+这些偏好存储在一个叫 `USER.md` 的文件里，你可以自己编辑，也可以让小记帮你更新。
 
 
 
@@ -217,7 +219,7 @@
 
 不再需要你自己维护一个永远不会看的生词本。
 
-### iPhone 实时翻译集成
+### iPhone 查询翻译集成
 
 在手机界面中选词，查询、翻译。小记帮你翻译并记住。
 
@@ -270,7 +272,7 @@ export HOST_WS_DIR=<your path to save workspace>
 
 export OPENAI_API_KEY=<your key>
 export OPENAI_BASE_URL=https://openrouter.ai/api/v1 # 兼容 OpenAI API 的 base URL
-export OPENAI_MODEL=deepseek/deepseek-v4-flash # LLM
+export OPENAI_MODEL=deepseek/deepseek-v4-flash-0731 # LLM
 export OPENAI_EMBEDDING_MODEL=baai/bge-m3 # 语义搜索用的模型
 
 export EVERLINGO_PUBLIC_BASE_URL=http://your_host_ip:8000 # 能连接到将运行的 EverLingo 的地址。用于聊天消息中的笔记超链。
@@ -365,7 +367,7 @@ Everlingo 是个分体式应用，包括两个进程：
 ```bash
 export OPENAI_API_KEY=sk-xxxxf98300
 export OPENAI_BASE_URL=https://openrouter.ai/api/v1 
-export OPENAI_MODEL=deepseek/deepseek-v4-flash
+export OPENAI_MODEL=deepseek/deepseek-v4-flash-0731
 # Embedding 模型
 OPENAI_EMBEDDING_MODEL=baai/bge-m3
 
@@ -381,7 +383,7 @@ uv run python -m everlingo mem indexer start
 ```bash
 export OPENAI_API_KEY=sk-xxxxf98300
 export OPENAI_BASE_URL=https://openrouter.ai/api/v1 
-export OPENAI_MODEL=deepseek/deepseek-v4-flash
+export OPENAI_MODEL=deepseek/deepseek-v4-flash-0731
 # Embedding 模型
 OPENAI_EMBEDDING_MODEL=baai/bge-m3
 
