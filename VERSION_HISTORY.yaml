@@ -1,6 +1,8 @@
 # 按时间倒序的 EverLingo 版本历史
-- version: 0.1.1-rc.8
+- version: 0.1.1-rc.9
   state: in-progress
+- version: 0.1.1-rc.8
+  state: released
 - version: 0.1.1-rc.7
   state: released
 - version: 0.1.1-rc.6
