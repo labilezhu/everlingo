@@ -75,16 +75,17 @@
 
 ## 特性
 
-- 边查询知识，边沉淀笔记
-- 像聊天一样学外语
-- 懂你的偏好，精准提供定制知识
-- 多种接入方法
-- 自主的笔记财产
-- 多语言支持
+1. 聊天学外语
+2. 懂你的偏好，精准提供定制知识
+3. 边查询知识，边沉淀笔记
+4. 盘活笔记
+5. 自主的笔记财产
+6. 多种接入方法
+7. 多语言支持
 
 
 
-### 像聊天一样学外语
+### 聊天学外语
 
 记了么的核心是一个聊天机器人 小记🐹。直接问就行。
 
@@ -146,6 +147,20 @@
 
 
 
+### 自主的笔记财产
+
+就算某天不用 EverLingo 了，笔记财产还有价值。
+
+双层可移植保障的笔记：
+
+1. 兼容 [Open Knowledge Format (OKF)](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) 开放标准的笔记，符合 Andrej Karpathy 的 [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) 的设计哲学。让 LLM 快速学习笔记规范。兼容 Obsidian 等 markdown 文本编辑器。
+
+2. 为所有 AI 应用提供了标准 MCP 接口笔记访问接口。让任何 AI Agent 无代码快速接入笔记库。
+
+
+
+计划实现笔记导出下载与同步到 github 功能。
+
 ### 多种接入方法
 
 - 微信
@@ -178,20 +193,6 @@
   
 
 
-
-### 自主的笔记财产
-
-就算某天不用 EverLingo 了，笔记财产还有价值。
-
-双层可移植保障的笔记：
-
-1. 兼容 [Open Knowledge Format (OKF)](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) 开放标准的笔记，符合 Andrej Karpathy 的 [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) 的设计哲学。让 LLM 快速学习笔记规范。兼容 Obsidian 等 markdown 文本编辑器。
-
-2. 为所有 AI 应用提供了标准 MCP 接口笔记访问接口。让任何 AI Agent 无代码快速接入笔记库。
-
-
-
-计划实现笔记导出下载与同步到 github 功能。
 
 ### 多语言支持
 
@@ -278,7 +279,7 @@ export OPENAI_EMBEDDING_MODEL=baai/bge-m3 # 语义搜索用的模型
 export EVERLINGO_PUBLIC_BASE_URL=http://your_host_ip:8000 # 能连接到将运行的 EverLingo 的地址。用于聊天消息中的笔记超链。
 export target_language=en # 目标学习语言： en/ja/zh-CN/fr/de
 
-export EVERLINGO_VER=0.1.1-rc.8
+export EVERLINGO_VER=0.1.1-rc.9
 
 mkdir -p ${HOST_WS_DIR}
 cd $HOST_WS_DIR

@@ -73,17 +73,13 @@ Think of it as an OpenClaw lobster 🦞 optimized for language learning — or s
 
 ## Features
 
--  Turn what you look up into useful notes
-
--  Learn through conversation
-
-- Know your preferences. Deliver knowledge that fits you
-
-- Multiple ways to access
-
-- Your notes are yours
-
-- Multilingual support
+1. Learn through conversation
+2. Know your preferences. Deliver knowledge that fits you
+3. Turn what you look up into useful notes
+4. Bring your notes to life
+5. Your notes are yours
+6. Multiple ways to access
+7. Multilingual support
 
 
 
@@ -147,6 +143,24 @@ The browser extension brings word selection, dictionary lookup, translation, and
 
 *Figure: Bringing your accumulated notes back to life*
 
+
+
+### Your notes are yours
+
+Even if you stop using EverLingo someday, your notes still have value.
+
+Your notes have two layers of portability:
+
+1. Notes are compatible with the open [Open Knowledge Format (OKF)](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) standard and follow the design philosophy of Andrej Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f). This helps LLMs quickly learn the note structure. The notes are also compatible with Markdown editors such as Obsidian.
+
+2. EverLingo provides a standard MCP interface for note access, allowing any AI application to connect to your note library without writing integration code.
+
+
+
+Note export/download and GitHub synchronization are planned.
+
+
+
 ### Multiple ways to access
 
 - Mobile web app (PWA), which can be added to your phone's home screen
@@ -178,20 +192,6 @@ No public IP or public server is required. Self-host EverLingo, scan a QR code, 
 ![a](./README.assets/a-1785641636193-6.png)
 
 WeChat integration — scan a QR code; no public internet resources required.
-
-### Your notes are yours
-
-Even if you stop using EverLingo someday, your notes still have value.
-
-Your notes have two layers of portability:
-
-1. Notes are compatible with the open [Open Knowledge Format (OKF)](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) standard and follow the design philosophy of Andrej Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f). This helps LLMs quickly learn the note structure. The notes are also compatible with Markdown editors such as Obsidian.
-
-2. EverLingo provides a standard MCP interface for note access, allowing any AI application to connect to your note library without writing integration code.
-
-
-
-Note export/download and GitHub synchronization are planned.
 
 
 
@@ -280,7 +280,7 @@ export OPENAI_EMBEDDING_MODEL=baai/bge-m3 # Model for semantic search
 export EVERLINGO_PUBLIC_BASE_URL=http://your_host_ip:8000 # Address that can reach the running EverLingo instance. Used for note links in chat messages.
 export target_language=en # Target learning language: en/ja/zh-CN/fr/de
 
-export EVERLINGO_VER=0.1.1-rc.8
+export EVERLINGO_VER=0.1.1-rc.9
 
 mkdir -p ${HOST_WS_DIR}
 cd $HOST_WS_DIR

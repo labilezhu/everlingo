@@ -106,7 +106,7 @@ def create_app(config: MasterConfig) -> FastAPI:
     state = AppState(config)
     app = FastAPI(
         title="WS-Master",
-        version="0.1.1-rc.8",
+        version="0.1.1-rc.9",
         lifespan=_lifespan,
     )
     app.state.state = state

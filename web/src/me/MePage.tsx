@@ -84,7 +84,7 @@ export default function MePage() {
           {t('account')}
         </Button>
         <div className="mt-2 px-3 text-xs text-muted-foreground/60">
-          {t('version', { version: '0.1.1-rc.8' })}
+          {t('version', { version: '0.1.1-rc.9' })}
         </div>
       </footer>
     </div>
