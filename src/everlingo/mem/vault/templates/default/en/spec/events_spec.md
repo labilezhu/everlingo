@@ -47,7 +47,7 @@ Create event (create, default):
 - lang: ja
 - title: 曖昧
 
-### conversation_context
+### conversation context
 The user looked up a word directly while reading the Japanese novel "Rashōmon"
 
 ```

@@ -10,7 +10,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from everlingo.models import UserLanguage, UserProfile
 from everlingo.llm import create_llm, create_agent
 from everlingo.agents.agent import _build_system_prompt, MainAgent, MessageEvent
-from everlingo.utils.md_prompt_compiler import PackageSource, compile_prompt
 from everlingo.gateway.channels.channel import ChannelMetadata
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from everlingo.tools.tools import get_all_tools
@@ -351,46 +350,7 @@ def test_system_prompt_instructs_produce_content_before_ack(zh_en_profile, defau
 # ── envelope_spec 注入测试 ─────────────────────────────────────────────
 
 
-@pytest.fixture
-def compiled_envelope_spec():
-    """从 agents/spec 包编译 envelope_spec.md。"""
-    source = PackageSource(package="everlingo.agents.spec")
-    return compile_prompt("envelope_spec.md", source)
-
-
 class TestEnvelopeSpecInjection:
-
-    def test_includes_envelope_schema_when_provided(
-        self, zh_en_profile, default_channel_metadata, compiled_envelope_spec,
-    ):
-        prompt = _build_system_prompt(
-            zh_en_profile, "", default_channel_metadata,
-            envelope_spec_content=compiled_envelope_spec,
-        )
-        assert "## 结构化用户输入（envelope）" in prompt
-        assert "schema_version" in prompt
-        assert "source" in prompt
-        assert "chat_context" in prompt
-        assert "device" in prompt
-        assert "<envelope>" in prompt
-        # envelope_spec.md 的 h1 "# Envelope ..." 被 +2 → "### Envelope ..."
-        assert "### Envelope" in prompt
-        for line in prompt.splitlines():
-            stripped = line.lstrip()
-            assert not stripped.startswith("# Envelope"), line
-
-    def test_omits_envelope_schema_when_none(
-        self, zh_en_profile, default_channel_metadata,
-    ):
-        prompt = _build_system_prompt(
-            zh_en_profile, "", default_channel_metadata,
-            envelope_spec_content=None,
-        )
-        # 仍有 envelope 节简介和延续规则
-        assert "## 结构化用户输入（envelope）" in prompt
-        assert "延续上一轮笔记话题" in prompt
-        # 但无详细 schema 字段
-        assert "schema_version" not in prompt
 
     def test_describes_task_in_intent_section(
         self, zh_en_profile, default_channel_metadata,

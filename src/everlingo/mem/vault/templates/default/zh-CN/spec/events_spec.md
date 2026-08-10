@@ -47,7 +47,7 @@
 - lang: ja  
 - title: 曖昧  
 
-### conversation_context
+### conversation context
 用户在学习日语小说《罗生门》时直接查词  
 
 ```
