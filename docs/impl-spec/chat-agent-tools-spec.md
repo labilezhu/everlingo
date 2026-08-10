@@ -86,7 +86,7 @@ returns: string 。文件不存在时返回空串。
 
 #### user_doc_set
 function name: user_doc_set
-function description: 整体覆盖写入 USER.md。写入前自动把旧内容备份到 `USER.md.bak`（若旧文件存在）。成功后递增 prompt 版本号，触发下次 invoke 时刷新 system prompt。
+function description: 整体覆盖写入 USER.md。成功后递增 prompt 版本号，触发下次 invoke 时刷新 system prompt。历史版本由 Memory Vault 的 git 版本控制统一回溯（docs/impl-spec/worksplace/vault-version-control.md），不再单独生成 `.bak`。
 parameters:
     content: string 。要写入的完整内容。
 returns: string 。写入的内容。

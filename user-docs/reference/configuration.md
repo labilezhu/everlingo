@@ -28,6 +28,16 @@ sys_setting:
   logging_setting:
   tracing_setting:
 user_profile:
+git_backup:                          # Memory Vault 版本控制与远端备份（可选）
+  enabled: false
+  remote_url:
+  branch: main
+  auth:
+    method: ssh
+    ssh_private_key_file:
+    pat:
+  commit_interval: 300
+  push_interval: 300
 plugins:
   channels:
     channel_web:
@@ -95,6 +105,24 @@ plugins:
 参考 [DOMAIN.md](/DOMAIN.md) 中 `用户自由偏好笔记 - USER.md` 一节。
 
 可通过与 Agent 聊天让 Agent 调用 `user_doc` 工具更新，也可用外部编辑器直接编辑。
+
+
+### Memory Vault 版本控制与远端备份 - GitBackup
+
+存放位置：配置于 `$workspace/everlingo.yaml` 的 `git_backup` 段。把 `$workspace/memory` 当作一个 git repo，提供本地版本历史 + 远端备份（异机恢复）。详情见 [vault-version-control.md](/docs/impl-spec/worksplace/vault-version-control.md)。
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `enabled` | `false` | 是否启用自动 commit + 自动 push |
+| `remote_url` | `""` | 任意 git remote，如 `git@github.com:user/vault.git` |
+| `branch` | `main` | 上游分支 |
+| `auth.method` | `ssh` | 凭证模式：`ssh` / `https_pat` / `https_none` |
+| `auth.ssh_private_key_file` | `""` | ssh 模式私钥路径；空=用系统 `~/.ssh/` |
+| `auth.pat` | `""` | https_pat 模式：GitHub fine-grained PAT（contents:write） |
+| `commit_interval` | `300` | 自动 commit 去抖秒 |
+| `push_interval` | `300` | 自动 push 间隔秒；0=仅手动触发 |
+
+凭证随 `everlingo.yaml` 落盘（文件 0600 权限保护）；不使用系统 keychain（容器内不可用）；ws-master 不参与版本控制。
 
 
 ### 插件配置 - Plugins

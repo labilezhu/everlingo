@@ -76,7 +76,7 @@ language:
 约束：
 - 文件不存在时视为空（不影响 system prompt）
 - Agent 更新前应先读取当前内容（read-modify-write），整体覆盖写入
-- 写入前由工具自动备份旧内容到 `USER.md.bak`
+- 历史版本由 Memory Vault 的 git 版本控制（docs/impl-spec/worksplace/vault-version-control.md）统一回溯，不再单独生成 `.bak` 备份
 
 
 

@@ -46,6 +46,21 @@ user_profile:
 # 示例内容见 /USER.example.md
 
 
+# Memory Vault 版本控制与远端备份（可选）
+# 把 $workspace/memory 当作一个 git repo：自动 commit 变更历史 + 推送远端备份。
+# 凭证随本文件落盘（文件 0600 权限保护），不依赖 keychain；ws-master 不参与。
+# 详情见 docs/impl-spec/worksplace/vault-version-control.md
+git_backup:
+  enabled: false                       # 是否启用自动 commit + 自动 push
+  remote_url: ""                       # 任意 git remote，如 git@github.com:user/vault.git
+  branch: "main"                       # 上游分支
+  auth:
+    method: "ssh"                      # ssh | https_pat | https_none
+    ssh_private_key_file: ""           # ssh 模式：空=系统 ~/.ssh/；非空=该路径私钥文件
+    pat: ""                            # https_pat 模式：GitHub fine-grained PAT（contents:write）
+  commit_interval: 300                 # 自动 commit 去抖秒
+  push_interval: 300                    # 自动 push 间隔秒；0=仅手动触发
+
 plugins:
   channels:
     channel_web: # Web Session Acceptor 配置
