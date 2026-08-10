@@ -28,8 +28,8 @@ def test_user_doc_set_writes_content(tmp_user_doc):
     assert tmp_user_doc.read_text(encoding="utf-8") == content
 
 
-def test_user_doc_set_creates_bak(tmp_user_doc):
-    """user_doc_set 在旧文件存在时应把旧内容备份到 .md.bak。"""
+def test_user_doc_set_overwrites_without_bak(tmp_user_doc):
+    """user_doc_set 整体覆盖写，且不再产生 .bak（历史交给 git 版本控制）。"""
     old = "旧内容"
     user_doc_set.invoke({"content": old})
 
@@ -37,8 +37,7 @@ def test_user_doc_set_creates_bak(tmp_user_doc):
     user_doc_set.invoke({"content": new})
 
     bak_path = tmp_user_doc.with_suffix(".md.bak")
-    assert bak_path.exists()
-    assert bak_path.read_text(encoding="utf-8") == old
+    assert not bak_path.exists()
     assert tmp_user_doc.read_text(encoding="utf-8") == new
 
 

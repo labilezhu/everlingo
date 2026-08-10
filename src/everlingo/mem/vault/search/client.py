@@ -21,11 +21,15 @@ from .protocol import (
     EmbedResponse,
     IndexRequest,
     RebuildResponse,
+    RestoreRequest,
+    RestoreResponse,
     SearchHit,
     SearchRequest,
     SearchResponse,
     StatusResponse,
     TagsResponse,
+    VersionLogResponse,
+    VersionStatusResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -203,4 +207,90 @@ class SearchClient:
                 logger.warning("indexer 不可达，embed 失败: %s", e)
             else:
                 logger.warning("embed 失败: %s", e)
+            return None
+
+    # ── /version/*：Memory Vault 版本控制与远端备份 ────────────────
+
+    def version_status(self) -> VersionStatusResponse | None:
+        try:
+            client = self._ensure_client()
+            resp = client.get("http://localhost/version/status")
+            resp.raise_for_status()
+            return VersionStatusResponse.model_validate(resp.json())
+        except Exception as e:
+            if self._is_unreachable(e):
+                logger.warning("indexer 不可达，version/status 返回 None: %s", e)
+            else:
+                logger.warning("version/status 失败: %s", e)
+            return None
+
+    def version_commit(self) -> bool | None:
+        """同步触发一次 commit。返回是否产生了 commit；失败/不可达返回 None。"""
+        try:
+            client = self._ensure_client()
+            resp = client.post("http://localhost/version/commit")
+            resp.raise_for_status()
+            return resp.json().get("ok")
+        except Exception as e:
+            if self._is_unreachable(e):
+                logger.warning("indexer 不可达，version/commit 失败: %s", e)
+            else:
+                logger.warning("version/commit 失败: %s", e)
+            return None
+
+    def version_push(self) -> bool | None:
+        try:
+            client = self._ensure_client()
+            resp = client.post("http://localhost/version/push")
+            resp.raise_for_status()
+            return resp.json().get("ok")
+        except Exception as e:
+            if self._is_unreachable(e):
+                logger.warning("indexer 不可达，version/push 失败: %s", e)
+            else:
+                logger.warning("version/push 失败: %s", e)
+            return None
+
+    def version_pull(self) -> RestoreResponse | None:
+        """走 restore 流程（commit→fetch→rebase）；冲突返回 backup 分支。"""
+        try:
+            client = self._ensure_client()
+            resp = client.post("http://localhost/version/pull")
+            resp.raise_for_status()
+            return RestoreResponse.model_validate(resp.json())
+        except Exception as e:
+            if self._is_unreachable(e):
+                logger.warning("indexer 不可达，version/pull 返回 None: %s", e)
+            else:
+                logger.warning("version/pull 失败: %s", e)
+            return None
+
+    def version_log(self, limit: int = 20) -> VersionLogResponse | None:
+        try:
+            client = self._ensure_client()
+            resp = client.get("http://localhost/version/log", params={"limit": limit})
+            resp.raise_for_status()
+            return VersionLogResponse.model_validate(resp.json())
+        except Exception as e:
+            if self._is_unreachable(e):
+                logger.warning("indexer 不可达，version/log 返回 None: %s", e)
+            else:
+                logger.warning("version/log 失败: %s", e)
+            return None
+
+    def version_restore(self, commit_hash: str) -> RestoreResponse | None:
+        """把指定历史版本检出到 backup 分支（不直接覆盖工作区）。"""
+        try:
+            client = self._ensure_client()
+            resp = client.post(
+                "http://localhost/version/restore",
+                json=RestoreRequest(commit_hash=commit_hash).model_dump(),
+            )
+            resp.raise_for_status()
+            return RestoreResponse.model_validate(resp.json())
+        except Exception as e:
+            if self._is_unreachable(e):
+                logger.warning("indexer 不可达，version/restore 返回 None: %s", e)
+            else:
+                logger.warning("version/restore 失败: %s", e)
             return None

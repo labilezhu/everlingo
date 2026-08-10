@@ -451,6 +451,14 @@ def create_mcp_app(state: AppState) -> FastMCP:
             )
         spec_dir = vault_root / "spec"
         spec_dir.mkdir(parents=True, exist_ok=True)
+        # 覆盖模板 spec 前保存当前改动进 git 历史，避免 reset 丢失用户修改
+        # ref: docs/impl-spec/worksplace/vault-version-control.md §8
+        try:
+            from ..version import snapshot_memory
+
+            snapshot_memory()
+        except Exception as e:
+            logger.warning("reset_vault: pre-reset snapshot 失败: %s", e)
         # 仅遍历所选界面语言模板的 spec/，覆盖写入
         files_reset = 0
         tpl_lang = _resolve_template_lang(interface_language)

@@ -169,3 +169,61 @@ class StatusResponse(BaseModel):
     running: bool
     uptime_s: float
     langs: list[LangStatus]
+
+
+# ── /version/*（Memory Vault 版本控制与远端备份）────────────────────
+
+
+class GitCommitInfo(BaseModel):
+    """git log 中的一条提交（/version/log 列表项）。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    hash: str
+    time: str
+    message: str
+
+
+class VersionStatusResponse(BaseModel):
+    """GET /version/status 响应。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool
+    initialized: bool
+    dirty: bool
+    has_commits: bool
+    last_commit_at: str | None = None
+    last_push_at: str | None = None
+    remote_configured: bool
+    ahead: int
+    behind: int
+    branch: str
+    remote_url: str
+
+
+class VersionLogResponse(BaseModel):
+    """GET /version/log 响应。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    commits: list[GitCommitInfo]
+
+
+class RestoreRequest(BaseModel):
+    """POST /version/restore 请求体：主机上唯一 id（commit hash 或引用）。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    commit_hash: str
+
+
+class RestoreResponse(BaseModel):
+    """POST /version/restore / POST /version/pull 响应。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ok: bool
+    backup_branch: str | None = None
+    conflicts: list[str] = []
+    message: str = ""

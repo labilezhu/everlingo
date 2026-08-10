@@ -174,6 +174,64 @@ class Plugins(BaseModel):
     channels: Channels = Field(default_factory=Channels, description="通道插件配置")
 
 
+class GitBackupAuth(BaseModel):
+    # 凭证模式。ssh：git@host 传输；https_pat：HTTPS + PAT Basic Auth；https_none：HTTPS 无认证
+    method: Literal["ssh", "https_pat", "https_none"] = Field(
+        default="ssh",
+        description="凭证模式：ssh / https_pat / https_none",
+        examples=["ssh"],
+    )
+    # ssh 模式私钥路径；空=用系统 ~/.ssh/
+    ssh_private_key_file: str = Field(
+        default="",
+        description="ssh 模式私钥路径；空=系统 ~/.ssh/",
+        examples=["/run/secrets/git_backup_ssh_key"],
+    )
+    # https_pat 模式 PAT（GitHub fine-grained PAT，contents:write）
+    pat: str = Field(
+        default="",
+        description="https_pat 模式 PAT（GitHub fine-grained PAT，contents:write）",
+        examples=["github_pat_xxx"],
+    )
+
+
+class GitBackup(BaseModel):
+    # 是否启用自动 commit + 自动 push
+    enabled: bool = Field(
+        default=False,
+        description="是否启用自动 commit + 自动 push",
+        examples=[False, True],
+    )
+    # 任意 git remote，如 git@github.com:user/vault.git
+    remote_url: str = Field(
+        default="",
+        description="任意 git remote，如 git@github.com:user/vault.git",
+        examples=["git@github.com:user/vault.git"],
+    )
+    # 上游分支
+    branch: str = Field(
+        default="main",
+        description="上游分支",
+        examples=["main"],
+    )
+    auth: GitBackupAuth = Field(
+        default_factory=GitBackupAuth,
+        description="远端凭证",
+    )
+    # 自动 commit 去抖秒（文件变更后多久聚合一次 commit）
+    commit_interval: int = Field(
+        default=300,
+        description="自动 commit 去抖秒",
+        examples=[300],
+    )
+    # 自动 push 间隔秒；0=仅手动触发
+    push_interval: int = Field(
+        default=300,
+        description="自动 push 间隔秒；0=仅手动触发",
+        examples=[300, 0],
+    )
+
+
 class EverLingoSetting(BaseModel):
     # 系统设定，ref: configuration.md SysSetting
     sys_setting: SysSetting = Field(
@@ -184,6 +242,11 @@ class EverLingoSetting(BaseModel):
     user_profile: UserProfile = Field(
         default_factory=UserProfile,
         description="用户 Profile",
+    )
+    # Memory Vault 版本控制与远端备份，ref: vault-version-control.md
+    git_backup: GitBackup = Field(
+        default_factory=GitBackup,
+        description="Memory Vault 版本控制与远端备份",
     )
     # 插件配置，ref: configuration.md Plugins
     plugins: Plugins = Field(

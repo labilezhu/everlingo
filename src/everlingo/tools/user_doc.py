@@ -20,16 +20,9 @@ def user_doc_get() -> str:
 @log_tool_call("user_doc_set")
 def user_doc_set(content: str) -> str:
     """整体覆盖写入用户的自由文本偏好笔记 (USER.md)。
-    写入前会把旧内容备份到 USER.md.bak（若旧文件存在）。成功后返回写入的内容。
+    历史版本由 Memory Vault 版本控制（git）托管，详见 vault-version-control.md；
+    不再写 USER.md.bak。成功后返回写入的内容。
     """
-    user_doc_path = workspace.user_doc_path()
-    # 备份旧内容（若存在）
-    if user_doc_path.exists():
-        bak_path = user_doc_path.with_suffix(".md.bak")
-        bak_path.write_text(
-            user_doc_path.read_text(encoding="utf-8"), encoding="utf-8"
-        )
-
     save_user_doc(content)
     bump_prompt_version()
 

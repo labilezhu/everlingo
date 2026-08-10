@@ -32,15 +32,20 @@ from .indexer import (
 from .protocol import (
     EmbedRequest,
     EmbedResponse,
+    GitCommitInfo,
     IndexRequest,
     LangStatus,
     OkResponse,
     RebuildResponse,
+    RestoreRequest,
+    RestoreResponse,
     SearchRequest,
     SearchResponse,
     StatusResponse,
     TagCount,
     TagsResponse,
+    VersionLogResponse,
+    VersionStatusResponse,
 )
 from .sync import open_db, reconcile
 from .tokenizer import tokenizer_version
@@ -205,6 +210,10 @@ class AppState:
     启动时按 `_langs_to_open` 打开已知 lang；启动后通过顶层
     LangDiscoveryWatcher 监听 `memory/languages/` 下的新 `vault/` 目录
     自动开新 lang；端点 miss 时也会懒加载开新 lang（vault 目录存在的前提）。
+
+    committer：Memory Vault 自动 commit / push 调度器（version/ 包），
+    open() 时构造并 start()（enabled=false 时仅做 init + initial commit 兜底）。
+    ref: docs/impl-spec/worksplace/vault-version-control.md §3.3
     """
 
     def __init__(self, socket_path: Path, langs: list[str] | None = None) -> None:
@@ -216,6 +225,7 @@ class AppState:
         self._lock = threading.Lock()
         self._discovery_watcher: LangDiscoveryWatcher | None = None
         self._langs_to_open = langs or workspace.lang_dirs()
+        self.committer: "Committer | None" = None
 
     def _open_lang(self, lang: str) -> LangState:
         """加锁打开 lang state。已注册直接返回；vault 目录不存在 → 404。
@@ -261,8 +271,21 @@ class AppState:
         languages_dir = workspace.memory_dir() / "languages"
         self._discovery_watcher = LangDiscoveryWatcher(self, languages_dir)
         self._discovery_watcher.start()
+        # 启动 Memory Vault committer（懒加载 init repo + 定时 commit/push）
+        from ..version.git import git_available
+
+        if git_available():
+            from ..version.committer import Committer
+
+            self.committer = Committer(workspace.memory_dir())
+            self.committer.start()
+        else:
+            logger.info("git 不可用，Memory Vault 版本控制未启动")
 
     def close(self) -> None:
+        if self.committer is not None:
+            self.committer.stop()
+            self.committer = None
         if self._discovery_watcher is not None:
             self._discovery_watcher.stop()
             self._discovery_watcher = None
@@ -468,10 +491,155 @@ def create_app(state: AppState) -> FastAPI:
             embedded_chunks=embedded_chunks,
             embedding_model_id=ls.worker.model_id if ls.worker else None,
             embedding_dim=ls.worker.dim if ls.worker else None,
-            took_ms=took_ms,
+            took_ms=(time.perf_counter() - start) * 1000.0,
+        )
+
+    # ── /version/*：Memory Vault 版本控制与远端备份 ─────────────────
+
+    @app.get("/version/status", response_model=VersionStatusResponse)
+    def version_status() -> VersionStatusResponse:
+        return _version_status_response()
+
+    @app.post("/version/commit", response_model=OkResponse)
+    def version_commit() -> OkResponse:
+        if state.committer is None:
+            raise HTTPException(status_code=409, detail="committer 未启动")
+        ok = state.committer._commit_now()
+        return OkResponse(ok=ok)
+
+    @app.post("/version/push", response_model=OkResponse)
+    def version_push() -> OkResponse:
+        if state.committer is None:
+            raise HTTPException(status_code=409, detail="committer 未启动")
+        ok = state.committer.push_now()
+        return OkResponse(ok=ok)
+
+    @app.post("/version/pull", response_model=RestoreResponse)
+    def version_pull() -> RestoreResponse:
+        if state.committer is None:
+            raise HTTPException(status_code=409, detail="committer 未启动")
+        from everlingo import workspace
+
+        result = _do_restore(state, workspace.memory_dir(), hard=False)
+        return RestoreResponse(
+            ok=result.ok,
+            backup_branch=result.backup_branch,
+            conflicts=result.conflicts or [],
+            message=result.message,
+        )
+
+    @app.get("/version/log", response_model=VersionLogResponse)
+    def version_log(limit: int = 20) -> VersionLogResponse:
+        from everlingo import workspace
+
+        from ..version import git as vg
+
+        root = workspace.memory_dir()
+        if not vg.is_repo(root):
+            return VersionLogResponse(commits=[])
+        commits = vg.log(root, limit=limit)
+        return VersionLogResponse(
+            commits=[
+                GitCommitInfo(hash=c.hash, time=c.time, message=c.message)
+                for c in commits
+            ]
+        )
+
+    @app.post("/version/restore", response_model=RestoreResponse)
+    def version_restore(req: RestoreRequest) -> RestoreResponse:
+        from everlingo import workspace
+
+        from ..version import git as vg
+
+        root = workspace.memory_dir()
+        if not vg.is_repo(root):
+            raise HTTPException(status_code=409, detail="repo 未初始化")
+        try:
+            branch = vg.checkout_to_backup_branch(root, req.commit_hash)
+        except vg.GitError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        return RestoreResponse(
+            ok=True,
+            backup_branch=branch,
+            message=f"已检出到 backup 分支 {branch}",
         )
 
     return app
+
+
+# ── /version/* 内部辅助 ──────────────────────────────────────────────
+
+
+def _version_status_response() -> VersionStatusResponse:
+    """聚合 git repo 状态 + 配置。"""
+    from everlingo import setting as _setting
+    from everlingo import workspace as _workspace
+
+    from ..version import git as _vg
+
+    backup = _setting.load_git_backup()
+    root = _workspace.memory_dir()
+    status = _vg.repo_status(
+        root,
+        remote_configured=bool(backup.remote_url),
+        branch=backup.branch,
+    )
+    return VersionStatusResponse(
+        enabled=backup.enabled,
+        initialized=status["initialized"],
+        dirty=status["dirty"],
+        has_commits=status["has_commits"],
+        last_commit_at=status["last_commit_at"],
+        last_push_at=None,
+        remote_configured=bool(backup.remote_url),
+        ahead=status["ahead"],
+        behind=status["behind"],
+        branch=backup.branch,
+        remote_url=backup.remote_url,
+    )
+
+
+def _do_restore(state: AppState, memory_root: Path, *, hard: bool):
+    """恢复流程（pull 端点 / CLI 共用）：按配置构造远端凭证上下文。"""
+    from everlingo import setting as _setting
+
+    from ..version import restore as _restore
+    from ..version.ssh_key import SSHCommandContext
+
+    backup = _setting.load_git_backup()
+    if not backup.remote_url:
+        raise HTTPException(status_code=400, detail="remote_url 未配置")
+    ctx = SSHCommandContext()
+    ctx.configure(
+        method=backup.auth.method,
+        ssh_private_key_file=backup.auth.ssh_private_key_file,
+        pat=backup.auth.pat,
+    )
+    ctx.start()
+    try:
+        env = ctx.env()
+        config = ctx.extraheader() or {}
+        if hard:
+            ok = _restore.hard_reset_to_remote(
+                memory_root,
+                remote_url=backup.remote_url,
+                branch=backup.branch,
+                env=env,
+                config=config,
+            )
+            return _restore.RestoreResult(
+                ok=ok,
+                message="hard reset 完成" if ok else "hard reset 失败",
+            )
+        return _restore.restore_vault(
+            memory_root,
+            remote_url=backup.remote_url,
+            branch=backup.branch,
+            env=env,
+            config=config,
+        )
+    finally:
+        ctx.close()
 
 
 # ── uvicorn 入口 ─────────────────────────────────────────────────────

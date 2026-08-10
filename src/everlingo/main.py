@@ -156,6 +156,15 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_reindex.add_argument("--rebuild", action="store_true", help="完全删除 index，从零重建")
     p_reindex.add_argument("-v", "--verbose", action="store_true", help="逐文件输出")
+    # Memory Vault 版本控制（/version/* 委托 indexer）
+    p_status = mem_sub.add_parser("vstatus", help="Memory Vault 版本控制状态（/version/status）")
+    mem_sub.add_parser("snapshot", help="同步触发一次 commit（快照）")
+    p_push = mem_sub.add_parser("push", help="手动 push --force-with-lease 到远端")
+    mem_sub.add_parser("pull", help="从远端恢复（commit→fetch→rebase），冲突时提示")
+    p_log = mem_sub.add_parser("log", help="查看历史 commit 列表")
+    p_log.add_argument("--limit", type=int, default=20, help="条数上限（默认 20）")
+    p_restore = mem_sub.add_parser("restore", help="把指定历史版本检出到 backup 分支")
+    p_restore.add_argument("commit_hash", help="目标 commit（hash 前缀或完整 hash）")
     # wiki 子命令
     p_wiki = sub.add_parser("wiki", help="wiki 知识库静态站构建与服务")
     _add_workspace_args(p_wiki)
@@ -220,6 +229,27 @@ def _dispatch(args: argparse.Namespace) -> int:
             from .mem.vault.search.cli import cmd_reindex
 
             return cmd_reindex(args)
+        from .mem.vault.search.cli import (
+            cmd_version_log,
+            cmd_version_pull,
+            cmd_version_push,
+            cmd_version_restore,
+            cmd_version_snapshot,
+            cmd_version_status,
+        )
+
+        if args.mem_cmd == "vstatus":
+            return cmd_version_status(args)
+        if args.mem_cmd == "snapshot":
+            return cmd_version_snapshot(args)
+        if args.mem_cmd == "push":
+            return cmd_version_push(args)
+        if args.mem_cmd == "pull":
+            return cmd_version_pull(args)
+        if args.mem_cmd == "log":
+            return cmd_version_log(args)
+        if args.mem_cmd == "restore":
+            return cmd_version_restore(args)
         return 2
     if args.cmd == "wiki":
         _apply_workspace_args(args)

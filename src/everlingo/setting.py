@@ -6,6 +6,7 @@ import yaml
 from . import workspace
 from .models import (
     EverLingoSetting,
+    GitBackup,
     UserProfile,
     WebListener,
     resolve_interface_language,
@@ -98,6 +99,24 @@ def load_resolved_profile() -> UserProfile:
 def save_profile(profile: UserProfile) -> None:
     setting = load_setting()
     setting = setting.model_copy(update={"user_profile": profile})
+    save_setting(setting)
+
+
+def load_git_backup() -> GitBackup:
+    """返回 Memory Vault 版本控制配置（everlingo.yaml 的 git_backup 段）。
+
+    ref: docs/impl-spec/worksplace/vault-version-control.md — 配置
+    """
+    return load_setting().git_backup
+
+
+def save_git_backup(git_backup: GitBackup) -> None:
+    """写入 Memory Vault 版本控制配置到 everlingo.yaml。
+
+    ref: docs/impl-spec/worksplace/vault-version-control.md — 配置
+    """
+    setting = load_setting()
+    setting = setting.model_copy(update={"git_backup": git_backup})
     save_setting(setting)
 
 
