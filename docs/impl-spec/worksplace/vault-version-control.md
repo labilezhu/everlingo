@@ -55,6 +55,7 @@ languages/*/index/
 ### 2.3 远程与分支
 - `enabled=true` 且 `remote_url` 非空时，首次 push 前若未配置 `origin` 则 `git remote add origin <remote_url>`。
 - 默认 upstream 分支 `main`（可由 `branch` 配置）。
+- **启动时强制统一本地分支名**：committer `start()` 对已存在 repo（如用户手动 `git init` / 异机 clone 恢复，本地可能在 `master` 等其它分支名）执行 `git branch -M <branch>`，保证本地当前分支名恒等于配置分支，从而 `push origin <branch>` / `rebase origin/<branch>` / status 的 ahead-behind（`HEAD...origin/<branch>`）全链路自洽；memory repo 是单分支工作区，`-M` 只改名、不丢 commit。
 
 ## 3. Committer（indexer 进程内）
 
@@ -89,8 +90,9 @@ version/
 
 ### 4.1 git.py
 - 统一 `run_git(args, cwd=..., env=...)`，捕获 stdout/stderr。
-- `is_repo(path)` / `init_repo(path)`（含 identity + initial commit + .gitignore）。
+- `is_repo(path)` / `init_repo(path)`（含 identity + initial commit + .gitignore；`git init -b main`，git<2.28 降级 `init` + `branch -M main`）。
 - `status_porcelain(path) -> bool`（有改动返回 True）。
+- `rename_current_branch(path, target)`：`git branch -M target`，幂等，强制统一本地分支名。
 - `commit(path, message)`。
 - `push(path, remote, branch, force_lease=True)`（force-with-lease）。
 - `fetch(path, remote)`。

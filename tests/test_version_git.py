@@ -188,3 +188,61 @@ def test_status_fields(repo: Path):
 def test_status_when_not_repo(tmp_path: Path):
     st = git.repo_status(tmp_path / "nope", remote_configured=False)
     assert st["initialized"] is False
+
+
+def test_rename_current_branch_from_master(tmp_path: Path):
+    """已存在 repo（plain git init，明确用 master 作为初始分支）→ rename 到 main，历史保留。"""
+    import subprocess
+
+    root = tmp_path / "legacy"
+    root.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "init", "-q", "--initial-branch=master", str(root)], check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(root), "config", "user.name", "t"], check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(root), "config", "user.email", "t@t"], check=True
+    )
+    (root / "note.md").write_text("legacy content", encoding="utf-8")
+    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(root), "commit", "-q", "-m", "legacy"], check=True)
+    assert git.current_branch(root) == "master"  # 走的 rename 分支路径
+
+    ok = git.rename_current_branch(root, "main")
+    assert ok is True
+    assert git.current_branch(root) == "main"
+    # commit 历史保留
+    assert git.has_commits(root)
+
+
+def test_rename_current_branch_idempotent(repo: Path):
+    assert git.current_branch(repo) == "main"
+    assert git.rename_current_branch(repo, "main") is True
+
+
+def test_rename_current_branch_not_repo(tmp_path: Path):
+    assert git.rename_current_branch(tmp_path / "missing", "main") is False
+
+
+def test_init_repo_fallback_when_no_dash_b(tmp_path: Path, monkeypatch):
+    """git < 2.28（init 无 -b）时应降级：plain init + branch -M main。"""
+    root = tmp_path / "mem"
+    calls: list[list[str]] = []
+    orig = git.run_git
+
+    def _fake_run_git(cwd, args, **_kw):
+        from subprocess import CompletedProcess
+
+        calls.append(list(args))
+        if args[0] == "init" and "-b" in args:
+            raise git.GitError("unknown option: -b")
+        return orig(cwd, args, **_kw)
+
+    monkeypatch.setattr(git, "run_git", _fake_run_git)
+    git.init_repo(root)
+    assert git.is_repo(root)
+    assert git.current_branch(root) == "main"
+    assert any(a[:3] == ["init", "-q"] and "-b" not in a for a in calls)
+    assert any(a[0] == "branch" and a[1] == "-M" for a in calls)

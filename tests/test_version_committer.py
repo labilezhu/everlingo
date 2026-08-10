@@ -89,6 +89,29 @@ def test_final_commit_on_stop(memory_root: Path, monkeypatch):
     assert not git.is_dirty(memory_root)
 
 
+def test_start_renames_legacy_branch_to_configured(memory_root: Path, monkeypatch):
+    """已存在 repo 本地在 master（legacy init）→ start() 后强制统一为配置 branch main。"""
+    import subprocess
+
+    memory_root.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "init", "-q", "--initial-branch=master", str(memory_root)],
+        check=True,
+    )
+    subprocess.run(["git", "-C", str(memory_root), "config", "user.name", "t"], check=True)
+    subprocess.run(["git", "-C", str(memory_root), "config", "user.email", "t@t"], check=True)
+    _write(memory_root, "note.md", "legacy")
+    subprocess.run(["git", "-C", str(memory_root), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(memory_root), "commit", "-q", "-m", "legacy"], check=True)
+    assert git.current_branch(memory_root) == "master"
+
+    _fake_backup(monkeypatch, GitBackup(enabled=True, commit_interval=1, push_interval=0))
+    c = Committer(memory_root, tick_seconds=3600.0)
+    c.start()
+    assert git.current_branch(memory_root) == "main"
+    c.stop()
+
+
 def test_ensure_snapshot_idempotent(memory_root: Path):
     _write(memory_root, "f.md", "f1")
     assert ensure_snapshot(memory_root) is True

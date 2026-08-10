@@ -141,8 +141,12 @@ def init_repo(root: Path) -> None:
     gitignore = root / ".gitignore"
     if not gitignore.exists():
         gitignore.write_text(GITIGNORE_CONTENT, encoding="utf-8")
-    # -b main：统一初始分支（不依赖 git 默认 master）
-    run_git(root, ["init", "-q", "-b", "main"])
+    # -b main：统一初始分支（不依赖 git 默认 master）；git<2.28 无 -b 时降级
+    try:
+        run_git(root, ["init", "-q", "-b", "main"])
+    except GitError:
+        run_git(root, ["init", "-q"])
+        run_git(root, ["branch", "-M", "main"])
     run_git(root, ["config", "user.name", GIT_IDENTITY_NAME])
     run_git(root, ["config", "user.email", GIT_IDENTITY_EMAIL])
     run_git(root, ["config", "commit.gpgsign", "false"])
@@ -174,6 +178,28 @@ def current_branch(root: Path) -> str:
     if proc.returncode != 0:
         return "main"
     return proc.stdout.strip() or "main"
+
+
+def rename_current_branch(root: Path, target: str) -> bool:
+    """把当前分支强制重命名为 target（git branch -M）。幂等。
+
+    已在 target 直接返回 True；detached HEAD / 无分支等失败场景 log warning
+    并返回 False，不阻塞主流程（调用方决定是否继续）。
+    """
+    target = target or "main"
+    if not is_repo(root):
+        logger.warning("rename_current_branch: %s 不是 git repo", root)
+        return False
+    if current_branch(root) == target:
+        return True
+    proc = run_git(root, ["branch", "-M", target], check=False)
+    if proc.returncode != 0:
+        logger.warning(
+            "rename_current_branch: branch -M %s 失败: %s", target, proc.stderr.strip()[:300]
+        )
+        return False
+    logger.info("renamed current branch to %s", target)
+    return True
 
 
 def add_and_commit(root: Path, message: str | None = None) -> bool:

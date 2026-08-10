@@ -76,6 +76,8 @@ class Committer:
         if git.git_available():
             try:
                 git.init_repo(self._root)
+                # 启动强制统一本地分支名 = 配置 branch，保证 push/fetch/rebase/status 全链路自洽
+                git.rename_current_branch(self._root, self._backup.branch)
                 if not git.has_commits(self._root):
                     self._commit_now("chore(vault): snapshot-of-vault-at-init")
             except Exception as e:  # noqa: BLE001
