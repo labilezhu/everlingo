@@ -170,3 +170,23 @@ everlingo mem log [--limit N]     # 查看历史
 - keychain 凭证存储（容器内不可用）。
 - 协作式多机并发编辑冲突自动合并（定位为"单机使用 + 异机恢复"，冲突由用户手动处理）。
 - UI console 页面（Phase 3）；PAT 凭证（Phase 4）。
+
+## 11. 部署依赖与容器运行时
+
+### 11.1 镜像系统依赖
+- ws-container 镜像需 `git` + `openssh-client` + `ca-certificates`，由 `deploy/deps-base/Dockerfile` runtime stage 统一安装（ws-master / ws-router 镜像共享此 base，无害）。详见 [ws-container-spec.md](/deploy/ws-container/ws-container-spec.md)「系统依赖」。
+- 启动探测 `git --version`：缺失时 `enabled` 强制 false + log warning，不阻塞主流程。
+
+### 11.2 safe.directory（挂载 workspace 的 UID 不匹配）
+- 多用户部署下 `<host_workspace_dir>` 由宿主用户（如 root / deploy 用户）拥有，容器内进程是 `everlingo` UID 1000。git 见到文件 owner UID ≠ 当前 euid 会报 `detected dubious ownership` 并拒绝操作。
+- 缓解：`version/git.py` 的 `run_git` 每次调用带 `-c safe.directory=<abs memory_root>`（或 env `GIT_CONFIG_GLOBAL=/dev/null` + `-c safe.directory=*`），避免依赖全局 config（容器内 `/home/everlingo/.gitconfig` 在容器重建后丢失）。
+
+### 11.3 ssh host key 验证
+- `git@github.com` 等 ssh 远端首次连接会要求确认 host key，非交互 subprocess 下默认 `host key verification failed`。
+- `version/ssh_key.py` 构造的 `GIT_SSH_COMMAND` 必须含 `-o StrictHostKeyChecking=accept-new`（首次自动接受并写入 known_hosts，后续严格校验）。
+
+### 11.4 https 模式的 TLS
+- `git push https://github.com/...` 需要 CA 证书做 TLS 验证；`ca-certificates` 已在 base 安装。自建 git server 用自签证书时需用户自行 `http.sslVerify=false`（配置项或 `-c`）。
+
+### 11.5 HOME 与全局 config
+- git / ssh 可能读 `$HOME`（/home/everlingo）。容器内 everlingo 用户 HOME 已就绪；为避免跨容器重建丢失全局 config，所有 git 配置均走 repo-local（init 时设 `user.name` / `user.email`）或命令行 `-c` / env，不写全局 `~/.gitconfig`。

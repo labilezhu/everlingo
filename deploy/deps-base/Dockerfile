@@ -31,7 +31,7 @@ ENV HTTPS_PROXY=$HTTPS_PROXY
 
 RUN groupadd -g 1000 everlingo && \
     useradd -m -u 1000 -g 1000 -s /bin/bash everlingo && \
-    apt-get update && apt-get install -y --no-install-recommends sudo && \
+    apt-get update && apt-get install -y --no-install-recommends sudo git openssh-client ca-certificates && \
     echo "everlingo ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /app

@@ -45,6 +45,16 @@ UID & GID: 1000
 
 权限： 可以运行 sudo 。 可以 sudo apt 安装包。
 
+## 系统依赖
+
+runtime 镜像由 `deploy/deps-base/Dockerfile` 提供基础，在 `sudo` 之外额外预装以下系统包（见 deps-base runtime stage 的 `apt-get install`）：
+
+- `git`：Memory Vault 版本控制与远端备份（docs/impl-spec/worksplace/vault-version-control.md）依赖 `git` CLI 做 commit / push / pull / rebase。缺失时版本管理功能降级关闭（启动探测 `git --version`）。
+- `openssh-client`：ssh 协议的 git remote（如 `git@github.com:user/vault.git`）传输依赖 ssh client；`GIT_SSH_COMMAND` 注入见 vault-version-control.md §11.3。
+- `ca-certificates`：https 协议的 git remote（`git push https://...`）做 TLS 验证依赖。
+
+ws-master / ws-router 镜像共享同一 deps-base，故同样携带这些包（无害）。
+
 ## app files
 
 ### root 目录覆盖
