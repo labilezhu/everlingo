@@ -1,4 +1,70 @@
 
+这是我的初步想法和设计，你看看 high level 设计上，有什么要补充或考虑的。还是有更好的产品设计或架构设计上的方案
+
+## 需求
+
+workspace 的 [memory 目录](docs/impl-spec/worksplace/memory-vault-spec.md) 做版本管理和备份。
+
+## 设计
+
+
+### 版本管理
+`$workspace/memory` 目录做成一个 git repo 。  之后就可以在每次修改文件后， 触发异步 git commit 保存版本历史。异步 git commit 不是实时的，大概累积 5 分钟才 commit 一次， 避免用于高频的文件修改引起的版本爆炸。
+
+#### git ignore
+
+`$workspace/memory` 目录下的 git ignore
+
+```bash
+.
+├── languages
+│   └── en
+│   └── ja
+│       ├── index # (git ignore directory)
+│       │   ├── memory.sqlite
+│       │   ├── memory.sqlite-shm
+│       │   └── memory.sqlite-wal
+│       └── vault
+│           ├── events
+│           │   ├── 2026
+│           │   │   └── 08
+│           │   │       ├── 2026-08-08.md
+│           │   │       └── 2026-08-09.md
+│           │   └── index.md
+│           ├── index.md
+│           ├── items
+│           │   ├── grammar
+│           │   │   └── index.md
+│           │   ├── idiom
+│           │   │   └── index.md
+│           │   ├── index.md
+│           │   ├── others
+│           │   │   └── index.md
+│           └── spec
+│               ├── events_spec.md
+│               ├── index.md
+│               ├── kb_items_spec_grammar.md
+│               ├── kb_items_spec_others.md
+│               ├── kb_items_spec_phrase.md
+│               ├── kb_items_spec_pragmatics.md
+│               ├── kb_items_spec_vocab.md
+│               └── vault_spec.md
+├── USER.md
+└── USER.md.bak # (git ignore *.bak)
+```
+
+### 备份
+可以 git push 备份到 github 上。但需要用户指定 github repo 和授权。 可以指定默认的 upstream branch
+
+TBD: push 时版本存在冲突时，如何处理，暂定为 force push ，但需求用户在 UI 中确认
+
+### 恢复
+用户操作恢复时，应该先执行同步的 git commit 。再 git fetch ，看看版本是否有冲突。如果没有，直接 git pull 。 如果有则看看是否可以自动 rebase 。 如果不行，由用户决定，是否 hard reset 到远端版本。
+
+
+
+---
+
 看看以下设计的合理性和可行性，并评估一下影响和修改面。
 
 以下文件，其内容其实不能由用户自由定义，所以不应该放在 vault/templates 下了。 应许放在 src/everlingo/agents 下，并只保留 zh-CN 版本。

@@ -20,7 +20,7 @@ Memory Vault 位于 `$workspace/memory/languages/$lang/vault/` 目录下。其�
 
 每个目标学习语言独立一个 vault 目录，位于 `$workspace/memory/languages/$lang/vault/` 下（见 [workspace.md](/docs/impl-spec/worksplace/workspace.md)）。每语言独立一个 SQLite 索引库（见 [memory-vault-search-spec.md](/docs/impl-spec/search/memory-vault-search-spec.md)），实现全文搜索的语言隔离。
 
-语言独立一个 vault 目录说明参考：[单语言 Memory Vault Spec](/src/everlingo/mem/vault/vault_spec.md)
+语言独立一个 vault 目录说明参考：[单语言 Memory Vault Spec](src/everlingo/mem/vault/templates/default/zh-CN/spec/vault_spec.md)
 
 # Agent 记忆分层设计
 
