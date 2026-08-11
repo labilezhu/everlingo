@@ -227,3 +227,12 @@ class RestoreResponse(BaseModel):
     backup_branch: str | None = None
     conflicts: list[str] = []
     message: str = ""
+
+
+class VersionTestResponse(BaseModel):
+    """POST /version/test 响应（远端连通性探测）。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ok: bool
+    message: str = ""

@@ -78,3 +78,19 @@ def test_version_log(env_root: Path, client):
     commits = r.json()["commits"]
     assert len(commits) >= 3  # initial + 2 manual
     assert commits[0]["message"].startswith("chore(vault)")
+
+
+def test_version_apply_config_reloads_committer(env_root: Path, client, monkeypatch):
+    """apply-config 应把 committer 切换为最新配置（enabled=True → 定时器启动）。"""
+    r = client.post("/version/apply-config")
+    assert r.status_code == 200
+    assert r.json()["ok"] is True
+
+
+def test_version_test_without_remote(env_root: Path, client):
+    """未配置 remote_url 时 test 应返回 ok=False 而非常规异常。"""
+    r = client.post("/version/test")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["ok"] is False
+    assert "remote_url" in data["message"]

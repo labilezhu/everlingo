@@ -60,6 +60,19 @@ class Committer:
 
     # ── 生命周期 ─────────────────────────────────────────────────────
 
+    def _ensure_repo(self) -> None:
+        """init repo（懒加载）+ initial commit 兜底 + 统一本地分支名。幂等。"""
+        if not git.git_available():
+            return
+        try:
+            git.init_repo(self._root)
+            # 启动强制统一本地分支名 = 配置 branch，保证 push/fetch/rebase/status 全链路自洽
+            git.rename_current_branch(self._root, self._backup.branch)
+            if not git.has_commits(self._root):
+                self._commit_now("chore(vault): snapshot-of-vault-at-init")
+        except Exception as e:  # noqa: BLE001
+            logger.warning("committer: init repo 失败: %s", e)
+
     def start(self) -> None:
         """启动定时器线程。已在跑则 no-op。"""
         if self.running:
@@ -73,15 +86,7 @@ class Committer:
         with _atexit_root_lock:
             _atexit_roots.add(self._root)
         # init repo（懒加载）+ initial commit 兜底（即使 enabled=false）
-        if git.git_available():
-            try:
-                git.init_repo(self._root)
-                # 启动强制统一本地分支名 = 配置 branch，保证 push/fetch/rebase/status 全链路自洽
-                git.rename_current_branch(self._root, self._backup.branch)
-                if not git.has_commits(self._root):
-                    self._commit_now("chore(vault): snapshot-of-vault-at-init")
-            except Exception as e:  # noqa: BLE001
-                logger.warning("committer: init repo 失败: %s", e)
+        self._ensure_repo()
         if not self._backup.enabled:
             logger.info("git_backup 未启用，committer 定时器不启动")
             return
@@ -113,6 +118,51 @@ class Committer:
         with _atexit_root_lock:
             _atexit_roots.discard(self._root)
         self._ssh.close()
+
+    def apply_config(self, backup: GitBackup) -> None:
+        """用传入配置替换内存副本并同步定时线程启停。GIL 保护，幂等。
+
+        供 indexer `/version/apply-config`（gateway 保存 everlingo.yaml 后
+        热重载 committer）与 CoW 多副本写入使用，避免重启进程才生效。
+        """
+        with self._lock:
+            self._backup = backup
+            self._ssh.configure(
+                method=backup.auth.method,
+                ssh_private_key_file=backup.auth.ssh_private_key_file,
+                pat=backup.auth.pat,
+            )
+            if backup.enabled:
+                with _atexit_root_lock:
+                    _atexit_roots.add(self._root)
+                if self._thread is not None and self._thread.is_alive():
+                    logger.info("apply_config: committer 已在运行，仅更新配置")
+                else:
+                    self._ensure_repo()
+                    self._stop_event.clear()
+                    self._thread = threading.Thread(
+                        target=self._run_loop,
+                        name="vault-committer",
+                        daemon=True,
+                    )
+                    self._thread.start()
+                    logger.info(
+                        "apply_config: committer 定时器启动 (tick=%ss push_interval=%ss)",
+                        backup.commit_interval,
+                        backup.push_interval,
+                    )
+            else:
+                if self._thread is not None:
+                    self._stop_event.set()
+                    self._thread.join(timeout=5.0)
+                    self._thread = None
+                    logger.info("apply_config: committer 定时器停止")
+
+    def reload_config(self) -> GitBackup:
+        """重新从 everlingo.yaml 读取 git_backup，应用生效。返回新配置。"""
+        backup = self._load_backup_or_default()
+        self.apply_config(backup)
+        return backup
 
     @property
     def running(self) -> bool:

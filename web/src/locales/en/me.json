@@ -8,6 +8,8 @@
   "interface_language_desc": "Switch the display language of the chat and settings pages",
   "workspace_console": "Workspace Console",
   "workspace_console_desc": "Channel & gateway management",
+  "backup": "Remote backup",
+  "backup_desc": "Memory Vault version control and remote backup",
   "account": "Account",
   "version": "EverLingo {{version}}"
 }

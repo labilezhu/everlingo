@@ -30,6 +30,7 @@ from .protocol import (
     TagsResponse,
     VersionLogResponse,
     VersionStatusResponse,
+    VersionTestResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -293,4 +294,46 @@ class SearchClient:
                 logger.warning("indexer 不可达，version/restore 返回 None: %s", e)
             else:
                 logger.warning("version/restore 失败: %s", e)
+            return None
+
+    def version_apply_config(self) -> bool | None:
+        """保存 git_backup 配置后触发 committer 热重载。"""
+        try:
+            client = self._ensure_client()
+            resp = client.post("http://localhost/version/apply-config")
+            resp.raise_for_status()
+            return resp.json().get("ok")
+        except Exception as e:
+            if self._is_unreachable(e):
+                logger.warning("indexer 不可达，version/apply-config 失败: %s", e)
+            else:
+                logger.warning("version/apply-config 失败: %s", e)
+            return None
+
+    def version_test_remote(self) -> VersionTestResponse | None:
+        """用配置凭证探测远端连通性。"""
+        try:
+            client = self._ensure_client()
+            resp = client.post("http://localhost/version/test")
+            resp.raise_for_status()
+            return VersionTestResponse.model_validate(resp.json())
+        except Exception as e:
+            if self._is_unreachable(e):
+                logger.warning("indexer 不可达，version/test 返回 None: %s", e)
+            else:
+                logger.warning("version/test 失败: %s", e)
+            return None
+
+    def version_reset_hard(self) -> RestoreResponse | None:
+        """强操作：reset --hard 到远端（丢弃本地差异）。"""
+        try:
+            client = self._ensure_client()
+            resp = client.post("http://localhost/version/reset-hard")
+            resp.raise_for_status()
+            return RestoreResponse.model_validate(resp.json())
+        except Exception as e:
+            if self._is_unreachable(e):
+                logger.warning("indexer 不可达，version/reset-hard 返回 None: %s", e)
+            else:
+                logger.warning("version/reset-hard 失败: %s", e)
             return None

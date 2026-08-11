@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Languages, Settings2, UserRound, Globe } from 'lucide-react';
+import { ArrowLeft, Cloud, Languages, Settings2, UserRound, Globe } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { apiFetchJson } from '@/services/apiFetch';
@@ -41,6 +41,12 @@ export default function MePage() {
       description: t('workspace_console_desc'),
       href: '/console/web-console',
       icon: Settings2,
+    },
+    {
+      title: t('backup'),
+      description: t('backup_desc'),
+      href: '/console/me/backup',
+      icon: Cloud,
     },
   ];
 

@@ -12,6 +12,7 @@ import zhWebConsole from '@/locales/zh-CN/web-console.json';
 import zhLogin from '@/locales/zh-CN/login.json';
 import zhSelfService from '@/locales/zh-CN/self-service.json';
 import zhPat from '@/locales/zh-CN/pat.json';
+import zhBackup from '@/locales/zh-CN/backup.json';
 
 import enCommon from '@/locales/en/common.json';
 import enChatbot from '@/locales/en/chatbot.json';
@@ -22,6 +23,7 @@ import enWebConsole from '@/locales/en/web-console.json';
 import enLogin from '@/locales/en/login.json';
 import enSelfService from '@/locales/en/self-service.json';
 import enPat from '@/locales/en/pat.json';
+import enBackup from '@/locales/en/backup.json';
 
 export const NS = [
   'common',
@@ -33,6 +35,7 @@ export const NS = [
   'login',
   'self-service',
   'pat',
+  'backup',
 ] as const;
 
 export type Ns = (typeof NS)[number];
@@ -48,6 +51,7 @@ export const RESOURCES = {
     login: zhLogin,
     'self-service': zhSelfService,
     pat: zhPat,
+    backup: zhBackup,
   },
   en: {
     common: enCommon,
@@ -59,6 +63,7 @@ export const RESOURCES = {
     login: enLogin,
     'self-service': enSelfService,
     pat: enPat,
+    backup: enBackup,
   },
 } as const;
 

@@ -26,6 +26,7 @@ export default defineConfig({
         login: path.resolve(__dirname, 'login.html'),
         'self-service': path.resolve(__dirname, 'self-service.html'),
         pat: path.resolve(__dirname, 'pat.html'),
+        backup: path.resolve(__dirname, 'backup.html'),
       },
     },
   },

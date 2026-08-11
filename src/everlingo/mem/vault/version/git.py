@@ -269,6 +269,35 @@ def fetch(root: Path, remote: str = "origin", **kw) -> None:
     run_git(root, ["fetch", remote], **kw)
 
 
+def test_remote(
+    root: Path,
+    remote_url: str,
+    *,
+    env: Mapping[str, str] | None = None,
+    config: Mapping[str, str] | None = None,
+    timeout: float = _GIT_DEFAULT_TIMEOUT,
+) -> tuple[bool, str]:
+    """连通性探测：用注入的凭证上下文跑 `git ls-remote --heads <url>`。
+
+    成功返回 (True, 人类可读信息)；失败返回 (False, stderr 摘要)。
+    只读网络探测，不修改本地 repo 状态。
+    """
+    if not remote_url:
+        return False, "remote_url 未配置"
+    proc = run_git(
+        root,
+        ["ls-remote", "--heads", remote_url],
+        check=False,
+        config=config,
+        env=env,
+        timeout=timeout,
+    )
+    if proc.returncode == 0:
+        heads = [line for line in proc.stdout.splitlines() if line.strip()]
+        return True, f"远端可达，检测到 {len(heads)} 个分支头"
+    return False, proc.stderr.strip()[:500] or f"ls-remote 失败 (rc={proc.returncode})"
+
+
 def push(
     root: Path,
     remote: str = "origin",

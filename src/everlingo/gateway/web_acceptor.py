@@ -20,6 +20,7 @@ from everlingo.gateway.session_acceptor import SessionAcceptor
 from everlingo.gateway.user_profile_api import router as user_profile_router
 from everlingo.gateway.vault_editor_api import router as vault_editor_router
 from everlingo.gateway.workspace_console.router import router as workspace_console_router
+from everlingo.gateway.backup_api import router as backup_router
 from everlingo.i18n.pwa import manifest_text, resolve_manifest_language
 from everlingo.setting import load_profile
 from everlingo.workspace import indexer_mcp_url_path
@@ -28,6 +29,7 @@ app = FastAPI()
 app.include_router(user_profile_router)
 app.include_router(vault_editor_router)
 app.include_router(workspace_console_router)
+app.include_router(backup_router)
 
 # MVP: 允许扩展跨源请求（扩展 origin = chrome-extension://<id>）
 # 生产前应收敛 allow_origins 到白名单
@@ -224,6 +226,13 @@ async def serve_me(request: Request = None):
 async def serve_target_language(request: Request = None):
     """目标学习语言设置页（Me 页子页）。"""
     index = os.path.join(_static_dir(), "target-language.html")
+    return _serve_html_with_i18n(index, request)
+
+
+@app.get("/console/me/backup")
+async def serve_backup(request: Request = None):
+    """Memory Vault 远端备份配置页（Me 页子页）。"""
+    index = os.path.join(_static_dir(), "backup.html")
     return _serve_html_with_i18n(index, request)
 
 

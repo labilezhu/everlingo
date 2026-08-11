@@ -46,6 +46,7 @@ from .protocol import (
     TagsResponse,
     VersionLogResponse,
     VersionStatusResponse,
+    VersionTestResponse,
 )
 from .sync import open_db, reconcile
 from .tokenizer import tokenizer_version
@@ -527,6 +528,55 @@ def create_app(state: AppState) -> FastAPI:
             conflicts=result.conflicts or [],
             message=result.message,
         )
+
+    @app.post("/version/reset-hard", response_model=RestoreResponse)
+    def version_reset_hard() -> RestoreResponse:
+        """强操作：commit → fetch → git reset --hard origin/<branch>。"""
+        if state.committer is None:
+            raise HTTPException(status_code=409, detail="committer 未启动")
+        from everlingo import workspace
+
+        result = _do_restore(state, workspace.memory_dir(), hard=True)
+        return RestoreResponse(
+            ok=result.ok,
+            message=result.message,
+        )
+
+    @app.post("/version/test", response_model=VersionTestResponse)
+    def version_test() -> VersionTestResponse:
+        """连通性探测：用配置凭证跑 ls-remote，验证 remote 可达。"""
+        from everlingo import setting as _setting
+        from everlingo import workspace
+
+        from ..version import git as _vg
+        from ..version.ssh_key import SSHCommandContext
+
+        backup = _setting.load_git_backup()
+        ctx = SSHCommandContext()
+        ctx.configure(
+            method=backup.auth.method,
+            ssh_private_key_file=backup.auth.ssh_private_key_file,
+            pat=backup.auth.pat,
+        )
+        ctx.start()
+        try:
+            ok, message = _vg.test_remote(
+                workspace.memory_dir(),
+                backup.remote_url,
+                env=ctx.env(),
+                config=ctx.extraheader() or None,
+            )
+            return VersionTestResponse(ok=ok, message=message)
+        finally:
+            ctx.close()
+
+    @app.post("/version/apply-config", response_model=OkResponse)
+    def version_apply_config() -> OkResponse:
+        """gateway 保存 everlingo.yaml 后调用：热重载 committer 配置。"""
+        if state.committer is None:
+            raise HTTPException(status_code=409, detail="committer 未启动")
+        state.committer.reload_config()
+        return OkResponse(ok=True)
 
     @app.get("/version/log", response_model=VersionLogResponse)
     def version_log(limit: int = 20) -> VersionLogResponse:

@@ -8,6 +8,8 @@
   "interface_language_desc": "切换聊天界面与设置页的显示语言",
   "workspace_console": "Workspace Console",
   "workspace_console_desc": "频道与网关管理",
+  "backup": "远端备份",
+  "backup_desc": "Memory Vault 版本控制与远端备份",
   "account": "账号",
   "version": "EverLingo 版本： {{version}}"
 }

@@ -81,7 +81,7 @@
 | Phase | 范围 |
 |---|---|
 | P1+2（首期） | ADR + spec + 本地版本管理（git.py + committer.py + git init 懒加载 + initial commit + atexit final commit + CLI snapshot）+ SSH 远端备份（ssh_key.py + push/pull + restore.py + indexer HTTP 端点）+ 停掉 USER.md.bak |
-| P3（二期） | UI console 页 `/console/me/backup` + gateway REST API + Me 页入口 |
+| P3（二期） | UI console 页 `/console/me/backup`（Me 页常驻入口）+ gateway REST API `/api/backup/*` + **配置热重载**（indexer `/version/apply-config` + `Committer.apply_config/reload_config`，保存配置即生效）+ **测试连接**（`/version/test`，ls-remote 探测）+ **Hard Reset 强操作**（`/version/reset-hard`） |
 | P4（三期） | HTTPS + PAT 凭证支持 + PAT 掩码 |
 
 ## 8. 替代方案评估

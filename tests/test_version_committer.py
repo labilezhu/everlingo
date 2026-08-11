@@ -123,3 +123,54 @@ def test_ensure_snapshot_without_git(monkeypatch, memory_root: Path):
     monkeypatch.setattr(git, "git_available", lambda: False)
     _write(memory_root, "g.md", "g1")
     assert ensure_snapshot(memory_root) is False
+
+
+# ref: docs/ADR/20260810-vault-version-control.md — P3 配置热重载
+# apply_config / reload_config：保存 everlingo.yaml 后无需重启即生效
+
+
+def test_apply_config_starts_timer_when_enabled(memory_root: Path, monkeypatch):
+    _fake_backup(monkeypatch, GitBackup(enabled=False))
+    c = Committer(memory_root, tick_seconds=3600.0)
+    c.start()
+    assert not c.running
+    _write(memory_root, "h.md", "h1")
+    # 热启用：enabled=True → 定时器应启动并 init repo + initial commit
+    c.apply_config(
+        GitBackup(enabled=True, commit_interval=1, push_interval=0)
+    )
+    assert c.running is True
+    assert git.is_repo(memory_root)
+    assert git.has_commits(memory_root)
+    c.stop()
+
+
+def test_apply_config_stops_timer_when_disabled(memory_root: Path, monkeypatch):
+    _fake_backup(monkeypatch, GitBackup(enabled=True, commit_interval=1, push_interval=0))
+    c = Committer(memory_root, tick_seconds=3600.0)
+    c.start()
+    assert c.running is True
+    c.apply_config(GitBackup(enabled=False))
+    assert c.running is False
+    c.stop()
+
+
+def test_reload_config_reads_yaml_and_applies(memory_root: Path, monkeypatch):
+    """reload_config 从 setting 重新读取（模拟 gateway 保存后调用）。"""
+    state = {"backup": GitBackup(enabled=False)}
+
+    def load():
+        return state["backup"]
+
+    monkeypatch.setattr("everlingo.setting.load_git_backup", load)
+    monkeypatch.setattr("everlingo.setting.save_git_backup", lambda b: None)
+
+    c = Committer(memory_root, tick_seconds=3600.0)
+    c.start()
+    assert not c.running
+    # 外部改了 yaml → 热重载后定时器启动
+    state["backup"] = GitBackup(enabled=True, commit_interval=1, push_interval=0)
+    updated = c.reload_config()
+    assert c.running is True
+    assert updated.enabled is True
+    c.stop()

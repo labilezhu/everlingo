@@ -75,6 +75,11 @@ languages/*/index/
 - lifespan `state.open()` 时若 `load_git_backup().enabled` 则构造并 `committer.start()`；`state.close()` 时 `committer.stop()`（含 final commit）。
 - 若 `enabled=false` 但 repo 已存在，committer 仅做 initial commit 兜底（不跑定时器、不 push）。
 
+### 3.4 配置热重载（P3）
+- `Committer.apply_config(backup: GitBackup)`：用传入配置替换内存副本，重配 SSH 上下文；按新 `enabled` 幂等启停定时线程（`enabled=true` 且未在跑时先 `_ensure_repo()` 兜底 init + initial commit，再启动线程）。
+- `Committer.reload_config() -> GitBackup`：重新从 `setting.load_git_backup()` 读取并 `apply_config`，返回新配置。
+- 由 indexer 端点 `POST /version/apply-config` 触发（gateway 保存 `everlingo.yaml` 后调用），实现**保存配置即生效、无需重启 indexer**。`stop()` 的 final commit 行为不受热重载影响。
+
 ## 4. git 操作封装
 
 新建 `src/everlingo/mem/vault/version/`：
@@ -99,6 +104,7 @@ version/
 - `rebase(path, upstream)` -> `(ok, conflict_files)`。
 - `log(path, limit) -> list[{hash, time, message}]`。
 - `checkout_to_backup_branch(path, commit_hash)`：把指定历史版本检出到 `backup/restore-<ts>` 分支（不直接覆盖工作区）。
+- `test_remote(path, remote_url, *, env, config) -> (ok, message)`：`git ls-remote --heads <url>` 只读连通探测（P3，供「测试连接」按钮），不修改本地 repo 状态。
 
 ### 4.2 ssh_key.py
 - 持有 `auth.ssh_private_key_file`；非空 → 复制/软链到临时文件，`env["GIT_SSH_COMMAND"]="ssh -i <tmp> -o IdentitiesOnly=yes"`，操作后清理临时文件。
@@ -130,8 +136,44 @@ restore_vault(memory_root, remote, branch) -> RestoreResult:
 | POST | `/version/pull` | 走 restore 流程（commit→fetch→rebase），冲突返回 backup 分支 |
 | GET | `/version/log?limit=20` | 最近 commit 列表 |
 | POST | `/version/restore` `{commit_hash}` | 把指定历史版本检出到 backup 分支（不直接覆盖工作区） |
+| POST | `/version/apply-config` | **P3**：gateway 保存 `everlingo.yaml` 后触发 committer 热重载（`reload_config()`），保存配置即生效 |
+| POST | `/version/test` | **P3**：用 `git_backup` 凭证跑 `ls-remote`，返回 `{ok, message}` 连通探测结果（「测试连接」） |
+| POST | `/version/reset-hard` | **P3**：强操作 `commit → fetch → git reset --hard origin/<branch>`（丢弃本地差异；UI 需二次确认） |
 
 - 端点实现调用 `version/` 模块；与现有 `/{lang}/...` 路由平行，无 lang 维度。
+
+## 5.1 gateway REST API（P3，`/api/backup/*`）
+
+gateway 进程新增 `src/everlingo/gateway/backup_api.py`（router `prefix=/api/backup`），是 UI 的唯一后端入口：
+
+| Method | Path | 说明 |
+|---|---|---|
+| GET | `/api/backup/status` | 聚合 repo 状态（透传 `/version/status`） |
+| GET | `/api/backup/config` | 当前 `git_backup` 配置；**P3 起 `auth.pat` 一律返回空串**（掩码留 P4，避免泄露） |
+| POST | `/api/backup/config` | 校验后写 `everlingo.yaml`（`save_git_backup`），随后调 `/version/apply-config` 热重载；P3 仅接受 `method ∈ {ssh, https_none}`，`https_pat` 返回 400 |
+| POST | `/api/backup/snapshot` | 透传 `/version/commit` |
+| POST | `/api/backup/push` | 透传 `/version/push` |
+| POST | `/api/backup/pull` | 透传 `/version/pull`（软恢复） |
+| POST | `/api/backup/test` | 透传 `/version/test` |
+| POST | `/api/backup/reset-hard` | 透传 `/version/reset-hard`（强操作） |
+| GET | `/api/backup/log?limit=20` | 透传 `/version/log` |
+| POST | `/api/backup/restore` `{commit_hash}` | 透传 `/version/restore` |
+
+- 调用链路：gateway 经 `SearchClient`（httpx + unix socket `indexer.sock`）委托 indexer 的 `/version/*`；`SearchClient` 是同步阻塞，FastAPI 端点内用 `run_in_threadpool` 包裹。
+- 配置读写直接走 `setting.load_git_backup()` / `save_git_backup()`（gateway 与 indexer 同容器、共享 `everlingo.yaml`）。
+- indexer 不可达 / 返回异常 → 端点返回 503（前端展示「无法连接服务」）。
+- P3 边界：凭证 UI 仅 `ssh` / `https_none`；`https_pat` 输入与 PAT 掩码留 P4。
+
+## 5.2 UI console 页（P3，`/console/me/backup`）
+
+- 前端新增独立多入口页 `web/backup.html` + `web/src/backup/BackupPage.tsx`（Vite `rollupOptions.input` 加 `backup`），gateway `web_acceptor.py` 新增 `GET /console/me/backup` 服务该 HTML。
+- 页面组成：
+  - **状态卡**：enabled / initialized / dirty / 上次 commit / ahead-behind / remote_url / branch（`GET /api/backup/status`）。
+  - **配置表单**：enabled 开关、remote_url、branch、method（ssh | https_none）、ssh_private_key_file（仅 ssh 显示）；保存走 `POST /api/backup/config`。
+  - **操作区**：测试连接、立即快照、立即推送、拉取恢复、**Hard Reset 到远端**（`window.confirm` 二次确认）。
+  - **历史列表**：来自 `GET /api/backup/log`。
+- Me 页（`web/src/me/MePage.tsx`）**常驻入口**「远端备份」→ `/console/me/backup`（不按 enabled/initialized 条件显隐）。
+- i18n：新增 `backup` 命名空间（`web/src/locales/{zh-CN,en}/backup.json`），注册进 `i18n.ts` 的 `NS` / `RESOURCES`。
 
 ## 6. CLI（docs/impl-spec/search/memory-vault-search-spec.md 的 mem 子命令扩展）
 
@@ -163,7 +205,9 @@ everlingo mem log [--limit N]     # 查看历史
 - `tests/test_version_committer.py`：定时器 + debounce + dirty 检测 + atexit final commit。
 - `tests/test_version_ssh_key.py`：临时 key 文件生命周期 + GIT_SSH_COMMAND 注入。
 - `tests/test_version_restore.py`：restore 各分支（无冲突 / 可 rebase / 需 hard reset + backup 分支）。
-- `tests/test_indexer_server_version.py`：`/version/*` 端点集成测试（mock workspace）。
+- `tests/test_indexer_server_version.py`：`/version/*` 端点集成测试（mock workspace），含 `apply-config` 热重载、`test` 无 remote 降级。
+- `tests/test_backup_api.py`（P3）：gateway `/api/backup/*` 路由测试（mock SearchClient + 真实 yaml 落盘），覆盖状态、配置读写（P3 仅 ssh/https_none、`https_pat` 拒收）、pat 掩码、各操作端点、indexer 不可达降级 503。
+- `tests/test_version_committer.py`（P3）：`apply_config` 启停定时线程、`reload_config` 从 yaml 重读生效。
 - `tests/test_user_doc.py`：更新 `.bak` 用例为"无残留"断言。
 
 ## 10. 不在本期范围
@@ -171,24 +215,32 @@ everlingo mem log [--limit N]     # 查看历史
 - GitHub App / OAuth Connect 按钮（已决策弃用，见 ADR §5）。
 - keychain 凭证存储（容器内不可用）。
 - 协作式多机并发编辑冲突自动合并（定位为"单机使用 + 异机恢复"，冲突由用户手动处理）。
-- UI console 页面（Phase 3）；PAT 凭证（Phase 4）。
+- HTTPS + PAT 凭证支持与 PAT 掩码（**Phase 4 / P4**，未实现）。
 
-## 11. 部署依赖与容器运行时
+## 11. 分期现状
 
-### 11.1 镜像系统依赖
+| Phase | 范围 | 状态 |
+|---|---|---|
+| P1+2 | ADR + spec + 本地版本管理（git.py + committer.py + git init 懒加载 + initial commit + atexit final commit + CLI snapshot）+ SSH 远端备份（ssh_key.py + push/pull + restore.py + indexer HTTP 端点）+ 停掉 USER.md.bak | 已实现 |
+| P3 | UI console 页 `/console/me/backup` + gateway REST API `/api/backup/*` + Me 页常驻入口 + 配置热重载（§3.4）+ 测试连接（`/version/test`）+ Hard Reset 强操作（`/version/reset-hard`） | 已实现 |
+| P4 | HTTPS + PAT 凭证支持 + PAT 掩码 | 待实现 |
+
+## 12. 部署依赖与容器运行时
+
+### 12.1 镜像系统依赖
 - ws-container 镜像需 `git` + `openssh-client` + `ca-certificates`，由 `deploy/deps-base/Dockerfile` runtime stage 统一安装（ws-master / ws-router 镜像共享此 base，无害）。详见 [ws-container-spec.md](/deploy/ws-container/ws-container-spec.md)「系统依赖」。
 - 启动探测 `git --version`：缺失时 `enabled` 强制 false + log warning，不阻塞主流程。
 
-### 11.2 safe.directory（挂载 workspace 的 UID 不匹配）
+### 12.2 safe.directory（挂载 workspace 的 UID 不匹配）
 - 多用户部署下 `<host_workspace_dir>` 由宿主用户（如 root / deploy 用户）拥有，容器内进程是 `everlingo` UID 1000。git 见到文件 owner UID ≠ 当前 euid 会报 `detected dubious ownership` 并拒绝操作。
 - 缓解：`version/git.py` 的 `run_git` 每次调用带 `-c safe.directory=<abs memory_root>`（或 env `GIT_CONFIG_GLOBAL=/dev/null` + `-c safe.directory=*`），避免依赖全局 config（容器内 `/home/everlingo/.gitconfig` 在容器重建后丢失）。
 
-### 11.3 ssh host key 验证
+### 12.3 ssh host key 验证
 - `git@github.com` 等 ssh 远端首次连接会要求确认 host key，非交互 subprocess 下默认 `host key verification failed`。
 - `version/ssh_key.py` 构造的 `GIT_SSH_COMMAND` 必须含 `-o StrictHostKeyChecking=accept-new`（首次自动接受并写入 known_hosts，后续严格校验）。
 
-### 11.4 https 模式的 TLS
+### 12.4 https 模式的 TLS
 - `git push https://github.com/...` 需要 CA 证书做 TLS 验证；`ca-certificates` 已在 base 安装。自建 git server 用自签证书时需用户自行 `http.sslVerify=false`（配置项或 `-c`）。
 
-### 11.5 HOME 与全局 config
+### 12.5 HOME 与全局 config
 - git / ssh 可能读 `$HOME`（/home/everlingo）。容器内 everlingo 用户 HOME 已就绪；为避免跨容器重建丢失全局 config，所有 git 配置均走 repo-local（init 时设 `user.name` / `user.email`）或命令行 `-c` / env，不写全局 `~/.gitconfig`。
