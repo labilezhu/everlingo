@@ -15,9 +15,10 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from everlingo import workspace
+from everlingo.i18n.version import version_t
 from everlingo.mem.vault.search.client import SearchClient
 from everlingo.models import GitBackup, GitBackupAuth
-from everlingo.setting import load_git_backup, save_git_backup
+from everlingo.setting import load_git_backup, load_resolved_profile, save_git_backup
 
 logger = logging.getLogger(__name__)
 
@@ -80,10 +81,20 @@ def _to_public(backup: GitBackup) -> dict:
     return data
 
 
+def _lang() -> str:
+    """按当前 resolved 界面语言取文案；异常兜底 en。"""
+    try:
+        return load_resolved_profile().language.interface_language
+    except Exception:  # noqa: BLE001
+        return "en"
+
+
 def _unwrap(client_response: Any, *, what: str) -> Any:
     """SearchClient 同步方法返回 None（不可达/失败）→ 503。"""
     if client_response is None:
-        raise HTTPException(status_code=503, detail=f"{what} 失败：indexer 不可达或返回异常")
+        raise HTTPException(
+            status_code=503, detail=version_t("indexer_unreachable", _lang(), what=what)
+        )
     return client_response
 
 
@@ -107,7 +118,7 @@ async def backup_save_config(body: BackupConfigBody) -> dict:
     if body.method not in ALLOWED_METHODS:
         raise HTTPException(
             status_code=400,
-            detail=f"不支持凭证模式 {body.method!r}（可选：ssh / https_pat / https_none）",
+            detail=version_t("unsupported_auth_method", _lang(), method=body.method),
         )
     current = load_git_backup()
     # pat 更新语义：omit（None）或未声明 pat_changed → 保留既有值；
@@ -147,7 +158,10 @@ async def backup_snapshot() -> dict:
     client = _get_client()
     ok = await run_in_threadpool(client.version_commit)
     if ok is None:
-        raise HTTPException(status_code=503, detail="version/commit 失败：indexer 不可达或返回异常")
+        raise HTTPException(
+            status_code=503,
+            detail=version_t("indexer_unreachable", _lang(), what="version/commit"),
+        )
     return {"ok": ok}
 
 
@@ -156,7 +170,10 @@ async def backup_push() -> dict:
     client = _get_client()
     ok = await run_in_threadpool(client.version_push)
     if ok is None:
-        raise HTTPException(status_code=503, detail="version/push 失败：indexer 不可达或返回异常")
+        raise HTTPException(
+            status_code=503,
+            detail=version_t("indexer_unreachable", _lang(), what="version/push"),
+        )
     return {"ok": ok}
 
 
@@ -166,7 +183,10 @@ async def backup_force_push() -> dict:
     client = _get_client()
     ok = await run_in_threadpool(client.version_force_push)
     if ok is None:
-        raise HTTPException(status_code=503, detail="version/force-push 失败：indexer 不可达或返回异常")
+        raise HTTPException(
+            status_code=503,
+            detail=version_t("indexer_unreachable", _lang(), what="version/force-push"),
+        )
     return {"ok": ok}
 
 

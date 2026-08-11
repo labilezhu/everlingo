@@ -291,7 +291,7 @@ class TestActions:
 
     def test_test_remote(self, client, fake_indexer):
         fake_indexer.version_test_remote.return_value = VersionTestResponse(
-            ok=True, message="远端可达，检测到 2 个分支头"
+            ok=True, message="remote reachable, detected 2 branch head(s)"
         )
         r = client.post("/api/backup/test")
         assert r.status_code == 200
@@ -299,7 +299,7 @@ class TestActions:
 
     def test_reset_hard(self, client, fake_indexer):
         fake_indexer.version_reset_hard.return_value = RestoreResponse(
-            ok=True, message="hard reset 完成"
+            ok=True, message="hard reset done"
         )
         r = client.post("/api/backup/reset-hard")
         assert r.status_code == 200

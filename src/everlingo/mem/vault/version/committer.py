@@ -13,6 +13,7 @@ import threading
 import time as _time
 from pathlib import Path
 
+from everlingo.i18n.version import version_t
 from everlingo.models import GitBackup
 
 from . import git
@@ -25,6 +26,16 @@ logger = logging.getLogger(__name__)
 # 只提交进程内实际 start 过的 memory repo，避免误提交任意目录。
 _atexit_root_lock = threading.Lock()
 _atexit_roots: set[Path] = set()
+
+
+def _default_lang() -> str:
+    """后台 push（无请求上下文）时取当前 resolved 界面语言；异常兜底 en。"""
+    try:
+        from everlingo import setting
+
+        return setting.load_resolved_profile().language.interface_language
+    except Exception:  # noqa: BLE001
+        return "en"
 
 
 class Committer:
@@ -221,13 +232,14 @@ class Committer:
             logger.warning("committer push 失败: %s", e)
             return False
 
-    def push_now(self, *, force: bool = False) -> bool:
+    def push_now(self, *, force: bool = False, interface_language: str | None = None) -> bool:
         """强制 push 一次（默认 --force-with-lease；force=True → --force）。返回是否成功。"""
+        lang = interface_language or _default_lang()
         if not self._backup.remote_url:
-            raise git.GitError("remote_url 未配置")
-        git.ensure_remote(self._root, self._backup.remote_url)
+            raise git.GitError(version_t("remote_url_missing", lang))
+        git.ensure_remote(self._root, self._backup.remote_url, interface_language=lang)
         env, config = self._remote_ctx()
-        git.fetch(self._root, env=env, config=config)
+        git.fetch(self._root, env=env, config=config, interface_language=lang)
         git.push(
             self._root,
             remote="origin",
@@ -235,13 +247,14 @@ class Committer:
             force=force,
             env=env,
             config=config,
+            interface_language=lang,
         )
         self._last_push_at = _time.monotonic()
         return True
 
-    def force_push_now(self) -> bool:
+    def force_push_now(self, *, interface_language: str | None = None) -> bool:
         """无条件强推一次（git push --force，覆盖远端历史）。"""
-        return self.push_now(force=True)
+        return self.push_now(force=True, interface_language=interface_language)
 
     def _remote_ctx(self) -> tuple[dict[str, str], dict[str, str]]:
         """按当前 auth 构造 git 需要注入的 env + config。"""

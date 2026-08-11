@@ -17,6 +17,8 @@ from fastapi import FastAPI, HTTPException, Path as PathParam
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
+from everlingo.i18n.version import version_t
+
 from . import search
 from .embedding import store
 from .embedding.ai_embedding import AIEmbedding
@@ -53,6 +55,16 @@ from .tokenizer import tokenizer_version
 from .watcher import VaultWatcher
 
 logger = logging.getLogger(__name__)
+
+
+def _version_lang() -> str:
+    """/version/* 端点按当前 resolved 界面语言取文案；异常兜底 en。"""
+    try:
+        from everlingo import setting as _setting
+
+        return _setting.load_resolved_profile().language.interface_language
+    except Exception:  # noqa: BLE001
+        return "en"
 
 
 # ── 应用状态 ─────────────────────────────────────────────────────────
@@ -503,33 +515,37 @@ def create_app(state: AppState) -> FastAPI:
 
     @app.post("/version/commit", response_model=OkResponse)
     def version_commit() -> OkResponse:
+        lang = _version_lang()
         if state.committer is None:
-            raise HTTPException(status_code=409, detail="committer 未启动")
+            raise HTTPException(status_code=409, detail=version_t("committer_not_started", lang))
         ok = state.committer._commit_now()
         return OkResponse(ok=ok)
 
     @app.post("/version/push", response_model=OkResponse)
     def version_push() -> OkResponse:
+        lang = _version_lang()
         if state.committer is None:
-            raise HTTPException(status_code=409, detail="committer 未启动")
-        ok = state.committer.push_now()
+            raise HTTPException(status_code=409, detail=version_t("committer_not_started", lang))
+        ok = state.committer.push_now(interface_language=lang)
         return OkResponse(ok=ok)
 
     @app.post("/version/force-push", response_model=OkResponse)
     def version_force_push() -> OkResponse:
         """强操作：git push --force（无条件覆盖远端历史）。"""
+        lang = _version_lang()
         if state.committer is None:
-            raise HTTPException(status_code=409, detail="committer 未启动")
-        ok = state.committer.force_push_now()
+            raise HTTPException(status_code=409, detail=version_t("committer_not_started", lang))
+        ok = state.committer.force_push_now(interface_language=lang)
         return OkResponse(ok=ok)
 
     @app.post("/version/pull", response_model=RestoreResponse)
     def version_pull() -> RestoreResponse:
+        lang = _version_lang()
         if state.committer is None:
-            raise HTTPException(status_code=409, detail="committer 未启动")
+            raise HTTPException(status_code=409, detail=version_t("committer_not_started", lang))
         from everlingo import workspace
 
-        result = _do_restore(state, workspace.memory_dir(), hard=False)
+        result = _do_restore(state, workspace.memory_dir(), hard=False, interface_language=lang)
         return RestoreResponse(
             ok=result.ok,
             backup_branch=result.backup_branch,
@@ -540,11 +556,12 @@ def create_app(state: AppState) -> FastAPI:
     @app.post("/version/reset-hard", response_model=RestoreResponse)
     def version_reset_hard() -> RestoreResponse:
         """强操作：commit → fetch → git reset --hard origin/<branch>。"""
+        lang = _version_lang()
         if state.committer is None:
-            raise HTTPException(status_code=409, detail="committer 未启动")
+            raise HTTPException(status_code=409, detail=version_t("committer_not_started", lang))
         from everlingo import workspace
 
-        result = _do_restore(state, workspace.memory_dir(), hard=True)
+        result = _do_restore(state, workspace.memory_dir(), hard=True, interface_language=lang)
         return RestoreResponse(
             ok=result.ok,
             message=result.message,
@@ -573,6 +590,7 @@ def create_app(state: AppState) -> FastAPI:
                 backup.remote_url,
                 env=ctx.env(),
                 config=ctx.extraheader() or None,
+                interface_language=_version_lang(),
             )
             return VersionTestResponse(ok=ok, message=message)
         finally:
@@ -581,8 +599,9 @@ def create_app(state: AppState) -> FastAPI:
     @app.post("/version/apply-config", response_model=OkResponse)
     def version_apply_config() -> OkResponse:
         """gateway 保存 everlingo.yaml 后调用：热重载 committer 配置。"""
+        lang = _version_lang()
         if state.committer is None:
-            raise HTTPException(status_code=409, detail="committer 未启动")
+            raise HTTPException(status_code=409, detail=version_t("committer_not_started", lang))
         state.committer.reload_config()
         return OkResponse(ok=True)
 
@@ -609,17 +628,22 @@ def create_app(state: AppState) -> FastAPI:
 
         from ..version import git as vg
 
+        lang = _version_lang()
         root = workspace.memory_dir()
         if not vg.is_repo(root):
-            raise HTTPException(status_code=409, detail="repo 未初始化")
+            raise HTTPException(
+                status_code=409, detail=version_t("repo_not_initialized_short", lang)
+            )
         try:
-            branch = vg.checkout_to_backup_branch(root, req.commit_hash)
+            branch = vg.checkout_to_backup_branch(
+                root, req.commit_hash, interface_language=lang
+            )
         except vg.GitError as e:
             raise HTTPException(status_code=400, detail=str(e))
         return RestoreResponse(
             ok=True,
             backup_branch=branch,
-            message=f"已检出到 backup 分支 {branch}",
+            message=version_t("checked_out_backup_branch", lang, branch=branch),
         )
 
     return app
@@ -657,16 +681,21 @@ def _version_status_response() -> VersionStatusResponse:
     )
 
 
-def _do_restore(state: AppState, memory_root: Path, *, hard: bool):
+def _do_restore(
+    state: AppState, memory_root: Path, *, hard: bool, interface_language: str | None = None
+):
     """恢复流程（pull 端点 / CLI 共用）：按配置构造远端凭证上下文。"""
     from everlingo import setting as _setting
 
     from ..version import restore as _restore
     from ..version.ssh_key import SSHCommandContext
 
+    lang = interface_language or _version_lang()
     backup = _setting.load_git_backup()
     if not backup.remote_url:
-        raise HTTPException(status_code=400, detail="remote_url 未配置")
+        raise HTTPException(
+            status_code=400, detail=version_t("remote_url_missing", lang)
+        )
     ctx = SSHCommandContext()
     ctx.configure(
         method=backup.auth.method,
@@ -684,10 +713,11 @@ def _do_restore(state: AppState, memory_root: Path, *, hard: bool):
                 branch=backup.branch,
                 env=env,
                 config=config,
+                interface_language=lang,
             )
             return _restore.RestoreResult(
                 ok=ok,
-                message="hard reset 完成" if ok else "hard reset 失败",
+                message=version_t("hard_reset_done" if ok else "hard_reset_failed", lang),
             )
         return _restore.restore_vault(
             memory_root,
@@ -695,6 +725,7 @@ def _do_restore(state: AppState, memory_root: Path, *, hard: bool):
             branch=backup.branch,
             env=env,
             config=config,
+            interface_language=lang,
         )
     finally:
         ctx.close()

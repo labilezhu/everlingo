@@ -93,7 +93,9 @@ def test_restore_conflict_creates_backup_branch_without_overwrite(tmp_path: Path
 
 def test_restore_not_repo_returns_fail(tmp_path: Path):
     root = tmp_path / "memory"
-    result = restore_vault(root, remote_url=str(tmp_path / "x.git"))
+    result = restore_vault(
+        root, remote_url=str(tmp_path / "x.git"), interface_language="zh-CN"
+    )
     assert result.ok is False
     assert "未初始化" in result.message
 

@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping
 
+from everlingo.i18n.version import version_t
+
 logger = logging.getLogger(__name__)
 
 GIT_IDENTITY_NAME = "everlingo"
@@ -83,6 +85,7 @@ def run_git(
     config: Mapping[str, str] | None = None,
     env: Mapping[str, str] | None = None,
     timeout: float = _GIT_DEFAULT_TIMEOUT,
+    interface_language: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """执行 git 命令。
 
@@ -91,6 +94,7 @@ def run_git(
     :param check: True 时 returncode!=0 抛 GitError。
     :param config: 附加 `-c key=value` 配置项（如 https_pat 的 http.extraheader）。
     :param env:   附加环境变量（如 ssh 的 GIT_SSH_COMMAND）。
+    :param interface_language: 错误文案语言（None → en 回退）。
     """
     full_env = _git_env()
     if env:
@@ -109,12 +113,25 @@ def run_git(
             timeout=timeout,
         )
     except FileNotFoundError:
-        raise GitError(f"git 未安装，无法执行: {args[0] if args else 'git'}", 127)
+        raise GitError(
+            version_t(
+                "git_not_installed",
+                interface_language,
+                cmd=args[0] if args else "git",
+            ),
+            127,
+        )
     except subprocess.TimeoutExpired:
-        raise GitError(f"git 命令超时: {' '.join(args)}", -1)
+        raise GitError(version_t("git_timeout", interface_language, args=" ".join(args)), -1)
     if check and proc.returncode != 0:
         raise GitError(
-            f"git {' '.join(args)} 失败 (rc={proc.returncode}): {proc.stderr.strip()[:500]}",
+            version_t(
+                "git_command_failed",
+                interface_language,
+                args=" ".join(args),
+                returncode=str(proc.returncode),
+                stderr=proc.stderr.strip()[:500],
+            ),
             proc.returncode,
             proc.stderr,
         )
@@ -202,13 +219,15 @@ def rename_current_branch(root: Path, target: str) -> bool:
     return True
 
 
-def add_and_commit(root: Path, message: str | None = None) -> bool:
+def add_and_commit(
+    root: Path, message: str | None = None, *, interface_language: str | None = None
+) -> bool:
     """git add -A && git commit。无变更时返回 False（不产 commit）。"""
     if not is_dirty(root):
         return False
-    run_git(root, ["add", "-A"])
+    run_git(root, ["add", "-A"], interface_language=interface_language)
     msg = message or auto_commit_message()
-    run_git(root, ["commit", "-q", "-m", msg])
+    run_git(root, ["commit", "-q", "-m", msg], interface_language=interface_language)
     logger.info("committed: %s", msg)
     return True
 
@@ -255,18 +274,22 @@ def count_ahead_behind(root: Path, ref: str) -> tuple[int, int]:
 # ── remote 交互 ───────────────────────────────────────────────────────
 
 
-def ensure_remote(root: Path, remote_url: str, name: str = "origin") -> None:
+def ensure_remote(
+    root: Path, remote_url: str, name: str = "origin", *, interface_language: str | None = None
+) -> None:
     if not remote_url:
-        raise GitError("remote_url 未配置")
-    proc = run_git(root, ["remote", "get-url", name], check=False)
+        raise GitError(version_t("remote_url_missing", interface_language))
+    proc = run_git(root, ["remote", "get-url", name], check=False, interface_language=interface_language)
     if proc.returncode != 0:
-        run_git(root, ["remote", "add", name, remote_url])
+        run_git(root, ["remote", "add", name, remote_url], interface_language=interface_language)
     else:
-        run_git(root, ["remote", "set-url", name, remote_url])
+        run_git(root, ["remote", "set-url", name, remote_url], interface_language=interface_language)
 
 
-def fetch(root: Path, remote: str = "origin", **kw) -> None:
-    run_git(root, ["fetch", remote], **kw)
+def fetch(
+    root: Path, remote: str = "origin", *, interface_language: str | None = None, **kw
+) -> None:
+    run_git(root, ["fetch", remote], interface_language=interface_language, **kw)
 
 
 def test_remote(
@@ -276,6 +299,7 @@ def test_remote(
     env: Mapping[str, str] | None = None,
     config: Mapping[str, str] | None = None,
     timeout: float = _GIT_DEFAULT_TIMEOUT,
+    interface_language: str | None = None,
 ) -> tuple[bool, str]:
     """连通性探测：用注入的凭证上下文跑 `git ls-remote --heads <url>`。
 
@@ -283,7 +307,7 @@ def test_remote(
     只读网络探测，不修改本地 repo 状态。
     """
     if not remote_url:
-        return False, "remote_url 未配置"
+        return False, version_t("remote_url_missing", interface_language)
     proc = run_git(
         root,
         ["ls-remote", "--heads", remote_url],
@@ -291,11 +315,14 @@ def test_remote(
         config=config,
         env=env,
         timeout=timeout,
+        interface_language=interface_language,
     )
     if proc.returncode == 0:
         heads = [line for line in proc.stdout.splitlines() if line.strip()]
-        return True, f"远端可达，检测到 {len(heads)} 个分支头"
-    return False, proc.stderr.strip()[:500] or f"ls-remote 失败 (rc={proc.returncode})"
+        return True, version_t("remote_reachable", interface_language, count=str(len(heads)))
+    return False, proc.stderr.strip()[:500] or version_t(
+        "ls_remote_failed", interface_language, returncode=str(proc.returncode)
+    )
 
 
 def push(
@@ -305,6 +332,7 @@ def push(
     *,
     force_with_lease: bool = True,
     force: bool = False,
+    interface_language: str | None = None,
     **kw,
 ) -> None:
     """git push。
@@ -320,7 +348,7 @@ def push(
     elif force_with_lease:
         args.append("--force-with-lease")
     args += [remote, branch]
-    run_git(root, args, **kw)
+    run_git(root, args, interface_language=interface_language, **kw)
 
 
 def rebase(root: Path, upstream: str) -> tuple[bool, list[str]]:
@@ -339,17 +367,25 @@ def _merge_conflict_files(root: Path) -> list[str]:
     return [line for line in proc.stdout.splitlines() if line.strip()]
 
 
-def checkout_to_backup_branch(root: Path, commit_hash: str) -> str:
+def checkout_to_backup_branch(
+    root: Path, commit_hash: str, *, interface_language: str | None = None
+) -> str:
     """把指定历史版本创建一个 backup 分支（不切换工作区，不覆盖当前文件）。"""
     ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     branch = f"backup/restore-{ts}"
-    run_git(root, ["branch", branch, commit_hash])
+    run_git(root, ["branch", branch, commit_hash], interface_language=interface_language)
     return branch
 
 
-def hard_reset(root: Path, remote: str, branch: str) -> None:
+def hard_reset(
+    root: Path, remote: str, branch: str, *, interface_language: str | None = None
+) -> None:
     """git reset --hard <remote>/<branch>（丢弃本地提交，回退到远端）。"""
-    run_git(root, ["reset", "--hard", f"{remote}/{branch}"])
+    run_git(
+        root,
+        ["reset", "--hard", f"{remote}/{branch}"],
+        interface_language=interface_language,
+    )
 
 
 # ── status 聚合 ───────────────────────────────────────────────────────

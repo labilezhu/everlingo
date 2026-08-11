@@ -6,6 +6,7 @@ ref: docs/i18n/i18n.md — Phase 2 Chat Agent 兜底文案 i18n
 """
 from .messages import FALLBACK_LANG, MESSAGES, t
 from .pwa import parse_accept_language, resolve_manifest_language
+from .version import VERSION_MESSAGES, version_t
 
 __all__ = [
     "FALLBACK_LANG",
@@ -13,4 +14,6 @@ __all__ = [
     "t",
     "parse_accept_language",
     "resolve_manifest_language",
+    "VERSION_MESSAGES",
+    "version_t",
 ]
