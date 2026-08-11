@@ -99,7 +99,7 @@ version/
 - `status_porcelain(path) -> bool`（有改动返回 True）。
 - `rename_current_branch(path, target)`：`git branch -M target`，幂等，强制统一本地分支名。
 - `commit(path, message)`。
-- `push(path, remote, branch, force_lease=True)`（force-with-lease）。
+- `push(path, remote, branch, force_lease=True, force=False)`（`--force-with-lease`；`force=True` 时改 `--force`）。
 - `fetch(path, remote)`。
 - `rebase(path, upstream)` -> `(ok, conflict_files)`。
 - `log(path, limit) -> list[{hash, time, message}]`。
@@ -133,6 +133,7 @@ restore_vault(memory_root, remote, branch) -> RestoreResult:
 | GET | `/version/status` | `{enabled, initialized, dirty, last_commit_at, last_push_at, remote_configured, ahead, behind}` |
 | POST | `/version/commit` | 同步触发一次 commit |
 | POST | `/version/push` | `--force-with-lease` push |
+| POST | `/version/force-push` | 强操作 `git push --force`（无条件覆盖远端历史；UI 需二次确认） |
 | POST | `/version/pull` | 走 restore 流程（commit→fetch→rebase），冲突返回 backup 分支 |
 | GET | `/version/log?limit=20` | 最近 commit 列表 |
 | POST | `/version/restore` `{commit_hash}` | 把指定历史版本检出到 backup 分支（不直接覆盖工作区） |
@@ -153,6 +154,7 @@ gateway 进程新增 `src/everlingo/gateway/backup_api.py`（router `prefix=/api
 | POST | `/api/backup/config` | 校验后写 `everlingo.yaml`（`save_git_backup`），随后调 `/version/apply-config` 热重载；接受 `method ∈ {ssh, https_pat, https_none}`；`pat` 以 `pat_changed` 布尔声明是否改动（omit 或 false → 保留原值；true → 用提交值，空串=清空） |
 | POST | `/api/backup/snapshot` | 透传 `/version/commit` |
 | POST | `/api/backup/push` | 透传 `/version/push` |
+| POST | `/api/backup/force-push` | 透传 `/version/force-push`（强操作） |
 | POST | `/api/backup/pull` | 透传 `/version/pull`（软恢复） |
 | POST | `/api/backup/test` | 透传 `/version/test` |
 | POST | `/api/backup/reset-hard` | 透传 `/version/reset-hard`（强操作） |
@@ -170,7 +172,7 @@ gateway 进程新增 `src/everlingo/gateway/backup_api.py`（router `prefix=/api
 - 页面组成：
   - **状态卡**：enabled / initialized / dirty / 上次 commit / ahead-behind / remote_url / branch（`GET /api/backup/status`）。
   - **配置表单**：enabled 开关、remote_url、branch、method（ssh | https_pat | https_none）、ssh_private_key_file（仅 ssh 显示）、pat（仅 https_pat 显示，掩码回填）；保存走 `POST /api/backup/config`。
-  - **操作区**：测试连接、立即快照、立即推送、拉取恢复、**Hard Reset 到远端**（`window.confirm` 二次确认）。
+  - **操作区**：测试连接、立即快照、立即推送、**强制推送**（`git push --force`，`window.confirm` 二次确认）、拉取恢复、**Hard Reset 到远端**（`window.confirm` 二次确认）。
   - **历史列表**：来自 `GET /api/backup/log`。
 - Me 页（`web/src/me/MePage.tsx`）**常驻入口**「远端备份」→ `/console/me/backup`（不按 enabled/initialized 条件显隐）。
 - i18n：新增 `backup` 命名空间（`web/src/locales/{zh-CN,en}/backup.json`），注册进 `i18n.ts` 的 `NS` / `RESOURCES`。
@@ -181,6 +183,7 @@ gateway 进程新增 `src/everlingo/gateway/backup_api.py`（router `prefix=/api
 everlingo mem snapshot            # 同步触发一次 commit（即使 enabled=false 也尝试，repo 不存在则 init）
 everlingo mem restore [--hard]    # 走 restore 流程；--hard 在冲突时 hard reset 到远端
 everlingo mem push                # 手动 push --force-with-lease
+everlingo mem force-push          # 手动 push --force（覆盖远端历史）
 everlingo mem pull                # 手动 pull（= restore 流程）
 everlingo mem log [--limit N]     # 查看历史
 ```
@@ -223,6 +226,7 @@ everlingo mem log [--limit N]     # 查看历史
 | P1+2 | ADR + spec + 本地版本管理（git.py + committer.py + git init 懒加载 + initial commit + atexit final commit + CLI snapshot）+ SSH 远端备份（ssh_key.py + push/pull + restore.py + indexer HTTP 端点）+ 停掉 USER.md.bak | 已实现 |
 | P3 | UI console 页 `/console/me/backup` + gateway REST API `/api/backup/*` + Me 页常驻入口 + 配置热重载（§3.4）+ 测试连接（`/version/test`）+ Hard Reset 强操作（`/version/reset-hard`） | 已实现 |
 | P4 | HTTPS + PAT 凭证支持 + PAT 掩码 | 已实现 |
+| 补充 | Force Push（`/version/force-push` + `/api/backup/force-push` + UI「强制推送」按钮 + CLI `mem force-push`） | 已实现 |
 
 ## 12. 部署依赖与容器运行时
 

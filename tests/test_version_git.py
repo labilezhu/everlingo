@@ -93,6 +93,48 @@ def test_ensure_remote_and_fetch_push_roundtrip(repo: Path, tmp_path: Path):
     assert "x.md" or "auto-snapshot" or len(proc.stdout.strip().splitlines()) == 1
 
 
+def test_push_default_uses_force_with_lease(repo: Path, monkeypatch):
+    """默认 push 应带 --force-with-lease（安全），不出现 --force。"""
+    calls: list[list[str]] = []
+    orig = git.run_git
+
+    def _fake_run_git(cwd, args, **_kw):
+        from subprocess import CompletedProcess
+
+        calls.append(list(args))
+        if args[0] == "push":
+            return CompletedProcess(args, 0, stdout="", stderr="")
+        return orig(cwd, args, **_kw)
+
+    monkeypatch.setattr(git, "run_git", _fake_run_git)
+    git.push(repo, remote="origin", branch="main")
+    assert any(
+        a[0] == "push" and "--force-with-lease" in a and "--force" not in a
+        for a in calls
+    )
+
+
+def test_push_force_uses_dash_force(repo: Path, monkeypatch):
+    """force=True 时应生成 git push --force，且不含 --force-with-lease。"""
+    calls: list[list[str]] = []
+    orig = git.run_git
+
+    def _fake_run_git(cwd, args, **_kw):
+        from subprocess import CompletedProcess
+
+        calls.append(list(args))
+        if args[0] == "push":
+            return CompletedProcess(args, 0, stdout="", stderr="")
+        return orig(cwd, args, **_kw)
+
+    monkeypatch.setattr(git, "run_git", _fake_run_git)
+    git.push(repo, remote="origin", branch="main", force=True)
+    assert any(
+        a[0] == "push" and "--force" in a and "--force-with-lease" not in a
+        for a in calls
+    )
+
+
 def test_rebase_no_conflict(repo: Path, tmp_path: Path):
     """本地先进、远端也有提交（不同文件），rebase 应成功。"""
     import subprocess

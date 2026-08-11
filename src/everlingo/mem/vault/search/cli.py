@@ -246,6 +246,20 @@ def cmd_version_push(args: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+def cmd_version_force_push(args: argparse.Namespace) -> int:
+    """mem force-push → POST /version/force-push（git push --force）。"""
+    _resolve_workspace(args)
+    if not _require_indexer_alive(_client()):
+        print("indexer 未运行，无法 force-push", file=sys.stderr)
+        return 1
+    ok = _client().version_force_push()
+    if ok is None:
+        print("force-push 调用失败", file=sys.stderr)
+        return 1
+    print("force-push 成功" if ok else "force-push 失败")
+    return 0 if ok else 1
+
+
 def cmd_version_pull(args: argparse.Namespace) -> int:
     """mem pull → POST /version/pull（commit→fetch→rebase）。"""
     _resolve_workspace(args)
@@ -348,6 +362,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_snap.set_defaults(func=cmd_version_snapshot)
     p_push = sub.add_parser("push", help="手动 push --force-with-lease 到远端")
     p_push.set_defaults(func=cmd_version_push)
+    p_fpush = sub.add_parser("force-push", help="手动 push --force 到远端（覆盖远端历史）")
+    p_fpush.set_defaults(func=cmd_version_force_push)
     p_pull = sub.add_parser("pull", help="从远端恢复（commit→fetch→rebase）")
     p_pull.set_defaults(func=cmd_version_pull)
     p_log = sub.add_parser("log", help="查看历史 commit 列表")

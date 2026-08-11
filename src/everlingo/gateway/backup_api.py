@@ -160,6 +160,16 @@ async def backup_push() -> dict:
     return {"ok": ok}
 
 
+@router.post("/force-push")
+async def backup_force_push() -> dict:
+    """强操作：git push --force（无条件覆盖远端历史，UI 需二次确认）。"""
+    client = _get_client()
+    ok = await run_in_threadpool(client.version_force_push)
+    if ok is None:
+        raise HTTPException(status_code=503, detail="version/force-push 失败：indexer 不可达或返回异常")
+    return {"ok": ok}
+
+
 @router.post("/pull")
 async def backup_pull() -> dict:
     """软恢复：commit → fetch → rebase。冲突时给 backup 分支。"""

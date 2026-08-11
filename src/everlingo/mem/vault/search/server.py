@@ -515,6 +515,14 @@ def create_app(state: AppState) -> FastAPI:
         ok = state.committer.push_now()
         return OkResponse(ok=ok)
 
+    @app.post("/version/force-push", response_model=OkResponse)
+    def version_force_push() -> OkResponse:
+        """强操作：git push --force（无条件覆盖远端历史）。"""
+        if state.committer is None:
+            raise HTTPException(status_code=409, detail="committer 未启动")
+        ok = state.committer.force_push_now()
+        return OkResponse(ok=ok)
+
     @app.post("/version/pull", response_model=RestoreResponse)
     def version_pull() -> RestoreResponse:
         if state.committer is None:

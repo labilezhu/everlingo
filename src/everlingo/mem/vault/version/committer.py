@@ -221,8 +221,8 @@ class Committer:
             logger.warning("committer push 失败: %s", e)
             return False
 
-    def push_now(self) -> bool:
-        """强制 push 一次（--force-with-lease）。返回是否成功。"""
+    def push_now(self, *, force: bool = False) -> bool:
+        """强制 push 一次（默认 --force-with-lease；force=True → --force）。返回是否成功。"""
         if not self._backup.remote_url:
             raise git.GitError("remote_url 未配置")
         git.ensure_remote(self._root, self._backup.remote_url)
@@ -232,11 +232,16 @@ class Committer:
             self._root,
             remote="origin",
             branch=self._backup.branch,
+            force=force,
             env=env,
             config=config,
         )
         self._last_push_at = _time.monotonic()
         return True
+
+    def force_push_now(self) -> bool:
+        """无条件强推一次（git push --force，覆盖远端历史）。"""
+        return self.push_now(force=True)
 
     def _remote_ctx(self) -> tuple[dict[str, str], dict[str, str]]:
         """按当前 auth 构造 git 需要注入的 env + config。"""

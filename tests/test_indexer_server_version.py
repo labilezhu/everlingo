@@ -87,6 +87,26 @@ def test_version_apply_config_reloads_committer(env_root: Path, client, monkeypa
     assert r.json()["ok"] is True
 
 
+def test_version_force_push_to_remote(env_root: Path, client):
+    """force-push 端点：apply-config 配置 remote 后应真实 git push --force 到远端。"""
+    import subprocess
+
+    from everlingo.models import GitBackup
+    from everlingo.setting import save_git_backup
+
+    bare = env_root.parent / "remote.git"
+    subprocess.run(["git", "init", "--bare", "-q", str(bare)], check=True)
+    _write(env_root, "note.md", "force push content")
+    save_git_backup(GitBackup(enabled=True, remote_url=str(bare), branch="main"))
+    assert client.post("/version/apply-config").status_code == 200
+
+    r = client.post("/version/force-push")
+    assert r.status_code == 200
+    assert r.json()["ok"] is True
+    proc = git.run_git(bare, ["log", "--oneline"])
+    assert len(proc.stdout.strip().splitlines()) >= 1
+
+
 def test_version_test_without_remote(env_root: Path, client):
     """未配置 remote_url 时 test 应返回 ok=False 而非常规异常。"""
     r = client.post("/version/test")

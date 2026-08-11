@@ -37,6 +37,8 @@
   "action_test": "Test connection",
   "action_snapshot": "Commit snapshot now",
   "action_push": "Push now",
+  "action_force_push": "Force push",
+  "force_push_confirm": "This will forcibly overwrite remote history (git push --force), discarding remote differences. Continue?",
   "action_pull": "Pull & rebase",
   "action_reset_hard": "Hard reset to remote",
   "reset_hard_confirm": "This will discard all local unpushed changes and reset everything to the remote. Continue?",

@@ -37,6 +37,8 @@
   "action_test": "测试连接",
   "action_snapshot": "立即提交快照",
   "action_push": "立即推送",
+  "action_force_push": "强制推送",
+  "force_push_confirm": "将强制覆盖远端历史（git push --force），丢弃远端差异，确定继续？",
   "action_pull": "拉取恢复",
   "action_reset_hard": "Hard Reset 到远端",
   "reset_hard_confirm": "将丢弃本地所有未推送改动并完全回退到远端，确定继续？",

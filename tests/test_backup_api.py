@@ -265,6 +265,17 @@ class TestActions:
         r = client.post("/api/backup/push")
         assert r.status_code == 503
 
+    def test_force_push(self, client, fake_indexer):
+        fake_indexer.version_force_push.return_value = True
+        r = client.post("/api/backup/force-push")
+        assert r.status_code == 200
+        assert r.json() == {"ok": True}
+
+    def test_force_push_unreachable(self, client, fake_indexer):
+        fake_indexer.version_force_push.return_value = None
+        r = client.post("/api/backup/force-push")
+        assert r.status_code == 503
+
     def test_pull(self, client, fake_indexer):
         fake_indexer.version_pull.return_value = RestoreResponse(
             ok=False,

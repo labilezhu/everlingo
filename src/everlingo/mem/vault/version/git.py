@@ -304,15 +304,20 @@ def push(
     branch: str | None = None,
     *,
     force_with_lease: bool = True,
+    force: bool = False,
     **kw,
 ) -> None:
-    """git push。默认 --force-with-lease（远端被他人更新则拒绝）。
+    """git push。
 
+    默认 --force-with-lease（远端被他人更新则拒绝）；force=True 时改用
+    --force（无条件覆盖远端历史，供 UI/CLI 强推场景，需用户显式确认）。
     调用方负责在 push 前已 fetch（--force-with-lease 依赖 remote-tracking ref）。
     """
     branch = branch or current_branch(root)
     args = ["push"]
-    if force_with_lease:
+    if force:
+        args.append("--force")
+    elif force_with_lease:
         args.append("--force-with-lease")
     args += [remote, branch]
     run_git(root, args, **kw)

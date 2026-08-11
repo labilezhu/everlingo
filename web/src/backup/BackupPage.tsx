@@ -111,9 +111,12 @@ export default function BackupPage() {
     }
   }
 
-  async function runAction(kind: 'test' | 'snapshot' | 'push' | 'pull' | 'reset-hard') {
+  async function runAction(kind: 'test' | 'snapshot' | 'push' | 'force-push' | 'pull' | 'reset-hard') {
     if (kind === 'reset-hard') {
       if (!window.confirm(t('reset_hard_confirm'))) return;
+    }
+    if (kind === 'force-push') {
+      if (!window.confirm(t('force_push_confirm'))) return;
     }
     setAction(kind);
     setResult(null);
@@ -288,7 +291,11 @@ export default function BackupPage() {
                   {action === 'push' ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
                   {t('action_push')}
                 </Button>
-                <Button variant="outline" disabled={action !== null} onClick={() => void runAction('pull')}>
+                <Button variant="destructive" disabled={action !== null} onClick={() => void runAction('force-push')}>
+                  {action === 'force-push' ? <Loader2 className="size-4 animate-spin" /> : <AlertTriangle className="size-4" />}
+                  {t('action_force_push')}
+                </Button>
+                <Button variant="outline" className="col-span-2" disabled={action !== null} onClick={() => void runAction('pull')}>
                   {action === 'pull' ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
                   {t('action_pull')}
                 </Button>

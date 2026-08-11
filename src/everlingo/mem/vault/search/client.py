@@ -252,6 +252,20 @@ class SearchClient:
                 logger.warning("version/push 失败: %s", e)
             return None
 
+    def version_force_push(self) -> bool | None:
+        """git push --force（无条件覆盖远端历史）。"""
+        try:
+            client = self._ensure_client()
+            resp = client.post("http://localhost/version/force-push")
+            resp.raise_for_status()
+            return resp.json().get("ok")
+        except Exception as e:
+            if self._is_unreachable(e):
+                logger.warning("indexer 不可达，version/force-push 失败: %s", e)
+            else:
+                logger.warning("version/force-push 失败: %s", e)
+            return None
+
     def version_pull(self) -> RestoreResponse | None:
         """走 restore 流程（commit→fetch→rebase）；冲突返回 backup 分支。"""
         try:
