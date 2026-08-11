@@ -1,9 +1,9 @@
-# ref: docs/ADR/20260810-vault-version-control.md — P3（二期）gateway REST API
+# ref: docs/ADR/20260810-vault-version-control.md — P3/P4 gateway REST API
 # Backup API：/api/backup/*。git 操作全部复用 indexer 的 /version/* 端点
 # （经 SearchClient 走 UDS），配置读写 everlingo.yaml（git_backup 段）。
 #
-# P3 边界：凭证模式仅 ssh / https_none；https_pat 输入与 PAT 掩码留 P4。
-# GET 配置时 pat 一律返回空串，避免 P3 提前泄露。
+# P4 起支持 https_pat 凭证；GET 配置时 pat 以掩码返回（仅展示末 4 位，
+# 见 ADR §3.4），保存时前端以 pat_changed 布尔声明是否真的改动了 PAT。
 
 from __future__ import annotations
 
@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/backup", tags=["backup"])
 
-# P3 允许的凭证模式（https_pat 留 P4）
-ALLOWED_METHODS = {"ssh", "https_none"}
+# P4 允许的凭证模式
+ALLOWED_METHODS = {"ssh", "https_none", "https_pat"}
 
 _client: SearchClient | None = None
 
@@ -38,13 +38,20 @@ def _get_client() -> SearchClient:
 
 
 class BackupConfigBody(BaseModel):
-    """保存 git_backup 配置（P3 字段）。"""
+    """保存 git_backup 配置（P3/P4 字段）。
+
+    pat 语义：前端仅在用户真正编辑了 PAT 输入框时才提交 pat 且置
+    pat_changed=true；未编辑则 omit（None）→ 保留原值。pat 为空串且
+    pat_changed=true → 清空原 PAT。
+    """
 
     enabled: bool = False
     remote_url: str = ""
     branch: str = "main"
     method: str = "ssh"
     ssh_private_key_file: str = ""
+    pat: str | None = None
+    pat_changed: bool = False
     commit_interval: int | None = Field(
         default=None, ge=1, description="留空则保持原值"
     )
@@ -57,10 +64,19 @@ class RestoreBody(BaseModel):
     commit_hash: str
 
 
+def mask_pat(pat: str) -> str:
+    """PAT 掩码：仅展示末 4 位（ADR §3.4）。空串返回空串。"""
+    if not pat:
+        return ""
+    if len(pat) <= 4:
+        return "*" * len(pat)
+    return "*" * (len(pat) - 4) + pat[-4:]
+
+
 def _to_public(backup: GitBackup) -> dict:
-    """序列化为前端可见配置。P3：pat 一律置空（掩码留 P4）。"""
+    """序列化为前端可见配置。P4：pat 以掩码返回（末 4 位）。"""
     data = backup.model_dump()
-    data["auth"] = {**data["auth"], "pat": ""}
+    data["auth"] = {**data["auth"], "pat": mask_pat(backup.auth.pat)}
     return data
 
 
@@ -81,7 +97,7 @@ async def backup_status() -> dict:
 
 @router.get("/config")
 async def backup_get_config() -> dict:
-    """当前 git_backup 配置（pat 掩码，P4 才实现）。"""
+    """当前 git_backup 配置（pat 掩码：末 4 位）。"""
     return _to_public(load_git_backup())
 
 
@@ -91,10 +107,14 @@ async def backup_save_config(body: BackupConfigBody) -> dict:
     if body.method not in ALLOWED_METHODS:
         raise HTTPException(
             status_code=400,
-            detail=f"不支持凭证模式 {body.method!r}（P3 仅 ssh / https_none，https_pat 待 P4）",
+            detail=f"不支持凭证模式 {body.method!r}（可选：ssh / https_pat / https_none）",
         )
     current = load_git_backup()
-    # 保留既有 pat 等未覆盖字段，避免覆盖 CLI 侧配置
+    # pat 更新语义：omit（None）或未声明 pat_changed → 保留既有值；
+    # pat_changed=true 时用提交值（空串=清空，明文=设新值）。
+    new_pat = current.auth.pat
+    if body.pat is not None and body.pat_changed:
+        new_pat = body.pat
     updated = current.model_copy(
         update={
             "enabled": body.enabled,
@@ -104,6 +124,7 @@ async def backup_save_config(body: BackupConfigBody) -> dict:
                 update={
                     "method": body.method,
                     "ssh_private_key_file": body.ssh_private_key_file,
+                    "pat": new_pat,
                 }
             ),
             "commit_interval": (

@@ -25,8 +25,10 @@ import type {
   BackupTestResponse,
 } from '@/types/backup';
 
-// ref: docs/ADR/20260810-vault-version-control.md — P3 UI console 页
+// ref: docs/ADR/20260810-vault-version-control.md — P3/P4 UI console 页
 // /console/me/backup：状态 + 配置表单 + 操作（测试/快照/推送/拉取/hard reset）+ 历史。
+// P4：支持 https_pat 凭证。PAT 输入框只在用户实际编辑时才随请求提交
+// （pat + pat_changed=true），否则 omit 字段让后端保留原值——前端不留存真实 PAT。
 
 type LoadState = 'loading' | 'ready' | 'error';
 type ActionResult = { ok: boolean; text: string } | null;
@@ -49,6 +51,8 @@ export default function BackupPage() {
   const [saving, setSaving] = useState(false);
   const [action, setAction] = useState<string | null>(null);
   const [result, setResult] = useState<ActionResult>(null);
+  const [patValue, setPatValue] = useState('');
+  const [patEdited, setPatEdited] = useState(false);
 
   const loadAll = useCallback(async () => {
     try {
@@ -59,6 +63,8 @@ export default function BackupPage() {
       ]);
       setStatus(st);
       setConfig(cfg);
+      setPatValue(cfg.auth.pat);
+      setPatEdited(false);
       setLog(lg);
       setLoadState('ready');
     } catch {
@@ -76,19 +82,26 @@ export default function BackupPage() {
     setSaving(true);
     setResult(null);
     try {
+      const body: Record<string, unknown> = {
+        enabled: config.enabled,
+        remote_url: config.remote_url,
+        branch: config.branch,
+        method: config.auth.method,
+        ssh_private_key_file: config.auth.ssh_private_key_file,
+        push_interval: config.push_interval,
+      };
+      if (config.auth.method === 'https_pat' && patEdited) {
+        body.pat = patValue;
+        body.pat_changed = true;
+      }
       const updated = await apiFetchJson<BackupConfig>('/api/backup/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          enabled: config.enabled,
-          remote_url: config.remote_url,
-          branch: config.branch,
-          method: config.auth.method,
-          ssh_private_key_file: config.auth.ssh_private_key_file,
-          push_interval: config.push_interval,
-        }),
+        body: JSON.stringify(body),
       });
       setConfig(updated);
+      setPatValue(updated.auth.pat);
+      setPatEdited(false);
       setResult({ ok: true, text: t('saved') });
     } catch (e) {
       const msg = e instanceof Error ? e.message : t('save_failed');
@@ -217,6 +230,7 @@ export default function BackupPage() {
                     }
                   >
                     <option value="ssh">{t('method_ssh')}</option>
+                    <option value="https_pat">{t('method_https_pat')}</option>
                     <option value="https_none">{t('method_https_none')}</option>
                   </select>
                 </div>
@@ -232,6 +246,19 @@ export default function BackupPage() {
                           auth: { ...config.auth, ssh_private_key_file: e.target.value },
                         })
                       }
+                    />
+                  </div>
+                )}
+                {config.auth.method === 'https_pat' && (
+                  <div>
+                    <label className="block text-xs text-muted-foreground">{t('pat_label')}</label>
+                    <Input
+                      value={patValue}
+                      placeholder={t('pat_placeholder')}
+                      onChange={e => {
+                        setPatValue(e.target.value);
+                        setPatEdited(true);
+                      }}
                     />
                   </div>
                 )}

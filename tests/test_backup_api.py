@@ -1,6 +1,7 @@
-# ref: docs/ADR/20260810-vault-version-control.md — P3 gateway REST API
+# ref: docs/ADR/20260810-vault-version-control.md — P3/P4 gateway REST API
 # /api/backup/* 路由测试：mock SearchClient（UDS 网络）与真实 setting 落盘（yaml）。
-# 覆盖：状态、配置读写（P3 仅 ssh/https_none）、pat 掩码、各操作端点、indexer 不可达降级。
+# 覆盖：状态、配置读写（ssh/https_pat/https_none）、pat 掩码与 pat_changed 语义、
+# 各操作端点、indexer 不可达降级。
 
 from __future__ import annotations
 
@@ -91,7 +92,7 @@ class TestStatus:
 
 class TestConfig:
     def test_get_returns_masked_pat(self, client):
-        # 预置配置含 pat → GET 应返回空串（P3 掩码）
+        # 预置配置含 pat → GET 应返回掩码（末 4 位）
         from everlingo.models import GitBackup, GitBackupAuth
         from everlingo.setting import save_git_backup
 
@@ -105,8 +106,18 @@ class TestConfig:
         r = client.get("/api/backup/config")
         assert r.status_code == 200
         data = r.json()
-        assert data["auth"]["pat"] == ""
+        assert data["auth"]["pat"] == backup_api.mask_pat("github_pat_secret")
+        assert data["auth"]["pat"].endswith("cret")
+        assert "*" in data["auth"]["pat"]
         assert data["remote_url"] == "https://github.com/user/vault.git"
+
+    def test_get_masks_short_pat(self, client):
+        from everlingo.models import GitBackup, GitBackupAuth
+        from everlingo.setting import save_git_backup
+
+        save_git_backup(GitBackup(auth=GitBackupAuth(method="https_pat", pat="ab")))
+        r = client.get("/api/backup/config")
+        assert r.json()["auth"]["pat"] == "**"
 
     def test_post_saves_and_reloads(self, client, fake_indexer):
         fake_indexer.version_apply_config.return_value = True
@@ -133,16 +144,38 @@ class TestConfig:
         assert saved.remote_url == "git@github.com:user/vault.git"
         assert saved.auth.ssh_private_key_file == "/run/secrets/key"
 
-    def test_post_rejects_https_pat_in_p3(self, client):
+    def test_post_accepts_https_pat(self, client, fake_indexer):
+        fake_indexer.version_apply_config.return_value = True
         r = client.post(
             "/api/backup/config",
-            json={"enabled": True, "remote_url": "x", "method": "https_pat"},
+            json={
+                "enabled": True,
+                "remote_url": "https://github.com/user/vault.git",
+                "branch": "main",
+                "method": "https_pat",
+                "pat": "github_pat_new",
+                "pat_changed": True,
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["auth"]["method"] == "https_pat"
+        assert data["auth"]["pat"].endswith("_new")
+        from everlingo.setting import load_git_backup
+
+        saved = load_git_backup()
+        assert saved.auth.method == "https_pat"
+        assert saved.auth.pat == "github_pat_new"
+
+    def test_post_rejects_unknown_method(self, client):
+        r = client.post(
+            "/api/backup/config",
+            json={"enabled": True, "remote_url": "x", "method": "https_pat2"},
         )
         assert r.status_code == 400
-        assert "https_pat" in r.json()["detail"]
 
     def test_post_preserves_existing_pat(self, client, fake_indexer):
-        # 切到 ssh 不应清掉既有 pat（防覆盖 CLI 侧配置）
+        # 切到 ssh 且未提交 pat → 不清掉既有 pat（防覆盖 CLI 侧配置）
         from everlingo.models import GitBackup, GitBackupAuth
         from everlingo.setting import save_git_backup
 
@@ -162,6 +195,63 @@ class TestConfig:
 
         saved = load_git_backup()
         assert saved.auth.pat == "github_pat_secret"
+
+    def test_post_preserves_pat_when_not_changed(self, client, fake_indexer):
+        # 提交 pat 但 pat_changed=false（掩码回传）→ 保留原值
+        from everlingo.models import GitBackup, GitBackupAuth
+        from everlingo.setting import save_git_backup
+
+        save_git_backup(
+            GitBackup(
+                remote_url="https://github.com/user/vault.git",
+                auth=GitBackupAuth(method="https_pat", pat="github_pat_secret"),
+            )
+        )
+        fake_indexer.version_apply_config.return_value = True
+        r = client.post(
+            "/api/backup/config",
+            json={
+                "enabled": True,
+                "remote_url": "https://github.com/user/vault.git",
+                "method": "https_pat",
+                "pat": backup_api.mask_pat("github_pat_secret"),
+                "pat_changed": False,
+            },
+        )
+        assert r.status_code == 200
+        from everlingo.setting import load_git_backup
+
+        assert load_git_backup().auth.pat == "github_pat_secret"
+
+    def test_post_clears_pat_when_changed_empty(self, client, fake_indexer):
+        from everlingo.models import GitBackup, GitBackupAuth
+        from everlingo.setting import save_git_backup
+
+        save_git_backup(
+            GitBackup(auth=GitBackupAuth(method="https_pat", pat="github_pat_secret"))
+        )
+        fake_indexer.version_apply_config.return_value = True
+        r = client.post(
+            "/api/backup/config",
+            json={
+                "enabled": True,
+                "remote_url": "https://github.com/user/vault.git",
+                "method": "https_pat",
+                "pat": "",
+                "pat_changed": True,
+            },
+        )
+        assert r.status_code == 200
+        from everlingo.setting import load_git_backup
+
+        assert load_git_backup().auth.pat == ""
+
+    def test_mask_pat(self):
+        assert backup_api.mask_pat("") == ""
+        assert backup_api.mask_pat("ab") == "**"
+        assert backup_api.mask_pat("abcdef") == "**cdef"
+        assert backup_api.mask_pat("github_pat_secret").endswith("cret")
+        assert "*" in backup_api.mask_pat("github_pat_secret")
 
 
 class TestActions:

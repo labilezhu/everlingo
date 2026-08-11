@@ -25,6 +25,7 @@ export interface BackupConfig {
     method: 'ssh' | 'https_none' | 'https_pat';
     ssh_private_key_file: string;
     pat: string;
+    pat_changed?: boolean;
   };
 }
 
