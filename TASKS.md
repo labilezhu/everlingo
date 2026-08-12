@@ -7,6 +7,8 @@
 ## 完成的任务
 格式：完成日期与时间(GMT+8 timezone) | 任务描述 。 示例： " - 2026-06-20 19:28 | 生成主入口代码"
 
+ - 2026-08-12 | Release 0.1.2-rc.2：全仓版本号 0.1.2-rc.1 → 0.1.2-rc.2（__init__.py / MePage.tsx / ws_master·ws_router app.py / pyproject.toml=0.1.2rc2 / vault_spec×2 / README×2 / user-docs×3 / router-master 部署文档 EVERLINGO_VER）；Chrome 扩展 manifest.json=0.1.2.2、package.json=0.1.2-rc.2、package-lock 经 npm install 同步；发布 tag v0.1.2-rc.2；VERSION_HISTORY.yaml 0.1.2-rc.2 标记 released + 插入 0.1.2-rc.3。注：uv.lock 中 everlingo 包自引用 version 仍为 0.1.2rc1（历次发布均不同步，保持原状）。
+
  - 2026-08-12 | WS-Master 透传环境变量（代理支持）：ws_master/lifecycle.py 新增 `WS_CONTAINER_ENV_PREFIX` 与 `_collect_container_passthrough_env()`——create 时读取 ws-master 进程 `os.environ`，凡 `WS_CONTAINER_` 前缀变量去掉前缀后注入 ws-container 的 `environment`（`WS_CONTAINER_HTTP_PROXY`→`HTTP_PROXY` 等），透传优先于显式注入的 OPENAI_*/EVERLINGO_* env；测试 tests/test_ws_master_lifecycle.py 新增 3 用例（透传注入/透传覆盖显式/无透传时键集合）；文档 ws-master.md §6.2「透传环境变量」+ §10 不变量、deploy.md §2 ws_master environment 示例；release notes v0.1.2 新增「多用户 · WS-Master」节（14 passed）。
 
   - 2026-08-11 | Release 0.1.2-rc.1：全仓版本号 0.1.1 → 0.1.2-rc.1（__init__.py / MePage.tsx / ws_master·ws_router app.py / pyproject.toml=0.1.2rc1 / vault_spec×2 / README×2 / user-docs×3 / router-master 部署文档 EVERLINGO_VER）；Chrome 扩展 manifest.json=0.1.2.1、package.json=0.1.2-rc.1、package-lock 经 npm install 同步；VERSION_HISTORY.yaml 标记 released + 插入 0.1.2-rc.2。
