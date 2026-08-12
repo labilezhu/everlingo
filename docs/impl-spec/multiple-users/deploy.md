@@ -65,6 +65,13 @@ services:
     image: ghcr.io/<owner>/everlingo-ws-master:0.1    # 或本地构建: everlingo-ws-master:0.1
     # 同上，ENTRYPOINT 为 `python -m everlingo`
     command: ["ws_master", "--config", "/etc/everlingo/ws_master.yaml"]
+    environment:
+      # 透传进 ws-container（去 WS_CONTAINER_ 前缀后注入，透传优先），
+      # 典型用于 ws-container 出网走代理（访问 OpenAI / OpenRouter API）。
+      # 见 ws-master.md §6.2「透传环境变量」。
+      WS_CONTAINER_HTTP_PROXY: "http://proxy.example:8080"
+      WS_CONTAINER_HTTPS_PROXY: "http://proxy.example:8080"
+      WS_CONTAINER_NO_PROXY: "127.0.0.1,localhost,.everlingo-net"
     volumes:
       - "./deploy/examples/ws_master.yaml:/etc/everlingo/ws_master.yaml:ro"
       - "./deploy/examples/ws_container_everlingo_template.yaml:/etc/everlingo/ws_container_everlingo_template.yaml:ro"

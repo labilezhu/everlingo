@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import shutil
 from pathlib import Path
 from typing import Dict, Optional, Tuple
@@ -31,6 +32,25 @@ STATUS_STARTING = "starting"
 STATUS_STARTED = "started"
 STATUS_STOPPED = "stopped"
 STATUS_ERROR = "error"
+
+# 透传前缀：ws-master 进程 env 中 WS_CONTAINER_ 前缀的变量，去前缀后注入 ws-container。
+# 例如 WS_CONTAINER_HTTP_PROXY → HTTP_PROXY。
+WS_CONTAINER_ENV_PREFIX = "WS_CONTAINER_"
+
+
+def _collect_container_passthrough_env() -> Dict[str, str]:
+    """收集需透传给 ws-container 的环境变量。
+
+    读取 ws-master 进程 ``os.environ``，凡以 ``WS_CONTAINER_`` 前缀开头的变量，
+    去掉前缀后作为 ws-container 的环境变量透传。透传优先于代码显式注入的 env
+    （如 OPENAI_* / EVERLINGO_*），故合并时放在 base 之后 update。
+    """
+    return {
+        name[len(WS_CONTAINER_ENV_PREFIX):]: value
+        for name, value in os.environ.items()
+        if name.startswith(WS_CONTAINER_ENV_PREFIX)
+        and len(name) > len(WS_CONTAINER_ENV_PREFIX)
+    }
 
 
 class ContainerLifecycle:
@@ -147,6 +167,17 @@ class ContainerLifecycle:
                 shutil.copy2(str(template_path), str(target))
 
         try:
+            # 透传优先：代码显式注入的 base env 先放，WS_CONTAINER_ 前缀透传后覆盖
+            environment = {
+                "OPENAI_API_KEY": user.openai_api_key or self._config.openai_api_key,
+                "OPENAI_BASE_URL": user.openai_base_url or self._config.openai_base_url,
+                "OPENAI_MODEL": user.openai_model or self._config.openai_model,
+                "OPENAI_EMBEDDING_MODEL": user.openai_embedding_model or self._config.openai_embedding_model,
+                "EVERLINGO_PUBLIC_BASE_URL": self._config.public_base_url,
+                "EVERLINGO_WORKSPACE_DIR": "/home/everlingo/.everlingo/workspaces/default",
+            }
+            environment.update(_collect_container_passthrough_env())
+
             container = self._docker.containers.create(
                 image=self._config.image,
                 name=ws.container_name,
@@ -160,14 +191,7 @@ class ContainerLifecycle:
                     "everlingo.user": user.user_name,
                     "everlingo.ws.id": ws.ws_container_id,
                 },
-                environment={
-                    "OPENAI_API_KEY": user.openai_api_key or self._config.openai_api_key,
-                    "OPENAI_BASE_URL": user.openai_base_url or self._config.openai_base_url,
-                    "OPENAI_MODEL": user.openai_model or self._config.openai_model,
-                    "OPENAI_EMBEDDING_MODEL": user.openai_embedding_model or self._config.openai_embedding_model,
-                    "EVERLINGO_PUBLIC_BASE_URL": self._config.public_base_url,
-                    "EVERLINGO_WORKSPACE_DIR": "/home/everlingo/.everlingo/workspaces/default",
-                },
+                environment=environment,
                 volumes={
                     ws.host_workspace_dir: {
                         "bind": "/home/everlingo/.everlingo/workspaces/default",

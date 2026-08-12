@@ -331,6 +331,81 @@ async def test_create_injects_public_base_url_env(config, db_repos, user_and_ws)
 
 
 @pytest.mark.asyncio
+async def test_create_passthrough_env_injected(config, db_repos, user_and_ws, monkeypatch):
+    """WS_CONTAINER_ 前缀 env 去前缀后透传进 ws-container（如 HTTP_PROXY）。
+
+    ref: docs/impl-spec/multiple-users/ws-master.md — 透传环境变量
+    """
+    conn, user_repo, ws_repo = db_repos
+    user, ws = user_and_ws
+
+    monkeypatch.setenv("WS_CONTAINER_HTTP_PROXY", "http://proxy.example:8080")
+    monkeypatch.setenv("WS_CONTAINER_HTTPS_PROXY", "http://proxy.example:8443")
+    monkeypatch.setenv("WS_CONTAINER_NO_PROXY", "localhost,127.0.0.1,.everlingo-net")
+    monkeypatch.setenv("WS_CONTAINER", "no-prefix-strip")  # 仅前缀无下划线后续部分，不应透传
+
+    mock_docker = _mock_docker_client()
+    lc = ContainerLifecycle(config, ws_repo, user_repo, docker_client=mock_docker)
+    lc._probe = AsyncMock(return_value=True)  # type: ignore
+
+    await lc.ensure_started(ws.ws_container_id)
+
+    create_kwargs = mock_docker.containers.create.call_args.kwargs
+    env = create_kwargs["environment"]
+    assert env["HTTP_PROXY"] == "http://proxy.example:8080"
+    assert env["HTTPS_PROXY"] == "http://proxy.example:8443"
+    assert env["NO_PROXY"] == "localhost,127.0.0.1,.everlingo-net"
+    assert "no-prefix-strip" not in env.values()
+    assert "WS_CONTAINER_HTTP_PROXY" not in env
+    conn.close()
+
+
+@pytest.mark.asyncio
+async def test_create_passthrough_overrides_explicit_env(config, db_repos, user_and_ws, monkeypatch):
+    """透传 env 优先于代码显式注入的 env（透传覆盖显式值）。"""
+    conn, user_repo, ws_repo = db_repos
+    user, ws = user_and_ws
+
+    monkeypatch.setenv("WS_CONTAINER_OPENAI_API_KEY", "override-key")
+
+    mock_docker = _mock_docker_client()
+    lc = ContainerLifecycle(config, ws_repo, user_repo, docker_client=mock_docker)
+    lc._probe = AsyncMock(return_value=True)  # type: ignore
+
+    await lc.ensure_started(ws.ws_container_id)
+
+    create_kwargs = mock_docker.containers.create.call_args.kwargs
+    env = create_kwargs["environment"]
+    assert env["OPENAI_API_KEY"] == "override-key"
+    conn.close()
+
+
+@pytest.mark.asyncio
+async def test_create_no_passthrough_env(config, db_repos, user_and_ws):
+    """无 WS_CONTAINER_ 前缀 env 时，只注入显式 env。"""
+    conn, user_repo, ws_repo = db_repos
+    user, ws = user_and_ws
+
+    mock_docker = _mock_docker_client()
+    lc = ContainerLifecycle(config, ws_repo, user_repo, docker_client=mock_docker)
+    lc._probe = AsyncMock(return_value=True)  # type: ignore
+
+    await lc.ensure_started(ws.ws_container_id)
+
+    create_kwargs = mock_docker.containers.create.call_args.kwargs
+    env = create_kwargs["environment"]
+    assert set(env) == {
+        "OPENAI_API_KEY",
+        "OPENAI_BASE_URL",
+        "OPENAI_MODEL",
+        "OPENAI_EMBEDDING_MODEL",
+        "EVERLINGO_PUBLIC_BASE_URL",
+        "EVERLINGO_WORKSPACE_DIR",
+    }
+    conn.close()
+
+
+@pytest.mark.asyncio
 async def test_create_bind_source_is_host_path(config, db_repos, user_and_ws):
     """Bind source (volumes key) = host_ws_dir path; file ops on container_ws_dir path.
 

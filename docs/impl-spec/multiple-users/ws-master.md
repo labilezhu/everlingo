@@ -281,6 +281,23 @@ docker.containers.create(
 
 不设 `ports`——ws-container 仅靠 docker network alias 可达，不对宿主映射端口。复用现有 [ws-container-spec.md](../../deploy/ws-container/ws-container-spec.md) 镜像（entrypoint.sh + indexer + gateway 二进程不变）。
 
+**透传环境变量**：ws-master 进程 `os.environ` 中凡以 `WS_CONTAINER_` 前缀开头的变量，会**去掉前缀**后作为 ws-container 的环境变量注入（create 时读取，见 `lifecycle.py:_collect_container_passthrough_env()`）。透传**优先**于代码显式注入的 env（`OPENAI_*` / `EVERLINGO_*` 等）。
+
+典型用例——ws-container 出网走企业代理（如访问 OpenAI / OpenRouter API），在 compose 的 `ws_master` service `environment:` 设置：
+
+```yaml
+environment:
+  WS_CONTAINER_HTTP_PROXY: "http://proxy.example:8080"
+  WS_CONTAINER_HTTPS_PROXY: "http://proxy.example:8080"
+  WS_CONTAINER_NO_PROXY: "127.0.0.1,localhost,.everlingo-net"
+```
+
+即注入为 ws-container 的 `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY`。
+
+注意：
+- docker env 在 create 后不可变，已建 ws-container 需 `ws rm --purge` 重建才生效新透传值。
+- `NO_PROXY` 建议包含 `127.0.0.1,localhost` 及内部网络地址（如 `.everlingo-net`），避免容器内到 docker 网络内服务（ws-router 等）的流量误走代理。
+
 探活与 backend_url 均使用容器在 `everlingo-net` 上的动态 IP（由 `_container_ip()` 读取 `NetworkSettings.Networks[everlingo-net].IPAddress`），每次解析现取——IP 随容器重启变动，不写库缓存。后端 URL 格式：`http://<container_ip>:8000`（不需 hostname 解析，解决 ws-master 本地开发时容器 hostname 不可达的问题）。
 
 ## 7. ws-container 生命周期（状态机）
@@ -394,5 +411,6 @@ CLI 直连 `ws_master.sqlite`，不走 internal API。
 - `docker stop` 不删 workspace；只有显式 `ws rm --purge` 或 `user rm --purge` 才删。
 - LLM 密钥不写入 workspace `everlingo.yaml`；经容器 env 注入，依赖 `config.py` env fallback。
 - 外部访问域名（`public_base_url`）不写入 workspace `everlingo.yaml`；由 WS-Master 经容器 env `EVERLINGO_PUBLIC_BASE_URL` 注入，依赖 `setting.get_web_public_base_url()` env fallback。应与 `ws_router.yaml` 的 `public_base_url` 保持一致。
+- `WS_CONTAINER_` 前缀 env 由 WS-Master 去前缀透传进 ws-container（见 §6.2），透传优先于显式 env。
 - `user_name` 不可修改（用作容器名与 workspace 目录路径）。
 

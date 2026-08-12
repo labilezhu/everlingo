@@ -47,6 +47,12 @@ services:
       EVERLINGO_PUBLIC_BASE_URL: ${EVERLINGO_PUBLIC_BASE_URL} 
       WORKSPLACE_IMAGE: ${WORKSPLACE_IMAGE}
       MASTER_SECRET: ${MASTER_SECRET} 
+      WS_CONTAINER_HTTP_PROXY: ${WS_CONTAINER_HTTP_PROXY} 
+      WS_CONTAINER_HTTPS_PROXY: ${WS_CONTAINER_HTTPS_PROXY} 
+      WS_CONTAINER_NO_PROXY: ${WS_CONTAINER_NO_PROXY} 
+      WS_CONTAINER_http_proxy: ${WS_CONTAINER_http_proxy} 
+      WS_CONTAINER_https_proxy: ${WS_CONTAINER_https_proxy} 
+      WS_CONTAINER_no_proxy: ${WS_CONTAINER_no_proxy} 
     volumes:
       - "./ws_master.yaml:/etc/everlingo/ws_master.yaml:ro"
       - "./ws_container_everlingo_template.yaml:/etc/everlingo/ws_container_everlingo_template.yaml:ro"
