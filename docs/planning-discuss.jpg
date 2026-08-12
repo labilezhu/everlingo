@@ -1,4 +1,23 @@
 
+
+export HTTP_PROXY=http://192.168.16.58:8118
+export HTTPS_PROXY=http://192.168.16.58:8118
+export NO_PROXY=localhost,127.0.0.1,192.168.16.*
+
+看看以下设计的合理性和可行性
+
+## 需求
+[ws-container](docs/impl-spec/multiple-users/deploy.md) 加入 HTTP_PROXY / HTTPS_PROXY / NO_PROXY 环境变量 的支持
+
+## 设计
+[ws-master](docs/impl-spec/multiple-users/ws-master.md) 中加入对透传环境变量的支持。如果变量名是 WS_CONTAINER 前缀的，删除 前缀后，透传作为 ws-container 的环境变量
+
+## 实现
+src/everlingo/ws_master/lifecycle.py:163 等等
+
+
+---
+
 这是我的初步想法和设计，你看看 high level 设计上，有什么要补充或考虑的。还是有更好的产品设计或架构设计上的方案
 
 ## 需求
