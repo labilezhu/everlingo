@@ -457,7 +457,17 @@ Agent
 
 # 12. Vision Service as LLM tools
 
-为 Agent 提供一个 Vision Service 工具，输入参数 assert id， 输出 ImageAnalysis 。工具本身要有 timeout 机制 。Agent 结合 chat history 文本和 ImageAnalysis 在理解用户意图。
+Agent 获取图片理解结果的**唯一路径**是调用 Vision Service 提供的 LLM 工具：
+
+```python
+analyze_image(src_resource_sha256: str) -> ImageAnalysis
+```
+
+- 输入：图片的 `src_resource_sha256`（来自 envelope 的 `chat.attachments`）。
+- 输出：`ImageAnalysis`（见 §9），作为 **ToolMessage** 进入 LangChain 消息历史（标准 tool-call 模式，不通过 envelope / XML 注入）。
+- Agent 只持有 `src_resource_sha256`，**不直接持有原始图片字节或分析结果**，按需经工具取用。
+- 工具本身要有 timeout 机制（见 §29 错误处理）。
+- Agent 结合 `chat history` 文本与 `ImageAnalysis` 理解用户意图；当消息仅含 attachments 而无文本时，不触发"延续上一轮话题"语义。
 
 ---
 
@@ -468,10 +478,14 @@ Agent 最终拿到的是一个统一的 Context：
 ```python
 class AgentInput:
     conversation_history: list[ChatMessage]
-
 ```
 
-其中 ImageAnalysis 和 LearningTask 是 conversation context 的一个组成部分。
+其中 `ImageAnalysis` 与 `LearningTask` 是 conversation context 的组成部分，但**不是**直接塞进消息文本。图片场景下的接入方式为：
+
+- 用户消息的 envelope 携带 `chat.attachments[].src_resource_sha256`（仅引用，不含分析结果）。
+- Agent 在需要理解图片时调用 `analyze_image(src_resource_sha256)` 工具。
+- 工具返回的 `ImageAnalysis` 以 **ToolMessage** 形式落到本轮消息历史，后续 LLM 推理直接消费该 ToolMessage。
+- 这样保持 Agent 输入仍是 `conversation_history: list[ChatMessage]`，Vision 结果作为标准 tool 结果存在，无需额外的 XML 注入通道。
 
 ---
 
@@ -496,7 +510,7 @@ Web/iphone app 前端提供前端 crop/orientation correction 的界面，用户
 3. 上传
 
 ```http
-POST /api/v1/images/2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1d0f  (只是示例 path 不是设计或现状)
+PUT /api/v1/images/2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1d0f  (只是示例 path 不是设计或现状)
 Content-Type: multipart/form-data
 ```
 
@@ -521,9 +535,19 @@ Response：
 }
 ```
 
-
-
 后端如果发现上传图片像素数大于 1920\*1200 时， 按比例缩放到最多  1920\* 1200 像素。然后计算调整后图片的 saved_resource_sha256 。
+
+### 上传后异步预热（Eager Warm）
+
+图片存储成功后，后端**不阻塞 200 响应**，以 `asyncio.create_task`（或后台队列）异步触发：
+
+```python
+await VisionService.analyze(key)   # fire-and-forget，预热 Vision 缓存
+```
+
+- 预热失败（Vision 模型不可用 / 超时）**静默处理**，不影响上传成功；Agent 后续经 `analyze_image` 工具调用时会重新触发分析（见 §22 / §23）。
+- 预热目的是：用户上传到按"发送"之间通常有几秒输入时间，预热能让 Agent tool 调用命中缓存、降低首响延迟。
+- eager 预热计入 per-user vision 调用（暂不设上限；成本由 Vision Service 统一管控）。
 
 ---
 
@@ -671,39 +695,87 @@ prompt_version
 
 可以有效控制 OpenRouter 成本。
 
----
+### 全局共享缓存（跨用户）
 
-# 22. Agent 和 Vision 的两种调用模式
+缓存按 Cache Key 全局共享（不区分用户）。理由：
 
-建议支持两个模式。
+- 热门学习图片（如同一道英语题、同一篇公开文章）可能被多个用户上传，命中缓存可显著降本。
+- 缓存内容是 **ImageAnalysis 文本**（OCR 文本 + 结构化语义），不含任何用户身份或私有元信息，跨用户复用无隐私泄露风险。
+- 手写笔记、私人错题等虽然不同用户内容不同，但 sha256 不同 → key 自然隔离，不会串档。
 
-## 模式 A：Pre-analysis
+### Eager 预热与 Tool 取用共用同一缓存
 
-```text
-Upload
- ↓
-Vision
- ↓
-ImageAnalysis
- ↓
-Agent
-```
-
-
+上传时的异步预热（§14）与 Agent 经 `analyze_image` 工具取用（§22）都调用同一个 `VisionService.analyze(key)` 入口，读写同一个缓存。预热命中时工具调用直接返回，零额外 Vision 成本。
 
 ---
 
-## 模式 B：Agent Tool
+# 22. 图片理解的调用模式：上传预热 + 工具取用（混合模式）
 
-Agent 可以调用：
+不采用"模式 A / 模式 B 二选一"，而是将两者优势结合的**混合模式**：
 
 ```text
-analyze_image(src_resource_sha256)
+PUT /api/v1/images/{sha256}
+   └─ 存储 ImageAsset
+        └─ fire-and-forget: asyncio.create_task(VisionService.analyze(key))   ← Eager Warm（预热缓存，不阻塞 200）
+
+用户发送消息（envelope.chat.attachments[].src_resource_sha256）
+   └─ Agent 调用 analyze_image(src_resource_sha256) 工具
+        └─ VisionService.analyze(key):
+             1) 命中持久缓存 → 返回
+             2) 已在 in_flight → await 同一 Future（合并并发，见 §23）
+             3) 否则建 Future → 跑 Vision Model → 写缓存 → 清 in_flight
+         → ImageAnalysis 作为 ToolMessage 进入消息历史
 ```
 
+## Eager Warm（上传即预热）
 
+- 触发点：图片上传存储成功后（§14）。
+- 行为：异步、非阻塞、失败静默；目的是在用户"上传 → 按发送"的输入间隙把缓存填上。
+- 收益：Agent 首次调 `analyze_image` 时大多已命中缓存，首响延迟低。
 
+## Tool Fetch（cache-first）
 
+- Agent 始终经 `analyze_image` 工具取用图片理解结果，不直接拿分析结果。
+- 工具后端走 `VisionService.analyze(key)` 的 cache-first 逻辑。
+- 收益：
+  - Agent 可自主决定是否分析（如用户只发图但说"你好"，Agent 可不调工具）。
+  - 缓存命中时零 Vision 成本。
+  - 两条路径共用缓存，无重复分析。
+
+## 与早期方案的关系
+
+- 早期"模式 A：Pre-analysis"≈ 本模式的 Eager Warm 部分。
+- 早期"模式 B：Agent Tool"≈ 本模式的 Tool Fetch 部分。
+- 本模式用 Eager Warm 解决"Agent 看不到图就要决定是否分析"的鸡生蛋问题，用 Tool Fetch 保留 Agent 的取用主权与成本可控性。
+
+---
+
+# 23. 并发分析防护（Concurrency Guard）
+
+同一 `src_resource_sha256` 不应被重复分析：既有多用户上传同一图片（全局缓存命中后即无重复），也有**同一会话内** Eager 预热与 Agent tool 调用、或多个并发 tool 调用对同一 sha256 竞态。
+
+## 单进程内存实现（MVP）
+
+`VisionService` 维护两个结构：
+
+```python
+persistent_cache: dict[cache_key, ImageAnalysis]          # LRU / TTL，跨请求持久
+in_flight:        dict[cache_key, asyncio.Future[ImageAnalysis]]  # 仅本进程运行期内
+```
+
+`analyze(key)` 逻辑：
+
+1. `key` 命中 `persistent_cache` → 直接返回。
+2. `key` 已在 `in_flight` → `await` 同一个 Future（合并所有并发调用方，含 Eager 预热与 Agent tool）。
+3. 否则创建 `Future`，调用 Vision Model，成功后写入 `persistent_cache` 并从 `in_flight` 移除；任一异常也需从 `in_flight` 移除并向上传播。
+
+该设计保证：无论 Eager 预热还是 Agent 工具、无论几次并发，对同一 key 的 Vision Model 调用**至多一次**。
+
+## 部署范围
+
+当前为单 uvicorn 进程部署，内存 `in_flight` 足够。若未来多 worker 横向扩展，需将 `in_flight` 与 `persistent_cache` 替换为共享存储（如 Redis 分布式锁 + 共享缓存），留作 P1。
+
+---
 
 # 29. Error Handling
 
@@ -722,7 +794,18 @@ VISION_MODEL_UNAVAILABLE
 VISION_OUTPUT_INVALID
 ```
 
+### Agent 工具降级
 
+`analyze_image` 工具在 Vision 分析失败时（命中 `VISION_*` 错误）应向 Agent 返回结构化错误而非抛异常中断会话。Agent 收到错误后应以自然语言友好提示（如"抱歉，我暂时无法识别这张图片，请稍后再试或换个角度重新拍摄"），而不是返回空答案或崩溃。
+
+错误码到 HTTP 状态的建议映射（供 `web_acceptor.py` 上传接口与工具接口统一）：
+
+| 错误码 | HTTP 状态 | 前端/工具表现 |
+|---|---|---|
+| `IMAGE_INVALID` / `IMAGE_UNSUPPORTED` | 415 | 上传失败，提示格式不支持 |
+| `IMAGE_TOO_LARGE` | 413 | 上传失败，提示超过大小限制 |
+| `IMAGE_UPLOAD_FAILED` | 500 | 上传失败，提示重试 |
+| `VISION_MODEL_UNAVAILABLE` / `VISION_ANALYSIS_FAILED` / `VISION_OUTPUT_INVALID` | 502/200(tool) | 上传成功；工具返回错误，Agent 友好降级 |
 
 内部日志保留：
 
@@ -744,12 +827,12 @@ trace_id
 
 图片是比普通文本更昂贵的输入，需要增加：
 
-### 上传限制
+### 上传限制（MVP 建议值）
 
 ```text
-max file size
-max resolution
-allowed MIME
+max file size: 10 MB
+max resolution: 1920 x 1200（超出按比例缩放，见 §14）
+allowed MIME: image/jpeg, image/png, image/webp
 ```
 
 ### 图片预处理
@@ -759,27 +842,32 @@ allowed MIME
 ```text
 resize
 compress
-strip metadata
+strip metadata（须先应用 EXIF orientation 校正再 strip，避免方向错乱）
 ```
 
-### 请求限制
+### 请求限制（MVP 建议值）
 
 例如：
 
 ```text
-max images per message
-max vision calls per message
-max image megapixels
+max images per message: 1（P1 放开多图）
+max vision calls per message: 1
+max image megapixels: 2.3（1920x1200）
 ```
+
+### Vision 调用配额
+
+- Eager 预热与 Agent tool 触发的 Vision 分析**统一计入 per-user vision 调用配额**（MVP 暂不设额外上限，由 Vision Service 统一管控成本；P1 再加 per-user / per-day 限额防止滥用）。
+- 同一 `src_resource_sha256` 因并发防护（§23）与全局缓存（§21）保证不会重复计费。
 
 ### 存储生命周期
 
 明确：
 
 ```text
-analysis retention
-session retention
-memory source retention
+analysis retention: LRU + TTL（如 7 天），与 session 解耦
+session retention: session 销毁即清理其 ImageAsset 存储（见 §5 storage_key）
+memory source retention: 若图片沉淀为 Memory，仅保留 ImageAnalysis 文本，原始图片按 session 生命周期处理
 ```
 
 
@@ -792,21 +880,43 @@ memory source retention
 
 ```text
 Phase 1
-Image Upload
+Image Upload (PUT /api/v1/images/{sha256})
     ↓
 ImageAsset
     ↓
 MessageAttachment
+    ↓
+envelope.chat.attachments 字段打通
 ```
 
 ```text
 Phase 2
-VisionService
+VisionService (OpenRouterVisionService, model=xiaomi/mimo-v2.5 需核实 OpenRouter 实际 model id)
     ↓
-MiMo-V2.5
+ImageAnalysis（text + structured_content）
     ↓
-ImageAnalysis
+持久缓存 + in_flight 并发防护（§21 / §23）
+    ↓
+上传后 Eager Warm（§14）
 ```
 
-Phase 3 ...
+```text
+Phase 3
+Vision Tool: make_vision_tool(service, ...)（与 make_memory_writer_action_tool 同模式）
+    ↓
+接入 MainAgent.build_tools（仅 web channel 且支持图片时）
+    ↓
+analyze_image(src_resource_sha256) -> ToolMessage
+    ↓
+错误降级（§29）
+```
+
+```text
+Phase 4（对齐需求 P0 "Memory"）
+图片场景下的 request_memory_extraction 衔接：
+    ↓
+entries.conversation_context 引用 ImageAnalysis（id 或嵌入 text），沉淀为 Note / Memory
+```
+
+P1 另含：多图片、Vision Purpose 细分（§20）、分布式并发防护、per-user vision 配额、PDF/音频等其它 attachment 类型。
 

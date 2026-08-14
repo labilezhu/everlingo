@@ -62,6 +62,22 @@ task 语义遵循 [chrome-extension-spec.md §8](chrome-extension-spec.md) 的�
 - 返回 `true`：chatbot 不再处理（`preventDefault`），由宿主自行处理（如同窗打开文件）
 - 返回 `false`：回退默认行为（新 Tab 打开）
 
+### 图片上传（Image Upload）
+
+聊天输入框增加图片入口，与 [图片学习需求 §12](../../ADR/20260812-image-chat-requirement.md) 对齐。能力边界以 Web 平台为准（移动端 PWA 同等能力由浏览器原生相机/相册提供）：
+
+- 输入框左侧（发送按钮左侧）增加 `[ + ]` 与 `[ 📷 ]` 两个入口：
+  - `[ + ]`：文件/图片选择（`<input type="file" accept="image/jpeg,image/png,image/webp">`）。
+  - `[ 📷 ]`：调用 `getUserMedia` 拍照（HTTPS / localhost 下可用，失败降级为文件选择）。
+  - 粘贴截图：`ChatInput` 监听 `paste` 事件，从 `ClipboardItem` 提取 `image/*` 作为待发送图片。
+- 平台实现差异：Web PWA 不强制 crop/orientation 校正（见后端 [图片 ADR §14](../../ADR/20260812-image-chat.md)）；后端仅做 EXIF orientation 校正 + 像素缩放。
+- 待发送图片在输入框上方以缩略图预览，支持**发送前删除或更换**；多图 MVP 仅支持 1 张（后端限制见 ADR §32）。
+- 上传状态：点 `[发送]` 后前端先 `PUT /api/v1/images/{sha256}`（带上传进度/失败提示），成功后随 envelope 的 `chat.attachments[].src_resource_sha256` 发送；上传失败显示错误且不发出消息。
+- AI 处理中：用户不需看到 OCR / Vision 内部状态，表现为思考提示「正在查看这张图片……」（复用 §Header 的"正在思考"脉冲，文案区分），随后正常输出回答。
+- 自动建议：仅当系统高置信度识别图片类型时，在首轮回复后给出快捷 Intent 按钮（如 `[帮我做]` `[讲解语法]` `[提取知识点]`），本质是快捷文本输入，不形成新导航。
+
+> 注：图片上传的 `ChatInput` 改造、上传状态机、错误展示的具体组件实现细节，需在实现阶段进一步细化（不在本 spec 当前范围深挖）。
+
 ### Envelope 字段填充规则
 
 Web Chatbot 切换到结构化 `{envelope}` 格式发送消息（不再使用 `{text}` legacy 格式）。字段填充规则：

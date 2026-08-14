@@ -12,11 +12,14 @@
 |---|---|---|---|
 | `schema_version` | int | 是 | 当前为 1。用于 schema 演进兼容 |
 | `task` | enum | 是 | 用户偏好任务：`translate` / `look_up` / `none`。**是偏好不是命令**，LLM 可自由决定是否遵循 |
-| `chat.message` | str | 否 | 用户自然语言输入。可能为空（用户仅点击了 UI 按钮） |
+| `chat.message` | str | 否 | 用户自然语言输入。可能为空（用户仅点击了 UI 按钮，或仅上传了图片） |
+| `chat.attachments` | array | 否 | 附件引用列表。**可为空数组**（纯聊天场景）。每项含 `src_resource_sha256`（用户端原始文件的 SHA256）与 `type`（如 `image`）。图片内容不进 envelope，Agent 经 `analyze_image(src_resource_sha256)` 工具取用理解结果（见图片学习能力 ADR） |
 | `chat_context` | object | 否 | 用户操作时的上下文环境。默认 `{"resource_contexts": []}` |
 | `chat_context.resource_contexts` | array | 否 | 上下文资源列表。**可为空数组**（纯聊天场景）。每项为 tagged union（见下方 `resource_context.kind`） |
 | `source` | tagged union | 是 | 来源信息，用 `kind` 区分 |
 | `device` | optional | 否 | 设备信息，用于个性化释义 |
+
+> **附件与"延续话题"规则**：当 `chat.attachments` 非空时，即使 `chat.message` 为空，也表示用户提供了一段新的图片 Context 输入，**不触发** `task=look_up` 且 `chat.message` 为空且无 `selected_text` 时的"延续上一轮笔记话题"语义（该语义仅适用于纯文本空输入场景）。
 
 ### `task` 枚举
 
