@@ -11,10 +11,15 @@ export type ResourceContext =
       paragraph_text?: string | null;
     };
 
+export interface MessageAttachment {
+  src_resource_sha256: string;
+  type: 'image';
+}
+
 export interface UserInputEnvelope {
   schema_version: number;
   task: TaskKind;
-  chat: { message: string };
+  chat: { message: string; attachments?: MessageAttachment[] };
   chat_context: { resource_contexts: ResourceContext[] };
   source: {
     kind: 'web';
@@ -29,11 +34,23 @@ export interface UserInputEnvelope {
   };
 }
 
+export interface ImageAsset {
+  src_resource_sha256: string;
+  saved_resource_sha256: string;
+  mime_type: string;
+  size: number;
+  width?: number | null;
+  height?: number | null;
+  storage_key: string;
+  created_at: string;
+}
+
 export interface Message {
   id: string;
   text: string;
   from: 'user' | 'bot' | 'system';
   audioUrl?: string;
+  imageUrl?: string;
 }
 
 export interface SSEEvent {

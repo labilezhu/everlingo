@@ -510,9 +510,11 @@ Web/iphone app 前端提供前端 crop/orientation correction 的界面，用户
 3. 上传
 
 ```http
-PUT /api/v1/images/2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1d0f  (只是示例 path 不是设计或现状)
+PUT /api/session/{session_id}/images/{src_resource_sha256}
 Content-Type: multipart/form-data
 ```
+
+> 路径中 `{session_id}` 用于把图片归属到当前会话（与 `storage_key = session://{session_id}/{saved_resource_sha256}` 一致）；`{src_resource_sha256}` 为客户端计算的原图 SHA256，服务端会重新计算校验，不符则返回 400。该路径为实际设计（非示例）。
 
 Request：
 
@@ -536,6 +538,18 @@ Response：
 ```
 
 后端如果发现上传图片像素数大于 1920\*1200 时， 按比例缩放到最多  1920\* 1200 像素。然后计算调整后图片的 saved_resource_sha256 。
+
+### 存储位置
+
+图片字节落盘到本地文件系统：
+
+```text
+{workspace}/sessions/{session_id}/images/{saved_resource_sha256}.{ext}
+```
+
+- `{workspace}` 即 `workspace.current_workspace()`（默认 `~/.everlingo/workspaces/<name>/`，可经 `EVERLINGO_WORKSPACE_DIR` 覆盖），复用现有 workspace 模块，无需新增配置。
+- `ImageAsset.storage_key` 存逻辑键 `session://{session_id}/{saved_resource_sha256}`；`ImageStore` 负责逻辑键 ↔ 物理路径的映射。
+- 当前为单进程部署，使用本地文件实现；未来换对象存储（S3/MinIO）只需替换 `ImageStore` 实现，调用方（上传端点、Agent 工具）不变。
 
 ### 上传后异步预热（Eager Warm）
 
@@ -879,25 +893,32 @@ memory source retention: 若图片沉淀为 Memory，仅保留 ImageAnalysis 文
 研发实现建议按照以下顺序拆分：
 
 ```text
-Phase 1
-Image Upload (PUT /api/v1/images/{sha256})
+Phase 1 — 前后端最小闭环（不含 Vision 理解）
+后端：
+  PUT /api/session/{session_id}/images/{src_resource_sha256}  (multipart)
     ↓
-ImageAsset
+  ImageStore（落盘 {workspace}/sessions/{session_id}/images/）
     ↓
-MessageAttachment
+  ImageAsset + MessageAttachment 数据模型
     ↓
-envelope.chat.attachments 字段打通
+  envelope.chat.attachments 字段打通（Agent 暂不透传消费）
+前端：
+  ChatInput 选图/粘贴/预览/删除 + 发送前 uploadImage
+    ↓
+  用户气泡渲染已上传图片（URL.createObjectURL，Phase 1 不新增 GET 回取端点）
+验收：上传→气泡显示→envelope 带 attachments→后端存图→同图幂等
+注：Phase 1 不做缩放/EXIF（无 Pillow，saved==src）；单图限制（max 1/消息）
 ```
 
 ```text
 Phase 2
-VisionService (OpenRouterVisionService, model=xiaomi/mimo-v2.5 需核实 OpenRouter 实际 model id)
+VisionService (OpenRouterVisionService, model=xiaomi/mimo-v2.5)
     ↓
 ImageAnalysis（text + structured_content）
     ↓
 持久缓存 + in_flight 并发防护（§21 / §23）
     ↓
-上传后 Eager Warm（§14）
+上传后 Eager Warm（§14，需引入 Pillow 做缩放/EXIF 校正，属新增依赖）
 ```
 
 ```text

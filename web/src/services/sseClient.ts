@@ -1,4 +1,4 @@
-import type { TaskKind, UserInputEnvelope, SSEEvent, ResourceContext } from '@/types/chat';
+import type { TaskKind, UserInputEnvelope, SSEEvent, ResourceContext, MessageAttachment, ImageAsset } from '@/types/chat';
 import { apiFetchJson } from './apiFetch';
 
 export type ConnStatus =
@@ -11,11 +11,16 @@ export interface ConnectSSEResult {
   retryNow: () => void;
 }
 
-export function buildEnvelope(task: TaskKind, message: string, resourceContexts: ResourceContext[] = []): UserInputEnvelope {
+export function buildEnvelope(
+  task: TaskKind,
+  message: string,
+  resourceContexts: ResourceContext[] = [],
+  attachments: MessageAttachment[] = [],
+): UserInputEnvelope {
   return {
     schema_version: 1,
     task,
-    chat: { message },
+    chat: { message, attachments },
     chat_context: { resource_contexts: resourceContexts },
     source: {
       kind: 'web',
@@ -34,6 +39,16 @@ export function buildEnvelope(task: TaskKind, message: string, resourceContexts:
 export async function createSession(): Promise<string> {
   const data = await apiFetchJson<{ session_id: string }>('/api/session', { method: 'POST' });
   return data.session_id;
+}
+
+export async function uploadImage(sessionId: string, sha256: string, file: Blob, mimeType: string): Promise<ImageAsset> {
+  const form = new FormData();
+  form.append('file', file, `image.${mimeType.split('/')[1] ?? 'bin'}`);
+  const data = await apiFetchJson<{ image: ImageAsset }>(
+    `/api/session/${sessionId}/images/${sha256}`,
+    { method: 'PUT', body: form },
+  );
+  return data.image;
 }
 
 export async function sendMessage(sessionId: string, envelope: UserInputEnvelope): Promise<void> {

@@ -9,6 +9,7 @@ from everlingo.gateway.channels.envelope import (
     ResourceContextVaultFile,
     ResourceContextWebPage,
     ResourceContextSelectedText,
+    AttachmentPart,
     render_envelope_to_message_text,
     wrap_plain_text,
 )
@@ -280,3 +281,48 @@ class TestResourceContextTaggedUnion:
                     "resource_contexts": [{"kind": "unknown_kind"}],
                 },
             )
+
+
+class TestChatAttachments:
+    """chat.attachments 字段 — ref: ADR 20260812-image-chat.md §6"""
+
+    def test_defaults_to_empty_list(self):
+        env = UserInputEnvelope()
+        assert env.chat.attachments == []
+
+    def test_attachment_roundtrip(self):
+        env = UserInputEnvelope(
+            chat={
+                "message": "帮我做一下",
+                "attachments": [
+                    {"src_resource_sha256": "abc123", "type": "image"},
+                ],
+            },
+        )
+        assert len(env.chat.attachments) == 1
+        att = env.chat.attachments[0]
+        assert isinstance(att, AttachmentPart)
+        assert att.src_resource_sha256 == "abc123"
+        assert att.type == "image"
+
+        # 序列化往返
+        dumped = env.model_dump_json()
+        env2 = UserInputEnvelope.model_validate_json(dumped)
+        assert env2.chat.attachments[0].src_resource_sha256 == "abc123"
+
+    def test_render_includes_attachments(self):
+        env = UserInputEnvelope(
+            chat={
+                "message": "",
+                "attachments": [
+                    {"src_resource_sha256": "abc123", "type": "image"},
+                ],
+            },
+        )
+        rendered = render_envelope_to_message_text(env)
+        assert '"src_resource_sha256":"abc123"' in rendered
+        assert '"attachments":' in rendered
+
+    def test_wrap_plain_text_has_no_attachments(self):
+        env = wrap_plain_text("hello")
+        assert env.chat.attachments == []

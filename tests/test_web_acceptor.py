@@ -356,6 +356,157 @@ class TestWebChannelIntegration:
         assert text.endswith("\n\n")
 
 
+class TestUploadImage:
+    """PUT /api/session/{session_id}/images/{src_resource_sha256}
+
+    ref: docs/ADR/20260812-image-chat.md §14 — 图片上传
+
+    说明：session 用直接 `await create_session()` 建立（TestClient 请求结束会取消
+    gateway.accept_session 返回的 pending task，触发 done_callback 弹出 channel，
+    导致后续请求 404 —— 这是测试客户端的事件循环行为，非产品缺陷）。
+    """
+
+    @pytest.fixture(autouse=True)
+    def _reset_workspace(self, tmp_path):
+        """临时 workspace + 测试后复位全局状态，避免污染其它测试。"""
+        from everlingo.workspace import init_workspace_dir
+        init_workspace_dir(tmp_path)
+        yield
+        init_workspace_dir(None)
+
+    @pytest.mark.asyncio
+    async def test_upload_image_success(self, tmp_path, monkeypatch):
+        import everlingo.gateway.web_acceptor as wa
+        from everlingo.image.image_store import sha256_of_bytes
+        from everlingo.workspace import init_workspace_dir
+        init_workspace_dir(tmp_path)
+        monkeypatch.setattr("everlingo.image.image_store.current_workspace", lambda: tmp_path)
+        wa._gateway = _make_gateway()
+
+        resp = await create_session()
+        sid = resp["session_id"]
+
+        data = b"\xff\xd8\xff\xe0" + b"fake-jpeg-bytes"
+        src_sha = sha256_of_bytes(data)
+        client = TestClient(app)
+        resp = client.put(
+            f"/api/session/{sid}/images/{src_sha}",
+            files={"file": ("test.jpg", data, "image/jpeg")},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["image"]["src_resource_sha256"] == src_sha
+        assert body["image"]["saved_resource_sha256"] == src_sha
+        assert body["image"]["mime_type"] == "image/jpeg"
+        assert body["image"]["size"] == len(data)
+
+    @pytest.mark.asyncio
+    async def test_upload_idempotent(self, tmp_path, monkeypatch):
+        import everlingo.gateway.web_acceptor as wa
+        from everlingo.image.image_store import sha256_of_bytes
+        from everlingo.workspace import init_workspace_dir
+        init_workspace_dir(tmp_path)
+        monkeypatch.setattr("everlingo.image.image_store.current_workspace", lambda: tmp_path)
+        wa._gateway = _make_gateway()
+
+        resp = await create_session()
+        sid = resp["session_id"]
+
+        data = b"fake-png-bytes-0123456789"
+        src_sha = sha256_of_bytes(data)
+        client = TestClient(app)
+        url = f"/api/session/{sid}/images/{src_sha}"
+        r1 = client.put(url, files={"file": ("a.png", data, "image/png")})
+        r2 = client.put(url, files={"file": ("b.png", data, "image/png")})
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json()["image"]["src_resource_sha256"] == r2.json()["image"]["src_resource_sha256"]
+
+    @pytest.mark.asyncio
+    async def test_upload_404_for_unknown_session(self, tmp_path, monkeypatch):
+        from everlingo.image.image_store import sha256_of_bytes
+        from everlingo.workspace import init_workspace_dir
+        init_workspace_dir(tmp_path)
+        monkeypatch.setattr("everlingo.image.image_store.current_workspace", lambda: tmp_path)
+
+        client = TestClient(app)
+        data = b"fake"
+        src_sha = sha256_of_bytes(data)
+        resp = client.put(
+            f"/api/session/nonexistent/images/{src_sha}",
+            files={"file": ("a.png", data, "image/png")},
+        )
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_upload_415_unsupported_mime(self, tmp_path, monkeypatch):
+        import everlingo.gateway.web_acceptor as wa
+        from everlingo.image.image_store import sha256_of_bytes
+        from everlingo.workspace import init_workspace_dir
+        init_workspace_dir(tmp_path)
+        monkeypatch.setattr("everlingo.image.image_store.current_workspace", lambda: tmp_path)
+        wa._gateway = _make_gateway()
+
+        resp = await create_session()
+        sid = resp["session_id"]
+
+        data = b"fake-gif"
+        src_sha = sha256_of_bytes(data)
+        client = TestClient(app)
+        resp = client.put(
+            f"/api/session/{sid}/images/{src_sha}",
+            files={"file": ("a.gif", data, "image/gif")},
+        )
+        assert resp.status_code == 415
+
+    @pytest.mark.asyncio
+    async def test_upload_400_sha_mismatch(self, tmp_path, monkeypatch):
+        import everlingo.gateway.web_acceptor as wa
+        from everlingo.workspace import init_workspace_dir
+        init_workspace_dir(tmp_path)
+        monkeypatch.setattr("everlingo.image.image_store.current_workspace", lambda: tmp_path)
+        wa._gateway = _make_gateway()
+
+        resp = await create_session()
+        sid = resp["session_id"]
+
+        data = b"fake-png"
+        client = TestClient(app)
+        resp = client.put(
+            f"/api/session/{sid}/images/wrongsha",
+            files={"file": ("a.png", data, "image/png")},
+        )
+        assert resp.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_message_rejects_multiple_attachments(self, tmp_path, monkeypatch):
+        import everlingo.gateway.web_acceptor as wa
+        from everlingo.workspace import init_workspace_dir
+        init_workspace_dir(tmp_path)
+        wa._gateway = _make_gateway()
+
+        resp = await create_session()
+        sid = resp["session_id"]
+
+        envelope = {
+            "schema_version": 1,
+            "task": "none",
+            "chat": {
+                "message": "hello",
+                "attachments": [
+                    {"src_resource_sha256": "a", "type": "image"},
+                    {"src_resource_sha256": "b", "type": "image"},
+                ],
+            },
+            "chat_context": {"resource_contexts": []},
+            "source": {"kind": "web", "surface": "fullscreen", "url": "http://x", "title": ""},
+            "device": {"platform": "web", "locale": "en", "timezone": "UTC"},
+        }
+        client = TestClient(app)
+        resp = client.post(f"/api/session/{sid}/message", json={"envelope": envelope})
+        assert resp.status_code == 400
+
+
 class TestGracefulShutdown:
     """WebSessionAcceptor uvicorn 配置中的 shutdown 超时。"""
 

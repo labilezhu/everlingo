@@ -7,8 +7,20 @@ from pydantic import BaseModel, Field
 TaskKind = Literal["translate", "look_up", "none"]
 
 
+class AttachmentPart(BaseModel):
+    """用户消息对图片（未来扩展 file/audio/video）的引用。
+
+    ref: docs/ADR/20260812-image-chat.md §6 / §8
+    只携带 src_resource_sha256，不内联图片字节或分析结果。
+    """
+
+    src_resource_sha256: str
+    type: Literal["image"] = "image"
+
+
 class ChatPart(BaseModel):
     message: str = ""
+    attachments: list[AttachmentPart] = Field(default_factory=list)
 
 
 class ResourceContextVaultFile(BaseModel):

@@ -65,7 +65,10 @@ export default function MessageBubble({
             : 'bg-muted text-foreground rounded-bl-md'
         }`}
       >
-        <MarkdownRenderer content={message.text} />
+        {message.imageUrl && (
+          <img src={message.imageUrl} alt="" className="mb-2 max-h-48 w-auto rounded-lg object-contain" />
+        )}
+        {message.text && <MarkdownRenderer content={message.text} />}
       </div>
     </div>
   );

@@ -70,9 +70,10 @@ task 语义遵循 [chrome-extension-spec.md §8](chrome-extension-spec.md) 的�
   - `[ + ]`：文件/图片选择（`<input type="file" accept="image/jpeg,image/png,image/webp">`）。
   - `[ 📷 ]`：调用 `getUserMedia` 拍照（HTTPS / localhost 下可用，失败降级为文件选择）。
   - 粘贴截图：`ChatInput` 监听 `paste` 事件，从 `ClipboardItem` 提取 `image/*` 作为待发送图片。
-- 平台实现差异：Web PWA 不强制 crop/orientation 校正（见后端 [图片 ADR §14](../../ADR/20260812-image-chat.md)）；后端仅做 EXIF orientation 校正 + 像素缩放。
+- 平台实现差异：Web PWA 不强制 crop/orientation 校正（见后端 [图片 ADR §14](../../ADR/20260812-image-chat.md)）；Phase 2 起后端做 EXIF orientation 校正 + 像素缩放（Phase 1 直接存原图）。
 - 待发送图片在输入框上方以缩略图预览，支持**发送前删除或更换**；多图 MVP 仅支持 1 张（后端限制见 ADR §32）。
-- 上传状态：点 `[发送]` 后前端先 `PUT /api/v1/images/{sha256}`（带上传进度/失败提示），成功后随 envelope 的 `chat.attachments[].src_resource_sha256` 发送；上传失败显示错误且不发出消息。
+- 上传状态：点 `[发送]` 后前端先 `PUT /api/session/{session_id}/images/{src_resource_sha256}`（客户端计算 sha256：安全上下文（HTTPS / localhost）下用原生 `crypto.subtle.digest`，plain HTTP 等非安全上下文回退到纯 JS SHA-256 实现，避免 `crypto.subtle` 为 undefined 而崩溃；带上传进度/失败提示），成功后随 envelope 的 `chat.attachments[].src_resource_sha256` 发送；上传失败显示错误且不发出消息。
+- 用户气泡：发送的图片用 `URL.createObjectURL(file)` 在用户消息气泡中即时渲染（Phase 1 不新增 GET 回取端点，刷新后图片不恢复，与现有 `audioUrl` 行为一致）。
 - AI 处理中：用户不需看到 OCR / Vision 内部状态，表现为思考提示「正在查看这张图片……」（复用 §Header 的"正在思考"脉冲，文案区分），随后正常输出回答。
 - 自动建议：仅当系统高置信度识别图片类型时，在首轮回复后给出快捷 Intent 按钮（如 `[帮我做]` `[讲解语法]` `[提取知识点]`），本质是快捷文本输入，不形成新导航。
 

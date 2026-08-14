@@ -9,13 +9,14 @@ from datetime import datetime, timezone
 from typing import Any, Union
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
 from everlingo.gateway.channels.envelope import UserInputEnvelope, wrap_plain_text
 from everlingo.gateway.channels.web_channel import WebChannel
+from everlingo.image.image_store import ALLOWED_MIME, image_store
 from everlingo.gateway.session_acceptor import SessionAcceptor
 from everlingo.gateway.user_profile_api import router as user_profile_router
 from everlingo.gateway.vault_editor_api import router as vault_editor_router
@@ -92,8 +93,44 @@ async def send_message(session_id: str, body: MessageBody):
         env = body.envelope
     else:
         env = wrap_plain_text(body.text)
+    if len(env.chat.attachments) > 1:
+        raise HTTPException(status_code=400, detail="At most 1 image per message")
     await channel._incoming.put(env)
     return {"ok": True}
+
+
+@app.put("/api/session/{session_id}/images/{src_resource_sha256}")
+async def upload_image(
+    session_id: str,
+    src_resource_sha256: str,
+    file: UploadFile = File(...),
+):
+    """上传图片并存储为 ImageAsset。
+
+    ref: docs/ADR/20260812-image-chat.md §14
+    - 校验 MIME 允许列表（否则 415）。
+    - 服务端重算 sha256 与路径参数比对（不符 400）。
+    - 同 sha256 重复上传返回已存元数据（幂等）。
+    """
+    channel = _channels.get(session_id)
+    if channel is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    mime_type = (file.content_type or "").lower()
+    if mime_type not in ALLOWED_MIME:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported media type: {mime_type}",
+        )
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+
+    try:
+        asset = image_store.save(session_id, src_resource_sha256, data, mime_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"image": asset.model_dump()}
 
 
 @app.get("/api/session/{session_id}/events")

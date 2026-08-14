@@ -7,7 +7,7 @@ import TaskSelector from './TaskSelector';
 import { Button } from '@/components/ui/button';
 import { createSession, sendMessage, connectSSE, buildEnvelope, type ConnStatus } from '@/services/sseClient';
 import { loadChatState, saveChatState, clearChatState } from '@/services/chatStorage';
-import type { TaskKind, SSEEvent, ResourceContext } from '@/types/chat';
+import type { TaskKind, SSEEvent, ResourceContext, MessageAttachment } from '@/types/chat';
 import { Message, uid } from '@/types/chat';
 import { LinkListenerContext } from './MarkdownRenderer';
 
@@ -108,13 +108,13 @@ export default function ChatWindow({ embedded, linkListener, resourceContextProv
     setSessionEpoch(prev => prev + 1);
   }, [t]);
 
-  const handleSend = useCallback(async (text: string) => {
+  const handleSend = useCallback(async (text: string, attachments: MessageAttachment[], imageUrl?: string) => {
     if (!sessionId) return;
-    setMessages(prev => [...prev, { id: uid(), text, from: 'user' }]);
+    setMessages(prev => [...prev, { id: uid(), text, from: 'user', imageUrl }]);
     setPending(true);
     try {
       const extraContexts = resourceContextProvider?.() ?? [];
-      const envelope = buildEnvelope(task, text, extraContexts);
+      const envelope = buildEnvelope(task, text, extraContexts, attachments);
       await sendMessage(sessionId, envelope);
     } catch {
       setPending(false);
@@ -191,7 +191,7 @@ export default function ChatWindow({ embedded, linkListener, resourceContextProv
         <div ref={endRef} />
       </div>
 
-      <ChatInput onSend={handleSend} disabled={!sessionId} pending={pending} />
+      <ChatInput onSend={handleSend} disabled={!sessionId} pending={pending} sessionId={sessionId} />
     </div>
     </LinkListenerContext.Provider>
   );
