@@ -91,6 +91,7 @@ export default function ChatInput({ onSend, disabled, pending, sessionId }: Chat
         setUploadError(t('upload_failed'));
         return;
       }
+      setUploading(false);
     }
 
     onSend(text, attachments, image?.imageUrl);
