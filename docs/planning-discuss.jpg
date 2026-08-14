@@ -1,15 +1,11 @@
 
-分析以下产品设计的合理性
+分析以下产品设计和架构设计的可选性和合理性。先不需要细到代码行级别:
 
-## 需求
+[Web Chatbot](docs/impl-spec/web-chatbot.md) 支持用户上传照片：
 
-[Web Chatbot](docs/impl-spec/web-chatbot.md) 支持用户上传照片。 大概要求如下：
+docs/ADR/20260812-image-chat-requirement.md
+docs/ADR/20260812-image-chat.md
 
-LLM 收到内容后，对照片内容作初步分析。
-- 题目
-  - 未回答的题目
-  - 已经有改错修正的题目
-- 文本段落
 
 
 

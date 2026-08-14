@@ -26,6 +26,7 @@ EverLingo 当前的核心交互是用户通过聊天与 AI 进行语言学习。
 
    * 解释
    * 翻译
+   * 查词
    * 做题
    * 分析错误
    * 提取重点
@@ -662,40 +663,6 @@ Memory
 
 ---
 
-# 11. 推荐的 Memory 数据结构
-
-图片来源的 Note 应保存原始 Context。
-
-例如：
-
-```json
-{
-  "source": "image",
-  "source_context": {
-    "image_id": "...",
-    "original_text": "..."
-  },
-  "learning_content": {
-    "type": "expression",
-    "content": "mind the gap",
-    "meaning": "小心站台间隙"
-  },
-  "conversation_context": {
-    "question": "为什么 mind 在这里不是介意？"
-  }
-}
-```
-
-这里 `source_context` 很重要。
-
-以后 Recall 时可以告诉用户：
-
-> 你之前是在机场看到 “Mind the gap” 时学到这个表达的。
-
-这才能真正发挥 EverLingo 的 Context Memory 能力。
-
----
-
 # 12. UI / UX 要求
 
 ## 12.1 输入框
@@ -952,35 +919,7 @@ Handwritten Notes
 
 ---
 
-# 17. P2
 
-进一步支持：
-
-```text
-图片自动生成学习卡片
-图片自动生成复习题
-图片 → Vocabulary Set
-图片 → Grammar Review
-图片 → Spaced Repetition
-```
-
-例如：
-
-```text
-一页文章
-   ↓
-提取 8 个重点表达
-   ↓
-用户选择 5 个
-   ↓
-生成 Vocabulary Memory
-   ↓
-未来 Recall
-   ↓
-Spaced Review
-```
-
----
 
 # 18. 产品成功标准
 
