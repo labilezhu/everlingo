@@ -605,7 +605,7 @@ wheels = [
 
 [[package]]
 name = "everlingo"
-version = "0.1.2rc1"
+version = "0.1.2rc2"
 source = { editable = "." }
 dependencies = [
     { name = "docker" },

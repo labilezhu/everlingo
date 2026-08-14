@@ -1,0 +1,1541 @@
+# EverLingo 图片学习能力后端 High-Level Design
+
+相关文档：
+
+- docs/impl-spec/chat-agent-spec.md
+- src/everlingo/agents/spec/envelope_spec.md
+- docs/ADR/20260812-image-chat-requirement.md
+
+
+
+## 1. 文档目的
+
+本文定义 EverLingo 在现有：
+
+```text
+Frontend:
+  Vite
+  React
+  TailwindCSS
+  shadcn/ui
+  react-markdown
+
+Backend:
+  Python
+  LangChain Agent
+  OpenRouter LLM
+```
+
+架构基础上，新增“聊天图片输入与图片学习能力”的后端 High-Level Design。
+
+重点解决：
+
+1. 图片如何从前端传入后端。
+2. 图片如何进入 LangChain Agent。
+3. Vision Model 与 Agent 的职责边界。
+4. 图片内容如何标准化。
+5. Conversation / Message / Image / Learning Content / Memory 之间如何关联。
+6. 前后端接口及交换数据结构如何定义。
+7. 后续支持多种 Vision Model、异步处理、多图片和 Memory 的可扩展性。
+
+本文不定义具体 React UI，也不绑定具体 OCR/Vision 模型实现。
+
+---
+
+# 2. Design Goals
+
+## 2.1 Goals
+
+系统应支持：
+
+```text
+User
+  ↓
+Chat Message + Image
+  ↓
+Backend
+  ↓
+Vision Analysis
+  ↓
+Structured Image Context
+  ↓
+LangChain Agent
+  ↓
+Learning Task
+  ↓
+Chat Response
+  ↓
+Optional Learning Memory
+```
+
+同时支持：
+
+* 单图片
+* 多图片
+* 图片 + 文本
+* 图片 + 多轮追问
+* 图片学习结果转 Note / Memory
+* Vision Model 可替换
+* OpenRouter Provider / Model 可配置
+* 流式输出
+* 后续扩展 PDF / 文件 / 音频等其他 Context 类型
+
+---
+
+# 3. 核心架构原则
+
+## 3.1 Image 不直接进入业务 Agent
+
+推荐：
+
+```text
+Image
+  ↓
+Vision Service
+  ↓
+Image Context
+  ↓
+Agent
+```
+
+而不是：
+
+```text
+Image
+  ↓
+Agent
+  ↓
+Agent 内部自行 OCR / Vision
+```
+
+原因：
+
+1. Vision 是独立能力。
+2. Image Context 可以缓存。
+3. 可以更换 Vision Model。
+4. 可以做独立测试。
+5. Agent 不需要处理图片编码、压缩、格式转换。
+6. 后续可以支持预处理、OCR、Vision Router。
+
+---
+
+## 3.2 原始图片和“图片理解结果”分离
+
+不要把：
+
+```text
+image bytes
+```
+
+直接作为 conversation message 的永久内容。
+
+建议分为：
+
+```text
+ImageAsset
+    +
+ImageAnalysis
+    +
+ChatMessage
+```
+
+关系：
+
+```text
+ImageAsset
+    │
+    └── ImageAnalysis
+
+ChatMessage
+    │
+    └── references ImageAsset
+```
+
+这样可以实现：
+
+* 图片复用
+* 分析结果缓存
+* 删除原图但保留分析结果
+* Model re-analysis
+* 多轮会话复用
+
+---
+
+# 4. Logical Components
+
+建议新增以下后端组件：
+
+```text
+                                                             
+                                     ┌─────────────────────┐ 
+                                     │ React Web / WeChat  │ 
+                                     └──────────┬──────────┘ 
+                                                │            
+                                Channels:  Web / WeChat      
+                                                │            
+                                     ┌──────────▼──────────┐ 
+          ┬──────────────────────────┼      Session        │ 
+          │                          └──────────┬──────────┘ 
+          │                                     │            
+          │                          ┌──────────▼──────────┐ 
+          │          ┌───────────────┤      Chat Agent     │ 
+          │          │               └──────────┬──────────┘ 
+          │          │                          │            
+          │          │                          │            
+          │          │                          │            
+ ┌────────▼────────┐ │                          │            
+ │  Image Service  │ │                          │            
+ └─────────────────┘ │                          │            
+                     │                          │            
+                     ▼                          │            
+            ┌────────────────┐         ┌────────▼────────┐   
+            │ Vision Service │         │ LangChain Agent │   
+            └───────┬────────┘         └────────┬────────┘   
+                    │                           │            
+                    ▼                           ▼            
+            ┌────────────────┐         ┌─────────────────┐   
+            │ Vision Model   │         │ OpenRouter LLM  │   
+            │ MiMo-V2.5 etc. │         └─────────────────┘   
+            └────────────────┘                               
+                                                             
+```
+
+以下只说说新模块：
+
+### Image Service
+
+负责：
+
+* upload
+* image validation
+* image metadata
+* storage
+* lifecycle
+
+### Vision Service
+
+负责：
+
+* image preprocessing
+* vision model invocation
+* structured image analysis
+* analysis caching
+
+---
+
+# 5. 数据模型总览
+
+核心实体：
+
+```text
+Session
+    │
+    ├── UserMessage.envelope.chat
+    │      │
+    │      └── MessageAttachment
+    │              │（引用）
+    │              └── ImageAsset
+    │                      │（引用）
+    │                      └── ImageAnalysis
+    │
+    └── LearningEvent
+               │
+               └── Memory Candidate
+```
+
+建议至少定义以下数据结构：
+
+```text
+Conversation
+Message
+MessageAttachment
+ImageAsset
+ImageAnalysis
+ImageContext
+LearningTask
+MemoryCandidate
+```
+
+---
+
+# 6. UserMessage.envelope 数据结构
+
+建议前后端统一使用：
+
+```json
+{
+    "schema_version": 1,
+    "role": "user",
+    "chat": {
+        "message": "user input text",
+        "attachments": [
+            {
+            "id": "att_01J...",
+            "type": "image",
+            "image_id": "img_01J..."
+            }
+        ],        
+    }
+    ...
+}
+```
+
+其中：
+
+```text
+chat.message
+```
+
+只保存文本。
+
+图片通过 attachment 引用。
+
+---
+
+# 7. ImageAsset
+
+ImageAsset 表示原始图片文件。
+
+建议：
+
+```json
+{
+  "id": "img_01J...",
+  "mime_type": "image/jpeg",
+  "size": 183240,
+  "width": 1280,
+  "height": 1920,
+  "storage_key": "users/u123/images/img_01J.jpg",
+  "created_at": "2026-08-12T14:00:00Z"
+}
+```
+
+字段建议：
+
+| Field       | Type     | Description        |
+| ----------- | -------- | ------------------ |
+| id          | string   | Image ID           |
+| mime_type   | string   | MIME               |
+| size        | integer  | bytes              |
+| width       | integer  | pixels             |
+| height      | integer  | pixels             |
+| storage_key | string   | object storage key |
+| created_at  | datetime | upload time        |
+
+建议不要在 Message 中直接传 base64。
+
+---
+
+# 8. MessageAttachment
+
+为了未来支持 PDF、Audio、Video：
+
+```json
+{
+  "id": "att_01J...",
+  "type": "image",
+  "resource_id": "img_01J..."
+}
+```
+
+以后：
+
+```text
+image
+file
+audio
+video
+```
+
+都可以使用同一种 attachment abstraction。
+
+---
+
+# 9. ImageAnalysis
+
+ImageAnalysis 是 Vision Service 的核心输出。
+
+建议：
+
+```json
+{
+  "id": "analysis_01J...",
+  "image_id": "img_01J...",
+  "model": {
+    "provider": "openrouter",
+    "model": "xiaomi/mimo-v2.5"
+  },
+  "content_type": "english_exercise",
+  "language": ["en"],
+  "text": "I have lived here _____ 2019.\nA. for\nB. since...",
+  "structured_content": {
+    "type": "multiple_choice",
+    "questions": [
+      {
+        "question": "I have lived here _____ 2019.",
+        "options": [
+          {"label": "A", "text": "for"},
+          {"label": "B", "text": "since"},
+          {"label": "C", "text": "during"},
+          {"label": "D", "text": "from"}
+        ]
+      }
+    ]
+  },
+  "knowledge_points": [],
+  "created_at": "2026-08-12T14:00:01Z"
+}
+```
+
+这里建议区分：
+
+```text
+text
+```
+
+和：
+
+```text
+structured_content
+```
+
+### text
+
+尽可能接近图片中的原始文字。
+
+### structured_content
+
+面向业务的语义结构。
+
+---
+
+# 10. ImageAnalysis 的关键设计：不要让 Vision Service 输出业务答案
+
+Vision Service 应该回答：
+
+> 图片中有什么？
+
+而不是：
+
+> 用户应该怎么回答？
+
+例如：
+
+### Vision Service
+
+```json
+{
+  "content_type": "english_exercise",
+  "structured_content": {
+    "question": "...",
+    "options": [...]
+  }
+}
+```
+
+而不是：
+
+```json
+{
+  "answer": "B",
+  "explanation": "..."
+}
+```
+
+后者属于 Agent Task Execution。
+
+这样：
+
+```text
+Vision
+  = Perception
+
+Agent
+  = Reasoning + Action
+```
+
+职责非常清楚。
+
+---
+
+# 11. ImageContext
+
+建议在 Chat Agent 层定义一个轻量、稳定的内部结构：
+
+```python
+class ImageContext(TypedDict):
+    image_id: str
+    analysis_id: str
+    content_type: str
+    language: list[str]
+    text: str | None
+    structured_content: dict | None
+    knowledge_points: list[dict]
+```
+
+Agent 不需要了解：
+
+* storage_key
+* image width
+* upload API
+* MIME encoding
+
+Agent 只看到：
+
+```text
+ImageContext
+```
+
+---
+
+# 12. LearningTask
+
+Agent 在理解用户意图后，内部可产生：
+
+```json
+{
+  "type": "explain",
+  "target": {
+    "image_id": "img_01J...",
+    "element": "sentence"
+  }
+}
+```
+
+Task type 建议：
+
+```text
+understand
+translate
+look_up
+explain
+solve
+analyze_error
+explore
+organize_note
+extract_knowledge_points
+remember
+```
+
+这个结构属于内部 Agent Protocol，不一定直接暴露给前端。
+
+---
+
+# 13. Agent 输入结构
+
+Agent 最终拿到的是一个统一的 Context：
+
+```python
+class AgentInput:
+    conversation_id: str
+    message_id: str
+
+    user_message: str
+
+    conversation_history: list[ChatMessage]
+
+    images: list[ImageContext]
+
+    user_context: UserContext
+
+    memory_context: MemoryContext
+```
+
+概念上：
+
+```text
+Agent Input
+    ├── User Message
+    ├── Conversation History
+    ├── Image Context
+    ├── User Context
+    └── Memory Context
+```
+
+其中 Image Context 是普通 conversation context 的一个组成部分。
+
+---
+
+# 14. 前端 → 后端 API
+
+建议不要让：
+
+```text
+POST /chat
+```
+
+直接接收 base64 图片。
+
+推荐两阶段设计。
+
+## API 1：上传图片
+
+```http
+POST /api/v1/images
+Content-Type: multipart/form-data
+```
+
+Request：
+
+```text
+file=<binary>
+```
+
+Response：
+
+```json
+{
+  "image": {
+    "id": "img_01J...",
+    "mime_type": "image/jpeg",
+    "width": 1280,
+    "height": 1920,
+    "size": 183240
+  }
+}
+```
+
+---
+
+# 15. API 2：发送 Chat Message
+
+```http
+POST /api/v1/conversations/{conversation_id}/messages
+Content-Type: application/json
+```
+
+Request：
+
+```json
+{
+  "content": "这道题为什么选 B？",
+  "attachments": [
+    {
+      "type": "image",
+      "resource_id": "img_01J..."
+    }
+  ]
+}
+```
+
+这样设计有几个优势：
+
+1. 图片和聊天解耦。
+2. 可以上传图片后再发送。
+3. 可以支持图片预览。
+4. 可以支持多图片。
+5. 可以重试 Chat 而不用重复上传。
+6. 可以扩展其他附件。
+
+---
+
+# 16. Chat Response
+
+如果现有系统使用 SSE，则继续沿用。
+
+例如：
+
+```http
+POST /api/v1/conversations/{id}/messages
+Accept: text/event-stream
+```
+
+事件可以标准化：
+
+```text
+event: message.created
+data: {...}
+
+event: image.analysis.started
+data: {...}
+
+event: image.analysis.completed
+data: {...}
+
+event: agent.started
+data: {...}
+
+event: message.delta
+data: {...}
+
+event: knowledge_point.created
+data: {...}
+
+event: message.completed
+data: {...}
+```
+
+前端只需要处理 event type。
+
+---
+
+# 17. SSE Event Protocol
+
+建议至少定义：
+
+## message.created
+
+```json
+{
+  "message_id": "msg_01J..."
+}
+```
+
+## image.analysis.started
+
+```json
+{
+  "image_id": "img_01J...",
+  "analysis_id": "analysis_01J..."
+}
+```
+
+## image.analysis.completed
+
+```json
+{
+  "image_id": "img_01J...",
+  "analysis_id": "analysis_01J...",
+  "content_type": "english_exercise"
+}
+```
+
+不建议把完整 OCR 结果通过该事件发送给前端。
+
+---
+
+## message.delta
+
+```json
+{
+  "message_id": "msg_01J...",
+  "delta": "答案是 B，"
+}
+```
+
+---
+
+## knowledge_point.created
+
+```json
+{
+  "id": "lp_01J...",
+  "type": "grammar",
+  "title": "since vs for"
+}
+```
+
+前端可以根据需要显示相应的 UI。
+
+---
+
+# 18. 为什么不建议直接把 OpenRouter Streaming Response 暴露给前端
+
+前端不应该知道：
+
+```text
+OpenRouter
+MiMo
+LangChain
+tool_calls
+prompt
+```
+
+前端只需要知道：
+
+```text
+message.delta
+tool.started
+tool.completed
+knowledge_point.created
+message.completed
+```
+
+后端负责把：
+
+```text
+OpenRouter
++
+LangChain
++
+Vision
++
+Tools
+```
+
+统一转换成 EverLingo 的业务事件。
+
+这样以后更换模型不会影响前端。
+
+---
+
+# 19. Vision Service Interface
+
+建议后端抽象：
+
+```python
+class VisionService(Protocol):
+
+    async def analyze(
+        self,
+        image: ImageInput,
+        *,
+        purpose: VisionPurpose | None = None,
+    ) -> ImageAnalysis:
+        ...
+```
+
+实现：
+
+```text
+OpenRouterVisionService
+```
+
+内部使用：
+
+```text
+ChatOpenRouter
+model=xiaomi/mimo-v2.5
+```
+
+以后可以增加：
+
+```text
+GeminiVisionService
+OpenAIVisionService
+AnthropicVisionService
+```
+
+Agent 不感知具体 provider。
+
+---
+
+# 20. Vision Purpose
+
+为了避免每次都让模型完成所有任务，可以向 Vision Service 指定分析目的：
+
+```text
+ocr
+exercise
+document
+learning_content
+general
+```
+
+例如：
+
+```python
+analysis = await vision_service.analyze(
+    image,
+    purpose="exercise"
+)
+```
+
+Prompt 可以因此更加专门。
+
+---
+
+# 21. Image Analysis Cache
+
+推荐缓存。
+
+相同：
+
+```text
+image_id
++
+vision_model
++
+analysis_version
+```
+
+得到相同：
+
+```text
+ImageAnalysis
+```
+
+不需要重复调用 Vision Model。
+
+Cache Key：
+
+```text
+sha256(image)
++
+model
++
+prompt_version
+```
+
+可以有效控制 OpenRouter 成本。
+
+---
+
+# 22. Agent 和 Vision 的两种调用模式
+
+建议支持两个模式。
+
+## 模式 A：Pre-analysis
+
+```text
+Upload
+ ↓
+Vision
+ ↓
+ImageAnalysis
+ ↓
+Agent
+```
+
+适合：
+
+* 英语题
+* OCR
+* 复杂文档
+
+---
+
+## 模式 B：Agent Tool
+
+Agent 可以调用：
+
+```text
+analyze_image(image_id)
+```
+
+适合：
+
+* 用户不断改变任务
+* Agent 动态决定是否需要再次分析
+* 后续多模型路由
+
+MVP 建议：
+
+> **使用 Pre-analysis + Agent Context。**
+
+简单、可控、容易调试。
+
+---
+
+# 23. Memory Service 接口
+
+Agent 不应该直接操作数据库。
+
+建议：
+
+```python
+class MemoryService(Protocol):
+
+    async def create_candidate(
+        self,
+        content: LearningContent,
+        source: LearningSource,
+    ) -> MemoryCandidate:
+        ...
+
+    async def save(
+        self,
+        candidate_id: str,
+    ) -> Memory:
+        ...
+```
+
+其中：
+
+```text
+Agent
+ ↓
+MemoryService
+ ↓
+DB / Vector Store
+```
+
+---
+
+# 24. LearningContent
+
+建议定义独立的数据结构：
+
+```json
+{
+  "type": "grammar",
+  "title": "since vs for",
+  "content": "since is used with a point in time...",
+  "examples": [
+    "I have lived here since 2019."
+  ],
+  "source": {
+    "type": "image",
+    "image_id": "img_01J...",
+    "message_id": "msg_01J..."
+  }
+}
+```
+
+这样 Learning Content 不依赖 Image。
+
+将来可能来自：
+
+```text
+chat
+image
+web
+audio
+document
+```
+
+---
+
+# 25. Memory 的 Source Traceability
+
+这是图片功能很重要的一点。
+
+建议任何 Memory 保留：
+
+```text
+source_type
+source_id
+conversation_id
+message_id
+```
+
+例如：
+
+```json
+{
+  "source": {
+    "type": "image_chat",
+    "image_id": "img_01J...",
+    "conversation_id": "conv_01J...",
+    "message_id": "msg_01J..."
+  }
+}
+```
+
+这样未来 Recall 时可以回溯：
+
+```text
+Memory
+  ↓
+Original Learning Event
+  ↓
+Original Image
+  ↓
+Original Conversation
+```
+
+---
+
+# 26. 数据结构之间的关系
+
+最终关系：
+
+```text
+Conversation
+     │
+     ├── Message
+     │      │
+     │      └── MessageAttachment
+     │                 │
+     │                 ▼
+     │             ImageAsset
+     │                 │
+     │                 ▼
+     │            ImageAnalysis
+     │                 │
+     │                 ▼
+     │            ImageContext
+     │
+     ▼
+   Agent
+     │
+     ├── LearningTask
+     │
+     └── LearningContent
+                  │
+                  ▼
+             MemoryService
+                  │
+                  ▼
+               Memory
+```
+
+---
+
+# 27. 推荐的 Python Domain Model
+
+High-level 可以设计成：
+
+```python
+@dataclass
+class ImageAsset:
+    id: str
+    mime_type: str
+    size: int
+    width: int
+    height: int
+    storage_key: str
+
+
+@dataclass
+class ImageAnalysis:
+    id: str
+    image_id: str
+    model: str
+    content_type: str
+    language: list[str]
+    text: str | None
+    structured_content: dict | None
+    knowledge_points: list[dict]
+
+
+@dataclass
+class ImageContext:
+    image_id: str
+    analysis_id: str
+    content_type: str
+    language: list[str]
+    text: str | None
+    structured_content: dict | None
+
+
+@dataclass
+class LearningTask:
+    type: str
+    target: dict | None
+
+
+@dataclass
+class LearningContent:
+    type: str
+    title: str
+    content: str
+    source: dict
+```
+
+这里的原则是：
+
+> API DTO、Domain Model、LLM Schema 不要完全混用。
+
+---
+
+# 28. LLM Structured Output
+
+MiMo-V2.5 的输出建议尽量在边界处转换为 Pydantic Model，而不要让 JSON 字符串在系统中到处传递。
+
+例如：
+
+```python
+class ExerciseOption(BaseModel):
+    label: str
+    text: str
+
+
+class ExerciseQuestion(BaseModel):
+    question: str
+    options: list[ExerciseOption]
+
+
+class ImageAnalysisResult(BaseModel):
+    content_type: str
+    language: list[str]
+    text: str | None
+    questions: list[ExerciseQuestion]
+    knowledge_points: list[str]
+```
+
+流程：
+
+```text
+LLM
+ ↓
+Pydantic
+ ↓
+ImageAnalysis
+ ↓
+Agent
+```
+
+而不是：
+
+```text
+LLM
+ ↓
+JSON string
+ ↓
+json.loads()
+ ↓
+各种 dict
+ ↓
+业务逻辑
+```
+
+---
+
+# 29. Error Handling
+
+至少定义：
+
+```text
+IMAGE_INVALID
+IMAGE_TOO_LARGE
+IMAGE_UNSUPPORTED
+IMAGE_UPLOAD_FAILED
+
+VISION_ANALYSIS_FAILED
+VISION_MODEL_UNAVAILABLE
+VISION_OUTPUT_INVALID
+
+AGENT_FAILED
+MEMORY_CREATION_FAILED
+```
+
+建议 SSE 中发送标准错误：
+
+```json
+{
+  "code": "VISION_ANALYSIS_FAILED",
+  "message": "Unable to analyze the image."
+}
+```
+
+内部日志保留：
+
+```text
+provider
+model
+request_id
+image_id
+analysis_id
+conversation_id
+trace_id
+```
+
+---
+
+# 30. Observability
+
+图片能力上线后，Langfuse / OpenTelemetry tracing 非常重要。
+
+推荐一个完整 Trace：
+
+```text
+conversation.request
+    │
+    ├── image.upload
+    │
+    ├── vision.analysis
+    │      └── openrouter.mimo-v2.5
+    │
+    ├── agent.run
+    │      ├── intent
+    │      ├── tool
+    │      └── llm
+    │
+    ├── memory.candidate
+    │
+    └── response
+```
+
+建议核心 attributes：
+
+```text
+conversation_id
+message_id
+image_id
+analysis_id
+model
+provider
+intent
+content_type
+task_type
+```
+
+后续才能回答：
+
+* 图片分析成功率多少？
+* MiMo-V2.5 实际成本多少？
+* 哪种图片最常见？
+* 哪种 Intent 最常见？
+* 图片之后用户平均追问几轮？
+* 哪种图片最容易产生 Memory？
+
+---
+
+# 31. Model Routing
+
+虽然 MVP 可以固定：
+
+```text
+OpenRouter
+  → xiaomi/mimo-v2.5
+```
+
+但接口不要绑定：
+
+```python
+MiMoV25Client
+```
+
+而应该绑定：
+
+```python
+VisionService
+```
+
+配置：
+
+```yaml
+vision:
+  provider: openrouter
+  model: xiaomi/mimo-v2.5
+```
+
+以后可以支持：
+
+```yaml
+vision:
+  routing:
+    default: xiaomi/mimo-v2.5
+    document: ...
+    fallback: ...
+```
+
+---
+
+# 32. 安全与资源控制
+
+图片是比普通文本更昂贵的输入，需要增加：
+
+### 上传限制
+
+```text
+max file size
+max resolution
+allowed MIME
+```
+
+### 图片预处理
+
+必要时：
+
+```text
+resize
+compress
+orientation correction
+strip metadata
+```
+
+### 请求限制
+
+例如：
+
+```text
+max images per message
+max vision calls per message
+max image megapixels
+```
+
+### 存储生命周期
+
+明确：
+
+```text
+original image retention
+analysis retention
+conversation retention
+memory source retention
+```
+
+---
+
+# 33. 推荐的 MVP API 总结
+
+## Upload
+
+```http
+POST /api/v1/images
+```
+
+Response：
+
+```json
+{
+  "image": {
+    "id": "img_01J..."
+  }
+}
+```
+
+## Send message
+
+```http
+POST /api/v1/conversations/{id}/messages
+```
+
+Request：
+
+```json
+{
+  "content": "为什么选 B？",
+  "attachments": [
+    {
+      "type": "image",
+      "resource_id": "img_01J..."
+    }
+  ]
+}
+```
+
+## Stream
+
+```text
+message.created
+image.analysis.started
+image.analysis.completed
+message.delta
+knowledge_point.created
+message.completed
+```
+
+## Optional
+
+```http
+POST /api/v1/memories/candidates/{id}/save
+```
+
+用于用户确认保存 Learning Content。
+
+---
+
+# 34. 推荐的实现顺序
+
+研发实现建议按照以下顺序拆分：
+
+```text
+Phase 1
+Image Upload
+    ↓
+ImageAsset
+    ↓
+MessageAttachment
+```
+
+```text
+Phase 2
+VisionService
+    ↓
+MiMo-V2.5
+    ↓
+ImageAnalysis
+```
+
+```text
+Phase 3
+ChatService
+    ↓
+ImageContext
+    ↓
+LangChain Agent
+```
+
+```text
+Phase 4
+SSE Event Protocol
+    ↓
+Frontend Integration
+```
+
+```text
+Phase 5
+LearningContent
+    ↓
+Memory Candidate
+    ↓
+Memory
+```
+
+```text
+Phase 6
+Observability
+    ↓
+Cost / Quality / Intent metrics
+```
+
+---
+
+# 35. 最终推荐的后端边界
+
+整个系统建议保持以下边界：
+
+```text
+                    REST / SSE
+                       │
+                       ▼
+                 ┌─────────────┐
+                 │   Chat API  │
+                 └──────┬──────┘
+                        │
+              ┌─────────┴─────────┐
+              │                   │
+              ▼                   ▼
+       ┌─────────────┐     ┌─────────────┐
+       │ ImageService│     │ ChatService │
+       └──────┬──────┘     └──────┬──────┘
+              │                   │
+              ▼                   ▼
+       ┌─────────────┐     ┌───────────────┐
+       │ VisionService│    │ LangChainAgent │
+       └──────┬──────┘     └───────┬───────┘
+              │                    │
+              ▼                    ├── MemoryService
+       ┌─────────────┐             ├── NoteService
+       │ OpenRouter  │             └── Other Tools
+       │ MiMo-V2.5   │
+       └─────────────┘
+```
+
+核心原则可以总结为：
+
+```text
+ImageService
+    负责“图片是什么”
+
+VisionService
+    负责“看懂图片”
+
+ChatService
+    负责“协调一次聊天请求”
+
+Agent
+    负责“用户想做什么，以及怎么完成”
+
+MemoryService
+    负责“什么值得长期保存”
+
+API Layer
+    负责“前后端协议”
+```
+
+这样拆分以后，**图片只是 Context 的第一种多模态输入**。未来增加 PDF、音频、视频、网页等输入时，可以自然演化成：
+
+```text
+                Context Layer
+                     │
+       ┌─────────────┼─────────────┐
+       │             │             │
+      Image         File          Audio
+       │             │             │
+       └─────────────┼─────────────┘
+                     ▼
+              Normalized Context
+                     │
+                     ▼
+                   Agent
+                     │
+              ┌──────┴──────┐
+              ▼             ▼
+          Learning       Memory
+```
+
+这会比围绕“图片 OCR”单独做一套后端更加稳定，也更符合 EverLingo 后续把 **多模态学习 Context** 纳入核心数据模型的方向。

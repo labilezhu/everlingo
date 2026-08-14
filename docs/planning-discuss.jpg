@@ -1,4 +1,24 @@
 
+分析以下产品设计的合理性
+
+## 需求
+
+[Web Chatbot](docs/impl-spec/web-chatbot.md) 支持用户上传照片。 大概要求如下：
+
+LLM 收到内容后，对照片内容作初步分析。
+- 题目
+  - 未回答的题目
+  - 已经有改错修正的题目
+- 文本段落
+
+
+
+
+---
+
+ console/me/backup 中， 勾选了 ”Enable auto commit and auto push“ 保存之后，一定要重启应用才能定时 push 吗？
+
+---
 
 export HTTP_PROXY=http://192.168.16.58:8118
 export HTTPS_PROXY=http://192.168.16.58:8118

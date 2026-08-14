@@ -157,8 +157,16 @@
 {
     "schema_version": 1,
     "task": "none",
+    "role": "user",
     "chat": {
-        "message": ""
+        "message": "user input text",
+        "attachments": [
+            {
+            "id": "att_01J...",
+            "type": "image",
+            "image_id": "img_01J..."
+            }
+        ],        
     },
     "chat_context": {
         "resource_contexts": [
