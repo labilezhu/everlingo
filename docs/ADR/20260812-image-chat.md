@@ -892,8 +892,7 @@ memory source retention: 若图片沉淀为 Memory，仅保留 ImageAnalysis 文
 
 研发实现建议按照以下顺序拆分：
 
-```text
-Phase 1 — 前后端最小闭环（不含 Vision 理解）
+## Phase 1 — 前后端最小闭环（不含 Vision 理解）: Done
 后端：
   PUT /api/session/{session_id}/images/{src_resource_sha256}  (multipart)
     ↓
@@ -908,10 +907,9 @@ Phase 1 — 前后端最小闭环（不含 Vision 理解）
   用户气泡渲染已上传图片（URL.createObjectURL，Phase 1 不新增 GET 回取端点）
 验收：上传→气泡显示→envelope 带 attachments→后端存图→同图幂等
 注：Phase 1 不做缩放/EXIF（无 Pillow，saved==src）；单图限制（max 1/消息）
-```
 
-```text
-Phase 2
+## Phase 2
+
 VisionService (OpenRouterVisionService, model=xiaomi/mimo-v2.5)
     ↓
 ImageAnalysis（text + structured_content）
@@ -919,10 +917,9 @@ ImageAnalysis（text + structured_content）
 持久缓存 + in_flight 并发防护（§21 / §23）
     ↓
 上传后 Eager Warm（§14，需引入 Pillow 做缩放/EXIF 校正，属新增依赖）
-```
 
-```text
-Phase 3
+## Phase 3
+
 Vision Tool: make_vision_tool(service, ...)（与 make_memory_writer_action_tool 同模式）
     ↓
 接入 MainAgent.build_tools（仅 web channel 且支持图片时）
@@ -930,14 +927,11 @@ Vision Tool: make_vision_tool(service, ...)（与 make_memory_writer_action_tool
 analyze_image(src_resource_sha256) -> ToolMessage
     ↓
 错误降级（§29）
-```
 
-```text
-Phase 4（对齐需求 P0 "Memory"）
+## Phase 4（对齐需求 P0 "Memory"）
 图片场景下的 request_memory_extraction 衔接：
     ↓
 entries.conversation_context 引用 ImageAnalysis（id 或嵌入 text），沉淀为 Note / Memory
-```
 
 P1 另含：多图片、Vision Purpose 细分（§20）、分布式并发防护、per-user vision 配额、PDF/音频等其它 attachment 类型。
 
