@@ -37,6 +37,7 @@ from ..i18n import t
 from ..setting import load_resolved_profile, load_user_doc, prompt_input_mtime, get_web_public_base_url
 from ..tools.conf_manager import get_config_version
 from ..tools.tools import build_tools
+from ..tools.vision_tool import make_vision_tool
 from ..utils.md_prompt_compiler import (
     PackageSource,
     compile_prompt,
@@ -436,6 +437,26 @@ OR
 当前对话通道不支持语音消息。若用户要求发送语音/朗读/发音，请用文字回复：「当前通道不支持语音，请在微信等支持语音的通道使用。」
 """
 
+    # 图片理解能力 prompt
+    supports_image = channel_metadata is not None and channel_metadata.supported_image
+    if supports_image:
+        prompt += """\
+## 图片理解能力
+当前对话通道支持用户发送图片。用户消息 envelope 的 chat.attachments 中会携带
+`src_resource_sha256`（图片标识，绝不用来直接读字节）。当你需要理解图片内容时，
+调用 `analyze_image` 工具，传入该 `src_resource_sha256`，工具返回结构化的图片理解
+结果（ImageAnalysis JSON：content_type / language / text / structured_content /
+knowledge_points）。
+规则：
+1. 用户在消息中附了图片时，先调用 `analyze_image` 获取图片内容，再据此回答；不要臆测图片内容。
+2. 若消息仅含图片而无文本，不要延续上一轮话题的假设，先看图片再答。
+3. `analyze_image` 只做感知（描述"图里有什么"），解答、讲解、步骤由你完成。
+"""
+    else:
+        prompt += """
+## 图片理解能力
+当前对话通道不支持用户发送图片。
+"""
     # 记忆库只读访问（vault 工具）
     if vault_available:
         prompt += f"""
@@ -770,6 +791,10 @@ class MainAgent:
             channel_name=self._channel_metadata.name,
         )
         self._tools = list(self._tools_base) + [extract_tool, memory_writer_tool] + list(self._vault_tools)
+        if self._channel_metadata.supported_image:
+            from ..image.vision_service import vision_service
+
+            self._tools.insert(0, make_vision_tool(vision_service))
         public_base_url = get_web_public_base_url()
         self._agent = create_agent(
             self._llm,

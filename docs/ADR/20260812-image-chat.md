@@ -707,6 +707,12 @@ model
 prompt_version
 ```
 
+> 实现注记（Phase 2）：实际 cache key 还追加了 `purpose` 段
+> （`{src_resource_sha256}|{model}|v{prompt_version}|{purpose or "general"}`）。
+> 目的：§20 的 purpose 会影响 prompt → 影响分析结果，若不纳入 key，不同 purpose
+> 的分析会互相串缓存。当前 MVP 调用方（Eager Warm、analyze_image 工具）均默认 general，
+> 含 purpose 仅是为未来细分预留正确性，不影响成本控制。
+
 可以有效控制 OpenRouter 成本。
 
 ### 全局共享缓存（跨用户）
@@ -908,7 +914,7 @@ memory source retention: 若图片沉淀为 Memory，仅保留 ImageAnalysis 文
 验收：上传→气泡显示→envelope 带 attachments→后端存图→同图幂等
 注：Phase 1 不做缩放/EXIF（无 Pillow，saved==src）；单图限制（max 1/消息）
 
-## Phase 2
+## Phase 2: Done
 
 VisionService (OpenRouterVisionService, model=xiaomi/mimo-v2.5)
     ↓
@@ -916,9 +922,10 @@ ImageAnalysis（text + structured_content）
     ↓
 持久缓存 + in_flight 并发防护（§21 / §23）
     ↓
-上传后 Eager Warm（§14，需引入 Pillow 做缩放/EXIF 校正，属新增依赖）
+上传后 Eager Warm（§14，已引入 Pillow 做缩放/EXIF 校正）
+注：purpose 默认 general；结构化输出走宽松 dict，未绑定单一 schema。
 
-## Phase 3
+## Phase 3: Done
 
 Vision Tool: make_vision_tool(service, ...)（与 make_memory_writer_action_tool 同模式）
     ↓

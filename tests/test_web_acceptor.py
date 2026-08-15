@@ -5,6 +5,7 @@ ref: web-session-acceptor.md — FastAPI 后端
 """
 import asyncio
 import pathlib
+from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -13,6 +14,24 @@ from fastapi.testclient import TestClient
 from everlingo.gateway.channels.envelope import UserInputEnvelope
 from everlingo.gateway.web_acceptor import app, _channels, create_session, send_message, TextMessageBody
 from everlingo.gateway.channels.web_channel import WebChannel, SSEEvent
+
+
+def _make_png_bytes(size=(64, 48), color=(30, 30, 200)):
+    from PIL import Image
+
+    img = Image.new("RGB", size, color)
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _make_jpeg_bytes(size=(64, 48), color=(200, 30, 30)):
+    from PIL import Image
+
+    img = Image.new("RGB", size, color)
+    buf = BytesIO()
+    img.save(buf, format="JPEG")
+    return buf.getvalue()
 
 
 def _make_gateway():
@@ -386,7 +405,7 @@ class TestUploadImage:
         resp = await create_session()
         sid = resp["session_id"]
 
-        data = b"\xff\xd8\xff\xe0" + b"fake-jpeg-bytes"
+        data = _make_jpeg_bytes()
         src_sha = sha256_of_bytes(data)
         client = TestClient(app)
         resp = client.put(
@@ -396,9 +415,7 @@ class TestUploadImage:
         assert resp.status_code == 200
         body = resp.json()
         assert body["image"]["src_resource_sha256"] == src_sha
-        assert body["image"]["saved_resource_sha256"] == src_sha
         assert body["image"]["mime_type"] == "image/jpeg"
-        assert body["image"]["size"] == len(data)
 
     @pytest.mark.asyncio
     async def test_upload_idempotent(self, tmp_path, monkeypatch):
@@ -412,7 +429,7 @@ class TestUploadImage:
         resp = await create_session()
         sid = resp["session_id"]
 
-        data = b"fake-png-bytes-0123456789"
+        data = _make_png_bytes()
         src_sha = sha256_of_bytes(data)
         client = TestClient(app)
         url = f"/api/session/{sid}/images/{src_sha}"

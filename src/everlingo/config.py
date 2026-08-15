@@ -30,3 +30,24 @@ def get_llm_config() -> dict:
         "model": model or "gpt-3.5-turbo",
         "embedding_model": embedding_model,
     }
+
+
+def get_vision_llm_config() -> dict:
+    """Vision Service 使用的 LLM 配置。
+
+    ref: docs/ADR/20260812-image-chat.md §19 — 与 chat LLM 复用 OpenRouter
+    api_key / base_url，仅 model 独立（默认 xiaomi/mimo-v2.5）。
+    优先级：setting.sys_setting.vision_model > env VISION_MODEL > 默认值。
+    """
+    setting = load_setting()
+    ss = setting.sys_setting
+    api_key = ss.openai_api_key or os.getenv("OPENAI_API_KEY", "")
+    base_url = ss.openai_base_url or os.getenv("OPENAI_BASE_URL", "")
+    vision_model = (
+        getattr(ss, "vision_model", None) or os.getenv("VISION_MODEL") or "xiaomi/mimo-v2.5"
+    )
+    return {
+        "api_key": api_key,
+        "base_url": base_url or "https://openrouter.ai/api/v1",
+        "model": vision_model,
+    }

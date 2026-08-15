@@ -3,6 +3,7 @@
 
 import asyncio
 import json
+import logging
 import os
 import uuid
 from datetime import datetime, timezone
@@ -17,6 +18,8 @@ from pydantic import BaseModel
 from everlingo.gateway.channels.envelope import UserInputEnvelope, wrap_plain_text
 from everlingo.gateway.channels.web_channel import WebChannel
 from everlingo.image.image_store import ALLOWED_MIME, image_store
+from everlingo.image.models import ImageInput
+from everlingo.image.vision_service import vision_service
 from everlingo.gateway.session_acceptor import SessionAcceptor
 from everlingo.gateway.user_profile_api import router as user_profile_router
 from everlingo.gateway.vault_editor_api import router as vault_editor_router
@@ -27,6 +30,8 @@ from everlingo.setting import load_profile
 from everlingo.workspace import indexer_mcp_url_path
 
 app = FastAPI()
+
+logger = logging.getLogger(__name__)
 app.include_router(user_profile_router)
 app.include_router(vault_editor_router)
 app.include_router(workspace_console_router)
@@ -130,7 +135,20 @@ async def upload_image(
         asset = image_store.save(session_id, src_resource_sha256, data, mime_type)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+    # Eager Warm（ADR §14 / §22）：不阻塞 200，异步预热 Vision 缓存。
+    # 失败静默；Agent 后续经 analyze_image 工具时会重新触发分析。
+    asyncio.create_task(_eager_warm(src_resource_sha256))
+
     return {"image": asset.model_dump()}
+
+
+async def _eager_warm(src_resource_sha256: str) -> None:
+    """上传后异步预热：fire-and-forget，任何失败仅记日志，不抛到调用方。"""
+    try:
+        await vision_service.analyze(ImageInput(src_resource_sha256=src_resource_sha256))
+    except Exception:
+        logger.exception("eager vision warm failed: src=%s", src_resource_sha256)
 
 
 @app.get("/api/session/{session_id}/events")

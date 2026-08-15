@@ -8,7 +8,7 @@ from langchain_core.tools import BaseTool
 from langchain_openai import ChatOpenAI
 
 from . import __version__
-from .config import get_llm_config
+from .config import get_llm_config, get_vision_llm_config
 from .log_utils import LLMLoggingHandler
 from .tracing import setup_tracing
 
@@ -51,7 +51,7 @@ _HOOKS = {"response": [_log_malformed_sync_response]}
 _ASYNC_HOOKS = {"response": [_log_malformed_async_response]}
 
 
-def _build_llm(**kwargs: object) -> ChatOpenAI:
+def _build_llm(*, model: str | None = None, **kwargs: object) -> ChatOpenAI:
     cfg = get_llm_config()
     callbacks = [LLMLoggingHandler()]
     langfuse_handler = setup_tracing()
@@ -60,7 +60,7 @@ def _build_llm(**kwargs: object) -> ChatOpenAI:
     return ChatOpenAI(
         api_key=cfg["api_key"],
         base_url=cfg["base_url"],
-        model=cfg["model"],
+        model=model or cfg["model"],
         callbacks=callbacks,
         default_headers={
             "User-Agent": f"EverLingo/{__version__}",
@@ -89,6 +89,18 @@ def create_extract_llm() -> ChatOpenAI:
 
 def create_mem_writer_llm() -> ChatOpenAI:
     return _build_llm(temperature=0)
+
+
+def create_vision_llm() -> ChatOpenAI:
+    """Vision Service 专用 LLM 工厂。
+
+    ref: docs/ADR/20260812-image-chat.md §19
+    - 复用 OpenRouter api_key / base_url，model 取自 vision config
+      （setting.sys_setting.vision_model / env VISION_MODEL，默认 xiaomi/mimo-v2.5）。
+    - temperature=0 保证结构化输出确定性；request_timeout 兜底 Vision 超时（§29）。
+    """
+    cfg = get_vision_llm_config()
+    return _build_llm(model=cfg["model"], temperature=0, request_timeout=120)
 
 
 def create_agent(

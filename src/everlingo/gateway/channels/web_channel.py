@@ -123,6 +123,7 @@ class WebChannel(Channel):
         return ChannelMetadata(
             name=type(self).__name__,
             supported_sound_media_format=["mp3"],
+            supported_image=True,
         )
 
     async def _broadcast(self, event: SSEEvent) -> None:

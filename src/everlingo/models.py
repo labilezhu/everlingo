@@ -74,6 +74,14 @@ class SysSetting(BaseModel):
         description="Embedding 模型名称（可选，无默认值）",
         examples=["openai/text-embedding-3-small"],
     )
+    # Vision 模型名称（可选）。复用 openai_api_key / openai_base_url。
+    # 空值时回退到 env VISION_MODEL，再回退默认 xiaomi/mimo-v2.5。
+    # ref: docs/ADR/20260812-image-chat.md §19 — Vision Service
+    vision_model: str = Field(
+        default="",
+        description="Vision 模型名称（可选，无默认值）",
+        examples=["xiaomi/mimo-v2.5"],
+    )
     # 日志设定，ref: configuration.md LoggingSetting
     logging_setting: LoggingSetting = Field(
         default_factory=LoggingSetting,

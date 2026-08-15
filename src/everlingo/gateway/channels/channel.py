@@ -9,6 +9,7 @@ class ChannelMetadata:
     name: str
     supported_sound_media_format: list[str] = field(default_factory=list)
     channel_prompt: str = ""
+    supported_image: bool = False
 
 
 class Channel(ABC):
