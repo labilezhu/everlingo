@@ -6,6 +6,10 @@
 - src/everlingo/agents/spec/envelope_spec.md
 - docs/ADR/20260812-image-chat-requirement.md
 
+ADR 实现后更新到文档：
+
+- docs/impl-spec/vision/vision-service-spec.md
+- docs/impl-spec/vision/image-store-spec.md
 
 
 ## 1. 文档目的
