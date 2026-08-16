@@ -1,10 +1,15 @@
 
 
-计划让 [Vault Editor](docs/impl-spec/vault-editor.md) 支持在 Markdown 编辑时，支持图片的插入。需要你思考和讨论：
+计划让 [Vault Editor](docs/impl-spec/vault-editor.md) 支持在 Markdown 编辑时，支持图片的插入。
+
+需要你思考和讨论：
+
+
+# 设计
 
 1. 在产品上设计一下界面和交互，要兼顾 Web Desktop 和 Web Mobile
 2. 为 [MCP Server](docs/impl-spec/vault-mcp/vault-mcp-spec.md) 加入 write_binary 工具。用于写入图片等二进制文件，。
-3. 图片文件在 vault 中的保存位置是： 在要嵌入的 markdown 文件相同目录下，建立 `markdown_file_name.assets/` 目录，以 `sha256-$sha256.ext` 为文件名保存图片文件。 
+3. 图片文件在 vault 中的保存位置是： 在要嵌入的 markdown 文件相同目录下，建立 `${markdown_file_name}.assets/` 目录，以 `$sha256.ext` 为文件名保存图片文件。 
    如  `$workspaces/memory/languages/en/vault/items//vocab/hello-kitty.md` 要插入 png 图片，则 `$workspaces/memory/languages/en/vault/items/vocab/hello-kitty.assets/2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1d0f.png`
 
 
@@ -55,6 +60,12 @@ EXIF
 ```
 
 后端底层实现，复用有修改现有的 `src/everlingo/image/image_store.py`
+
+# 设计参考
+
+- docs/impl-spec/vision/image-store-spec.md
+- docs/impl-spec/vision/vision-service-spec.md
+- docs/ADR/20260812-image-chat.md
 
 ---
 
