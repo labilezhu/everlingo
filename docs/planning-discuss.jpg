@@ -1,14 +1,60 @@
 
-分析以下产品设计和架构设计的可选性和合理性。先不需要细到代码行级别:
 
-[Web Chatbot](docs/impl-spec/web-chatbot.md) 支持用户上传照片：
+计划让 [Vault Editor](docs/impl-spec/vault-editor.md) 支持在 Markdown 编辑时，支持图片的插入。需要你思考和讨论：
 
-docs/ADR/20260812-image-chat-requirement.md
-docs/ADR/20260812-image-chat.md
+1. 在产品上设计一下界面和交互，要兼顾 Web Desktop 和 Web Mobile
+2. 为 [MCP Server](docs/impl-spec/vault-mcp/vault-mcp-spec.md) 加入 write_binary 工具。用于写入图片等二进制文件，。
+3. 图片文件在 vault 中的保存位置是： 在要嵌入的 markdown 文件相同目录下，建立 `markdown_file_name.assets/` 目录，以 `sha256-$sha256.ext` 为文件名保存图片文件。 
+   如  `$workspaces/memory/languages/en/vault/items//vocab/hello-kitty.md` 要插入 png 图片，则 `$workspaces/memory/languages/en/vault/items/vocab/hello-kitty.assets/2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1d0f.png`
 
 
+### 客户端前置要求
+
+1. 用原始图片计算 SHA-256 作为 `src_resource_sha256`
+2. 若图片像素数大于 1920×1200：
+   1. 前端先行按比例缩放到最多 1920×1200 像素。
+3. 上传图片
+4. 后端返回上传响应
 
 
+## 4. 前端 PUT 上传端点契约
+
+```http
+PUT /api/vault/{lang}/items/vocab/hello-kitty.assets/{src_resource_sha256}.{ext}
+Content-Type: multipart/form-data
+```
+
+在服务端更新 EXIF ：
+
+```
+EXIF
+├── UserComment
+│   ├── src_resource_sha256 = "..."
+└── ...
+```
+
+### 请求
+
+- multipart 字段 `file=<binary>`。
+
+### 上传响应（成功后）
+
+```json
+{
+  "image": {
+    "src_resource_sha256": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1d0f",
+    "saved_resource_sha256": "3cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1d0f",
+    "mime_type": "image/jpeg",
+    "width": 1280,
+    "height": 1920,
+    "size": 183240,
+    "storage_key": "memory://languages/$lang/vault/items/vocab/hello-kitty.assets/${src_resource_sha256}.png",
+    "created_at": "2026-08-12T14:00:00Z"
+  }
+}
+```
+
+后端底层实现，复用有修改现有的 `src/everlingo/image/image_store.py`
 
 ---
 
