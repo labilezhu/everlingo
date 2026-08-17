@@ -209,6 +209,18 @@ Chat Agent 可按用户口头请求删除或编辑已有的笔记条目（知识
 工具定义见 [chat-agent-tools-spec.md — 笔记删除与编辑](/docs/impl-spec/chat-agent-tools-spec.md)。
 Memory Writer 端的实现见 [memory-writer-agent-spec.md — 笔记删除与编辑](/docs/impl-spec/memory-writer-agent-spec.md#笔记删除与编辑同步-action-流程)。
 
+### 嵌入聊天图片（编辑流程）
+
+ref: [ADR: 把聊天图片沉淀到笔记](/docs/ADR/20260817-save-image-from-chat-to-note.md) — 决策 3
+
+编辑笔记需嵌入本轮聊天中的图片时：
+1. 按既有定位/确认流程获得 `md_file_path`（必须已 `vault_mcp_read` 加载最新原文件）。
+2. 对每张要嵌入的 session 图片，先调用 `copy_session_image_to_vault(src_resource_sha256, md_file_path, slug_hint)`（`slug_hint` 来自本轮 `analyze_image` 结果的 `text` / `knowledge_points`），拿到 `markdown_relative_path`。
+3. 在 `memory_writer_action(operation="edit", body=...)` 的 `body` 中用 `![alt](markdown_relative_path)` 嵌入。
+4. **必须先复制图片再调 `memory_writer_action`**（复制工具产出 body 所需的相对路径）。
+
+仅当 channel 支持图片时该工具可用（与 `analyze_image` 同注入条件）。
+
 ### 约束
 
 - **禁止**在未确认的情况下调用 `memory_writer_action`
@@ -236,6 +248,10 @@ Case2：编辑不在 session context 的笔记
 ### memory_writer_action（笔记删除/编辑）
 
 同步工具，删除或编辑已有笔记条目。`_refresh_agent_if_needed()` 重建 agent 时通过工厂 `make_memory_writer_action_tool(...)` 注入，闭包绑定 `target_lang` / `interface_lang` / `chat_session_id` / `channel_name`。详见上文「笔记删除与编辑」节与 [chat-agent-tools-spec.md](/docs/impl-spec/chat-agent-tools-spec.md)。
+
+### copy_session_image_to_vault（聊天图片复制到笔记）
+
+同步工具，把会话中已上传的 session 图片复制到目标笔记的 `.assets` 目录并返回 markdown 相对路径。`_refresh_agent_if_needed()` 重建 agent 时**仅当 `channel.supported_image` 为真**通过工厂 `make_copy_session_image_tool(image_store, target_lang)` 注入（与 `analyze_image` 同注入条件）。使用流程见上文「嵌入聊天图片（编辑流程）」子节与 [chat-agent-tools-spec.md](/docs/impl-spec/chat-agent-tools-spec.md)。
 
 ### vault 工具（只读）
 

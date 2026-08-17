@@ -84,6 +84,15 @@ ref: docs/ADR/20260816-markdown-image.md — 决策 5
 - **best-effort 自有溯源元数据**：预处理后对 JPEG 追加 EXIF `UserComment="src_resource_sha256=<src_sha>"`（tag `0x9286`）、PNG 追加 tEXt `src_resource_sha256`（`PngInfo.add_text`）。仅写入自有键，不影响隐私 strip；失败静默回退预处理字节。`saved_resource_sha256` / `size` 以最终落盘字节计算。
 - **生命周期**：随 vault 常规文件管理（可移动 / 重命名），不绑定 session；indexer 只处理 `*.md`，图片天然不进索引。
 
+**签名扩展（2026-08-17）**，ref: [ADR: 把聊天图片沉淀到笔记](/docs/ADR/20260817-save-image-from-chat-to-note.md) — 决策 2：
+
+```python
+save_vault_image(lang, vault_rel_path, data, mime_type, *, src_resource_sha256=None)
+```
+
+- `src_resource_sha256=None`（默认）：保留旧行为，从 `vault_rel_path` 末段 stem 提取并校验 64 位 hex（前端 PUT 上传契约不变）。
+- 显式传入 `src_resource_sha256`：跳过 stem 64-hex 校验（stem 可为英文 slug），对传入值本身做 64 位 hex 校验，EXIF/PNG 元数据用传入值写入。供 Chat Agent / Memory Writer 从 session 图片复制入 vault 时使用（`copy_session_image_to_vault` 工具）。
+
 对应的 REST 端点（`/api/vault/raw/...`）与前端交互见 [Vault Editor 图片插入实现](/docs/impl-spec/vault-editor.md)。
 
 ## 4. 前端 PUT 上传端点契约

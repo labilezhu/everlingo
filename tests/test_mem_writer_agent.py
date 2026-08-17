@@ -764,6 +764,21 @@ class TestWriterAgentSync:
         msgs = call_args["messages"]
         assert any("gcc" in m.content for m in msgs if hasattr(m, "content"))
 
+    def test_process_batch_injects_copy_image_tool(self, mcp_inmem_server):
+        """create 流程的 tools 应包含 copy_session_image_to_vault。
+
+        ref: docs/ADR/20260817-save-image-from-chat-to-note.md — 决策 4
+        """
+        with patch(
+            "everlingo.mem.agents.mem_writer_agent.create_agent"
+        ) as mock_create:
+            agent, _ = self._make_agent(mock_create)
+            with mcp_inmem_server():
+                agent._process_batch([_entry(title="gcc")])
+        tools = mock_create.call_args.kwargs["tools"]
+        names = [getattr(t, "name", "") for t in tools]
+        assert "copy_session_image_to_vault" in names
+
     def test_events_failure_does_not_block_kb_item_write(
         self, mcp_inmem_server
     ):

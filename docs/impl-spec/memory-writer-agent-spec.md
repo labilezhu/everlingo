@@ -136,6 +136,24 @@ MCP 连不上（`IndexerOfflineError`）时，异常通过 `future.set_exception
 - `TestActionEdit` — `_edit_entry_async` 各场景（保留 frontmatter / 缺 body / 文件不存在 / 写事件 / 缺 file_path）
 - `TestActionDaemonDispatch` — `_ActionRequest` 经 `_run_loop` 分发与 future 回传
 
+## 嵌入聊天图片（create 流程）
+
+ref: [ADR: 把聊天图片沉淀到笔记](/docs/ADR/20260817-save-image-from-chat-to-note.md)
+
+Memory Writer 处理带图片 attachment 的会话时，可在新建/合并的笔记中嵌入该图片：
+
+1. 经 `vault_mcp_gen_id` 确定目标 `md_file_path`（沿用既有 vault_spec 命名）。
+2. 对每张要嵌入的 session 图片，调用 `copy_session_image_to_vault(src_resource_sha256, md_file_path, slug_hint)`；`slug_hint` 取自 `new_messages` 中 ImageAnalysis 的 `text` / `knowledge_points`。
+3. 工具返回 `markdown_relative_path`；在 markdown 正文用 `![alt](markdown_relative_path)` 嵌入。
+4. 之后才经 vault MCP `write` 写入 md 文件。
+5. 输出写入确认 JSON（`updated_files` / `update_summary` / `conversation_context`）。
+
+约束：
+- 必须先复制图片再写 md，避免 body 中链接与实际文件路径不一致。
+- 工具取不到图片字节（返回 `ok=false`）时，正文跳过该图，不中断写入。
+- 工具注入：`_write_kb_item_async` 在 per-entry 的 MCP tools 列表末尾追加 `make_copy_session_image_tool(image_store, entry.lang)`（进程级 `image_store` 单例）。
+- `image_store` 为进程内注册表，进程重启后无法取回；此限制与 session 上下文同生命周期，可接受。
+
 ## 实现
 应实现于： `/src/everlingo/mem/agents/mem_writer_agent.py`。
 

@@ -18,6 +18,7 @@ from everlingo.image.image_store import (
     MAX_PIXELS,
     save_vault_image,
     sha256_of_bytes,
+    slugify,
 )
 from everlingo.workspace import init_workspace_dir, lang_vault_dir
 
@@ -304,3 +305,67 @@ class TestSaveVaultImage:
         file_path = lang_vault_dir("en") / self._rel(src_sha)
         img = Image.open(file_path)
         assert img.text.get("src_resource_sha256") == src_sha
+
+    def test_explicit_src_sha_with_slug_stem(self, ws):
+        """显式传 src_resource_sha256：stem 可为英文 slug（跳过 stem 64-hex 校验）。
+
+        ref: docs/ADR/20260817-save-image-from-chat-to-note.md — 决策 2
+        """
+        data = _make_png_bytes(size=(64, 48))
+        src_sha = sha256_of_bytes(data)
+        rel = "items/vocab/hello-kitty.assets/english-exercise-2cf24dba.png"
+        asset = save_vault_image(
+            "en", rel, data, "image/png", src_resource_sha256=src_sha
+        )
+
+        assert asset.src_resource_sha256 == src_sha
+        assert asset.mime_type == "image/png"
+        assert asset.storage_key == f"memory://languages/en/vault/{rel}"
+        file_path = lang_vault_dir("en") / rel
+        assert file_path.is_file()
+        # tEXt 自有元数据用显式传入的 src_sha
+        img = Image.open(file_path)
+        assert img.text.get("src_resource_sha256") == src_sha
+
+    def test_explicit_src_sha_invalid_value_raises(self, ws):
+        """显式传的 src_resource_sha256 本身非 64 位 hex → 400（防元数据注入）。"""
+        data = _make_png_bytes()
+        with pytest.raises(ValueError, match="sha256 mismatch"):
+            save_vault_image(
+                "en",
+                "items/vocab/hello-kitty.assets/english-exercise.png",
+                data,
+                "image/png",
+                src_resource_sha256="not-a-sha",
+            )
+
+
+class TestSlugify:
+    """slugify：自由文本 → 英文 slug。
+
+    ref: docs/ADR/20260817-save-image-from-chat-to-note.md — 决策 1
+    """
+
+    def test_basic(self):
+        assert slugify("English Exercise") == "english-exercise"
+
+    def test_non_ascii_replaced(self):
+        assert slugify("中文错题 image") == "image"
+
+    def test_collapse_dashes(self):
+        assert slugify("a  b--c__d") == "a-b-c-d"
+
+    def test_strip_edges(self):
+        assert slugify("  --hello--  ") == "hello"
+
+    def test_truncate(self):
+        assert len(slugify("x" * 100)) == 40
+
+    def test_truncate_does_not_end_with_dash(self):
+        s = slugify("x" * 39 + "-y" * 10)
+        assert s.endswith("x")
+        assert len(s) <= 40
+
+    def test_empty_falls_back(self):
+        assert slugify("") == "image"
+        assert slugify("!!!") == "image"

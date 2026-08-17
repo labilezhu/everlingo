@@ -125,19 +125,44 @@ def _embed_self_metadata(processed: bytes, mime_type: str, src_sha: str) -> byte
         return processed
 
 
+# ref: docs/ADR/20260817-save-image-from-chat-to-note.md — 决策 1
+# 用于 vault 图片文件名 {slug}-{src_sha[:8]}.{ext} 的 slug 归一化。
+_SLUG_MAX_LEN = 40
+
+
+def slugify(text: str) -> str:
+    """把自由文本归一化为英文 slug（小写、非字母数字转 '-'、限长）。
+
+    规则：小写 → 非 [a-z0-9] 连续块转 '-' → 折叠连续 '-' → 去首尾 '-' →
+    限长 40 字符（避免截断到 '-' 结尾）→ 空串回退为 "image"。
+    """
+    slug = re.sub(r"[^a-z0-9]+", "-", text.lower())
+    slug = re.sub(r"-+", "-", slug).strip("-")
+    slug = slug[:_SLUG_MAX_LEN].rstrip("-")
+    return slug or "image"
+
+
 def save_vault_image(
     lang: str,
     vault_rel_path: str,
     data: bytes,
     mime_type: str,
+    *,
+    src_resource_sha256: str | None = None,
 ) -> ImageAsset:
     """把图片字节写入 lang vault 的相对路径，返回 ImageAsset（无状态、按路径幂等）。
 
     ref: docs/ADR/20260816-markdown-image.md — 决策 4 / 决策 5
+    ref: docs/ADR/20260817-save-image-from-chat-to-note.md — 决策 2
 
-    - 校验 MIME 允许列表；vault_rel_path 末段 stem 作为 src_resource_sha256 —— 它由
-      前端在 scale 前基于原始字节计算（ADR §8），服务端仅做 64 位 hex 格式校验，
-      不再对收到的字节重算比对（前端可能已缩放，字节 sha ≠ 原始 sha）。
+    - 校验 MIME 允许列表。
+    - src_resource_sha256 为可选 kwarg：
+      - None（默认）：保留旧行为 —— vault_rel_path 末段 stem 作为 src_resource_sha256，
+        由前端在 scale 前基于原始字节计算（ADR §8），服务端仅做 64 位 hex 格式校验，
+        不再对收到的字节重算比对（前端可能已缩放，字节 sha ≠ 原始 sha）。
+      - 显式传入：跳过 stem 64-hex 校验（stem 可为英文 slug，供 Chat Agent /
+        Memory Writer 从 session 图片复制入 vault 使用）；对传入值本身做 64 位 hex
+        校验，防止注入自有元数据（EXIF/tEXt）。
     - 复用 preprocess_image（EXIF 校正 → strip 元数据 → 超限缩放），随后 best-effort
       追加自有溯源元数据（JPEG EXIF / PNG tEXt）。
     - 写盘到 lang_vault_dir(lang).resolve() / vault_rel_path（父目录自动建）；
@@ -157,7 +182,10 @@ def save_vault_image(
     if not candidate.is_relative_to(vault_root):
         raise ValueError("path escape")
 
-    src_sha = candidate.stem
+    if src_resource_sha256 is None:
+        src_sha = candidate.stem
+    else:
+        src_sha = src_resource_sha256
     if not re.fullmatch(r"[0-9a-f]{64}", src_sha):
         raise ValueError("sha256 mismatch")
 

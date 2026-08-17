@@ -602,6 +602,23 @@ title / description / description_in_target_lang / tags（以及其他非上述�
 - 调用 memory_writer_action 时 body 参数必须是完整正文，不能是片段
 
 """
+
+        # 仅当通道支持图片时注入复制工具说明（与工具注入条件一致）
+        if supports_image:
+            prompt += """
+#### 嵌入聊天图片（编辑流程）
+
+编辑笔记需嵌入本轮聊天中的图片时：
+1. 按既有定位/确认流程获得 `md_file_path`（必须已 `vault_mcp_read` 加载最新原文件）。
+2. 对每张要嵌入的 session 图片，先调用
+   `copy_session_image_to_vault(src_resource_sha256, md_file_path, slug_hint)`。
+   - `src_resource_sha256`：来自 analyze_image 结果 / envelope 的 chat.attachments
+   - `slug_hint`：从 analyze_image 结果的 text / knowledge_points 提炼 1-3 个英文关键词
+   - 工具返回 `markdown_relative_path`（失败时返回 `ok=false`，跳过该图不中断）
+3. 在 `memory_writer_action(operation="edit", body=...)` 的 `body` 中用
+   `![<alt>](<markdown_relative_path>)` 嵌入。
+4. **必须先复制图片再调 `memory_writer_action`**（复制工具产出 body 所需的相对路径）。
+"""
     else:
         prompt += """
 ## 记忆库访问
@@ -793,8 +810,14 @@ class MainAgent:
         self._tools = list(self._tools_base) + [extract_tool, memory_writer_tool] + list(self._vault_tools)
         if self._channel_metadata.supported_image:
             from ..image.vision_service import vision_service
+            from ..image.image_store import image_store as _global_image_store
+            from ..tools.image_vault_copy import make_copy_session_image_tool
 
             self._tools.insert(0, make_vision_tool(vision_service))
+            # 编辑流程把聊天图片复制入 vault（仅支持图片的通道）
+            self._tools.append(
+                make_copy_session_image_tool(_global_image_store, self._target_lang)
+            )
         public_base_url = get_web_public_base_url()
         self._agent = create_agent(
             self._llm,

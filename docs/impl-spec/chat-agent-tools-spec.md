@@ -239,3 +239,30 @@ returns: string 。JSON 序列化的结果 dict：
 - Writer daemon thread 通过 `_ActionRequest` 入队串行执行，结果通过 `concurrent.futures.Future` 回传。
 - indexer 离线（MCP 连不上）时 `IndexerOfflineError` 通过 future 异常回传，工具调用抛出，由 LLM 转告用户。
 
+## 聊天图片复制到 Vault - copy_session_image_to_vault
+
+toolset name: copy_session_image_to_vault
+toolset description: 把当前会话上传的图片复制到笔记 vault，返回 markdown 相对引用路径。
+
+### 设计说明
+
+工具通过工厂函数 `make_copy_session_image_tool(image_store, target_lang)` 创建。仅当 `ChannelMetadata.supported_image` 为真（web 通道）时，由 `MainAgent._refresh_agent_if_needed()` 把该工具加入 Chat Agent 工具列表；Memory Writer 则在处理每个 entry 时向 MCP tools 追加（闭包绑定 `entry.lang`）。详见 [ADR: 把聊天图片沉淀到笔记](/docs/ADR/20260817-save-image-from-chat-to-note.md)。
+
+工具是**同步**的：从进程级 `ImageStore` 读回已上传图片的（预处理后）字节，调用 `save_vault_image(..., src_resource_sha256=<显式传入>)` 写入目标笔记的 `.assets` 目录，返回 markdown 相对路径。取不到字节或写入失败时**不抛异常**，返回 `{"ok": false, ...}` 降级。
+
+### functions
+
+#### copy_session_image_to_vault
+function name: copy_session_image_to_vault
+function description: 把聊天 session 中某张已上传图片复制到目标笔记 markdown 的 .assets 目录，返回可在 markdown 正文中直接使用的相对引用路径。仅当 channel 支持图片时注入 Chat Agent。
+parameters:
+    src_resource_sha256: string。图片在 envelope.chat.attachments / analyze_image 结果中的标识。
+    md_file_path: string。目标笔记 markdown 的 vault 相对路径（如 items/vocab/aimai--01JZABD123.md）。
+    slug_hint: string。从 ImageAnalysis 提炼的 1-3 个英文关键词，用于生成可读文件名。
+returns: string。JSON：`{"ok": true, "markdown_relative_path": "...", "vault_rel_path": "...", "mime_type": "..."}`。失败（如图片字节不可取）返回 `{"ok": false, "error": "..."}`。
+
+**实现机制**：
+- 文件名规则：`{slugify(slug_hint)}-{src_resource_sha256[:8]}.{ext}`（slugify 代码端归一化：小写、非 `[a-z0-9]` 折叠为 `-`、限长 40、空回退 `image`），文件落在 `{md_dir}/{mdname}.assets/` 目录；目标 md 位于 vault 根时用扁平 `{mdname}.assets/`。
+- 复用 `save_vault_image`（显式 `src_resource_sha256`，跳过 stem 64-hex 校验），EXIF/PNG 溯源元数据写入完整 sha。
+- 调用约束（写入 Chat Agent / Memory Writer system prompt）：**必须先复制图片拿到 `markdown_relative_path`，再把 `![alt](<markdown_relative_path>)` 写进 markdown 正文**，避免链接与实际文件路径不一致。
+

@@ -240,6 +240,24 @@ entry 中的 `new_messages` 和 `context_messages` 字段包含了触发本次�
 
 不要在此回复中输出其他内容。若写入失败无需此确认，回复空内容即可。
 
+### 嵌入聊天图片（Memory Entry 的 operation=create 时的流程）
+
+如果 `new_messages` 或 `context_messages` 中包含 `analyze_image` 工具的返回结果（ImageAnalysis JSON），
+说明本轮对话有聊天图片。按对话上下文要求，可在新建/合并的笔记正文中嵌入该图片：
+
+1. 经 `vault_mcp_gen_id` 确定目标 `md_file_path`（沿用既有 vault_spec 命名）。
+2. 对每张要嵌入的 session 图片，调用
+   `copy_session_image_to_vault(src_resource_sha256, md_file_path, slug_hint)`：
+   - `src_resource_sha256`：来自 analyze_image 结果 / envelope 的 chat.attachments
+   - `slug_hint`：从 ImageAnalysis 的 text / knowledge_points 提炼 1-3 个英文关键词
+   - 工具返回 `markdown_relative_path`（失败返回 `ok=false`，跳过该图不中断）
+3. 在 markdown 正文用 `![alt](<markdown_relative_path>)` 嵌入。
+4. 之后才经 `vault_mcp_write` 写入 md 文件。
+
+约束：
+- **必须先复制图片再写 md**，避免正文中链接与实际文件路径不一致。
+- 工具取不到图片字节（`ok=false`）时正文跳过该图，不中断写入。
+
 ## 单个 entry 处理流程
 
 每次你会收到**一个** entry（JSON 格式），按下列步骤处理：
@@ -831,6 +849,14 @@ class MemoryWriterAgent:
                 "请将以下 entry 合并或写入 memory vault。\n\n"
                 f"```json\n{payload}```"
             )
+            from ...image.image_store import image_store as _global_image_store
+            from ...tools.image_vault_copy import make_copy_session_image_tool
+
+            # ref: docs/ADR/20260817-save-image-from-chat-to-note.md — 决策 4
+            # create 流程注入复制工具，使 Writer 可把聊天图片复制入 vault。
+            tools = list(tools) + [
+                make_copy_session_image_tool(_global_image_store, entry.lang)
+            ]
             agent = create_agent(
                 self._llm,
                 tools=tools,
