@@ -6,10 +6,11 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
+from everlingo.image.image_store import ALLOWED_MIME, _is_valid_lang, save_vault_image
 from everlingo.mem.agents.mem_writer_mcp_client import IndexerOfflineError
 from everlingo.mem.vault.frontmatter import parse_frontmatter
 from everlingo.setting import load_profile, load_resolved_profile
@@ -321,3 +322,82 @@ async def list_tags(
             status, detail = _map_mcp_error(text)
             raise HTTPException(status, detail=detail)
         return _unwrap(result)
+
+
+# ── Raw file endpoints ────────────────────────────────────────────
+# ref: docs/ADR/20260816-markdown-image.md — 决策 3 / 决策 4 / 决策 5
+# GET/PUT /api/vault/raw/{lang}/{vault_rel_path} 服务 vault 内任意文件字节，
+# 用于 markdown 图片的取回（浏览器预览）与上传。纯本地文件系统，不走 MCP。
+# 信任边界与现有 read?path= 一致：先 resolve() 再校验 is_relative_to(vault_root)。
+
+# 扩展名 → Content-Type：图片 inline、文本类 text/plain、其它 octet-stream
+_RAW_CONTENT_TYPE = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".md": "text/plain",
+    ".txt": "text/plain",
+    ".json": "text/plain",
+    ".yaml": "text/plain",
+    ".yml": "text/plain",
+    ".csv": "text/plain",
+}
+
+# 图片文件取回带 content hash 语义，走 immutable 长缓存（与静态资源一致）
+_RAW_IMAGE_CACHE_CONTROL = "public, max-age=31536000, immutable"
+
+
+def _raw_compute_ct(path: str) -> str:
+    return _RAW_CONTENT_TYPE.get(Path(path).suffix.lower(), "application/octet-stream")
+
+
+def _resolve_raw_vault_path(lang: str, vault_rel_path: str) -> Path:
+    """把 {lang}/{vault_rel_path} 解析为 lang vault 内的绝对路径；逃逸/非法 lang 抛 400。"""
+    if not _is_valid_lang(lang):
+        raise HTTPException(status_code=400, detail="invalid lang name")
+    if not vault_rel_path:
+        raise HTTPException(status_code=400, detail="path escape")
+    vault_root = lang_vault_dir(lang).resolve()
+    candidate = (vault_root / vault_rel_path).resolve()
+    if not candidate.is_relative_to(vault_root):
+        raise HTTPException(status_code=400, detail="path escape")
+    return candidate
+
+
+@router.get("/raw/{lang}/{vault_rel_path:path}")
+async def raw_get(lang: str, vault_rel_path: str):
+    """通用取回 vault 内任意文件字节（图片 inline、文本类 text/plain、其它 octet-stream）。
+
+    ref: docs/ADR/20260816-markdown-image.md — 决策 3
+    """
+    candidate = _resolve_raw_vault_path(lang, vault_rel_path)
+    if not candidate.is_file():
+        raise HTTPException(status_code=404, detail="file not found")
+    headers = {"Cache-Control": _RAW_IMAGE_CACHE_CONTROL}
+    return FileResponse(path=candidate, media_type=_raw_compute_ct(str(candidate)), headers=headers)
+
+
+@router.put("/raw/{lang}/{vault_rel_path:path}")
+async def raw_upload(lang: str, vault_rel_path: str, file: UploadFile = File(...)):
+    """上传图片字节到 vault 内相对路径（multipart file=<binary>）。
+
+    ref: docs/ADR/20260816-markdown-image.md — 决策 4 / 决策 5
+    服务端校验：MIME 允许列表（415）；空文件（400）；vault 逃逸 / sha256 mismatch /
+    图片不可解析（400）；同 sha 重复上传幂等。
+    """
+    candidate = _resolve_raw_vault_path(lang, vault_rel_path)
+
+    mime_type = (file.content_type or "").lower()
+    if mime_type not in ALLOWED_MIME:
+        raise HTTPException(status_code=415, detail=f"unsupported mime type: {mime_type}")
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="empty file")
+
+    try:
+        asset = save_vault_image(lang, vault_rel_path, data, mime_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    return {"image": asset.model_dump()}

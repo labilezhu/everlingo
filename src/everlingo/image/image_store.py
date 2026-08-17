@@ -9,14 +9,18 @@ from __future__ import annotations
 
 import hashlib
 import math
+import logging
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 
 from PIL import Image, ImageOps
+from PIL.PngImagePlugin import PngInfo
 
 from everlingo.image.models import ImageAsset
-from everlingo.workspace import current_workspace
+from everlingo.workspace import current_workspace, lang_vault_dir
+
+logger = logging.getLogger(__name__)
 
 # 允许的 MIME（对齐 ADR §32 MVP 资源限制）
 ALLOWED_MIME: set[str] = {
@@ -75,6 +79,104 @@ def preprocess_image(data: bytes, mime_type: str) -> tuple[bytes, int, int]:
     out = BytesIO()
     img.save(out, format=_MIME_PIL_FORMAT[mime_type])
     return out.getvalue(), width, height
+
+
+# JPEG EXIF UserComment 标签（Pillow Exif tag id）
+_EXIF_USER_COMMENT = 0x9286
+
+
+def _is_valid_lang(lang: str) -> bool:
+    """lang 名合法性校验（对齐 create_vault 的校验：防路径注入 / 逃逸）。"""
+    return bool(
+        isinstance(lang, str)
+        and lang
+        and "/" not in lang
+        and "\\" not in lang
+        and lang not in (".", "..")
+        and "\x00" not in lang
+    )
+
+
+def _embed_self_metadata(processed: bytes, mime_type: str, src_sha: str) -> bytes:
+    """best-effort：向处理后字节追加自有溯源元数据。
+
+    - JPEG：写 EXIF UserComment="src_resource_sha256=<src_sha>"（tag 0x9286）。
+    - PNG：写 tEXt 键 src_resource_sha256=<src_sha>。
+    - 其余格式 / 任何异常：原样返回 processed（不阻断保存，失败静默）。
+    仅写入自有元数据，不影响 preprocess 的隐私 strip。
+    """
+    try:
+        img = Image.open(BytesIO(processed))
+        out = BytesIO()
+        if mime_type == "image/jpeg":
+            exif = Image.Exif()
+            exif[_EXIF_USER_COMMENT] = f"src_resource_sha256={src_sha}"
+            img.save(out, format="JPEG", exif=exif, quality=95)
+        elif mime_type == "image/png":
+            pnginfo = PngInfo()
+            pnginfo.add_text("src_resource_sha256", src_sha)
+            img.save(out, format="PNG", pnginfo=pnginfo)
+        else:
+            return processed
+        return out.getvalue()
+    except Exception:
+        logger.warning("embed self metadata failed for mime=%s, src=%s", mime_type, src_sha)
+        return processed
+
+
+def save_vault_image(
+    lang: str,
+    vault_rel_path: str,
+    data: bytes,
+    mime_type: str,
+) -> ImageAsset:
+    """把图片字节写入 lang vault 的相对路径，返回 ImageAsset（无状态、按路径幂等）。
+
+    ref: docs/ADR/20260816-markdown-image.md — 决策 4 / 决策 5
+
+    - 校验 MIME 允许列表；重算 sha256 比对 vault_rel_path 末段 stem（不符 400）。
+    - 复用 preprocess_image（EXIF 校正 → strip 元数据 → 超限缩放），随后 best-effort
+      追加自有溯源元数据（JPEG EXIF / PNG tEXt）。
+    - 写盘到 lang_vault_dir(lang).resolve() / vault_rel_path（父目录自动建）；
+      文件已存在则跳过写盘（幂等）。
+    - storage_key = memory://languages/{lang}/vault/{vault_rel_path}。
+    - 与既有的 session 图片存储（ImageStore.save）并列，不改动其逻辑。
+    """
+    if mime_type not in ALLOWED_MIME:
+        raise ValueError(f"unsupported mime type: {mime_type}")
+    if not _is_valid_lang(lang):
+        raise ValueError("invalid lang name")
+
+    vault_root = lang_vault_dir(lang).resolve()
+    if not vault_rel_path:
+        raise ValueError("path escape")
+    candidate = (vault_root / vault_rel_path).resolve()
+    if not candidate.is_relative_to(vault_root):
+        raise ValueError("path escape")
+
+    src_sha = sha256_of_bytes(data)
+    if candidate.stem != src_sha:
+        raise ValueError("sha256 mismatch")
+
+    processed, width, height = preprocess_image(data, mime_type)
+    final = _embed_self_metadata(processed, mime_type, src_sha)
+    saved_sha = sha256_of_bytes(final)
+
+    candidate.parent.mkdir(parents=True, exist_ok=True)
+    if not candidate.exists():
+        candidate.write_bytes(final)
+
+    storage_key = f"memory://languages/{lang}/vault/{vault_rel_path}"
+    return ImageAsset(
+        src_resource_sha256=src_sha,
+        saved_resource_sha256=saved_sha,
+        mime_type=mime_type,
+        size=len(final),
+        width=width,
+        height=height,
+        storage_key=storage_key,
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )
 
 
 class ImageStore:

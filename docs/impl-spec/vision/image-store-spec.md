@@ -66,6 +66,26 @@ class MessageAttachment(BaseModel):
 - `ImageAsset.storage_key` 存逻辑键 `session://{session_id}/{saved_resource_sha256}`；`ImageStore` 负责逻辑键 ↔ 物理路径映射。
 - 当前为单进程部署，使用本地文件实现；未来换对象存储（S3/MinIO）只需替换 `ImageStore` 实现，调用方（上传端点、Vision Service）不变。
 
+## 3.1 Vault 图片存储
+
+ref: docs/ADR/20260816-markdown-image.md — 决策 5
+
+除 session 图片（`session://`）外，另有**按路径、无状态**的 vault 图片存储：`save_vault_image(lang, vault_rel_path, data, mime_type)`。
+
+```text
+{lang_vault_dir(lang)}/{vault_rel_path}
+# 例：$workspace/memory/languages/en/vault/items/vocab/hello-kitty.assets/{src_sha}.png
+```
+
+- **无状态、按路径幂等**：不依赖 `ImageStore._registry` 内存注册表；目标文件已存在则跳过写盘。物理路径即 `vault_rel_path`，与「图片可放 vault 任意位置」一致。
+- **逻辑键**：`ImageAsset.storage_key = memory://languages/{lang}/vault/{vault_rel_path}`。
+- **校验**：MIME 允许列表（`ALLOWED_MIME`）；lang 名合法性（非空、无 `/` `\`、非 `.`/`..`、无 NUL）；vault 内逃逸（`(vault_root / vault_rel_path).resolve()` 后 `is_relative_to(vault_root)`）；`vault_rel_path` 末段文件 stem == 重算 `src_resource_sha256`。
+- **预处理**：复用 `preprocess_image`（EXIF 方向校正 → strip 元数据 → 超 1920x1200 按比例缩放）。
+- **best-effort 自有溯源元数据**：预处理后对 JPEG 追加 EXIF `UserComment="src_resource_sha256=<src_sha>"`（tag `0x9286`）、PNG 追加 tEXt `src_resource_sha256`（`PngInfo.add_text`）。仅写入自有键，不影响隐私 strip；失败静默回退预处理字节。`saved_resource_sha256` / `size` 以最终落盘字节计算。
+- **生命周期**：随 vault 常规文件管理（可移动 / 重命名），不绑定 session；indexer 只处理 `*.md`，图片天然不进索引。
+
+对应的 REST 端点（`/api/vault/raw/...`）见 [Vault Editor 图片插入实现](/docs/impl-spec/vault-editor.md)（Phase 2 回填）。
+
 ## 4. 前端 PUT 上传端点契约
 
 ```http

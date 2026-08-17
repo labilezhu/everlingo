@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -8,8 +9,11 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from everlingo.gateway.vault_editor_api import router
+from everlingo.image.image_store import sha256_of_bytes
+from everlingo.workspace import init_workspace_dir, lang_vault_dir
 
 
 # ── Mock helpers ──────────────────────────────────────────────────
@@ -927,3 +931,184 @@ class TestTreeTitle:
             assert "title" not in resp.json()["entries"][0]
         finally:
             self._teardown(patches)
+
+
+# ── Raw file endpoints ────────────────────────────────────────────
+# ref: docs/ADR/20260816-markdown-image.md — 决策 3 / 决策 4
+# GET/PUT /api/vault/raw/{lang}/{vault_rel_path}：纯本地文件系统，不走 MCP。
+
+IMAGE_CACHE_CONTROL = "public, max-age=31536000, immutable"
+
+
+def _make_png_bytes(size=(64, 48), color=(30, 30, 200)) -> bytes:
+    img = Image.new("RGB", size, color)
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _make_jpeg_bytes(size=(64, 48), color=(200, 30, 30)) -> bytes:
+    img = Image.new("RGB", size, color)
+    buf = BytesIO()
+    img.save(buf, format="JPEG")
+    return buf.getvalue()
+
+
+class TestRawUpload:
+    """PUT /api/vault/raw/{lang}/{vault_rel_path}"""
+
+    @pytest.fixture
+    def _ws(self, tmp_path: Path):
+        init_workspace_dir(tmp_path)
+        yield tmp_path
+        init_workspace_dir(None)  # 复位全局 workspace，避免污染其它测试
+
+    def _rel(self, src_sha: str, ext: str = ".png") -> str:
+        return f"items/vocab/hello-kitty.assets/{src_sha}{ext}"
+
+    def test_upload_success(self, client: TestClient, _ws: Path):
+        data = _make_png_bytes()
+        src_sha = sha256_of_bytes(data)
+        rel = self._rel(src_sha)
+        resp = client.put(
+            f"/api/vault/raw/en/{rel}",
+            files={"file": ("hello.png", data, "image/png")},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["image"]["src_resource_sha256"] == src_sha
+        assert body["image"]["mime_type"] == "image/png"
+        assert (body["image"]["width"], body["image"]["height"]) == (64, 48)
+        assert body["image"]["storage_key"] == f"memory://languages/en/vault/{rel}"
+        # 物理落盘
+        assert (lang_vault_dir("en") / rel).is_file()
+
+    def test_upload_unsupported_mime(self, client: TestClient, _ws: Path):
+        data = _make_png_bytes()
+        src_sha = sha256_of_bytes(data)
+        resp = client.put(
+            f"/api/vault/raw/en/{self._rel(src_sha)}",
+            files={"file": ("a.gif", data, "image/gif")},
+        )
+        assert resp.status_code == 415
+
+    def test_upload_empty_file(self, client: TestClient, _ws: Path):
+        resp = client.put(
+            f"/api/vault/raw/en/{self._rel('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')}",
+            files={"file": ("a.png", b"", "image/png")},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["detail"] == "empty file"
+
+    def test_upload_sha_mismatch(self, client: TestClient, _ws: Path):
+        data = _make_png_bytes()
+        resp = client.put(
+            f"/api/vault/raw/en/{self._rel('wrongsha')}",
+            files={"file": ("a.png", data, "image/png")},
+        )
+        assert resp.status_code == 400
+        assert "sha256 mismatch" in resp.json()["detail"]
+
+    def test_upload_path_escape(self, client: TestClient, _ws: Path):
+        data = _make_png_bytes()
+        src_sha = sha256_of_bytes(data)
+        # %2e%2e = ".."（URL 编码避免 httpx 在客户端规范化路径）
+        resp = client.put(
+            f"/api/vault/raw/en/%2e%2e/outside/{src_sha}.png",
+            files={"file": ("a.png", data, "image/png")},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["detail"] == "path escape"
+
+    def test_upload_invalid_lang(self, client: TestClient, _ws: Path):
+        data = _make_png_bytes()
+        src_sha = sha256_of_bytes(data)
+        resp = client.put(
+            f"/api/vault/raw/%2e%2e/{self._rel(src_sha)}",
+            files={"file": ("a.png", data, "image/png")},
+        )
+        assert resp.status_code == 400
+
+    def test_upload_invalid_image_data(self, client: TestClient, _ws: Path):
+        data = b"\x89PNG\r\n\x1a\n" + b"fake-png-content"
+        src_sha = sha256_of_bytes(data)
+        resp = client.put(
+            f"/api/vault/raw/en/{self._rel(src_sha)}",
+            files={"file": ("a.png", data, "image/png")},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["detail"] == "invalid image data"
+
+    def test_upload_idempotent(self, client: TestClient, _ws: Path):
+        data = _make_png_bytes()
+        src_sha = sha256_of_bytes(data)
+        rel = self._rel(src_sha)
+        url = f"/api/vault/raw/en/{rel}"
+        r1 = client.put(url, files={"file": ("a.png", data, "image/png")})
+        r2 = client.put(url, files={"file": ("b.png", data, "image/png")})
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert (
+            r1.json()["image"]["saved_resource_sha256"]
+            == r2.json()["image"]["saved_resource_sha256"]
+        )
+
+
+class TestRawGet:
+    """GET /api/vault/raw/{lang}/{vault_rel_path}"""
+
+    @pytest.fixture
+    def _ws(self, tmp_path: Path):
+        init_workspace_dir(tmp_path)
+        yield tmp_path
+        init_workspace_dir(None)
+
+    def _write(self, rel: str, data: bytes) -> Path:
+        p = lang_vault_dir("en") / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(data)
+        return p
+
+    def test_returns_image_bytes_inline(self, client: TestClient, _ws: Path):
+        data = _make_png_bytes()
+        src_sha = sha256_of_bytes(data)
+        rel = self._write(f"items/vocab/hello-kitty.assets/{src_sha}.png", data)
+        resp = client.get(f"/api/vault/raw/en/{rel.relative_to(lang_vault_dir('en'))}")
+        assert resp.status_code == 200
+        assert resp.content == data
+        assert resp.headers["content-type"] == "image/png"
+        assert resp.headers["cache-control"] == IMAGE_CACHE_CONTROL
+
+    def test_jpeg_content_type(self, client: TestClient, _ws: Path):
+        data = _make_jpeg_bytes()
+        src_sha = sha256_of_bytes(data)
+        rel = f"photos/{src_sha}.jpg"
+        self._write(rel, data)
+        resp = client.get(f"/api/vault/raw/en/{rel}")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "image/jpeg"
+
+    def test_md_content_type_text_plain(self, client: TestClient, _ws: Path):
+        self._write("notes/foo.md", b"# hello")
+        resp = client.get("/api/vault/raw/en/notes/foo.md")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/plain")
+
+    def test_unknown_extension_octet_stream(self, client: TestClient, _ws: Path):
+        self._write("data/blob.bin", b"\x00\x01")
+        resp = client.get("/api/vault/raw/en/data/blob.bin")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "application/octet-stream"
+
+    def test_404_missing_file(self, client: TestClient, _ws: Path):
+        resp = client.get("/api/vault/raw/en/nope.png")
+        assert resp.status_code == 404
+
+    def test_path_escape(self, client: TestClient, _ws: Path):
+        resp = client.get("/api/vault/raw/en/%2e%2e/etc/passwd")
+        assert resp.status_code == 400
+        assert resp.json()["detail"] == "path escape"
+
+    def test_invalid_lang(self, client: TestClient, _ws: Path):
+        resp = client.get("/api/vault/raw/%2e%2e/a.png")
+        assert resp.status_code == 400

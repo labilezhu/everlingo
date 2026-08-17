@@ -11,9 +11,15 @@ from io import BytesIO
 
 import pytest
 from PIL import Image, ImageOps
+from PIL.PngImagePlugin import PngInfo
 
-from everlingo.image.image_store import ImageStore, MAX_PIXELS, sha256_of_bytes
-from everlingo.workspace import init_workspace_dir
+from everlingo.image.image_store import (
+    ImageStore,
+    MAX_PIXELS,
+    save_vault_image,
+    sha256_of_bytes,
+)
+from everlingo.workspace import init_workspace_dir, lang_vault_dir
 
 
 @pytest.fixture
@@ -21,6 +27,14 @@ def store(tmp_path):
     """每个测试独立的 ImageStore + 临时 workspace。"""
     init_workspace_dir(tmp_path)
     yield ImageStore()
+    init_workspace_dir(None)  # 复位全局 workspace，避免污染其它测试
+
+
+@pytest.fixture
+def ws(tmp_path):
+    """临时 workspace，仅复位全局状态。"""
+    init_workspace_dir(tmp_path)
+    yield tmp_path
     init_workspace_dir(None)  # 复位全局 workspace，避免污染其它测试
 
 
@@ -46,6 +60,16 @@ def _make_exif_rotated_jpeg_bytes(size=(64, 48)) -> bytes:
     exif[0x0112] = 6  # Orientation
     buf = BytesIO()
     img.save(buf, format="JPEG", exif=exif)
+    return buf.getvalue()
+
+
+def _add_png_self_metadata(data: bytes, src_sha: str) -> bytes:
+    """模拟 save_vault_image 对 PNG 追加 tEXt 自有元数据后的落盘字节。"""
+    img = Image.open(BytesIO(data))
+    info = PngInfo()
+    info.add_text("src_resource_sha256", src_sha)
+    buf = BytesIO()
+    img.save(buf, format="PNG", pnginfo=info)
     return buf.getvalue()
 
 
@@ -152,3 +176,111 @@ class TestSha256OfBytes:
     def test_returns_hex(self):
         expected = hashlib.sha256(b"abc").hexdigest()
         assert sha256_of_bytes(b"abc") == expected
+
+
+class TestSaveVaultImage:
+    """save_vault_image：vault 图片存储（无状态、按路径幂等）。
+
+    ref: docs/ADR/20260816-markdown-image.md — 决策 5
+    写盘到 lang_vault_dir(lang).resolve() / vault_rel_path；
+    storage_key = memory://languages/{lang}/vault/{vault_rel_path}。
+    """
+
+    def _rel(self, src_sha: str, ext: str = ".png") -> str:
+        return f"items/vocab/hello-kitty.assets/{src_sha}{ext}"
+
+    def test_saves_bytes_and_returns_asset(self, ws):
+        data = _make_png_bytes(size=(64, 48))
+        src_sha = sha256_of_bytes(data)
+        rel = self._rel(src_sha)
+        asset = save_vault_image("en", rel, data, "image/png")
+
+        assert asset.src_resource_sha256 == src_sha
+        assert asset.mime_type == "image/png"
+        assert (asset.width, asset.height) == (64, 48)
+        assert asset.storage_key == f"memory://languages/en/vault/{rel}"
+        # 小图无需缩放/校正：saved 应为落盘字节（注入 tEXt 后）的 hash
+        file_path = lang_vault_dir("en") / rel
+        assert file_path.is_file()
+        assert sha256_of_bytes(file_path.read_bytes()) == asset.saved_resource_sha256
+        assert file_path.read_bytes() == _add_png_self_metadata(data, src_sha)
+
+    def test_creates_parent_dirs(self, ws):
+        data = _make_png_bytes()
+        src_sha = sha256_of_bytes(data)
+        rel = self._rel(src_sha)
+        save_vault_image("en", rel, data, "image/png")
+        assert (lang_vault_dir("en") / rel).is_file()
+
+    def test_large_image_is_rescaled(self, ws):
+        data = _make_png_bytes(size=(2000, 1600))
+        src_sha = sha256_of_bytes(data)
+        asset = save_vault_image("en", self._rel(src_sha), data, "image/png")
+        assert asset.width * asset.height <= MAX_PIXELS
+        assert asset.width <= asset.height * (2000 / 1600) + 1  # 保持比例
+
+    def test_exif_orientation_applied(self, ws):
+        data = _make_exif_rotated_jpeg_bytes(size=(64, 48))
+        src_sha = sha256_of_bytes(data)
+        asset = save_vault_image("en", self._rel(src_sha, ".jpg"), data, "image/jpeg")
+        assert (asset.width, asset.height) == (48, 64)
+
+    def test_unsupported_mime_raises(self, ws):
+        data = _make_png_bytes()
+        with pytest.raises(ValueError, match="unsupported mime type"):
+            save_vault_image("en", self._rel(sha256_of_bytes(data)), data, "image/gif")
+
+    def test_path_escape_raises(self, ws):
+        data = _make_png_bytes()
+        src_sha = sha256_of_bytes(data)
+        with pytest.raises(ValueError, match="path escape"):
+            save_vault_image("en", f"../../outside/{src_sha}.png", data, "image/png")
+
+    def test_invalid_lang_raises(self, ws):
+        data = _make_png_bytes()
+        src_sha = sha256_of_bytes(data)
+        with pytest.raises(ValueError, match="invalid lang name"):
+            save_vault_image("../..", self._rel(src_sha), data, "image/png")
+
+    def test_sha_mismatch_raises(self, ws):
+        data = _make_png_bytes()
+        with pytest.raises(ValueError, match="sha256 mismatch"):
+            save_vault_image("en", self._rel("wrong-sha"), data, "image/png")
+
+    def test_invalid_image_data_raises(self, ws):
+        data = b"\x89PNG\r\n\x1a\n" + b"fake-png-content"
+        with pytest.raises(ValueError, match="invalid image data"):
+            save_vault_image("en", self._rel(sha256_of_bytes(data)), data, "image/png")
+
+    def test_idempotent_same_path(self, ws):
+        data = _make_png_bytes()
+        src_sha = sha256_of_bytes(data)
+        rel = self._rel(src_sha)
+        a1 = save_vault_image("en", rel, data, "image/png")
+        a2 = save_vault_image("en", rel, data, "image/png")
+
+        assert a1.src_resource_sha256 == a2.src_resource_sha256
+        assert a1.saved_resource_sha256 == a2.saved_resource_sha256
+        assert a1.storage_key == a2.storage_key
+        # 幂等：不重复写盘（文件时间戳不变）
+        file_path = lang_vault_dir("en") / rel
+        mtime = file_path.stat().st_mtime_ns
+        save_vault_image("en", rel, data, "image/png")
+        assert file_path.stat().st_mtime_ns == mtime
+
+    def test_jpeg_self_metadata_exif(self, ws):
+        data = _make_jpeg_bytes(size=(64, 48))
+        src_sha = sha256_of_bytes(data)
+        save_vault_image("en", self._rel(src_sha, ".jpg"), data, "image/jpeg")
+        file_path = lang_vault_dir("en") / self._rel(src_sha, ".jpg")
+        img = Image.open(file_path)
+        exif = img.getexif()
+        assert exif.get(0x9286) == f"src_resource_sha256={src_sha}"
+
+    def test_png_self_metadata_text(self, ws):
+        data = _make_png_bytes(size=(64, 48))
+        src_sha = sha256_of_bytes(data)
+        save_vault_image("en", self._rel(src_sha), data, "image/png")
+        file_path = lang_vault_dir("en") / self._rel(src_sha)
+        img = Image.open(file_path)
+        assert img.text.get("src_resource_sha256") == src_sha
