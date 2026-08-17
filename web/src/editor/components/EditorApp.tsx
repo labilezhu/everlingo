@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { listLangs, tree, read, write, mkdir, deleteEntry, rename, uploadImage, assetUrl } from '@/editor/services/vaultApi';
 import { buildUploadPath, extFromMime, mdNameFromPath } from '@/editor/services/imageLinks';
 import { scaleImageIfNeeded } from '@/editor/services/imageScale';
+import { extractImageFile } from '@/editor/services/pasteImage';
 import { sha256Hex } from '@/lib/sha256';
 import FileTree from './FileTree';
 import SearchBar from './SearchBar';
@@ -35,6 +36,7 @@ export default function EditorApp() {
   // ref for editor image insert (当前挂载的编辑器注册，source/wysiwyg 二选一)
   const insertImageRef = useRef<InsertImageFn | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const editorAreaRef = useRef<HTMLElement>(null);
   // ── state ──
   const [selectedLang, setSelectedLang] = useState<string>('');
   const [langConfigError, setLangConfigError] = useState(false);
@@ -323,6 +325,33 @@ export default function EditorApp() {
     void handlePickImage(e.target.files?.[0]);
     e.target.value = '';
   }, [handlePickImage]);
+
+  // ── paste 图片（Ctrl/Cmd+V 粘贴，走与按钮同一上传/插入流程）──
+  // handlePaste 用 ref 读取最新 currentPath / handlePickImage，保证其身份稳定、
+  // 监听器只在挂载时绑定一次（避免随 state 变化反复重绑的窗口期）。
+  const currentPathRef = useRef(currentPath);
+  currentPathRef.current = currentPath;
+  const handlePickImageRef = useRef(handlePickImage);
+  handlePickImageRef.current = handlePickImage;
+
+  const handlePaste = useCallback((e: ClipboardEvent) => {
+    const file = extractImageFile(e.clipboardData);
+    if (!file) return;
+    e.preventDefault();
+    if (!currentPathRef.current) {
+      setError(t('insert_image_save_first'));
+      return;
+    }
+    void handlePickImageRef.current(file);
+  }, [t]);
+
+  useEffect(() => {
+    const el = editorAreaRef.current;
+    if (!el) return;
+    // capture 阶段先于 ProseMirror / CodeMirror 自身的 paste 处理，避免重复插入
+    el.addEventListener('paste', handlePaste, true);
+    return () => el.removeEventListener('paste', handlePaste, true);
+  }, [handlePaste]);
 
   // ── refresh tree ──
   const refreshTree = useCallback(async () => {
@@ -616,7 +645,7 @@ export default function EditorApp() {
         />
 
         {/* Right: editor */}
-        <main className="flex-1 flex flex-col overflow-hidden">
+        <main ref={editorAreaRef} className="flex-1 flex flex-col overflow-hidden">
           {currentPath ? (
             <>
               <div className="flex items-center gap-2 px-4 py-1 border-b border-border shrink-0 bg-muted/30">
@@ -644,7 +673,6 @@ export default function EditorApp() {
                   ref={fileInputRef}
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
-                  capture={!isDesktop ? 'environment' : undefined}
                   className="hidden"
                   onChange={handleImageFileChange}
                 />

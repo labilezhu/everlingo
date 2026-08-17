@@ -98,12 +98,13 @@ Content-Type: multipart/form-data
 - **`indexer.py` 零改动**：不再往 `is_excluded_vault_file` 加 `.assets` 排除（该排除既错误又冗余——图片本就不是 `.md`，天然不进 FTS/vec，watcher 也不会解析）。用户可自由移动 / 重命名图片，索引层无感知、无影响。
 - **文件树展示真实 vault 结构**：`tree` 端点不特判 `.assets`、不隐藏图片文件；编辑器文件树照常显示图片文件与 `.assets` 目录，与「图片可放任意位置」一致。
 
-### 决策 8：前端交互（按钮 + 文件选择，移动端拍照）
+### 决策 8：前端交互（按钮 + 文件选择 + 粘贴图片，移动端拍照/相册可选）
 
 - 编辑器 sub-header 新增「插入图片」按钮（`ImageIcon` + 文字，`md:` 前缀隐藏文字，移动端仅图标）。
-- 文件 `<input type="file" accept="image/jpeg,image/png,image/webp">`（与后端 415 对齐），移动端加 `capture="environment"`（直接拍照）。
+- 文件 `<input type="file" accept="image/jpeg,image/png,image/webp">`（与后端 415 对齐）。移动端**不加** `capture`——iOS Safari 下 `capture` 会强制只打开相机、隐藏相册选择；去掉后系统弹出「拍照 / 从相册选择」面板。
+- **粘贴图片（Ctrl/Cmd+V）**：编辑区容器以 capture 阶段监听 `paste`，`extractImageFile` 从剪贴板取首个受支持类型图片，命中即 `preventDefault` 并复用与按钮相同的上传/插入流程；纯文本/不支持类型不拦截。
 - 处理流程：读文件 → **scale 前**算 `src_sha256`（hex，`sha256Hex` 原生/纯 JS 回退）→ 必要时 canvas 缩放到 ≤1920×1200（`scaleImageIfNeeded`，失败回退原图、后端兜底）→ `uploadImage(lang, {md_dir}/{mdname}.assets/{src_sha}.{ext}, blob, mime)` → 成功后在当前编辑器（source/wysiwyg）光标处插入（alt 用 md 文件名）。
-- 前置校验：`currentPath` 为空（未保存的新文件）时禁用按钮并提示「请先保存文件」——因为 assets 目录依赖 markdown 文件名。
+- 前置校验：`currentPath` 为空（未保存的新文件）时禁用按钮 / 拦截粘贴并提示「请先保存文件」——因为 assets 目录依赖 markdown 文件名。
 - 上传中按钮 loading；失败提示。
 
 ---
@@ -176,9 +177,10 @@ GET /api/vault/raw/{lang}/{vault_rel_path}
 | `web/src/editor/types/vault.ts` | 新增 `ImageAsset` 类型 |
 | `web/src/editor/services/imageLinks.ts`（新增） | `toDisplay` / `toRelative` 图片链接相对↔绝对改写 + `buildUploadPath`/`extFromMime`/`mdNameFromPath` 等路径工具 |
 | `web/src/editor/services/imageScale.ts`（新增） | `scaleImageIfNeeded(file, maxPixels)` 必要时 canvas 等比缩放（失败回退原图）+ `shouldScale` |
+| `web/src/editor/services/pasteImage.ts`（新增） | `extractImageFile` 从剪贴板取首个受支持类型图片（jpeg/png/webp） |
 | `web/src/editor/components/MilkdownEditor.tsx` | WYSIWYG 用 `toDisplay` 渲染、`markdownUpdated` 先 `toRelative`；经 `insertImageRef` 暴露光标插入（image 节点 src 用绝对 URL） |
 | `web/src/editor/components/SourceEditor.tsx` | 经 `insertImageRef` 在光标处插入相对 `![alt](rel)` 文本 |
-| `web/src/editor/components/EditorApp.tsx` | 新增「插入图片」按钮 + 文件选择（移动端 `capture`）+ 上传/插入流程 + `currentPath` 空校验 |
+| `web/src/editor/components/EditorApp.tsx` | 新增「插入图片」按钮 + 文件选择（移动端不加 `capture`）+ `handlePaste`（capture 阶段监听 `paste` 复用上传/插入流程）+ 上传/插入流程 + `currentPath` 空校验 |
 
 > 本 ADR 编写阶段**不**改动上述源文件，仅记录方案。
 
@@ -199,9 +201,9 @@ GET /api/vault/raw/{lang}/{vault_rel_path}
 
 1. `vaultApi.ts` 加 `uploadImage` / `assetUrl`；`types/vault.ts` 加 `ImageAsset`。
 2. 新增 `imageLinks.ts` 的 `toDisplay` / `toRelative` + 路径工具（`buildUploadPath`/`extFromMime`/`mdNameFromPath`），并补前端单测（相对↔绝对往返）。
-3. 新增 `imageScale.ts` 的 `scaleImageIfNeeded`（必要时 canvas 等比缩放，失败回退原图）。
+3. 新增 `imageScale.ts` 的 `scaleImageIfNeeded`（必要时 canvas 等比缩放，失败回退原图）；新增 `pasteImage.ts` 的 `extractImageFile`（剪贴板取图）。
 4. `MilkdownEditor` / `SourceEditor` 经 `insertImageRef` 接入改写与光标插入。
-5. `EditorApp` 加「插入图片」按钮 + 文件选择（移动端 `capture`）+ 上传/插入流程（sha 先于 scale 计算）+ `currentPath` 空校验 + i18n 文案。
+5. `EditorApp` 加「插入图片」按钮 + 文件选择（移动端不加 `capture`）+ `handlePaste`（capture 阶段监听，复用上传/插入）+ 上传/插入流程（sha 先于 scale 计算）+ `currentPath` 空校验 + i18n 文案。
 6. 验收：浏览器插入图片 → WYSIWYG 预览正常 → 保存为相对路径 → 重开仍为相对 → 移动/重命名图片后链接仍解析。
 
 ### Phase 3 — 文档回填（实现完成后）✅

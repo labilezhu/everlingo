@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { initI18n } from '@/i18n/i18n';
 import EditorApp from './EditorApp';
@@ -97,6 +97,9 @@ describe('EditorApp 插入图片', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     h.insertSpy.mockClear();
+    // URL 同步 effect 会把 ?lang=&path= 写进 history；jsdom 中跨用例持久，
+    // 会污染后续用例的启动参数（initPath 自动打开文件），故每个用例重置。
+    history.replaceState(null, '', '/');
     await initI18n('zh-CN');
     mockListLangs.mockResolvedValue({ vaults: ['en'], count: 1, default: 'en' });
     mockTree.mockResolvedValue({ path: '', depth: 2, entries: [] });
@@ -164,5 +167,63 @@ describe('EditorApp 插入图片', () => {
       expect(screen.getByText(/图片上传失败/)).toBeInTheDocument();
     });
     expect(h.insertSpy).not.toHaveBeenCalled();
+  });
+
+  it('在编辑区粘贴图片 → 走同一上传/插入流程', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<EditorApp />);
+
+    await user.click(await screen.findByRole('button', { name: 'open' }));
+    await screen.findByRole('button', { name: '插入图片' });
+
+    const file = makeImageFile();
+    fireEvent.paste(container.querySelector('main')!, {
+      clipboardData: { items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }] },
+    });
+
+    await waitFor(() => {
+      expect(mockUploadImage).toHaveBeenCalledWith(
+        'en',
+        `items/vocab/hello-kitty.assets/${SHA}.png`,
+        file,
+        'image/png',
+      );
+    });
+    await waitFor(() => {
+      expect(h.insertSpy).toHaveBeenCalledWith(
+        `hello-kitty.assets/${SHA}.png`,
+        `/api/vault/raw/en/items/vocab/hello-kitty.assets/${SHA}.png`,
+        'hello-kitty',
+      );
+    });
+  });
+
+  it('粘贴纯文本 → 不拦截（不上传不插入）', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<EditorApp />);
+
+    await user.click(await screen.findByRole('button', { name: 'open' }));
+    await screen.findByRole('button', { name: '插入图片' });
+
+    fireEvent.paste(container.querySelector('main')!, {
+      clipboardData: { items: [{ kind: 'string', type: 'text/plain' }] },
+    });
+
+    expect(mockUploadImage).not.toHaveBeenCalled();
+    expect(h.insertSpy).not.toHaveBeenCalled();
+  });
+
+  it('未打开文件时粘贴图片 → 显示「请先保存文件」提示', async () => {
+    const { container } = render(<EditorApp />);
+    await screen.findByRole('button', { name: 'open' });
+
+    fireEvent.paste(container.querySelector('main')!, {
+      clipboardData: { items: [{ kind: 'file', type: 'image/png', getAsFile: () => makeImageFile() }] },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/请先保存文件/)).toBeInTheDocument();
+    });
+    expect(mockUploadImage).not.toHaveBeenCalled();
   });
 });

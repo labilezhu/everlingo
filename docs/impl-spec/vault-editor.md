@@ -99,18 +99,19 @@ Source 模式（CodeMirror）不渲染链接，不做处理。
 
 ref: docs/ADR/20260816-markdown-image.md — 决策 8；上传/取回契约见 [image-store-spec.md §3.1](/docs/impl-spec/vision/image-store-spec.md)。
 
-编辑器 sub-header 新增「插入图片」按钮（`ImageIcon` + 文字；`md:` 断点隐藏文字，移动端仅图标）。点击触发隐藏的 `<input type="file" accept="image/jpeg,image/png,image/webp">`（与后端 415 对齐），移动端加 `capture="environment"` 直接拍照。
+编辑器 sub-header 新增「插入图片」按钮（`ImageIcon` + 文字；`md:` 断点隐藏文字，移动端仅图标）。点击触发隐藏的 `<input type="file" accept="image/jpeg,image/png,image/webp">`（与后端 415 对齐）。移动端**不加** `capture` 属性，由系统弹出「拍照 / 从相册选择」操作面板（iOS 下 `capture` 会强制只打开相机，导致无法选相册）。
 
 - **前置校验**：`currentPath` 为空（未保存的新文件）时按钮禁用并提示「请先保存文件」——assets 目录依赖 markdown 文件名。
 - **上传路径默认规则**：相对当前 md 目录 → `{md_dir}/{mdname}.assets/{src_sha256}.{ext}`；vault 根目录文件 → `{mdname}.assets/{src_sha256}.{ext}`。`{src_sha256}` 为**缩放前原始字节**的 SHA-256（后端信任 stem 格式，见 image-store-spec §3.1）。
 - **处理流程**：读文件（`arrayBuffer()`）→ **scale 前**计算 `src_sha256`（`sha256Hex`）→ `extFromMime` + `buildUploadPath` → `scaleImageIfNeeded`（必要时 canvas 等比缩放到 ≤1920×1200，失败回退原图、后端预处理兜底）→ `uploadImage(lang, vaultRelPath, blob, mime)` → 成功后在当前光标处插入。
+- **粘贴图片（Ctrl/Cmd+V）**：编辑区容器（`<main>`）以 **capture 阶段**监听 `paste`，`extractImageFile`（`pasteImage.ts`）从剪贴板取出首个**受支持类型**（`image/jpeg`/`image/png`/`image/webp`，与 `<input accept>` 对齐）的图片文件：命中 → `preventDefault()`（先于 ProseMirror/CodeMirror 自身 paste 处理，避免重复插入）→ 复用与按钮完全相同的上传/插入流程（`handlePickImage`）；未命中（纯文本/不支持类型如 gif）→ 不拦截，默认粘贴照常。已知取舍：剪贴板同时含图片+文本时按图片处理。无 `currentPath`（未保存的新文件）时提示「请先保存文件」。
 - **插入形态**：WYSIWYG 模式插入 image 节点（`src` 用绝对 `/api/vault/raw/{lang}/{vault_rel_path}` URL 以便预览）；Source 模式在光标处插入相对 `![alt](rel)` 文本。`alt` 用 md 文件名（`mdNameFromPath`）。
 - **保存/预览改写**：markdown 内始终保存相对路径；WYSIWYG 渲染用 `toDisplay` 改写为绝对 URL、`markdownUpdated` 保存前先 `toRelative` 逆改写（`imageLinks.ts`，规则见下）。
 - **改写规则**：只改写 `![alt](url)` 图片链接；`http(s)://`、`data:`、已是绝对 `/api/vault/raw/`、跨 lang 链接原样保留；URL 含空白时用 `<>` 包裹；已知限制：URL 含 `)` 且未 `<>` 包裹时无法切分（不做启发式）。
 - **上传状态**：上传中按钮 loading；失败在编辑区提示（不插入）。
 - **MCP 无关**：图片上传/取回走 REST `/api/vault/raw/...`（`vault_editor_api.py` 直接调 `image_store.save_vault_image`），不经 MCP（见 [vault-mcp-spec-tools.yaml](/docs/impl-spec/vault-mcp/vault-mcp-spec-tools.yaml)）。
 
-实现：`imageLinks.ts`（`toDisplay`/`toRelative` + `buildUploadPath`/`extFromMime`/`mdNameFromPath`/`relPath`/`normalizeVaultPath`）、`imageScale.ts`（`scaleImageIfNeeded`/`shouldScale`）、`vaultApi.ts`（`uploadImage`/`assetUrl`）；`MilkdownEditor`/`SourceEditor` 经 `insertImageRef` 暴露插入回调，`EditorApp.handlePickImage` 完成完整流程。
+实现：`imageLinks.ts`（`toDisplay`/`toRelative` + `buildUploadPath`/`extFromMime`/`mdNameFromPath`/`relPath`/`normalizeVaultPath`）、`imageScale.ts`（`scaleImageIfNeeded`/`shouldScale`）、`pasteImage.ts`（`extractImageFile` 从剪贴板取图片）、`vaultApi.ts`（`uploadImage`/`assetUrl`）；`MilkdownEditor`/`SourceEditor` 经 `insertImageRef` 暴露插入回调，`EditorApp.handlePickImage` 完成完整流程，`EditorApp.handlePaste` 在编辑区 capture 阶段监听 `paste` 复用该流程。
 
 ### 从 chatbot 跳入
 

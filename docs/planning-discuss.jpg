@@ -1,4 +1,19 @@
 
+## 需求
+
+Chat Agent 需要有把用户在聊天中上传的图片，进行分析，写入笔记的能力。
+
+### 背景
+
+在完成了以下
+- docs/ADR/20260812-image-chat-requirement.md
+- docs/ADR/20260812-image-chat.md
+- docs/ADR/20260816-markdown-image.md
+
+
+
+---
+
 
 计划让 [Vault Editor](docs/impl-spec/vault-editor.md) 支持在 Markdown 编辑时，支持图片的插入。
 
