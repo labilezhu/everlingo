@@ -10,7 +10,6 @@
   - [图片学习能力 ADR](/ADR/20260812-image-chat.md)
 - 实现后需回填的文档：
   - `docs/impl-spec/vault-editor.md`（新增「图片插入」节、删除「不在本 spec 范围」中图片行）
-  - `docs/impl-spec/vault-mcp/vault-mcp-spec-tools.yaml`（新增 `write_binary` + 工具计数 18→19）
   - `docs/impl-spec/vision/image-store-spec.md`（新增「Vault 图片存储」小节）
   - `TASKS.md`（记录改动）+ Release Notes
 
@@ -42,7 +41,7 @@ markdown 中保存的图片引用为**相对当前 markdown 文件所在目录**
 - **保存形态用相对路径**：最贴合 vault「按目录组织、文件互相引用」的约定；markdown 可移植、与 `lang` 解耦；同一图片被多个笔记引用时各自持有正确的相对路径。
 - **WYSIWYG 预览用绝对 URL**：浏览器渲染 `<img>` 需要可解析的 URL。编辑器在把内容交给 Milkdown 前，将相对链接解析为绝对 URL；在 `markdownUpdated` 回调（保存前）再逆改写为相对路径。Source 模式不渲染图片，直接展示原始相对 markdown，无需改写。
 
-绝对 URL 形态（见决策 3）统一为 `/api/vault/{lang}/{vault_rel_path}`，与「如何寻址一个 vault 文件」完全一致。
+绝对 URL 形态（见决策 3）统一为 `/api/vault/raw/{lang}/{vault_rel_path}`，与「如何寻址一个 vault 文件」完全一致。
 
 > 该相对↔绝对改写只针对图片链接（`![]((url))`）；其它 markdown 文本不被触动。
 
@@ -54,24 +53,24 @@ markdown 中保存的图片引用为**相对当前 markdown 文件所在目录**
 - 预览 GET 端点**不**限定路径含 `.assets`，按 vault 内任意文件服务。
 - 上传 PUT 端点也**不**强制 `items/` 或 `.assets/`，仅做 vault 内逃逸校验 + 文件名 sha 完整性校验；默认 `.assets` 路径由前端构造。
 
-### 决策 3：统一 vault 文件取回端点 `GET /{lang}/{vault_rel_path:path}`
+### 决策 3：统一 vault 文件取回端点 `GET /raw/{lang}/{vault_rel_path:path}`
 
 取消早期方案里的 `/api/vault/{lang}/asset/{...}` 特例段，统一为：
 
 ```http
-GET /api/vault/{lang}/{vault_rel_path}
+GET /api/vault/raw/{lang}/{vault_rel_path}
 ```
 
 - 服务**任意 vault 文件**（按扩展名定 Content-Type：图片 png/jpeg/webp → `image/*` inline；文本类 md/txt/json/yaml/csv → `text/plain`；其它 → `application/octet-stream`）。
 - 信任边界与现有 `read?path=` 一致：先 `resolve()` 再校验 `is_relative_to(vault_root)`，逃逸即 400；文件不存在 404。
 - 注册在 `vault_editor_api.py` 末尾，静态 GET 路由 `tree`/`read`/`tags` 已先注册并优先匹配，`write`/`append`/`search` 等是 POST 不冲突；router 带 `prefix="/api/vault"`，与 `web_acceptor` 的 `/editor`、catch-all 完全隔离。
 
-markdown 图片链接 = `/api/vault/{lang}/items/vocab/hello-kitty.assets/2cf….png`，与「寻址一个 markdown 文件」同形态，只是取回后用途不同（字节 vs JSON）。
+markdown 图片链接 = `/api/vault/raw/{lang}/items/vocab/hello-kitty.assets/2cf….png`，与「寻址一个 markdown 文件」同形态，只是取回后用途不同（字节 vs JSON）。
 
-### 决策 4：上传端点 `PUT /{lang}/{vault_rel_path:path}`（multipart）
+### 决策 4：上传端点 `PUT /raw/{lang}/{vault_rel_path:path}`（multipart）
 
 ```http
-PUT /api/vault/{lang}/{vault_rel_path}
+PUT /api/vault/raw/{lang}/{vault_rel_path}
 Content-Type: multipart/form-data
 ```
 
@@ -93,21 +92,11 @@ Content-Type: multipart/form-data
 
 与既有的 session 图片存储（`ImageStore.save`，`storage_key=session://...`）并列，不改动其逻辑；vault 图片按路径在文件系统上持久存在，无需内存注册表。
 
-### 决策 6：新增 MCP `write_binary` 工具
+### 决策 7：索引采用 include 逻辑（只 `*.md`），文件树展示全部
 
-在 `mcp_server.py` + `vault-mcp-spec-tools.yaml` 增加 `write_binary`：
-
-- input：`path`（vault 相对）、`data`（base64）、`mime_type?`。
-- 图片类型 → 调用 `save_vault_image`（带预处理 / sha 校验）；非图片二进制 → 直接落盘（不预处理）。
-- 输出 `image` 对象（对齐 PUT 响应）。加 `@_log_mcp_tool` 装饰。
-- 更新 `_SERVER_INSTRUCTIONS`：工具总数 18→**19**，分组说明补「`write_binary` —— 写入图片 / 二进制到 vault」。
-- agent 与前端上传语义一致（都经过 `save_vault_image`）。
-
-### 决策 7：索引与文件树排除 `.assets`
-
-- `indexer.py` `is_excluded_vault_file` 增加：`if any(part.endswith(".assets") for part in rel_parts): return True`（默认上传目录不进 FTS/vec，watcher 不解析）。
-- 说明：即便用户把图片移出 `.assets`，图片是 `.png` 等非 `.md` 文件，`walk_vault` 只 glob `*.md`、`watcher` 也仅处理 `.md`——图片天然不会被索引。`.assets` 排除主要保证默认约定目录不被索引、且保持文件树干净。
-- `vault_editor_api.py` 的 `tree` 新增 `_filter_assets_entries`，隐藏名称以 `.assets` 结尾的目录（不在文件树暴露默认上传目录）。
+- 索引层全程是 **include 逻辑**：`walk_vault` / `sync.py` / `cli.py` 均以 `memory_root.rglob("*.md")` 枚举；`watcher.py` 每个事件先 `str(src_path).endswith(".md")` 才调 `parse_file`。因此图片（`.png`/`.jpeg`/`.webp`）**无论放在 `.assets/` 还是 vault 内任意位置，都不会被索引**。
+- **`indexer.py` 零改动**：不再往 `is_excluded_vault_file` 加 `.assets` 排除（该排除既错误又冗余——图片本就不是 `.md`，天然不进 FTS/vec，watcher 也不会解析）。用户可自由移动 / 重命名图片，索引层无感知、无影响。
+- **文件树展示真实 vault 结构**：`tree` 端点不特判 `.assets`、不隐藏图片文件；编辑器文件树照常显示图片文件与 `.assets` 目录，与「图片可放任意位置」一致。
 
 ### 决策 8：前端交互（按钮 + 文件选择，移动端拍照）
 
@@ -124,7 +113,7 @@ Content-Type: multipart/form-data
 ### 上传（PUT）
 
 ```http
-PUT /api/vault/{lang}/{vault_rel_path}
+PUT /api/vault/raw/{lang}/{vault_rel_path}
 Content-Type: multipart/form-data
 ```
 
@@ -160,7 +149,7 @@ Content-Type: multipart/form-data
 ### 取回（GET，通用）
 
 ```http
-GET /api/vault/{lang}/{vault_rel_path}
+GET /api/vault/raw/{lang}/{vault_rel_path}
 ```
 
 - 校验 vault 内不逃逸（否则 400）；文件不存在 404；扩展名按上表定 Content-Type，`FileResponse` + immutable 缓存。
@@ -173,7 +162,7 @@ GET /api/vault/{lang}/{vault_rel_path}
 ```
 
 - 保存：相对当前 md 目录。
-- 预览：编辑器改写为 `/api/vault/{lang}/items/vocab/hello-kitty.assets/2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1d0f.png`（绝对 URL，浏览器可解析）。
+- 预览：编辑器改写为 `/api/vault/raw/{lang}/items/vocab/hello-kitty.assets/2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1d0f.png`（绝对 URL，浏览器可解析）。
 
 ---
 
@@ -182,10 +171,7 @@ GET /api/vault/{lang}/{vault_rel_path}
 | 文件 | 改动 |
 | --- | --- |
 | `src/everlingo/image/image_store.py` | 新增 `save_vault_image(lang, vault_rel_path, data, mime)`，复用 `ALLOWED_MIME`/`sha256_of_bytes`/`preprocess_image`；`storage_key=memory://...`；best-effort 写 EXIF/PNG 元数据 |
-| `src/everlingo/mem/vault/mcp_server/mcp_server.py` | 新增 `write_binary` 工具（@_log_mcp_tool）；`_SERVER_INSTRUCTIONS` 工具数 18→19 |
-| `docs/impl-spec/vault-mcp/vault-mcp-spec-tools.yaml` | 新增 `write_binary` 工具定义；instructions 文本工具计数 18→19 |
-| `src/everlingo/gateway/vault_editor_api.py` | 新增 `PUT /{lang}/{vault_rel_path:path}`（multipart）、`GET /{lang}/{vault_rel_path:path}`（通用取回）；`tree` 加 `_filter_assets_entries` |
-| `src/everlingo/mem/vault/search/indexer.py` | `is_excluded_vault_file` 加 `.assets` 排除 |
+| `src/everlingo/gateway/vault_editor_api.py` | 新增 `PUT /raw/{lang}/{vault_rel_path:path}`（multipart）、`GET /raw/{lang}/{vault_rel_path:path}`（通用取回） |
 | `web/src/editor/services/vaultApi.ts` | 新增 `uploadImage(lang, vaultRelPath, file)`、`assetUrl(lang, vaultRelPath)` |
 | `web/src/editor/types/vault.ts` | 新增 `ImageAsset` 类型 |
 | `web/src/editor/services/imageLinks.ts`（新增） | `toDisplay(lang, currentPath, md)` / `toRelative(lang, currentPath, md)` 图片链接相对↔绝对改写 |
@@ -202,11 +188,9 @@ GET /api/vault/{lang}/{vault_rel_path}
 ### Phase 1 — 后端闭环（优先，可独立 curl 验证）
 
 1. `image_store.py` 新增 `save_vault_image`（sha 校验 / 幂等 / 预处理 / `memory://` storage_key / EXIF 元数据）。
-2. `mcp_server.py` 新增 `write_binary` 工具；同步更新 `vault-mcp-spec-tools.yaml` 与 `_SERVER_INSTRUCTIONS`（18→19）。
-3. `vault_editor_api.py` 新增 `PUT /{lang}/{vault_rel_path:path}` 与 `GET /{lang}/{vault_rel_path:path}`；`tree` 过滤 `.assets`。
-4. `indexer.py` `is_excluded_vault_file` 加 `.assets` 排除。
-5. 单测：`save_vault_image`、`write_binary`、通用 GET、`.assets` 索引排除。
-6. 验收：`curl` 上传图片 → 回 `image` 对象 → `curl` GET 取回字节 → 浏览器可渲染。
+2. `vault_editor_api.py` 新增 `PUT /raw/{lang}/{vault_rel_path:path}` 与 `GET /raw/{lang}/{vault_rel_path:path}`。
+3. 单测：`save_vault_image`、通用 GET（含 vault 内逃逸拒绝、扩展名 Content-Type）。
+4. 验收：`curl` 上传图片 → 回 `image` 对象 → `curl` GET 取回字节 → 浏览器可渲染。
 
 ### Phase 2 — 前端
 
@@ -229,13 +213,15 @@ GET /api/vault/{lang}/{vault_rel_path}
 
 - **WYSIWYG 插入最易出错**：Milkdown image 节点 src 必须用绝对 URL 才能预览，但保存必须回到相对路径；改写逻辑集中在 `imageLinks.ts` 与 `MilkdownEditor`，需单测覆盖往返。
 - **用户移动图片后未更新链接**：链接指向旧位置会 404，属预期（MVP 不做自动重定位）。
-- **base64 开销**：MCP `write_binary` 走 base64；PUT 端点直接调 `save_vault_image` 不经 base64，已规避前端上传的额外开销。
+- **无 base64 开销**：前端 PUT 端点直接调 `save_vault_image` 写盘，不经 MCP / 不做 base64 编解码，上传大图无额外开销。
 - **多图 / 大图**：沿用 ADR §32 限制（单文件 ≤10MB、≤1920×1200、MIME 三选一）；Phase 1 不做多图并发优化。
 
 ---
 
 ## 7. 设计取舍记录
 
-- **否决**早期 `/asset/` 特例段：与「如何寻址 vault 文件」脱节、无额外安全收益；改为统一 `GET /{lang}/{vault_rel_path}`，信任边界与现有 `read` 一致。
+- **否决**早期 `/asset/` 特例段：与「如何寻址 vault 文件」脱节、无额外安全收益；改为统一 `GET /raw/{lang}/{vault_rel_path}`，信任边界与现有 `read` 一致。
 - **否决** markdown 直接存绝对 API URL：破坏可移植性、与 `lang` 耦合；改为相对路径 + 编辑器改写。
 - **否决** GET 限定 `.assets`：用户可自由移动图片；改为服务任意 vault 文件（扩展名定类型）。
+- **否决** MCP `write_binary` 工具：当前无 agent 调用方（agent 只经 `write` 写 markdown，前端走 REST PUT），属无场景前置接口；YAGNI，从范围移除，MCP 端零改动、工具数维持 18。
+- **否决** `.assets` 排除 / 特判：indexer 本就是 include 逻辑（只处理 `*.md`），图片无论放哪都不会被索引；改为依赖既有 include 逻辑，indexer 零改动，文件树也不特判图片。
