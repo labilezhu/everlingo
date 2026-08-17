@@ -79,7 +79,7 @@ ref: docs/ADR/20260816-markdown-image.md — 决策 5
 
 - **无状态、按路径幂等**：不依赖 `ImageStore._registry` 内存注册表；目标文件已存在则跳过写盘。物理路径即 `vault_rel_path`，与「图片可放 vault 任意位置」一致。
 - **逻辑键**：`ImageAsset.storage_key = memory://languages/{lang}/vault/{vault_rel_path}`。
-- **校验**：MIME 允许列表（`ALLOWED_MIME`）；lang 名合法性（非空、无 `/` `\`、非 `.`/`..`、无 NUL）；vault 内逃逸（`(vault_root / vault_rel_path).resolve()` 后 `is_relative_to(vault_root)`）；`vault_rel_path` 末段文件 stem == 重算 `src_resource_sha256`。
+- **校验**：MIME 允许列表（`ALLOWED_MIME`）；lang 名合法性（非空、无 `/` `\`、非 `.`/`..`、无 NUL）；vault 内逃逸（`(vault_root / vault_rel_path).resolve()` 后 `is_relative_to(vault_root)`）；`vault_rel_path` 末段文件 stem 须为 64 位 hex（即前端 scale 前计算的原始 `src_resource_sha256`，**信任语义**——前端可能上传缩放后的字节，不再对收到的字节重算比对）。
 - **预处理**：复用 `preprocess_image`（EXIF 方向校正 → strip 元数据 → 超 1920x1200 按比例缩放）。
 - **best-effort 自有溯源元数据**：预处理后对 JPEG 追加 EXIF `UserComment="src_resource_sha256=<src_sha>"`（tag `0x9286`）、PNG 追加 tEXt `src_resource_sha256`（`PngInfo.add_text`）。仅写入自有键，不影响隐私 strip；失败静默回退预处理字节。`saved_resource_sha256` / `size` 以最终落盘字节计算。
 - **生命周期**：随 vault 常规文件管理（可移动 / 重命名），不绑定 session；indexer 只处理 `*.md`，图片天然不进索引。

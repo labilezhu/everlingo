@@ -1,6 +1,6 @@
 # EverLingo Vault Editor Markdown 图片插入设计
 
-- 状态：Design（2026-08-16，待实现）
+- 状态：Design（2026-08-16，Phase 1 后端与 Phase 2 前端已实现，Phase 3 文档回填待完成）
 - 作者：engineering
 - 相关文档：
   - [Vault Editor 实现规范](/docs/impl-spec/vault-editor.md)
@@ -75,16 +75,16 @@ Content-Type: multipart/form-data
 ```
 
 - 字段 `file=<binary>`。
-- 服务端校验：vault 内不逃逸；末段文件名 stem 必须等于客户端传入的 `src_resource_sha256`（服务端重算比对，不符 400）；MIME 属 `image/jpeg|image/png|image/webp`（否则 415）。
+- 服务端校验：vault 内不逃逸；末段文件名 stem 即前端 scale 前计算的原始 `src_resource_sha256`，服务端**仅校验其为 64 位 hex 格式**（不符 400），**不再对收到的字节重算比对**——前端可能已把图片缩放，缩放后字节 sha ≠ 原始 sha；MIME 属 `image/jpeg|image/png|image/webp`（否则 415）。
 - 复用 `save_vault_image` 写盘（见决策 5）。同 sha 重复上传幂等（文件已存在则跳过写盘）。
-- 前端默认构造 `items/{md_dir}/{mdname}.assets/{src_sha}.{ext}` 作为 `vault_rel_path`，但服务端不强制该形状。
+- 前端默认构造 `{md_dir}/{mdname}.assets/{src_sha}.{ext}` 作为 `vault_rel_path`（`md_dir` 为 md 文件所在目录，如 `items/vocab`），但服务端不强制该形状。
 
 ### 决策 5：复用并扩展 `image_store.py`
 
 在 `src/everlingo/image/image_store.py` 新增 `save_vault_image(lang, vault_rel_path, data: bytes, mime_type) -> ImageAsset`（**无状态、按路径幂等**）：
 
-- 复用既有 `ALLOWED_MIME` / `sha256_of_bytes` / `preprocess_image`（EXIF 方向校正 → strip 元数据 → 超 1920×1200 按比例 LANCZOS 缩放）。
-- 校验 `vault_rel_path` 末段 stem == 重算 `src_sha256`。
+- 复用既有 `ALLOWED_MIME` / `preprocess_image`（EXIF 方向校正 → strip 元数据 → 超 1920×1200 按比例 LANCZOS 缩放）。
+- 校验 `vault_rel_path` 末段 stem 为 64 位 hex（信任其为前端 scale 前计算的原始 `src_resource_sha256`）；不对收到的字节重算比对。
 - 写盘到 `lang_vault_dir(lang).resolve() / vault_rel_path`（父目录自动建）。
 - `storage_key = "memory://languages/{lang}/vault/{vault_rel_path}"`（逻辑键，对齐用户给定示例）。
 - 返回 `ImageAsset`（含 `src_resource_sha256`、`saved_resource_sha256`、`mime_type`、`size`、`width`、`height`、`storage_key`、`created_at`）。
@@ -101,8 +101,8 @@ Content-Type: multipart/form-data
 ### 决策 8：前端交互（按钮 + 文件选择，移动端拍照）
 
 - 编辑器 sub-header 新增「插入图片」按钮（`ImageIcon` + 文字，`md:` 前缀隐藏文字，移动端仅图标）。
-- 文件 `<input type="file" accept="image/*">`，移动端加 `capture="environment"`（直接拍照）。
-- 处理流程：读文件 → `crypto.subtle.digest` 算 `src_sha256`（hex）→ 必要时 canvas 缩放到 ≤1920×1200 → `uploadImage` → 成功后在当前编辑器（source/wysiwyg）光标处插入。
+- 文件 `<input type="file" accept="image/jpeg,image/png,image/webp">`（与后端 415 对齐），移动端加 `capture="environment"`（直接拍照）。
+- 处理流程：读文件 → **scale 前**算 `src_sha256`（hex，`sha256Hex` 原生/纯 JS 回退）→ 必要时 canvas 缩放到 ≤1920×1200（`scaleImageIfNeeded`，失败回退原图、后端兜底）→ `uploadImage(lang, {md_dir}/{mdname}.assets/{src_sha}.{ext}, blob, mime)` → 成功后在当前编辑器（source/wysiwyg）光标处插入（alt 用 md 文件名）。
 - 前置校验：`currentPath` 为空（未保存的新文件）时禁用按钮并提示「请先保存文件」——因为 assets 目录依赖 markdown 文件名。
 - 上传中按钮 loading；失败提示。
 
@@ -143,7 +143,7 @@ Content-Type: multipart/form-data
 | vault 路径逃逸 | 400 | `path escape` |
 | MIME 不允许 | 415 | `unsupported mime type` |
 | 空文件 | 400 | `empty file` |
-| sha256 不匹配（末段名 vs 重算） | 400 | `sha256 mismatch` |
+| 末段文件名非合法 sha256（64 位 hex，应为前端 scale 前原始字节 sha） | 400 | `sha256 mismatch` |
 | 图片不可解析 | 400 | `invalid image data` |
 
 ### 取回（GET，通用）
@@ -170,13 +170,14 @@ GET /api/vault/raw/{lang}/{vault_rel_path}
 
 | 文件 | 改动 |
 | --- | --- |
-| `src/everlingo/image/image_store.py` | 新增 `save_vault_image(lang, vault_rel_path, data, mime)`，复用 `ALLOWED_MIME`/`sha256_of_bytes`/`preprocess_image`；`storage_key=memory://...`；best-effort 写 EXIF/PNG 元数据 |
+| `src/everlingo/image/image_store.py` | 新增 `save_vault_image(lang, vault_rel_path, data, mime)`，复用 `ALLOWED_MIME`/`preprocess_image`；stem 仅校验 64 位 hex 并作为 `src_resource_sha256`（不重算比对）；`storage_key=memory://...`；best-effort 写 EXIF/PNG 元数据 |
 | `src/everlingo/gateway/vault_editor_api.py` | 新增 `PUT /raw/{lang}/{vault_rel_path:path}`（multipart）、`GET /raw/{lang}/{vault_rel_path:path}`（通用取回） |
-| `web/src/editor/services/vaultApi.ts` | 新增 `uploadImage(lang, vaultRelPath, file)`、`assetUrl(lang, vaultRelPath)` |
+| `web/src/editor/services/vaultApi.ts` | 新增 `uploadImage(lang, vaultRelPath, file, mimeType)`、`assetUrl(lang, vaultRelPath)` |
 | `web/src/editor/types/vault.ts` | 新增 `ImageAsset` 类型 |
-| `web/src/editor/services/imageLinks.ts`（新增） | `toDisplay(lang, currentPath, md)` / `toRelative(lang, currentPath, md)` 图片链接相对↔绝对改写 |
-| `web/src/editor/components/MilkdownEditor.tsx` | WYSIWYG 用 `toDisplay` 渲染、`markdownUpdated` 先 `toRelative`；暴露 `insertImage(displayUrl, alt)`（光标插 image 节点，src 用绝对 URL） |
-| `web/src/editor/components/SourceEditor.tsx` | 光标处插入相对 `![alt](rel)` 文本 |
+| `web/src/editor/services/imageLinks.ts`（新增） | `toDisplay` / `toRelative` 图片链接相对↔绝对改写 + `buildUploadPath`/`extFromMime`/`mdNameFromPath` 等路径工具 |
+| `web/src/editor/services/imageScale.ts`（新增） | `scaleImageIfNeeded(file, maxPixels)` 必要时 canvas 等比缩放（失败回退原图）+ `shouldScale` |
+| `web/src/editor/components/MilkdownEditor.tsx` | WYSIWYG 用 `toDisplay` 渲染、`markdownUpdated` 先 `toRelative`；经 `insertImageRef` 暴露光标插入（image 节点 src 用绝对 URL） |
+| `web/src/editor/components/SourceEditor.tsx` | 经 `insertImageRef` 在光标处插入相对 `![alt](rel)` 文本 |
 | `web/src/editor/components/EditorApp.tsx` | 新增「插入图片」按钮 + 文件选择（移动端 `capture`）+ 上传/插入流程 + `currentPath` 空校验 |
 
 > 本 ADR 编写阶段**不**改动上述源文件，仅记录方案。
@@ -192,13 +193,16 @@ GET /api/vault/raw/{lang}/{vault_rel_path}
 3. 单测：`save_vault_image`、通用 GET（含 vault 内逃逸拒绝、扩展名 Content-Type）。
 4. 验收：`curl` 上传图片 → 回 `image` 对象 → `curl` GET 取回字节 → 浏览器可渲染。
 
-### Phase 2 — 前端
+### Phase 2 — 前端（含后端契约微调）
+
+**Step 0 后端契约微调**（因「前端缩放 + 原始 sha 命名」）：`save_vault_image` 的 stem 校验由「重算收到的字节比对」改为「仅校验 64 位 hex 并作为 `src_resource_sha256`」（ADR 决策 4/5 已同步）；补缩放字节上传用例。
 
 1. `vaultApi.ts` 加 `uploadImage` / `assetUrl`；`types/vault.ts` 加 `ImageAsset`。
-2. 新增 `imageLinks.ts` 的 `toDisplay` / `toRelative`，并补前端单测（相对↔绝对往返）。
-3. `MilkdownEditor` / `SourceEditor` 接入改写与光标插入。
-4. `EditorApp` 加「插入图片」按钮 + 文件选择（移动端 `capture`）+ 上传流程 + `currentPath` 空校验。
-5. 验收：浏览器插入图片 → WYSIWYG 预览正常 → 保存为相对路径 → 重开仍为相对 → 移动/重命名图片后链接仍解析。
+2. 新增 `imageLinks.ts` 的 `toDisplay` / `toRelative` + 路径工具（`buildUploadPath`/`extFromMime`/`mdNameFromPath`），并补前端单测（相对↔绝对往返）。
+3. 新增 `imageScale.ts` 的 `scaleImageIfNeeded`（必要时 canvas 等比缩放，失败回退原图）。
+4. `MilkdownEditor` / `SourceEditor` 经 `insertImageRef` 接入改写与光标插入。
+5. `EditorApp` 加「插入图片」按钮 + 文件选择（移动端 `capture`）+ 上传/插入流程（sha 先于 scale 计算）+ `currentPath` 空校验 + i18n 文案。
+6. 验收：浏览器插入图片 → WYSIWYG 预览正常 → 保存为相对路径 → 重开仍为相对 → 移动/重命名图片后链接仍解析。
 
 ### Phase 3 — 文档回填（实现完成后）
 
@@ -214,7 +218,9 @@ GET /api/vault/raw/{lang}/{vault_rel_path}
 - **WYSIWYG 插入最易出错**：Milkdown image 节点 src 必须用绝对 URL 才能预览，但保存必须回到相对路径；改写逻辑集中在 `imageLinks.ts` 与 `MilkdownEditor`，需单测覆盖往返。
 - **用户移动图片后未更新链接**：链接指向旧位置会 404，属预期（MVP 不做自动重定位）。
 - **无 base64 开销**：前端 PUT 端点直接调 `save_vault_image` 写盘，不经 MCP / 不做 base64 编解码，上传大图无额外开销。
-- **多图 / 大图**：沿用 ADR §32 限制（单文件 ≤10MB、≤1920×1200、MIME 三选一）；Phase 1 不做多图并发优化。
+- **stem 信任语义**：服务端不再对收到的字节重算 sha（前端缩放后字节 sha ≠ 原始 sha），仅格式校验并信任路径 stem；单用户本地场景可接受，内容寻址缓存语义不变（同一原始 sha → 确定性缩放 → 同一 URL/内容）。
+- **前端缩放确定性**：canvas `toBlob` 跨浏览器可能产生不同 `saved_resource_sha256`，但文件按原始 sha 命名，去重/缓存不受影响。
+- **多图 / 大图**：沿用 ADR §32 限制（单文件 ≤10MB、≤1920×1200、MIME 三选一）；MVP 不做多图并发优化。
 
 ---
 

@@ -1,7 +1,17 @@
-import type { LangsResp, TreeResp, ReadResp, SearchReq, SearchResp, TagsResp, MkdirResp, DeleteResp, RenameResp } from '@/editor/types/vault';
+import type { LangsResp, TreeResp, ReadResp, SearchReq, SearchResp, TagsResp, MkdirResp, DeleteResp, RenameResp, ImageAsset } from '@/editor/types/vault';
 import { apiFetch } from '@/services/apiFetch';
 
 const BASE = '/api/vault';
+
+/** 把 vault 相对路径编码为 URL 路径段（每段 encodeURIComponent）。 */
+function encodeVaultRelPath(vaultRelPath: string): string {
+  return vaultRelPath.split('/').map(encodeURIComponent).join('/');
+}
+
+/** markdown 图片预览绝对 URL（ADR 决策 3）：/api/vault/raw/{lang}/{vault_rel_path} */
+export function assetUrl(lang: string, vaultRelPath: string): string {
+  return `${BASE}/raw/${encodeURIComponent(lang)}/${encodeVaultRelPath(vaultRelPath)}`;
+}
 
 async function api<T>(
   url: string,
@@ -100,4 +110,15 @@ export function listTags(lang: string, kind?: string, item_type?: string): Promi
   return api<TagsResp>(
     `${BASE}/${encodeURIComponent(lang)}/tags${qs ? '?' + qs : ''}`,
   );
+}
+
+/** 上传图片字节到 vault 内相对路径（PUT /raw/{lang}/{vault_rel_path}，multipart file=）。
+ * 文件名 stem 为前端 scale 前算好的 src_resource_sha256；服务端仅做格式校验。 */
+export function uploadImage(lang: string, vaultRelPath: string, file: Blob, mimeType: string): Promise<ImageAsset> {
+  const form = new FormData();
+  form.append('file', file, `image.${mimeType.split('/')[1] ?? 'bin'}`);
+  return api<{ image: ImageAsset }>(
+    `${BASE}/raw/${encodeURIComponent(lang)}/${encodeVaultRelPath(vaultRelPath)}`,
+    { method: 'PUT', body: form },
+  ).then(data => data.image);
 }

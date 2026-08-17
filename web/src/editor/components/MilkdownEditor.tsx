@@ -5,22 +5,32 @@ import { commonmark } from '@milkdown/kit/preset/commonmark';
 import { gfm } from '@milkdown/kit/preset/gfm';
 import { history } from '@milkdown/kit/plugin/history';
 import { listener, listenerCtx } from '@milkdown/kit/plugin/listener';
+import { toDisplay, toRelative } from '@/editor/services/imageLinks';
 import { ghostSelectionPlugin } from './ghostSelectionPlugin';
 import SourceEditor from './SourceEditor';
+
+// rel=相对链接（markdown 保存形态），displayUrl=绝对 API URL（浏览器渲染），alt=alt 文本
+export type InsertImageFn = (rel: string, displayUrl: string, alt: string) => void;
 
 interface MilkdownEditorProps {
   content: string;
   onChange: (value: string) => void;
   mode: 'source' | 'wysiwyg';
+  lang: string;
+  currentPath: string;
   onLinkClick?: (href: string) => boolean;
   selectionRef: MutableRefObject<() => { text: string; start_line: number | null; start_column: number | null; paragraph_text: string | null }>;
+  insertImageRef: MutableRefObject<InsertImageFn | null>;
 }
 
-function WysiwygEditor({ content, onChange, onLinkClick, selectionRef }: {
+function WysiwygEditor({ content, onChange, onLinkClick, selectionRef, lang, currentPath, insertImageRef }: {
   content: string;
   onChange: (v: string) => void;
   onLinkClick?: (href: string) => boolean;
   selectionRef: MilkdownEditorProps['selectionRef'];
+  lang: string;
+  currentPath: string;
+  insertImageRef: MilkdownEditorProps['insertImageRef'];
 }) {
   const firstUpdate = useRef(true);
 
@@ -29,7 +39,7 @@ function WysiwygEditor({ content, onChange, onLinkClick, selectionRef }: {
       .make()
       .config(ctx => {
         ctx.set(rootCtx, container);
-        ctx.set(defaultValueCtx, content);
+        ctx.set(defaultValueCtx, toDisplay(lang, currentPath, content));
       })
       .use(commonmark)
       .use(gfm)
@@ -43,7 +53,8 @@ function WysiwygEditor({ content, onChange, onLinkClick, selectionRef }: {
             firstUpdate.current = false;
             return;
           }
-          onChange(markdown);
+          // WYSIWYG 内为绝对 URL，保存前逆改写为相对路径（ADR 决策 1）
+          onChange(toRelative(lang, currentPath, markdown));
         });
       });
   }, []);
@@ -81,6 +92,23 @@ function WysiwygEditor({ content, onChange, onLinkClick, selectionRef }: {
       }
     };
   }, [selectionRef, get]);
+
+  useEffect(() => {
+    insertImageRef.current = (_rel, displayUrl, alt) => {
+      try {
+        const editor = get();
+        if (!editor) return;
+        const view = editor.ctx.get(editorViewCtx);
+        const imageType = view.state.schema.nodes.image;
+        if (!imageType) return;
+        const node = imageType.create({ src: displayUrl, alt });
+        const tr = view.state.tr.insert(view.state.selection.from, node);
+        view.dispatch(tr);
+        view.focus();
+      } catch { /* ignore */ }
+    };
+    return () => { insertImageRef.current = null; };
+  }, [get, insertImageRef]);
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     const anchor = (e.target as HTMLElement).closest('a[href]');
@@ -143,14 +171,14 @@ function WysiwygEditor({ content, onChange, onLinkClick, selectionRef }: {
     );
 }
 
-export default function MilkdownEditor({ content, onChange, mode, onLinkClick, selectionRef }: MilkdownEditorProps) {
+export default function MilkdownEditor({ content, onChange, mode, lang, currentPath, onLinkClick, selectionRef, insertImageRef }: MilkdownEditorProps) {
   if (mode === 'source') {
-    return <SourceEditor content={content} onChange={onChange} selectionRef={selectionRef} />;
+    return <SourceEditor content={content} onChange={onChange} selectionRef={selectionRef} insertImageRef={insertImageRef} />;
   }
 
   return (
     <MilkdownProvider>
-      <WysiwygEditor content={content} onChange={onChange} onLinkClick={onLinkClick} selectionRef={selectionRef} />
+      <WysiwygEditor content={content} onChange={onChange} lang={lang} currentPath={currentPath} onLinkClick={onLinkClick} selectionRef={selectionRef} insertImageRef={insertImageRef} />
     </MilkdownProvider>
   );
 }

@@ -102,3 +102,18 @@ export interface TagsResp {
   tags: TagCount[];
   total: number;
 }
+
+// ── images ──
+
+export interface ImageAsset {
+  /** 前端 scale 前基于原始字节计算的 sha256（vault_rel_path 末段文件名 stem） */
+  src_resource_sha256: string;
+  /** 服务端预处理（缩放/EXIF 校正/元数据注入）后落盘字节的 sha256 */
+  saved_resource_sha256: string;
+  mime_type: string;
+  size: number;
+  width: number | null;
+  height: number | null;
+  storage_key: string;
+  created_at: string;
+}

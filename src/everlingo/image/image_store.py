@@ -8,8 +8,9 @@
 from __future__ import annotations
 
 import hashlib
-import math
 import logging
+import math
+import re
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
@@ -134,7 +135,9 @@ def save_vault_image(
 
     ref: docs/ADR/20260816-markdown-image.md — 决策 4 / 决策 5
 
-    - 校验 MIME 允许列表；重算 sha256 比对 vault_rel_path 末段 stem（不符 400）。
+    - 校验 MIME 允许列表；vault_rel_path 末段 stem 作为 src_resource_sha256 —— 它由
+      前端在 scale 前基于原始字节计算（ADR §8），服务端仅做 64 位 hex 格式校验，
+      不再对收到的字节重算比对（前端可能已缩放，字节 sha ≠ 原始 sha）。
     - 复用 preprocess_image（EXIF 校正 → strip 元数据 → 超限缩放），随后 best-effort
       追加自有溯源元数据（JPEG EXIF / PNG tEXt）。
     - 写盘到 lang_vault_dir(lang).resolve() / vault_rel_path（父目录自动建）；
@@ -154,8 +157,8 @@ def save_vault_image(
     if not candidate.is_relative_to(vault_root):
         raise ValueError("path escape")
 
-    src_sha = sha256_of_bytes(data)
-    if candidate.stem != src_sha:
+    src_sha = candidate.stem
+    if not re.fullmatch(r"[0-9a-f]{64}", src_sha):
         raise ValueError("sha256 mismatch")
 
     processed, width, height = preprocess_image(data, mime_type)

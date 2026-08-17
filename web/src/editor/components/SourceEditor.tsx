@@ -6,6 +6,7 @@ import { markdown } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
 import { syntaxHighlighting, HighlightStyle, Language } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
+import type { InsertImageFn } from './MilkdownEditor';
 
 const langMap = new Map<string, Language>();
 
@@ -102,9 +103,10 @@ interface SourceEditorProps {
   content: string;
   onChange: (value: string) => void;
   selectionRef: MutableRefObject<() => { text: string; start_line: number | null; start_column: number | null; paragraph_text: string | null }>;
+  insertImageRef: MutableRefObject<InsertImageFn | null>;
 }
 
-export default function SourceEditor({ content, onChange, selectionRef }: SourceEditorProps) {
+export default function SourceEditor({ content, onChange, selectionRef, insertImageRef }: SourceEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
 
@@ -150,9 +152,17 @@ export default function SourceEditor({ content, onChange, selectionRef }: Source
       };
     };
 
+    // Source 模式直接插入相对路径 markdown 文本（不渲染图片）
+    insertImageRef.current = (rel, _displayUrl, alt) => {
+      const text = `![${alt}](${rel})`;
+      view.dispatch(view.state.replaceSelection(text));
+      view.focus();
+    };
+
     return () => {
       view.destroy();
       viewRef.current = null;
+      insertImageRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

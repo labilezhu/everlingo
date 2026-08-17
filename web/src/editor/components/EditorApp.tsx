@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Code, Eye, Save, Search, FolderTree, Menu, MessageSquare, ExternalLink, RefreshCw } from 'lucide-react';
+import { Code, Eye, Save, Search, FolderTree, Menu, MessageSquare, ExternalLink, RefreshCw, Image as ImageIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { listLangs, tree, read, write, mkdir, deleteEntry, rename } from '@/editor/services/vaultApi';
+import { listLangs, tree, read, write, mkdir, deleteEntry, rename, uploadImage, assetUrl } from '@/editor/services/vaultApi';
+import { buildUploadPath, extFromMime, mdNameFromPath } from '@/editor/services/imageLinks';
+import { scaleImageIfNeeded } from '@/editor/services/imageScale';
+import { sha256Hex } from '@/lib/sha256';
 import FileTree from './FileTree';
 import SearchBar from './SearchBar';
-import MilkdownEditor from './MilkdownEditor';
+import MilkdownEditor, { type InsertImageFn } from './MilkdownEditor';
 import ChatWindow from '@/components/ChatWindow';
 import { useMediaQuery } from '@/editor/hooks/useMediaQuery';
 import type { Entry } from '@/editor/types/vault';
@@ -29,6 +32,9 @@ export default function EditorApp() {
   const editorSelectionRef = useRef<() => { text: string; start_line: number | null; start_column: number | null; paragraph_text: string | null }>(
     () => ({ text: '', start_line: null, start_column: null, paragraph_text: null })
   );
+  // ref for editor image insert (当前挂载的编辑器注册，source/wysiwyg 二选一)
+  const insertImageRef = useRef<InsertImageFn | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   // ── state ──
   const [selectedLang, setSelectedLang] = useState<string>('');
   const [langConfigError, setLangConfigError] = useState(false);
@@ -40,6 +46,7 @@ export default function EditorApp() {
   const [error, setError] = useState<string | null>(null);
   const [treeRefreshing, setTreeRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [reloadNonce, setReloadNonce] = useState(0);
   const [mode, setMode] = useState<'source' | 'wysiwyg'>(() => {
     return (localStorage.getItem('vault-editor:mode') as 'source' | 'wysiwyg') || 'wysiwyg';
@@ -286,6 +293,36 @@ export default function EditorApp() {
       setSaving(false);
     }
   }, [selectedLang, currentPath, content, dirty, saving]);
+
+  // ── insert image (ADR 决策 8) ──
+  const handlePickImage = useCallback(async (file: File | undefined) => {
+    if (!file) return;
+    if (!selectedLang || !currentPath || uploading) return;
+    setUploading(true);
+    setError(null);
+    try {
+      // 1. 先算原始字节 sha（scale 之前）—— 作为文件标识（vault_rel_path 末段 stem）
+      const srcSha = await sha256Hex(await file.arrayBuffer());
+      const ext = extFromMime(file.type);
+      const { vaultRelPath, rel } = buildUploadPath(currentPath, srcSha, ext);
+      // 2. 必要时前端缩放到 ≤1920×1200；失败回退原图（后端 preprocess 兜底）
+      const uploadBlob = (await scaleImageIfNeeded(file)) ?? file;
+      // 3. 上传
+      await uploadImage(selectedLang, vaultRelPath, uploadBlob, file.type);
+      // 4. 插入：WYSIWYG 用绝对 URL（预览），Source 用相对 markdown 文本；alt 用 md 文件名
+      const alt = mdNameFromPath(currentPath);
+      insertImageRef.current?.(rel, assetUrl(selectedLang, vaultRelPath), alt);
+    } catch (e: any) {
+      setError(t('insert_image_failed') + (e?.message ? `: ${e.message}` : ''));
+    } finally {
+      setUploading(false);
+    }
+  }, [selectedLang, currentPath, uploading, t]);
+
+  const handleImageFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    void handlePickImage(e.target.files?.[0]);
+    e.target.value = '';
+  }, [handlePickImage]);
 
   // ── refresh tree ──
   const refreshTree = useCallback(async () => {
@@ -593,6 +630,24 @@ export default function EditorApp() {
                 >
                   <RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} />
                 </button>
+                <button
+                  className="inline-flex items-center gap-1 h-7 rounded-lg px-2.5 text-xs font-medium transition-all outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-40 disabled:pointer-events-none shrink-0 text-muted-foreground hover:text-foreground hover:bg-accent"
+                  disabled={!currentPath || uploading}
+                  onClick={() => fileInputRef.current?.click()}
+                  title={!currentPath ? t('insert_image_save_first') : undefined}
+                  aria-label={t('insert_image')}
+                >
+                  {uploading ? <RefreshCw className="size-3.5 animate-spin" /> : <ImageIcon className="size-3.5" />}
+                  <span className="hidden md:inline">{uploading ? t('insert_image_uploading') : t('insert_image')}</span>
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  capture={!isDesktop ? 'environment' : undefined}
+                  className="hidden"
+                  onChange={handleImageFileChange}
+                />
                 <div className="flex items-center gap-1 rounded-lg border border-border bg-background p-0.5">
                   <button
                     className={'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ' + (mode === 'source' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}
@@ -633,8 +688,11 @@ export default function EditorApp() {
                   content={mode === 'wysiwyg' ? body : content}
                   onChange={mode === 'wysiwyg' ? (v) => setContent(fm + v) : setContent}
                   mode={mode}
+                  lang={selectedLang}
+                  currentPath={currentPath}
                   onLinkClick={handleEditorLinkClick}
                   selectionRef={editorSelectionRef}
+                  insertImageRef={insertImageRef}
                 />
               </div>
             </>

@@ -243,9 +243,29 @@ class TestSaveVaultImage:
             save_vault_image("../..", self._rel(src_sha), data, "image/png")
 
     def test_sha_mismatch_raises(self, ws):
+        """末段 stem 非 64 位 hex（非合法 src_resource_sha256）→ 400。"""
         data = _make_png_bytes()
         with pytest.raises(ValueError, match="sha256 mismatch"):
             save_vault_image("en", self._rel("wrong-sha"), data, "image/png")
+
+    def test_scaled_bytes_under_original_sha_accepted(self, ws):
+        """前端 scale 场景：上传「已缩放」字节，但文件名 stem 是 scale 前原始字节的 sha。
+
+        服务端信任 stem 作为 src_resource_sha256（格式校验），不再对收到的字节重算比对。
+        """
+        original = _make_png_bytes(size=(2000, 1600))
+        src_sha = sha256_of_bytes(original)
+        scaled = _make_png_bytes(size=(640, 480), color=(1, 2, 3))
+        rel = self._rel(src_sha)
+
+        asset = save_vault_image("en", rel, scaled, "image/png")
+
+        assert asset.src_resource_sha256 == src_sha
+        # 落盘为「收到的字节」预处理后的结果，而非原始字节
+        file_path = lang_vault_dir("en") / rel
+        assert file_path.is_file()
+        assert sha256_of_bytes(file_path.read_bytes()) == asset.saved_resource_sha256
+        assert file_path.read_bytes() != original
 
     def test_invalid_image_data_raises(self, ws):
         data = b"\x89PNG\r\n\x1a\n" + b"fake-png-content"

@@ -39,5 +39,9 @@
   "delete_confirm": "确定删除「{{name}}」？此操作不可撤销。",
   "new_file_placeholder": "文件名（自动 .md）",
   "new_dir_placeholder": "目录名",
-  "rename_placeholder": "新名称"
+  "rename_placeholder": "新名称",
+  "insert_image": "插入图片",
+  "insert_image_uploading": "上传中…",
+  "insert_image_failed": "图片上传失败",
+  "insert_image_save_first": "请先保存文件"
 }

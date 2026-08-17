@@ -39,5 +39,9 @@
   "delete_confirm": "Delete \"{{name}}\"? This cannot be undone.",
   "new_file_placeholder": "File name (auto .md)",
   "new_dir_placeholder": "Directory name",
-  "rename_placeholder": "New name"
+  "rename_placeholder": "New name",
+  "insert_image": "Insert image",
+  "insert_image_uploading": "Uploading…",
+  "insert_image_failed": "Image upload failed",
+  "insert_image_save_first": "Save the file first"
 }

@@ -1053,6 +1053,19 @@ class TestRawUpload:
             == r2.json()["image"]["saved_resource_sha256"]
         )
 
+    def test_upload_scaled_bytes_under_original_sha(self, client: TestClient, _ws: Path):
+        """前端 scale 场景：文件名 stem 是 scale 前的原始 sha，正文是缩放后的字节。"""
+        original = _make_png_bytes(size=(2000, 1600))
+        src_sha = sha256_of_bytes(original)
+        scaled = _make_png_bytes(size=(640, 480), color=(9, 9, 9))
+        resp = client.put(
+            f"/api/vault/raw/en/{self._rel(src_sha)}",
+            files={"file": ("scaled.png", scaled, "image/png")},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["image"]["src_resource_sha256"] == src_sha
+        assert (lang_vault_dir("en") / self._rel(src_sha)).is_file()
+
 
 class TestRawGet:
     """GET /api/vault/raw/{lang}/{vault_rel_path}"""
