@@ -1,5 +1,9 @@
 tools:
 
+# 说明：本文件列出全部 Vault MCP 工具（共 18 个）。markdown 图片的
+# 上传 / 取回（PUT|GET /api/vault/raw/{lang}/{vault_rel_path}）不经 MCP，
+# 由 vault_editor_api 进程内直调 image_store.save_vault_image，无需新增工具。
+
 ########### Vault 管理（workspace 级，豁免 session.configure）###########
 
   - name: list_vaults

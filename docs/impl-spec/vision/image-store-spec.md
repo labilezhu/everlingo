@@ -84,7 +84,7 @@ ref: docs/ADR/20260816-markdown-image.md — 决策 5
 - **best-effort 自有溯源元数据**：预处理后对 JPEG 追加 EXIF `UserComment="src_resource_sha256=<src_sha>"`（tag `0x9286`）、PNG 追加 tEXt `src_resource_sha256`（`PngInfo.add_text`）。仅写入自有键，不影响隐私 strip；失败静默回退预处理字节。`saved_resource_sha256` / `size` 以最终落盘字节计算。
 - **生命周期**：随 vault 常规文件管理（可移动 / 重命名），不绑定 session；indexer 只处理 `*.md`，图片天然不进索引。
 
-对应的 REST 端点（`/api/vault/raw/...`）见 [Vault Editor 图片插入实现](/docs/impl-spec/vault-editor.md)（Phase 2 回填）。
+对应的 REST 端点（`/api/vault/raw/...`）与前端交互见 [Vault Editor 图片插入实现](/docs/impl-spec/vault-editor.md)。
 
 ## 4. 前端 PUT 上传端点契约
 

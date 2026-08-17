@@ -95,6 +95,23 @@ Source 模式（CodeMirror）不渲染链接，不做处理。
 
 实现：`MilkdownEditor.tsx` 在 WYSIWYG 容器 `<div>` 上挂 `onClick` 事件代理，检测 `[data-milkdown-root] a[href]` → `preventDefault()`（阻止 ProseMirror 放置光标）→ 调用 `EditorApp` 传入的 `onLinkClick` prop；`EditorApp.handleEditorLinkClick` 完成路径解析与文件加载。
 
+### 图片插入
+
+ref: docs/ADR/20260816-markdown-image.md — 决策 8；上传/取回契约见 [image-store-spec.md §3.1](/docs/impl-spec/vision/image-store-spec.md)。
+
+编辑器 sub-header 新增「插入图片」按钮（`ImageIcon` + 文字；`md:` 断点隐藏文字，移动端仅图标）。点击触发隐藏的 `<input type="file" accept="image/jpeg,image/png,image/webp">`（与后端 415 对齐），移动端加 `capture="environment"` 直接拍照。
+
+- **前置校验**：`currentPath` 为空（未保存的新文件）时按钮禁用并提示「请先保存文件」——assets 目录依赖 markdown 文件名。
+- **上传路径默认规则**：相对当前 md 目录 → `{md_dir}/{mdname}.assets/{src_sha256}.{ext}`；vault 根目录文件 → `{mdname}.assets/{src_sha256}.{ext}`。`{src_sha256}` 为**缩放前原始字节**的 SHA-256（后端信任 stem 格式，见 image-store-spec §3.1）。
+- **处理流程**：读文件（`arrayBuffer()`）→ **scale 前**计算 `src_sha256`（`sha256Hex`）→ `extFromMime` + `buildUploadPath` → `scaleImageIfNeeded`（必要时 canvas 等比缩放到 ≤1920×1200，失败回退原图、后端预处理兜底）→ `uploadImage(lang, vaultRelPath, blob, mime)` → 成功后在当前光标处插入。
+- **插入形态**：WYSIWYG 模式插入 image 节点（`src` 用绝对 `/api/vault/raw/{lang}/{vault_rel_path}` URL 以便预览）；Source 模式在光标处插入相对 `![alt](rel)` 文本。`alt` 用 md 文件名（`mdNameFromPath`）。
+- **保存/预览改写**：markdown 内始终保存相对路径；WYSIWYG 渲染用 `toDisplay` 改写为绝对 URL、`markdownUpdated` 保存前先 `toRelative` 逆改写（`imageLinks.ts`，规则见下）。
+- **改写规则**：只改写 `![alt](url)` 图片链接；`http(s)://`、`data:`、已是绝对 `/api/vault/raw/`、跨 lang 链接原样保留；URL 含空白时用 `<>` 包裹；已知限制：URL 含 `)` 且未 `<>` 包裹时无法切分（不做启发式）。
+- **上传状态**：上传中按钮 loading；失败在编辑区提示（不插入）。
+- **MCP 无关**：图片上传/取回走 REST `/api/vault/raw/...`（`vault_editor_api.py` 直接调 `image_store.save_vault_image`），不经 MCP（见 [vault-mcp-spec-tools.yaml](/docs/impl-spec/vault-mcp/vault-mcp-spec-tools.yaml)）。
+
+实现：`imageLinks.ts`（`toDisplay`/`toRelative` + `buildUploadPath`/`extFromMime`/`mdNameFromPath`/`relPath`/`normalizeVaultPath`）、`imageScale.ts`（`scaleImageIfNeeded`/`shouldScale`）、`vaultApi.ts`（`uploadImage`/`assetUrl`）；`MilkdownEditor`/`SourceEditor` 经 `insertImageRef` 暴露插入回调，`EditorApp.handlePickImage` 完成完整流程。
+
 ### 从 chatbot 跳入
 
 chatbot 的 markdown 消息里可包含指向 editor 的链接，由 `react-markdown` 渲染为 `<a>`：
@@ -280,6 +297,8 @@ web/src/editor/
 | `POST /api/vault/{lang}/rename` `{from, to}` | `configure` + `read` + `write` to + `delete` old | MCP 无 rename 原语，复合实现；对大文件有窗口期，MVP 接受 |
 | `POST /api/vault/{lang}/search` `{q, mode, tags, tags_op, limit}` | `configure` + `search` | `lang` 不传，用会话 lang |
 | `GET  /api/vault/{lang}/tags` | `configure` + `list_tags` | |
+| `PUT  /api/vault/raw/{lang}/{vault_rel_path:path}` | 不经 MCP（进程内直调 `save_vault_image`） | 图片上传；multipart `file`；路径末段文件名即 `src_sha256.ext`（信任 stem 语义，见「图片插入」） |
+| `GET  /api/vault/raw/{lang}/{vault_rel_path:path}` | 不经 MCP（进程内直调） | 通用 vault 文件取回；按扩展名定 Content-Type + immutable 缓存头 |
 
 **错误归一**：MCP 工具返回 `isError=true` 时，后端把 `content[0].text` 包成 HTTP 4xx/5xx + `{ "detail": "<text>" }`。常见错误：
 - `session not configured: call session.configure first` → 500（后端 bug，不应让客户端看到）
@@ -316,7 +335,6 @@ web/src/editor/
 - 命中块 `chunk.char_offset` 滚动到对应段（后续迭代）。
 - 多 tab 并发不同 lang 的 per-tab MCP stream。
 - 自动保存 / 协作编辑 / 版本历史。
-- 图片上传与预览（vault 当前 spec 未涉及图片）。
 
 ## 手工验证
 http://localhost:8000/editor 

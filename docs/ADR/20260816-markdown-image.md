@@ -1,6 +1,6 @@
 # EverLingo Vault Editor Markdown 图片插入设计
 
-- 状态：Design（2026-08-16，Phase 1 后端与 Phase 2 前端已实现，Phase 3 文档回填待完成）
+- 状态：Accepted（2026-08-16，Phase 1-3 已实现完成）
 - 作者：engineering
 - 相关文档：
   - [Vault Editor 实现规范](/docs/impl-spec/vault-editor.md)
@@ -204,12 +204,12 @@ GET /api/vault/raw/{lang}/{vault_rel_path}
 5. `EditorApp` 加「插入图片」按钮 + 文件选择（移动端 `capture`）+ 上传/插入流程（sha 先于 scale 计算）+ `currentPath` 空校验 + i18n 文案。
 6. 验收：浏览器插入图片 → WYSIWYG 预览正常 → 保存为相对路径 → 重开仍为相对 → 移动/重命名图片后链接仍解析。
 
-### Phase 3 — 文档回填（实现完成后）
+### Phase 3 — 文档回填（实现完成后）✅
 
-- 更新 `vault-editor.md`（新增「图片插入」节、删除「不在本 spec 范围」图片行）。
-- 更新 `vault-mcp-spec-tools.yaml`（已在 Phase 1 同步工具定义，此处核对计数/说明）。
-- `image-store-spec.md` 新增「Vault 图片存储」小节。
-- `TASKS.md` 记录改动 + 按 release-notes 规范写 Release Notes。
+- ✅ 更新 `vault-editor.md`：新增「图片插入」节、删除「不在本 spec 范围」图片行。
+- ✅ 更新 `vault-mcp-spec-tools.yaml`（已核对：共 18 个工具，图片上传/取回不经 MCP，无新增工具；补充说明注释）。
+- ✅ `image-store-spec.md` 新增「Vault 图片存储」小节。
+- ✅ `TASKS.md` 记录改动 + 按 release-notes 规范写 Release Notes。
 
 ---
 
