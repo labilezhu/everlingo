@@ -1,15 +1,54 @@
 
+请分析与补充以下初步 High level 设计。你可以提出自己的看法和合理性分析。
+
 ## 需求
 
-Chat Agent 需要有把用户在聊天中上传的图片，进行分析，写入笔记的能力。
+[Chat Agent](docs/impl-spec/chat-agent-spec.md) 需要有把用户在聊天中上传的图片，进行分析，写入笔记的能力。
 
 ### 背景
 
-在完成了以下
+在完成了以下变更后：
 - docs/ADR/20260812-image-chat-requirement.md
 - docs/ADR/20260812-image-chat.md
 - docs/ADR/20260816-markdown-image.md
 
+Chat Agent 已经有分析聊天图片的能力和基础设施。 Vault 也有了 markdown 中放图片的能力和基础设施。
+
+现在需要打通 Chat Agent 写笔记时，可以把聊天中的图片放入 markdown 和 vault 的能力。这就可以实现如：
+- 用户发个错题图片，Agent 分析和记录笔记
+
+### 细节
+
+
+#### 规则
+
+1. vault 中的图片文件名应该用可读性更好的 英文 slug 
+  Agent 把 session 的图片，copy 到 vault 中的位置，与 docs/impl-spec/vault-editor.md 中 “上传路径默认规则” 相似。但文件名应该用可读性更好的 英文 slug 。 信息来源是之前的 Vision Service 分析。 因为图片已经经过了 Vision Service 分析， Agent 也已经把分析结果放到了 tool message history 了。
+
+#### Agents 的工具流程
+
+新笔记：
+1. 现有流程：Chat Agent 异步调用 [Memory Writer Agent](docs/impl-spec/memory-writer-agent-spec.md) 。 Memory Entry 的 `operation` = `create` 。 
+2. 现有流程：Memory Writer Agent ，决定 markdown 文件的目录位置和文件名。
+3. Memory Writer Agent 先把准备要写入笔记的 session 图片，复制到 vault ，文件目录与文件名见上面规则 。 写 vault 的方法是 src/everlingo/image/image_store.py 中新增一个方法  
+   ```python
+   def save_vault_image(
+    lang: str,
+    vault_rel_path: str,
+    src_resource_sha256: str,
+    data: bytes,
+    mime_type: str,
+    ) -> ImageAsset
+   ```
+   不再从 vault_rel_path 中 提取 src_resource_sha256 了。
+4. Memory Writer Agent 把 markdown 内容和图片引用，写入 markdown 文件。
+
+
+编辑现有笔记：
+1. 现有流程：Chat Agent 按环境上下文和用户要求找到用户要编辑的 markdown file path ，并得到用户确认
+2. Chat Agent 先把准备要写入笔记的 session 图片，复制到 vault ，文件目录与文件名见上面规则 。用上面的新 `save_vault_image` 方法。
+3. Chat Agent 生成 Memory Entry 的 body 内容： 其中包括 markdown 内容和图片引用。
+4. 同现有流程一样，Chat Agent 同步调用 Memory Writer Agent
 
 
 ---
