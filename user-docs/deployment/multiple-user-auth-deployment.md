@@ -39,7 +39,7 @@ Fully containerized (except nginx, which is assumed to be an existing service on
 ```bash
 ######## base conf ########
 
-export EVERLINGO_VER=0.1.2-rc.2
+export EVERLINGO_VER=0.1.2-rc.3
 
 export OPENAI_API_KEY=<your_api_key>
 export OPENAI_BASE_URL=https://openrouter.ai/api/v1
