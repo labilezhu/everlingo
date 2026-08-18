@@ -42,6 +42,18 @@ bot.run()
 - 主动发送消息必须带上之前消息的 user_id 。 所以 user_id 应该在每收到消息时保存在应用全局内存中
 - 由于  wechatbot-sdk 的运行需要连接网络和 wechat 服务，并且需要手工 login 。单元测试时，只能 Mock 或不作单元测试。
 
+### 接收图片
+
+```python
+@bot.on_message
+async def handle(msg):
+    # download a raw CDN reference directly
+    if msg.images:
+        for img in msg.images:
+            print(f"  图片: {img.url}")
+            raw = await bot.download_raw(img.media, img.aes_key)
+```
+
 ### 分开 login 与 message long-polling
 
 `bot.run()` 的过程，其实包括了：
@@ -96,6 +108,7 @@ uv run python -m everlingo.wechat
 
 
 ### SDK 参考文档
+https://github.com/corespeed-io/wechatbot/blob/main/python/README.md
 https://github.com/corespeed-io/wechatbot/raw/refs/heads/main/python/README.md
 https://raw.githubusercontent.com/corespeed-io/wechatbot/refs/heads/main/python/README.md
 https://pypi.org/project/weixin-bot-sdk/

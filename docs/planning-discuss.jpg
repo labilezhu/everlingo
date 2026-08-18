@@ -1,4 +1,17 @@
 
+
+实现 docs/ADR/20260812-image-chat.md 时，并没有实现 [Wechat Channel](docs/impl-spec/channel-wechat-ilink.md) 的图片接收和 LLM 分析。
+
+现需要补上。 以下是一些初步想法，你分析一下。
+
+- Web Chatbot 是在浏览器上做 sha 计算和上传图片的，Wechat Channel 只能在服务端实现类似的流程，但应该共享尽量多的底层实现模块和代码
+- 需要看看如何将收到的图片封装成一个 UserInputEnvelope
+- Wechat SDK 接收消息和识别消息为图片的方法见：  docs/impl-spec/channel-wechat-ilink.md 中的 “### 接收图片”
+
+
+---
+
+
 请分析与补充以下初步 High level 设计。你可以提出自己的看法和合理性分析。
 
 ## 需求
