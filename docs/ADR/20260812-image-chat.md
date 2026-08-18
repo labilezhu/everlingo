@@ -942,7 +942,8 @@ analyze_image(src_resource_sha256) -> ToolMessage
 ## Phase 5（对齐 Wechat Channel）
 
 WechatChannel 图片接收 + LLM 分析：
-    ↓ _build_envelope_from_message（Session loop 下载 + image_store.save + attachment envelope）
+    ↓ 回调（bot 线程）下载图片字节 → 入队 _WechatIncoming
+    ↓ _build_envelope_from_message（Session loop：sniff + image_store.save + attachment envelope + eager_warm）
     ↓ get_metadata.supported_image=True → 注入 analyze_image / copy_session_image_to_vault
     ↓ Eager Warm 对齐 web（eager_warm 共享函数）
 

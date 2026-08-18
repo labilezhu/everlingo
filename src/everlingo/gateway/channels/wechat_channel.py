@@ -25,7 +25,6 @@ from everlingo.gateway.channels.envelope import (
 )
 from everlingo.gateway.wechat_admin.state import WechatAdminState
 from everlingo.image.image_store import image_store, sha256_of_bytes, sniff_image_mime
-from everlingo.image.models import ImageAsset
 from everlingo.image.vision_service import eager_warm
 
 
@@ -38,15 +37,15 @@ LOGIN_RETRY_INTERVAL = 5.0
 
 @dataclass
 class _WechatIncoming:
-    """bot 线程回调入队的轻量消息描述；图片字节在 Session loop 内下载处理。
+    """bot 线程回调入队的轻量消息描述。
 
-    ref: docs/ADR/20260818-image-chat-wechat.md — 决策 2
-    避免在 bot 线程下载/存图/预热（VisionService 的 in_flight Future 需与
-    Agent 工具调用同 event loop）；image_refs 为 [(CDNMedia, aes_key), ...]。
+    ref: docs/ADR/20260818-image-chat-wechat.md — 决策 2（A2）
+    CDN 下载在 bot 线程回调内完成（纯网络 I/O，无 event loop 亲和性，避免阻塞
+    Session loop）；image_bytes 为下载到的原始字节（空列表表示下载失败/无图）。
     """
 
     text: str
-    image_refs: list[tuple[object, str | None]]
+    image_bytes: list[bytes]
 
 
 class WechatChannel(Channel):
@@ -133,18 +132,25 @@ class WechatChannel(Channel):
             on_error=self.admin_state.set_last_error,
         )
 
-        # 注册消息回调：收到消息时保存 user_id，并把轻量消息描述入队。
-        # 图片字节不在 bot 线程下载，交给 Session loop 的 recv_envelope 处理
-        #（避免 VisionService in_flight Future 跨 event loop）。
-        # ref: docs/ADR/20260818-image-chat-wechat.md — 决策 2
+        # 注册消息回调：收到消息时保存 user_id，并在 bot 线程下载图片字节后入队。
+        # 下载是纯网络 I/O（无 event loop 亲和性），放 bot 线程可避免 CDN 下载
+        # 阻塞 Session loop（Agent 回答所在 loop）；嗅探/落盘/eager_warm 仍在
+        # Session loop 完成（Vision in_flight Future 的 loop 亲和约束）。
+        # ref: docs/ADR/20260818-image-chat-wechat.md — 决策 2（A2）
         @self._bot.on_message
         async def _handle_message(msg) -> None:
             # ref: channel-wechat-ilink.md — 主动发送消息必须带上之前消息的 user_id
             self._last_user_id = msg.user_id
             images = getattr(msg, "images", None) or []
-            image_refs = [(img.media, img.aes_key) for img in images]
+            image_bytes: list[bytes] = []
+            for img in images[:1]:
+                try:
+                    image_bytes.append(await self._bot.download_raw(img.media, img.aes_key))
+                except Exception:
+                    logger.exception("wechat image download failed")
+                    break
             # queue.Queue 是线程安全的，可从任意线程 put
-            self._queue.put(_WechatIncoming(text=msg.text or "", image_refs=image_refs))
+            self._queue.put(_WechatIncoming(text=msg.text or "", image_bytes=image_bytes))
 
         # login/start 会 block 当前线程，因此在独立线程中运行
         # ref: channel-wechat-ilink.md — block 当前线程，所以必要时需要专用线程
@@ -244,9 +250,10 @@ class WechatChannel(Channel):
         """阻塞读取微信消息，包装为 UserInputEnvelope。
 
         ref: /docs/impl-spec/channel-wechat-ilink.md
-        ref: docs/ADR/20260818-image-chat-wechat.md — 决策 2
+        ref: docs/ADR/20260818-image-chat-wechat.md — 决策 2（A2）
         从线程安全的同步 Queue 阻塞读取；返回 None 表示 Channel 结束。
-        图片下载/存图/预热在 Session loop 内完成（与 Agent 工具调用同 loop）。
+        CDN 下载已在 bot 线程回调完成；本方法在 Session loop 内做
+        嗅探/落盘/构造 envelope/eager_warm（与 Agent 工具调用同 loop）。
         """
         item = await asyncio.to_thread(self._queue.get)
         if item is None:
@@ -256,42 +263,34 @@ class WechatChannel(Channel):
     async def _build_envelope_from_message(self, item: _WechatIncoming) -> UserInputEnvelope:
         """把入队的消息描述处理为带 attachment 的 UserInputEnvelope。
 
-        ref: docs/ADR/20260818-image-chat-wechat.md — 决策 3/4/6/7
+        ref: docs/ADR/20260818-image-chat-wechat.md — 决策 3/4/6/7（A2）
         - 多图取第一张，忽略其余（ADR §32 每消息最多 1 张图）。
         - src_resource_sha256 = 下载原始字节 SHA；经 image_store.save 复用 web 落盘链路。
-        - 下载失败/格式不支持：有文字则丢图保留文字；纯图则回友好提示，不生成空 turn。
-        - 成功后调度 eager_warm 预热 Vision 缓存（与 web 对齐）。
+        - 嗅探失败（格式不支持）或字节缺失（下载失败）：有文字则丢图保留文字；
+          纯图则回友好提示，不生成空 turn。
+        - 成功后调度 eager_warm 预热 Vision 缓存（与 web 对齐；必须在 Session loop，
+          因 Vision in_flight Future 有 event loop 亲和性）。
         """
         text = item.text or ""
         attachments: list[AttachmentPart] = []
-        for media, aes_key in item.image_refs[:1]:
-            try:
-                data = await self._bot.download_raw(media, aes_key)
-                asset = self._store_image(data)
-            except Exception:
-                logger.exception("wechat image ingest failed")
-                if not text:
-                    await self._safe_reply(
-                        "暂时无法识别这张图片，请稍后再试或换个角度重新拍摄"
-                    )
+        for data in item.image_bytes[:1]:
+            mime = sniff_image_mime(data)
+            if mime is None:
+                logger.warning("wechat image format unsupported")
                 continue
+            src_sha = sha256_of_bytes(data)
+            asset = image_store.save(self._session_id, src_sha, data, mime)
             attachments.append(AttachmentPart(src_resource_sha256=asset.src_resource_sha256))
-            # Eager Warm（ADR §14 / §22 / §7）：fire-and-forget 预热 Vision 缓存，
+            # Eager Warm（ADR §14 / §22）：fire-and-forget 预热 Vision 缓存，
             # 与 Agent analyze_image 工具共用缓存，失败静默。
             asyncio.create_task(eager_warm(asset.src_resource_sha256))
+        if not attachments and not text:
+            await self._safe_reply("暂时无法识别这张图片，请稍后再试或换个角度重新拍摄")
         return UserInputEnvelope(
             task="none",
             chat=ChatPart(message=text, attachments=attachments),
             source=SourcePlain(),
         )
-
-    def _store_image(self, data: bytes) -> ImageAsset:
-        """嗅探 MIME → 计算 src_resource_sha256 → 复用 web 的 image_store.save 落盘。"""
-        mime = sniff_image_mime(data)
-        if mime is None:
-            raise ValueError("unsupported image format")
-        src_sha = sha256_of_bytes(data)
-        return image_store.save(self._session_id, src_sha, data, mime)
 
     async def _safe_reply(self, content: str) -> None:
         """尽力回一条提示；失败静默，不抛到调用方。"""
