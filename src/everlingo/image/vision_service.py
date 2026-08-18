@@ -264,3 +264,16 @@ class OpenRouterVisionService:
 # 进程级单例，供 web_acceptor（Eager Warm）与 Agent 工具共享。
 # 惰性创建：llm 首次 analyze 时才构造，避免 import 期依赖 LLM 配置。
 vision_service = OpenRouterVisionService()
+
+
+async def eager_warm(src_resource_sha256: str) -> None:
+    """上传后异步预热 Vision 缓存（fire-and-forget）。
+
+    ref: docs/ADR/20260812-image-chat.md §14 / §22 — Eager Warm
+    ref: docs/ADR/20260818-image-chat-wechat.md — 决策 7（web / wechat 共用）
+    任何失败仅记日志，不抛到调用方；Agent 经 analyze_image 工具取用时重新触发分析。
+    """
+    try:
+        await vision_service.analyze(ImageInput(src_resource_sha256=src_resource_sha256))
+    except Exception:
+        logger.exception("eager vision warm failed: src=%s", src_resource_sha256)

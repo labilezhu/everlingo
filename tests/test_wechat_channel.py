@@ -5,14 +5,17 @@ ref: TEST_STYLE.md — 只测核心流程和用户输入边缘情况
 ref: channel-wechat-ilink.md — 单元测试时只能 Mock wechatbot-sdk
 """
 import asyncio
+from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from PIL import Image
 from wechatbot import AuthError
 
 from everlingo import workspace
 from everlingo.gateway.channels import wechat_channel as wechat_channel_mod
-from everlingo.gateway.channels.wechat_channel import WechatChannel
+from everlingo.gateway.channels.wechat_channel import WechatChannel, _WechatIncoming
+from everlingo.image.image_store import image_store, sha256_of_bytes
 
 
 @pytest.fixture(autouse=True)
@@ -157,11 +160,12 @@ class TestWechatChannelRecv:
     def test_recv_envelope_returns_message_from_queue(self, isolated_workspace):
         """recv_envelope() 从队列中读取并返回包装后的 envelope。"""
         channel = self._make_initialized_channel(isolated_workspace)
-        channel._queue.put("你好")
+        channel._queue.put(_WechatIncoming(text="你好", image_refs=[]))
 
         result = asyncio.run(channel.recv_envelope())
         assert result is not None
         assert result.chat.message == "你好"
+        assert result.chat.attachments == []
 
     def test_recv_envelope_returns_none_when_channel_closed(self, isolated_workspace):
         """recv_envelope() 收到 None 时（Channel 结束信号）返回 None。"""
@@ -235,15 +239,163 @@ class TestWechatChannelMessageCallback:
 
         assert registered_callback is not None
 
-        # 模拟收到消息
+        # 模拟收到消息（SDK IncomingMessage.images 恒为 list）
         mock_msg = MagicMock()
         mock_msg.user_id = "user_abc@im.wechat"
         mock_msg.text = "学习英语"
+        mock_msg.images = []
 
         asyncio.run(registered_callback(mock_msg))
 
         assert channel._last_user_id == "user_abc@im.wechat"
-        assert channel._queue.get_nowait() == "学习英语"
+        incoming = channel._queue.get_nowait()
+        assert isinstance(incoming, _WechatIncoming)
+        assert incoming.text == "学习英语"
+        assert incoming.image_refs == []
+
+
+class TestWechatChannelImages:
+    """ref: docs/ADR/20260818-image-chat-wechat.md — 微信图片接收 + LLM 分析
+
+    队列改承载 _WechatIncoming；图片下载/存图/预热在 Session loop 内完成。
+    单测 Mock bot：download_raw 返回固定字节，验证 envelope attachment、ImageStore
+    落盘、eager_warm 调度，以及失败降级（纯图回提示 / 有字丢图）。
+    """
+
+    def _make_png(self, color=(40, 80, 120)) -> bytes:
+        buf = BytesIO()
+        Image.new("RGB", (32, 32), color).save(buf, format="PNG")
+        return buf.getvalue()
+
+    def _make_channel_with_bot(self, bot=None):
+        channel = WechatChannel(session_id="sess-img")
+        if bot is None:
+            bot = MagicMock()
+            bot.download_raw = AsyncMock()
+            bot.send = AsyncMock()
+        channel._bot = bot
+        channel._last_user_id = "user_img@im.wechat"
+        return channel, bot
+
+    @staticmethod
+    def _drain_tasks():
+        """等 fire-and-forget 的 eager_warm 任务执行完。"""
+
+        async def drain():
+            pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+            if pending:
+                await asyncio.gather(*pending, return_exceptions=True)
+
+        asyncio.run(drain())
+
+    def test_image_message_creates_attachment_and_warms(self, isolated_workspace):
+        """图片成功：attachment 引用 src_sha；ImageStore 落盘；eager_warm 被调度。"""
+        png = self._make_png(color=(10, 20, 30))
+        src_sha = sha256_of_bytes(png)
+        channel, bot = self._make_channel_with_bot()
+        bot.download_raw = AsyncMock(return_value=png)
+
+        async def run():
+            env = await channel._build_envelope_from_message(
+                _WechatIncoming(text="", image_refs=[("media-ref", None)])
+            )
+            return env
+
+        env = asyncio.run(run())
+        self._drain_tasks()
+
+        assert len(env.chat.attachments) == 1
+        assert env.chat.attachments[0].src_resource_sha256 == src_sha
+        asset = image_store.get(src_sha)
+        assert asset is not None
+        assert asset.mime_type == "image/png"
+        assert asset.storage_key.startswith("session://sess-img/")
+
+    def test_image_message_warms_vision_cache(self, isolated_workspace):
+        """图片成功：调度 eager_warm（fire-and-forget）预热 Vision 缓存。"""
+        png = self._make_png(color=(11, 22, 33))
+        src_sha = sha256_of_bytes(png)
+        channel, bot = self._make_channel_with_bot()
+        bot.download_raw = AsyncMock(return_value=png)
+
+        with patch.object(wechat_channel_mod, "eager_warm", new=AsyncMock()) as mock_warm:
+            async def run():
+                await channel._build_envelope_from_message(
+                    _WechatIncoming(text="", image_refs=[("media-ref", None)])
+                )
+
+            asyncio.run(run())
+            self._drain_tasks()
+
+        mock_warm.assert_awaited_once_with(src_sha)
+
+    def test_multiple_images_take_first(self, isolated_workspace):
+        """多图：只取第一张，忽略其余（ADR §32 每消息最多 1 张图）。"""
+        png1 = self._make_png(color=(1, 2, 3))
+        channel, bot = self._make_channel_with_bot()
+        bot.download_raw = AsyncMock(return_value=png1)
+
+        async def run():
+            return await channel._build_envelope_from_message(
+                _WechatIncoming(text="hi", image_refs=[("m1", None), ("m2", None)])
+            )
+
+        env = asyncio.run(run())
+
+        assert len(env.chat.attachments) == 1
+        assert env.chat.attachments[0].src_resource_sha256 == sha256_of_bytes(png1)
+        assert env.chat.message == "hi"
+        assert bot.download_raw.await_count == 1
+
+    def test_pure_image_download_failure_replies_friendly(self, isolated_workspace):
+        """纯图下载失败：不生成空 turn，回友好提示。"""
+        channel, bot = self._make_channel_with_bot()
+        bot.download_raw = AsyncMock(side_effect=RuntimeError("cdn down"))
+
+        async def run():
+            return await channel._build_envelope_from_message(
+                _WechatIncoming(text="", image_refs=[("m1", None)])
+            )
+
+        env = asyncio.run(run())
+
+        assert env.chat.attachments == []
+        assert env.chat.message == ""
+        bot.send.assert_awaited_once_with(
+            "user_img@im.wechat", "暂时无法识别这张图片，请稍后再试或换个角度重新拍摄"
+        )
+
+    def test_download_failure_with_text_keeps_text(self, isolated_workspace):
+        """下载失败但有文字：丢图保留文字，不额外提示。"""
+        channel, bot = self._make_channel_with_bot()
+        bot.download_raw = AsyncMock(side_effect=RuntimeError("cdn down"))
+
+        async def run():
+            return await channel._build_envelope_from_message(
+                _WechatIncoming(text="分析一下", image_refs=[("m1", None)])
+            )
+
+        env = asyncio.run(run())
+
+        assert env.chat.message == "分析一下"
+        assert env.chat.attachments == []
+        bot.send.assert_not_awaited()
+
+    def test_unsupported_format_pure_image_replies(self, isolated_workspace):
+        """非图片字节（MIME 嗅探失败）：纯图回友好提示，不落盘。"""
+        channel, bot = self._make_channel_with_bot()
+        bot.download_raw = AsyncMock(return_value=b"not an image")
+
+        async def run():
+            return await channel._build_envelope_from_message(
+                _WechatIncoming(text="", image_refs=[("m1", None)])
+            )
+
+        env = asyncio.run(run())
+
+        assert env.chat.attachments == []
+        assert image_store.get(sha256_of_bytes(b"not an image")) is None
+        bot.send.assert_awaited_once()
 
 
 class TestWechatChannelAdminState:
@@ -431,3 +583,11 @@ class TestWechatChannelMetadata:
         channel = WechatChannel()
         metadata = channel.get_metadata()
         assert metadata.name == "WechatChannel"
+
+    def test_get_metadata_supports_image(self, isolated_workspace):
+        """get_metadata() 开启 supported_image（注入 analyze_image 等工具）。
+
+        ref: docs/ADR/20260818-image-chat-wechat.md — 决策 8
+        """
+        channel = WechatChannel()
+        assert channel.get_metadata().supported_image is True

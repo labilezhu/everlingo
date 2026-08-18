@@ -19,6 +19,7 @@ from everlingo.image.image_store import (
     save_vault_image,
     sha256_of_bytes,
     slugify,
+    sniff_image_mime,
 )
 from everlingo.workspace import init_workspace_dir, lang_vault_dir
 
@@ -369,3 +370,28 @@ class TestSlugify:
     def test_empty_falls_back(self):
         assert slugify("") == "image"
         assert slugify("!!!") == "image"
+
+
+class TestSniffImageMime:
+    """sniff_image_mime：从原始字节嗅探 MIME。
+
+    ref: docs/ADR/20260818-image-chat-wechat.md — 决策 4
+    Wechat 下载字节不带 MIME/扩展名，靠 Pillow 读 format 映射。
+    """
+
+    def test_png(self):
+        assert sniff_image_mime(_make_png_bytes()) == "image/png"
+
+    def test_jpeg(self):
+        assert sniff_image_mime(_make_jpeg_bytes()) == "image/jpeg"
+
+    def test_webp(self):
+        buf = BytesIO()
+        Image.new("RGB", (8, 8), (1, 2, 3)).save(buf, format="WEBP")
+        assert sniff_image_mime(buf.getvalue()) == "image/webp"
+
+    def test_corrupt_bytes_returns_none(self):
+        assert sniff_image_mime(b"not an image at all") is None
+
+    def test_empty_bytes_returns_none(self):
+        assert sniff_image_mime(b"") is None

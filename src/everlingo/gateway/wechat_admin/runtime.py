@@ -103,10 +103,15 @@ class WechatRuntime(SessionAcceptor):
             logger.warning("wechat start conflict: %s", e)
             return self.status()
 
-        channel = WechatChannel(on_logined=self._on_logined)
+        # ref: docs/ADR/20260818-image-chat-wechat.md — 图片归属会话：
+        # session_id 先 mint，构造 channel 时传入（供 image_store.save 落盘归属）。
+        self._session_id = str(uuid.uuid4())
+        channel = WechatChannel(
+            on_logined=self._on_logined,
+            session_id=self._session_id,
+        )
         await channel.init()
         self._channel = channel
-        self._session_id = str(uuid.uuid4())
         await self._gateway.accept_session(channel, self._session_id)
         self._started = True
         self._bot_watch_task = asyncio.create_task(self._watch_bot())

@@ -54,6 +54,18 @@ async def handle(msg):
             raw = await bot.download_raw(img.media, img.aes_key)
 ```
 
+### Wechat Channel 图片落地（实现说明）
+
+ref: [docs/ADR/20260818-image-chat-wechat.md](/docs/ADR/20260818-image-chat-wechat.md)
+
+- `bot.download_raw(img.media, img.aes_key)` 取原始字节（`img.aes_key` 为 `None` 时回落 `media.aes_key`）。
+- 服务端用 `sniff_image_mime` 嗅探 MIME（jpeg/png/webp），非支持格式按失败处理。
+- `src_resource_sha256 = sha256_of_bytes(下载字节)`；调 `image_store.save(session_id, sha, data, mime)`
+  复用与 Web 上传同一的落盘 / 预处理 / ImageAsset 注册逻辑。
+- 构造带 `chat.attachments` 的 `UserInputEnvelope`；`recv_envelope` 内在 Session loop 调度 `eager_warm`。
+- 多图取第一张；下载失败/格式不支持：有文字则丢图留字，纯图则回友好提示不生成空 turn。
+- `ChannelMetadata.supported_image=True` 时 Agent 自动注入 `analyze_image` 与 `copy_session_image_to_vault`。
+
 ### 分开 login 与 message long-polling
 
 `bot.run()` 的过程，其实包括了：

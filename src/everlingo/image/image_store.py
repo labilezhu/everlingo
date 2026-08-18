@@ -52,6 +52,27 @@ def sha256_of_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+_PIL_FORMAT_MIME: dict[str, str] = {
+    "JPEG": "image/jpeg",
+    "PNG": "image/png",
+    "WEBP": "image/webp",
+}
+
+
+def sniff_image_mime(data: bytes) -> str | None:
+    """从原始字节嗅探 MIME（jpeg/png/webp）；不可解析或未知格式返回 None。
+
+    ref: docs/ADR/20260818-image-chat-wechat.md — 决策 4
+    Wechat 下载字节不带 MIME/扩展名，靠 Pillow 读 format 映射。
+    """
+    try:
+        with Image.open(BytesIO(data)) as img:
+            fmt = img.format
+    except Exception:
+        return None
+    return _PIL_FORMAT_MIME.get(fmt or "")
+
+
 def preprocess_image(data: bytes, mime_type: str) -> tuple[bytes, int, int]:
     """ADP：EXIF 方向校正 → strip metadata → 超 1920x1200 按比例缩放。
 

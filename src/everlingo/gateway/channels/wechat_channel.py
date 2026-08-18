@@ -8,6 +8,7 @@ import asyncio
 import logging
 import queue
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -16,8 +17,16 @@ from wechatbot import AuthError, WeChatBot
 
 from everlingo import workspace
 from everlingo.gateway.channels.channel import Channel, ChannelMetadata
-from everlingo.gateway.channels.envelope import UserInputEnvelope, wrap_plain_text
+from everlingo.gateway.channels.envelope import (
+    AttachmentPart,
+    ChatPart,
+    SourcePlain,
+    UserInputEnvelope,
+)
 from everlingo.gateway.wechat_admin.state import WechatAdminState
+from everlingo.image.image_store import image_store, sha256_of_bytes, sniff_image_mime
+from everlingo.image.models import ImageAsset
+from everlingo.image.vision_service import eager_warm
 
 
 logger = logging.getLogger(__name__)
@@ -25,6 +34,19 @@ logger = logging.getLogger(__name__)
 # 初始登录 QR 连续过期后重试间隔（秒）。SDK 单次 login 在 QR 连续过期 3 次后
 # abort（wechatbot/auth.py MAX_QR_REFRESH_COUNT=3），重试重新获取新 QR。
 LOGIN_RETRY_INTERVAL = 5.0
+
+
+@dataclass
+class _WechatIncoming:
+    """bot 线程回调入队的轻量消息描述；图片字节在 Session loop 内下载处理。
+
+    ref: docs/ADR/20260818-image-chat-wechat.md — 决策 2
+    避免在 bot 线程下载/存图/预热（VisionService 的 in_flight Future 需与
+    Agent 工具调用同 event loop）；image_refs 为 [(CDNMedia, aes_key), ...]。
+    """
+
+    text: str
+    image_refs: list[tuple[object, str | None]]
 
 
 class WechatChannel(Channel):
@@ -38,17 +60,24 @@ class WechatChannel(Channel):
     - send: 使用最近一次保存的 user_id 调用 bot.send() 主动发送消息
     """
 
-    def __init__(self, on_logined: Optional[Callable[[], None]] = None) -> None:
+    def __init__(
+        self,
+        on_logined: Optional[Callable[[], None]] = None,
+        session_id: str | None = None,
+    ) -> None:
         # 登录成功回调（注入：runtime 持久化 enable=true）。
         # ref: workspace-console/ws-console-arch.md §3.2 on_logined 注入
         self._on_logined = on_logined
+        # 会话 id：图片经 image_store.save(session_id, ...) 归属到该会话。
+        # ref: docs/ADR/20260818-image-chat-wechat.md — runtime 构造时传入
+        self._session_id: Optional[str] = session_id
         # WeChatBot 单例，应用生命周期内只创建一次
         self._bot: Optional[WeChatBot] = None
         # 每次收到消息时保存最新的 user_id，用于主动发送消息
         self._last_user_id: Optional[str] = None
-        # 线程安全的同步队列：回调将消息放入，recv() 阻塞读取
+        # 线程安全的同步队列：回调将消息描述放入，recv() 阻塞读取
         # ref: channel-wechat-ilink.md — recv 阻塞读取，bot 在独立线程运行
-        self._queue: queue.Queue[Optional[str]] = queue.Queue()
+        self._queue: queue.Queue[Optional[_WechatIncoming]] = queue.Queue()
         # admin 状态：由 SDK 回调（bot 线程）更新，admin server（uvicorn 线程）读取
         self.admin_state = WechatAdminState(state="starting")
         # 标记 bot 线程结束（shutdown / 崩溃），供 acceptor 据此退出进程
@@ -104,13 +133,18 @@ class WechatChannel(Channel):
             on_error=self.admin_state.set_last_error,
         )
 
-        # 注册消息回调：收到消息时将文字放入队列
+        # 注册消息回调：收到消息时保存 user_id，并把轻量消息描述入队。
+        # 图片字节不在 bot 线程下载，交给 Session loop 的 recv_envelope 处理
+        #（避免 VisionService in_flight Future 跨 event loop）。
+        # ref: docs/ADR/20260818-image-chat-wechat.md — 决策 2
         @self._bot.on_message
         async def _handle_message(msg) -> None:
             # ref: channel-wechat-ilink.md — 主动发送消息必须带上之前消息的 user_id
             self._last_user_id = msg.user_id
+            images = getattr(msg, "images", None) or []
+            image_refs = [(img.media, img.aes_key) for img in images]
             # queue.Queue 是线程安全的，可从任意线程 put
-            self._queue.put(msg.text)
+            self._queue.put(_WechatIncoming(text=msg.text or "", image_refs=image_refs))
 
         # login/start 会 block 当前线程，因此在独立线程中运行
         # ref: channel-wechat-ilink.md — block 当前线程，所以必要时需要专用线程
@@ -210,10 +244,63 @@ class WechatChannel(Channel):
         """阻塞读取微信消息，包装为 UserInputEnvelope。
 
         ref: /docs/impl-spec/channel-wechat-ilink.md
+        ref: docs/ADR/20260818-image-chat-wechat.md — 决策 2
         从线程安全的同步 Queue 阻塞读取；返回 None 表示 Channel 结束。
+        图片下载/存图/预热在 Session loop 内完成（与 Agent 工具调用同 loop）。
         """
-        text = await asyncio.to_thread(self._queue.get)
-        return None if text is None else wrap_plain_text(text)
+        item = await asyncio.to_thread(self._queue.get)
+        if item is None:
+            return None
+        return await self._build_envelope_from_message(item)
+
+    async def _build_envelope_from_message(self, item: _WechatIncoming) -> UserInputEnvelope:
+        """把入队的消息描述处理为带 attachment 的 UserInputEnvelope。
+
+        ref: docs/ADR/20260818-image-chat-wechat.md — 决策 3/4/6/7
+        - 多图取第一张，忽略其余（ADR §32 每消息最多 1 张图）。
+        - src_resource_sha256 = 下载原始字节 SHA；经 image_store.save 复用 web 落盘链路。
+        - 下载失败/格式不支持：有文字则丢图保留文字；纯图则回友好提示，不生成空 turn。
+        - 成功后调度 eager_warm 预热 Vision 缓存（与 web 对齐）。
+        """
+        text = item.text or ""
+        attachments: list[AttachmentPart] = []
+        for media, aes_key in item.image_refs[:1]:
+            try:
+                data = await self._bot.download_raw(media, aes_key)
+                asset = self._store_image(data)
+            except Exception:
+                logger.exception("wechat image ingest failed")
+                if not text:
+                    await self._safe_reply(
+                        "暂时无法识别这张图片，请稍后再试或换个角度重新拍摄"
+                    )
+                continue
+            attachments.append(AttachmentPart(src_resource_sha256=asset.src_resource_sha256))
+            # Eager Warm（ADR §14 / §22 / §7）：fire-and-forget 预热 Vision 缓存，
+            # 与 Agent analyze_image 工具共用缓存，失败静默。
+            asyncio.create_task(eager_warm(asset.src_resource_sha256))
+        return UserInputEnvelope(
+            task="none",
+            chat=ChatPart(message=text, attachments=attachments),
+            source=SourcePlain(),
+        )
+
+    def _store_image(self, data: bytes) -> ImageAsset:
+        """嗅探 MIME → 计算 src_resource_sha256 → 复用 web 的 image_store.save 落盘。"""
+        mime = sniff_image_mime(data)
+        if mime is None:
+            raise ValueError("unsupported image format")
+        src_sha = sha256_of_bytes(data)
+        return image_store.save(self._session_id, src_sha, data, mime)
+
+    async def _safe_reply(self, content: str) -> None:
+        """尽力回一条提示；失败静默，不抛到调用方。"""
+        if self._bot is None or self._last_user_id is None:
+            return
+        try:
+            await self._bot.send(self._last_user_id, content)
+        except Exception:
+            logger.exception("wechat error reply failed")
     
     async def send_typing_hint(self) -> None:
         if self._bot is None:
@@ -256,8 +343,11 @@ class WechatChannel(Channel):
         return ChannelMetadata(
             name=type(self).__name__,
             supported_sound_media_format=["wav","mp3"],
+            # ref: docs/ADR/20260818-image-chat-wechat.md — 决策 8
+            # 开启后 Agent 自动注入 analyze_image / copy_session_image_to_vault 工具。
+            supported_image=True,
             channel_prompt="""微信 Clawbot 对话通道(Channel)，有以下特性
-            - 支持发送文本和声音
+            - 支持发送文本、图片和声音
             - 手机屏幕，不适合展示长内容。一次返回的消息内容要控制字数，一般不超过 500 字。
             微信 Clawbot 对话通道有以下注意事项：
             - 手机屏幕，不适合展示横排的内容。如表格。所以尽量不使用表格，如要使用，也要控制每表格行的长度。

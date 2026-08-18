@@ -933,11 +933,20 @@ ImageAnalysis（text + structured_content）
 
 Vision Tool: make_vision_tool(service, ...)（与 make_memory_writer_action_tool 同模式）
     ↓
-接入 MainAgent.build_tools（仅 web channel 且支持图片时）
+接入 MainAgent.build_tools（web / wechat channel 且支持图片时）
     ↓
 analyze_image(src_resource_sha256) -> ToolMessage
     ↓
 错误降级（§29）
+
+## Phase 5（对齐 Wechat Channel）
+
+WechatChannel 图片接收 + LLM 分析：
+    ↓ _build_envelope_from_message（Session loop 下载 + image_store.save + attachment envelope）
+    ↓ get_metadata.supported_image=True → 注入 analyze_image / copy_session_image_to_vault
+    ↓ Eager Warm 对齐 web（eager_warm 共享函数）
+
+ref: docs/ADR/20260818-image-chat-wechat.md
 
 ## Phase 4（对齐需求 P0 "Memory"）
 图片场景下的 request_memory_extraction 衔接：
