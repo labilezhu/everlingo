@@ -134,7 +134,7 @@ These preferences are stored in a file called `USER.md`. You can edit it yoursel
 
 Language learning — especially learning terminology in a specialized domain — creates a lot of knowledge worth keeping. The problem is that taking and maintaining notes is tedious.
 
-EverLingo helps you capture useful notes while you are learning. Nori 🐹 can organize lookup results together with your own additions, preserving the **learning context** behind each note. You can search, edit, and browse your notes, while AI helps maintain the knowledge base through natural conversation.
+EverLingo helps you capture useful notes while you are learning. Nori 🐹 can organize lookup results together with your own additions, preserving the **learning context** behind each note. Whether you take a photo of an exam question or capture a screenshot, Xiaoji AI automatically helps you solve it and take notes. You can search, edit, and browse your notes, while AI helps maintain the knowledge base through natural conversation.
 
 That context is not just stored for later. When a related topic comes up again, Nori can **recall the relevant notes and bring the original learning context back into the conversation**.
 
