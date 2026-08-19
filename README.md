@@ -4,7 +4,14 @@
   <a href="README.md">English</a> ·
   <a href="README.zh-CN.md">简体中文</a>
 </p>
-# EverLingo: An AI Language Companion That Remembers
+
+# EverLingo: An AI Language Companion That Remembers 
+
+
+
+https://github.com/user-attachments/assets/f4036f2c-21da-4a59-a52c-5f6ea5396a98
+
+
 
 Whether you're a student learning a foreign language or a working professional who needs to use a foreign language and remember domain-specific terminology, you face the same problem:
 
