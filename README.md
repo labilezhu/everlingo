@@ -174,7 +174,7 @@ Your notes have two layers of portability:
 
 
 
-Note export/download and GitHub synchronization are planned.
+Supports automatic synchronization of notes to any Git repository (such as GitHub) of your choice.
 
 
 
@@ -297,7 +297,7 @@ export OPENAI_EMBEDDING_MODEL=baai/bge-m3 # Model for semantic search
 export EVERLINGO_PUBLIC_BASE_URL=http://your_host_ip:8000 # Address that can reach the running EverLingo instance. Used for note links in chat messages.
 export target_language=en # Target learning language: en/ja/zh-CN/fr/de
 
-export EVERLINGO_VER=0.1.2-rc.3
+export EVERLINGO_VER=0.1.2
 
 mkdir -p ${HOST_WS_DIR}
 cd $HOST_WS_DIR

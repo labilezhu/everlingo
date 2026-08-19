@@ -167,7 +167,7 @@ https://github.com/user-attachments/assets/f4036f2c-21da-4a59-a52c-5f6ea5396a98
 
 
 
-计划实现笔记导出下载与同步到 github 功能。
+支持笔记自动同步到你指定的任意 github 等 git 仓库上。
 
 ### 多种接入方法
 
@@ -287,7 +287,7 @@ export OPENAI_EMBEDDING_MODEL=baai/bge-m3 # 语义搜索用的模型
 export EVERLINGO_PUBLIC_BASE_URL=http://your_host_ip:8000 # 能连接到将运行的 EverLingo 的地址。用于聊天消息中的笔记超链。
 export target_language=en # 目标学习语言： en/ja/zh-CN/fr/de
 
-export EVERLINGO_VER=0.1.2-rc.3
+export EVERLINGO_VER=0.1.2
 
 mkdir -p ${HOST_WS_DIR}
 cd $HOST_WS_DIR
