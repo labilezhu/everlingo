@@ -242,6 +242,8 @@ entry 中的 `new_messages` 和 `context_messages` 字段包含了触发本次�
 
 ### 嵌入聊天图片（Memory Entry 的 operation=create 时的流程）
 
+笔记中嵌入聊天图片的时机：当你准备编辑一个知识点的笔记，并且对话上下文中，用户提供过这个知识点相关的图片，则必须在笔记中嵌入聊天图片。
+
 如果 `new_messages` 或 `context_messages` 中包含 `analyze_image` 工具的返回结果（ImageAnalysis JSON），
 说明本轮对话有聊天图片。按对话上下文要求，可在新建/合并的笔记正文中嵌入该图片：
 

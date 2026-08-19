@@ -607,6 +607,7 @@ title / description / description_in_target_lang / tags（以及其他非上述�
         if supports_image:
             prompt += """
 #### 嵌入聊天图片（编辑流程）
+笔记中嵌入聊天图片的时机：当你准备编辑一个知识点的笔记，并且对话上下文中，用户提供过这个知识点相关的图片，则必须在笔记中嵌入聊天图片。
 
 编辑笔记需嵌入本轮聊天中的图片时：
 1. 按既有定位/确认流程获得 `md_file_path`（必须已 `vault_mcp_read` 加载最新原文件）。
